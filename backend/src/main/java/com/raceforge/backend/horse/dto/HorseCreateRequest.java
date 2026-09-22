@@ -73,4 +73,5 @@ public class HorseCreateRequest {
   public void setWeight(Double weight) {
       this.weight = weight;
   }
+  
 }

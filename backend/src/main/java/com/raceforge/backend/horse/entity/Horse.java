@@ -14,6 +14,18 @@ public class Horse{
   @Column(name = "horse_id")
   private Long horseId;
 
+  // @ManyToOne
+  // @JoinColumn(name = "club_id")
+  // private Club club;
+
+  // @ManyToOne
+  // @JoinColumn(name = "owner_id")
+  // private User owner;
+
+  // @ManyToOne
+  // @JoinColumn(name = "head_trainer_id")
+  // private User headTrainer;
+
   @Column(name = "horse_name", nullable = false)
   private String horseName;
 
@@ -50,18 +62,6 @@ public class Horse{
   public Long getHorseId() {
       return horseId;
   }
-
-  // @ManyToOne
-  // @JoinColumn(name = "club_id")
-  // private Club club;
-
-  // @ManyToOne
-  // @JoinColumn(name = "owner_id")
-  // private User owner;
-
-  // @ManyToOne
-  // @JoinColumn(name = "head_trainer_id")
-  // private User headTrainer;
   
   public void setHorseId(Long horseId) {
       this.horseId = horseId;

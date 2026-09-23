@@ -12,7 +12,7 @@ public class Horse{
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   @Column(name = "horse_id")
-  private Long horseId;
+  private String horseId;
 
   // @ManyToOne
   // @JoinColumn(name = "club_id")
@@ -59,11 +59,11 @@ public class Horse{
   public Horse() {
   }
 
-  public Long getHorseId() {
+  public String getHorseId() {
       return horseId;
   }
   
-  public void setHorseId(Long horseId) {
+  public void setHorseId(String horseId) {
       this.horseId = horseId;
   }
 

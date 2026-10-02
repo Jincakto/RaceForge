@@ -64,7 +64,6 @@ function AuthPage({ mode, go, onRegister, onLogin }) {
 
 function OnboardingPage({ user, onLogout, go }) {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [showInfo, setShowInfo] = useState(false)
   const firstName = user.name.trim().split(/\s+/).at(-1)
   const initials = user.name.trim().split(/\s+/).slice(-2).map((part) => part[0]).join('').toUpperCase()
   return <main className="onboarding-page">
@@ -73,10 +72,43 @@ function OnboardingPage({ user, onLogout, go }) {
       {menuOpen && <div className="account-dropdown"><div className="account-details"><b>{user.name}</b><span>{user.email}</span></div><button className="account-logout" onClick={onLogout}><span>→</span> Đăng xuất</button></div>}
     </div>
     <section className="onboarding-content"><div className="onboarding-horse-mark">♞</div><div className="onboarding-welcome"><span className="onboarding-eyebrow">RACEFORCE · CHÀO MỪNG BẠN</span><h1>Chào mừng, {firstName}!</h1><p>Tài khoản đã xác thực. Hãy tham gia một trung tâm huấn luyện.</p></div>
-      <button className="join-center-card" onClick={() => setShowInfo(!showInfo)}><span className="join-icon">🤝</span><b>Tham gia trung tâm huấn luyện</b><span className="join-description">Tìm và gửi yêu cầu vào trung tâm. Quản lý sẽ xét duyệt và phân công vai trò cho bạn.</span><strong>Tìm trung tâm <span>→</span></strong></button>
-      {showInfo && <p className="onboarding-info">Tính năng tìm trung tâm sẽ sớm có trong bản tiếp theo.</p>}
+      <button className="join-center-card" onClick={() => go('join-center')}><span className="join-icon">🤝</span><b>Tham gia trung tâm huấn luyện</b><span className="join-description">Tìm và gửi yêu cầu vào trung tâm. Quản lý sẽ xét duyệt và phân công vai trò cho bạn.</span><strong>Tìm trung tâm <span>→</span></strong></button>
       <p className="manager-only-note">Chỉ Quản lý trung tâm mới có quyền tạo trung tâm mới.</p>
     </section>
+    <button className="help-button" aria-label="Trợ giúp">?</button>
+  </main>
+}
+
+const availableCenters = [
+  { id: 'saigon-racing', name: 'Saigon Racing Center', location: 'TP. Hồ Chí Minh', members: 6, founded: 2015, description: 'Trung tâm huấn luyện ngựa đua hàng đầu tại Việt Nam, thành lập năm 2015 với đội ngũ chuyên nghiệp.', letter: 'S' },
+  { id: 'hanoi-equestrian', name: 'Hanoi Equestrian Center', location: 'Hà Nội', members: 12, founded: 2010, description: 'Trung tâm huấn luyện ngựa đua truyền thống tại Hà Nội, chuyên về các giải đua quốc gia và quốc tế.', letter: 'H' },
+]
+
+function JoinCenterPage({ user, onLogout, go }) {
+  const [search, setSearch] = useState('')
+  const requestKey = `raceforce-demo-requests-${user.email}`
+  const [requested, setRequested] = useState(() => {
+    try { return JSON.parse(window.localStorage.getItem(requestKey) || '[]') } catch { return [] }
+  })
+  const filtered = availableCenters.filter(center => center.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
+  const sendRequest = (centerId) => {
+    const updated = [...new Set([...requested, centerId])]
+    setRequested(updated)
+    window.localStorage.setItem(requestKey, JSON.stringify(updated))
+  }
+  const initials = user.name.trim().split(/\s+/).slice(-2).map(part => part[0]).join('').toUpperCase()
+  const [menuOpen, setMenuOpen] = useState(false)
+  return <main className="join-page">
+    <div className="join-page-account"><button className="join-page-avatar" aria-label="Mở menu tài khoản" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{initials || 'U'}</button>{menuOpen && <div className="account-dropdown"><div className="account-details"><b>{user.name}</b><span>{user.email}</span></div><button className="account-logout" onClick={onLogout}><span>→</span> Đăng xuất</button></div>}</div>
+    <div className="join-page-content"><button className="join-back" onClick={() => go('onboarding')}>← Quay lại</button>
+      <header className="join-page-heading"><span className="join-page-icon">🤝</span><h1>Tham gia trung tâm</h1><p>Gửi yêu cầu và chờ Quản lý phân công vai trò</p></header>
+      <label className="center-search"><span>🔍</span><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm tên trung tâm..." aria-label="Tìm tên trung tâm"/></label>
+      <section className="center-list" aria-label="Danh sách trung tâm">{filtered.map(center => {
+        const sent = requested.includes(center.id)
+        return <article className="center-card" key={center.id}><div className="center-logo">{center.letter}</div><div className="center-details"><h2>{center.name}</h2><div className="center-meta"><span>📍 {center.location}</span><span>👥 {center.members} thành viên</span><span>{center.founded}</span></div><p>{center.description}</p></div><button className={`center-request-button ${sent ? 'center-request-sent' : ''}`} disabled={sent} onClick={() => sendRequest(center.id)}>{sent ? '✓ Đã gửi' : 'Gửi yêu cầu'}</button></article>
+      })}{filtered.length === 0 && <div className="centers-empty">Không tìm thấy trung tâm phù hợp.</div>}</section>
+      {requested.length > 0 && <div className="request-confirmation"><b>✓ Yêu cầu đã được gửi!</b><span>Quản lý trung tâm sẽ xem xét yêu cầu của bạn.</span></div>}
+    </div>
     <button className="help-button" aria-label="Trợ giúp">?</button>
   </main>
 }
@@ -149,6 +181,7 @@ export default function App() {
     go('login')
   }
   if (page === 'manager') return <ManagerDashboard go={go}/>
+  if (page === 'join-center' && user) return <JoinCenterPage user={user} onLogout={logout} go={go}/>
   if (page === 'onboarding' && user) return <OnboardingPage user={user} onLogout={logout} go={go}/> 
   return page === 'login' || page === 'register' ? <AuthPage mode={page} go={go} onRegister={register} onLogin={login}/> : <Home go={go}/>
 }

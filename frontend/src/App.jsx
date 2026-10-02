@@ -88,11 +88,18 @@ function JoinCenterPage({ user, onLogout, go }) {
   const [search, setSearch] = useState('')
   const requestKey = `raceforce-demo-requests-${user.email}`
   const [requested, setRequested] = useState(() => {
-    try { return JSON.parse(window.localStorage.getItem(requestKey) || '[]') } catch { return [] }
+    try {
+      const saved = JSON.parse(window.localStorage.getItem(requestKey) || '[]')
+      return saved.map(item => typeof item === 'string' ? { clubId: item, requestedAt: '02/10/2026', expiresAt: '09/10/2026', status: 'pending' } : item)
+    } catch { return [] }
   })
   const filtered = availableCenters.filter(center => center.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
   const sendRequest = (centerId) => {
-    const updated = [...new Set([...requested, centerId])]
+    const now = new Date()
+    const expires = new Date(now)
+    expires.setDate(expires.getDate() + 7)
+    const formatDate = date => date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    const updated = [...requested, { clubId: centerId, requestedAt: formatDate(now), expiresAt: formatDate(expires), status: 'pending' }]
     setRequested(updated)
     window.localStorage.setItem(requestKey, JSON.stringify(updated))
   }
@@ -104,11 +111,33 @@ function JoinCenterPage({ user, onLogout, go }) {
       <header className="join-page-heading"><span className="join-page-icon">🤝</span><h1>Tham gia trung tâm</h1><p>Gửi yêu cầu và chờ Quản lý phân công vai trò</p></header>
       <label className="center-search"><span>🔍</span><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm tên trung tâm..." aria-label="Tìm tên trung tâm"/></label>
       <section className="center-list" aria-label="Danh sách trung tâm">{filtered.map(center => {
-        const sent = requested.includes(center.id)
+        const sent = requested.some(request => request.clubId === center.id)
         return <article className="center-card" key={center.id}><div className="center-logo">{center.letter}</div><div className="center-details"><h2>{center.name}</h2><div className="center-meta"><span>📍 {center.location}</span><span>👥 {center.members} thành viên</span><span>{center.founded}</span></div><p>{center.description}</p></div><button className={`center-request-button ${sent ? 'center-request-sent' : ''}`} disabled={sent} onClick={() => sendRequest(center.id)}>{sent ? '✓ Đã gửi' : 'Gửi yêu cầu'}</button></article>
       })}{filtered.length === 0 && <div className="centers-empty">Không tìm thấy trung tâm phù hợp.</div>}</section>
-      {requested.length > 0 && <div className="request-confirmation"><b>✓ Yêu cầu đã được gửi!</b><span>Quản lý trung tâm sẽ xem xét yêu cầu của bạn.</span></div>}
+      {requested.length > 0 && <div className="request-confirmation"><b>✓ Yêu cầu đã được gửi!</b><span>Quản lý sẽ xem xét và phân công vai trò.</span><button onClick={() => go('pending')}>Xem trạng thái →</button></div>}
     </div>
+    <button className="help-button" aria-label="Trợ giúp">?</button>
+  </main>
+}
+
+function PendingPage({ user, onLogout, go }) {
+  const requestKey = `raceforce-demo-requests-${user.email}`
+  let requests = []
+  try { requests = JSON.parse(window.localStorage.getItem(requestKey) || '[]') } catch { requests = [] }
+  requests = requests.map(item => typeof item === 'string' ? { clubId: item, requestedAt: '02/10/2026', expiresAt: '09/10/2026', status: 'pending' } : item)
+  const initials = user.name.trim().split(/\s+/).slice(-2).map(part => part[0]).join('').toUpperCase()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const centerById = Object.fromEntries(availableCenters.map(center => [center.id, center]))
+  return <main className="pending-page">
+    <div className="join-page-account"><button className="join-page-avatar" aria-label="Mở menu tài khoản" aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{initials || 'U'}</button>{menuOpen && <div className="account-dropdown"><div className="account-details"><b>{user.name}</b><span>{user.email}</span></div><button className="account-logout" onClick={onLogout}><span>→</span> Đăng xuất</button></div>}</div>
+    <section className="pending-content"><div className="pending-hourglass">⌛</div><h1>Đang chờ duyệt</h1><p className="pending-subtitle">Yêu cầu tham gia đang được Quản lý xem xét.</p>
+      <div className="pending-list">{requests.map((request, index) => {
+        const center = centerById[request.clubId]
+        if (!center) return null
+        return <article className="pending-request-card" key={`${request.clubId}-${index}`}><div className="center-logo">{center.letter}</div><div className="pending-request-info"><b>{center.name}</b><span>{request.requestedAt} · Hết hạn {request.expiresAt}</span></div><span className="pending-status">{request.status || 'pending'}</span></article>
+      })}</div>
+      <button className="pending-find-more" onClick={() => go('join-center')}>Tìm trung tâm khác</button>
+    </section>
     <button className="help-button" aria-label="Trợ giúp">?</button>
   </main>
 }
@@ -181,6 +210,7 @@ export default function App() {
     go('login')
   }
   if (page === 'manager') return <ManagerDashboard go={go}/>
+  if (page === 'pending' && user) return <PendingPage user={user} onLogout={logout} go={go}/>
   if (page === 'join-center' && user) return <JoinCenterPage user={user} onLogout={logout} go={go}/>
   if (page === 'onboarding' && user) return <OnboardingPage user={user} onLogout={logout} go={go}/> 
   return page === 'login' || page === 'register' ? <AuthPage mode={page} go={go} onRegister={register} onLogin={login}/> : <Home go={go}/>

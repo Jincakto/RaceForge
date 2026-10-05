@@ -1,0 +1,123 @@
+{
+  "source": "New folder/src/App.tsx",
+  "pages": [
+    {
+      "name": "HomePage",
+      "file": "src/pages/public/HomePage.tsx"
+    },
+    {
+      "name": "LoginPage",
+      "file": "src/pages/public/LoginPage.tsx"
+    },
+    {
+      "name": "RegisterPage",
+      "file": "src/pages/public/RegisterPage.tsx"
+    },
+    {
+      "name": "ManagerDashboard",
+      "file": "src/pages/dashboard/ManagerDashboard.tsx"
+    }
+  ],
+  "declarations": [
+    {
+      "name": "Page",
+      "file": "src/types/reference.ts",
+      "sha256": "854addabe3be5ad4ef4e4ece30245dd831d3a7ed48387c3200e6fe61ca7eb82c"
+    },
+    {
+      "name": "AppState",
+      "file": "src/types/reference.ts",
+      "sha256": "af28c67b547fabd4f53c3d893632f7df15da08fe52ccd804e70f9842787b4d1c"
+    },
+    {
+      "name": "ROLE_LABELS",
+      "file": "src/types/reference.ts",
+      "sha256": "8a6f0e68de4acd2086603ca7d95752923189eb23b3837d54101c055f569680be"
+    },
+    {
+      "name": "DEMO_ACCOUNTS",
+      "file": "src/types/reference.ts",
+      "sha256": "867373229c8924c6ba7c45736f814bccee5cc1cc6431ff58195ff97cd9930d5f"
+    },
+    {
+      "name": "NAV_ITEMS",
+      "file": "src/types/reference.ts",
+      "sha256": "b81d4893d89750bc61b0f9a1a044545369060f28ef27b54cc595186ae3cf635f"
+    },
+    {
+      "name": "GRANTABLE_PAGES",
+      "file": "src/types/reference.ts",
+      "sha256": "b8f6c51d6e08c20446b8333aa39bad06d89ff94dddc1a0183f076aad4cc7dd28"
+    },
+    {
+      "name": "Badge",
+      "file": "src/components/common/Badge.tsx",
+      "sha256": "a45667ce4d17bd05d83b3552320d234544ca52b66409a063243fe3b01098f18f"
+    },
+    {
+      "name": "Card",
+      "file": "src/components/common/Card.tsx",
+      "sha256": "7a5ba3cc2b9186ffeb3ea11a6ae9e0191d364a7fc8e620e491ef7ffe1490383a"
+    },
+    {
+      "name": "Btn",
+      "file": "src/components/common/Button.tsx",
+      "sha256": "b198ffc86e08826f0725b0b7b184fd00566e07065a60a86bfa47417332cb56cb"
+    },
+    {
+      "name": "StatCard",
+      "file": "src/components/common/StatCard.tsx",
+      "sha256": "97412bf708d014d92634660138baff8ba1f4b89160fc047940ba2f38a9ac1ff5"
+    },
+    {
+      "name": "SuccessToast",
+      "file": "src/components/common/SuccessToast.tsx",
+      "sha256": "e5bce4d1205212ff61d743bf4854e5c49cfd58953ec2ffb918426bcd7bbaedf8"
+    },
+    {
+      "name": "OTPModal",
+      "file": "src/components/common/OTPModal.tsx",
+      "sha256": "657b66e6a78722ebc36a6499c3d46e94038b3355306e1a7a25c35231cfd83775"
+    },
+    {
+      "name": "HomePage",
+      "file": "src/pages/public/HomePage.tsx",
+      "sha256": "59baf275430e0930b604266975492f5b4b09e3f8dcbb600e8c907c568b5b89ca"
+    },
+    {
+      "name": "LoginPage",
+      "file": "src/pages/public/LoginPage.tsx",
+      "sha256": "5dfdcd0d7026a4fbdccd56db99a849b6b48dd5924c04c75d97d6c467ae82057d"
+    },
+    {
+      "name": "RegisterPage",
+      "file": "src/pages/public/RegisterPage.tsx",
+      "sha256": "06ea9f7be8765e6673c077a170393c2833903b3c4a897eedfab2c58216ac7232"
+    },
+    {
+      "name": "Sidebar",
+      "file": "src/components/layout/Sidebar.tsx",
+      "sha256": "00a89c23ba7c610264286a0f0a4a488cd6485d2763901d6a29dc26c52b1653d2"
+    },
+    {
+      "name": "AppLayout",
+      "file": "src/components/layout/AppLayout.tsx",
+      "sha256": "eb7efbf0b1f7fe98171253293e1a68d85d504b9887173bba9c5cd7234cf0fd77"
+    },
+    {
+      "name": "ManagerDashboard",
+      "file": "src/pages/dashboard/ManagerDashboard.tsx",
+      "sha256": "3974b770a4715fcc8e04c03d67c84236e5c56b56d81ced77d930008c87e472d8"
+    }
+  ],
+  "files": [
+    {
+      "file": "src/data.ts",
+      "sha256": "342430b9de71d5886b406e92d1c05ed0b362eb79d83d45b37b44adf2ad78ca92"
+    },
+    {
+      "file": "src/index.css",
+      "sha256": "4b239c2c0b09d99c35316e9fa50c837f66078d2fd1bd1b7fb6195179e31280ae"
+    }
+  ]
+}

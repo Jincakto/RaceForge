@@ -91,6 +91,14 @@ const availableCenters = [
   { id: 'hanoi-equestrian', name: 'Hanoi Equestrian Center', location: 'Hà Nội', members: 12, founded: 2010, description: 'Trung tâm huấn luyện ngựa đua truyền thống tại Hà Nội, chuyên về các giải đua quốc gia và quốc tế.', letter: 'H' },
 ]
 
+function createJoinRequest(clubId) {
+  const now = new Date()
+  const expires = new Date(now)
+  expires.setDate(expires.getDate() + 7)
+  const formatDate = date => date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return { clubId, requestedAt: formatDate(now), expiresAt: formatDate(expires), status: 'pending' }
+}
+
 function JoinCenterPage({ user, onLogout, go }) {
   const [search, setSearch] = useState('')
   const requestKey = `raceforce-demo-requests-${user.email}`
@@ -104,11 +112,7 @@ function JoinCenterPage({ user, onLogout, go }) {
   const initials = user.name.trim().split(/\s+/).slice(-2).map(part => part[0]).join('').toUpperCase()
   const [menuOpen, setMenuOpen] = useState(false)
   const sendRequest = (centerId) => {
-    const now = new Date()
-    const expires = new Date(now)
-    expires.setDate(expires.getDate() + 7)
-    const formatDate = date => date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
-    const updated = [...requested, { clubId: centerId, requestedAt: formatDate(now), expiresAt: formatDate(expires), status: 'pending' }]
+    const updated = [...requested, createJoinRequest(centerId)]
     setRequested(updated)
     window.localStorage.setItem(requestKey, JSON.stringify(updated))
   }
@@ -172,7 +176,6 @@ function ManagerDashboard({ go }) {
   const pendingMemberCount = club.memberRequests.filter(item => item.status === 'pending').length
   const readyCount = club.horses.filter(item => item.status === 'Đủ điều kiện').length
   const staffCount = club.staff.filter(item => item.active).length
-  const [period, setPeriod] = useState('7 ngày qua')
   const [menuOpen, setMenuOpen] = useState(false)
   const onNav = (label) => { setActive(label); if (label === 'Tổng quan') return; }
   return <main className="manager-app">
@@ -192,7 +195,7 @@ function ManagerDashboard({ go }) {
         <article className="manager-stat"><div className="stat-top"><span>NHÂN SỰ</span><i className="stat-icon people-stat-icon">♧</i></div><div className="stat-value">{staffCount} <small>thành viên</small></div><div className="stat-foot"><span className="stat-trend">Đang hoạt động</span><span>Trong trung tâm</span></div><div className="mini-avatars"><i>LT</i><i>TH</i><i>QM</i><i>+9</i></div></article>
         <article className="manager-stat"><div className="stat-top"><span>YÊU CẦU CHỜ DUYỆT</span><i className="stat-icon pending-stat-icon">◷</i></div><div className="stat-value">{pendingHorseCount + pendingMemberCount} <small>yêu cầu</small></div><div className="stat-foot"><span className="stat-pending">Cần xử lý</span><span>{pendingMemberCount} thành viên · {pendingHorseCount} ngựa</span></div><button className="stat-action" onClick={() => setActive('Yêu cầu tham gia')}>Xem yêu cầu <span>→</span></button></article></div>
       <div className="manager-main-grid"><section className="manager-card horse-card"><div className="manager-card-heading"><div><h2>Ngựa trong trung tâm</h2><p>Danh sách ngựa đang được quản lý</p></div><button onClick={() => setActive('Ngựa trong trung tâm')}>Xem tất cả <span>→</span></button></div><div className="horse-table"><div className="horse-table-head"><span>TÊN NGỰA</span><span>GIỐNG · TUỔI</span><span>TÌNH TRẠNG</span><span>HIỆU SUẤT</span></div>{club.horses.slice(0, 5).map((horse,i)=><div className="horse-row" key={horse.id}><div className="horse-identity"><img src={`https://images.unsplash.com/${(managerHorses[i % managerHorses.length].image)}?auto=format&fit=crop&w=100&h=100&q=75`} alt=""/><div className="horse-name"><b>{horse.name}</b><small>RF-2026-{String(i+21).padStart(3,'0')}</small></div></div><div className="horse-breed">{horse.breed}<small>{horse.age} tuổi</small></div><div><span className={`horse-status status-${horse.status === 'Đủ điều kiện' ? 'green' : 'amber'}`}><i/>{horse.status}</span></div><div className="horse-performance"><b>{[92,76,88][i] ?? '—'}<small>/100</small></b><span className="performance-line"><i style={{width:`${[92,76,88][i] ?? 0}%`}}/></span></div></div>)}</div><button className="mobile-see-all" onClick={() => setActive('Ngựa trong trung tâm')}>Xem toàn bộ danh sách →</button></section>
-        <section className="manager-card performance-card"><div className="manager-card-heading"><div><h2>Hiệu suất trung tâm</h2><p>Tốc độ và thể lực trung bình</p></div><select value={period} onChange={e=>setPeriod(e.target.value)} aria-label="Khoảng thời gian"><option>7 ngày qua</option><option>30 ngày qua</option><option>Mùa giải</option></select></div><div className="chart-legend"><span><i/> Tốc độ TB <b>58.6 <small>km/h</small></b></span><span><i/> Thể lực TB <b>84 <small>%</small></b></span></div><div className="manager-chart"><div className="chart-y"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div><div className="chart-area"><div className="chart-gridlines"><i/><i/><i/><i/><i/></div><div className="chart-bars">{trend.map((v,i)=><div className="chart-column" key={i}><i style={{height:`${v}%`}}/><b style={{height:`${Math.max(20,v-17)}%`}}/></div>)}</div><div className="chart-x"><span>24 T.9</span><span>26 T.9</span><span>28 T.9</span><span>01 T.10</span></div></div></div><div className="chart-footer"><span>Số liệu biểu đồ minh họa · So với tuần trước</span><b>↗ 8.4% <small>tăng trưởng</small></b></div></section></div>
+        <section className="manager-card performance-card"><div className="manager-card-heading"><div><h2>Hiệu suất trung tâm</h2><p>Tốc độ và thể lực trung bình</p></div><span>Số liệu minh họa</span></div><div className="chart-legend"><span><i/> Tốc độ TB <b>58.6 <small>km/h</small></b></span><span><i/> Thể lực TB <b>84 <small>%</small></b></span></div><div className="manager-chart"><div className="chart-y"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div><div className="chart-area"><div className="chart-gridlines"><i/><i/><i/><i/><i/></div><div className="chart-bars">{trend.map((v,i)=><div className="chart-column" key={i}><i style={{height:`${v}%`}}/><b style={{height:`${Math.max(20,v-17)}%`}}/></div>)}</div><div className="chart-x"><span>24 T.9</span><span>26 T.9</span><span>28 T.9</span><span>01 T.10</span></div></div></div><div className="chart-footer"><span>Số liệu biểu đồ minh họa · So với tuần trước</span><b>↗ 8.4% <small>tăng trưởng</small></b></div></section></div>
       <div className="manager-bottom-grid"><section className="manager-card requests-card"><div className="manager-card-heading"><div><h2>Yêu cầu cần xử lý</h2><p>Các yêu cầu đang chờ duyệt</p></div></div>{[...club.horseRequests.filter(item => item.status === 'pending').map(item => ({ ...item, page: 'Duyệt đăng ký ngựa' })), ...club.memberRequests.filter(item => item.status === 'pending').map(item => ({ ...item, page: 'Yêu cầu tham gia' }))].slice(0, 4).map(item => <div className="request-item" key={item.id}><div className="request-copy"><b>{item.name}</b><small>{item.page}</small></div><button className="request-open" aria-label={'Xem yêu cầu ' + item.name} onClick={() => setActive(item.page)}>→</button></div>)}{!pendingHorseCount && !pendingMemberCount && <p>Không có yêu cầu chờ duyệt.</p>}</section><section className="manager-card activity-card"><div className="manager-card-heading"><div><h2>Hoạt động gần đây</h2><p>Nhật ký thao tác quản lý</p></div><button onClick={() => setActive('Báo cáo')}>Nhật ký →</button></div>{club.activity.slice(0, 4).map(item => <div className="activity-item" key={item.id}><span className="activity-marker marker-gold">✓</span><div><b>{item.message}</b><small>{new Date(item.at).toLocaleString('vi-VN')}</small></div></div>)}{!club.activity.length && <p>Chưa có hoạt động quản lý.</p>}</section></div>
       </>}<footer className="manager-footer"><span>RACEFORCE <i>·</i> ROYAL STABLES</span><span>DỮ LIỆU MINH HỌA <i>·</i> FRONTEND PREVIEW</span></footer></div></section>
   </main>

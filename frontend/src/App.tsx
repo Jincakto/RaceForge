@@ -1,0 +1,67 @@
+import { useCallback, useEffect, useState } from 'react';
+import { type AppState, type Page } from './types/reference';
+import {
+  SEED_USERS, SEED_CLUBS, SEED_REQUESTS, HORSES, SEED_HORSE_CLUB_REQUESTS,
+  MEDICAL_RECORDS, TRAINING_PLANS, TRAINING_SESSIONS, GROOM_TASKS, NOTIFICATIONS,
+  type AppUser,
+} from './data';
+import { HomePage } from './pages/public/HomePage';
+import { LoginPage } from './pages/public/LoginPage';
+import { RegisterPage } from './pages/public/RegisterPage';
+import { ManagerDashboard } from './pages/dashboard/ManagerDashboard';
+import { AppLayout } from './components/layout/AppLayout';
+import { SuccessToast } from './components/common/SuccessToast';
+
+const availablePages = new Set<Page>(['home', 'login', 'register', 'dashboard']);
+function pageFromLocation(): Page {
+  const path = window.location.pathname.replace(/^\//, '');
+  if (path === 'manager' || path === 'dashboard') return 'dashboard';
+  return path === 'login' || path === 'register' ? path : 'home';
+}
+
+export default function App() {
+  const [state, setState] = useState<AppState>(() => ({
+    user: null, page: typeof window === 'undefined' ? 'home' : pageFromLocation(),
+    users: SEED_USERS, clubs: SEED_CLUBS, memberRequests: SEED_REQUESTS,
+    horses: HORSES, horseClubRequests: SEED_HORSE_CLUB_REQUESTS,
+    healthRecords: MEDICAL_RECORDS, trainingPlans: TRAINING_PLANS, trainingSessions: TRAINING_SESSIONS,
+    tasks: GROOM_TASKS, notifications: NOTIFICATIONS,
+    selectedHorseId: 'RH-001', trainerSelectHorseId: null, viewTrainerId: null,
+    showSuccess: null, userPermissions: {},
+  }));
+  useEffect(() => {
+    if (!state.showSuccess) return;
+    const timer = setTimeout(() => setState(current => ({ ...current, showSuccess: null })), 3000);
+    return () => clearTimeout(timer);
+  }, [state.showSuccess]);
+  useEffect(() => {
+    const onBack = () => setState(current => ({ ...current, page: pageFromLocation() }));
+    window.addEventListener('popstate', onBack);
+    return () => window.removeEventListener('popstate', onBack);
+  }, []);
+  const navigate = useCallback((page: Page) => {
+    if (!availablePages.has(page)) {
+      setState(current => ({ ...current, showSuccess: 'Trang này sẽ được triển khai ở đợt sau.' }));
+      return;
+    }
+    setState(current => ({ ...current, page, user: page === 'login' ? null : current.user }));
+    window.history.pushState({}, '', page === 'home' ? '/' : page === 'dashboard' ? '/manager' : `/${page}`);
+    window.scrollTo(0, 0);
+  }, []);
+  const handleLogin = useCallback((user: AppUser) => {
+    setState(current => ({ ...current, user }));
+    navigate(user.role === 'manager' ? 'dashboard' : 'home');
+    if (user.role !== 'manager') setState(current => ({ ...current, showSuccess: 'Đăng nhập thành công. Trang dành cho vai trò của bạn sẽ được triển khai sau.' }));
+  }, [navigate]);
+  const handleRegister = useCallback((user: AppUser) => {
+    setState(current => ({ ...current, users: [...current.users, user] }));
+    navigate('login');
+    setState(current => ({ ...current, showSuccess: 'OTP xác thực thành công. Bạn có thể đăng nhập.' }));
+  }, [navigate]);
+  let content;
+  if (state.page === 'register') content = <RegisterPage navigate={navigate} onRegister={handleRegister} />;
+  else if (state.page === 'login' || (state.page === 'dashboard' && !state.user)) content = <LoginPage navigate={navigate} users={state.users} onLogin={handleLogin} />;
+  else if (state.page === 'dashboard' && state.user?.role === 'manager') content = <AppLayout user={state.user} page="dashboard" title="Dashboard" navigate={navigate} state={state}><ManagerDashboard state={state} navigate={navigate} /></AppLayout>;
+  else content = <HomePage navigate={navigate} />;
+  return <>{state.showSuccess && <SuccessToast message={state.showSuccess} />}{content}</>;
+}

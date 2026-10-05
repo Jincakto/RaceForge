@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import * as auth from './services/demoAuth'
+import RegistrationOTP from './components/common/RegistrationOTP'
 import './App.css'
 import './Manager.css'
 import './Onboarding.css'
@@ -36,25 +38,28 @@ function AuthPage({ mode, go, onRegister, onLogin }) {
   const isRegister = mode === 'register'
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirm: '' })
   const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [remember, setRemember] = useState(false)
   const set = (key) => (event) => setForm({ ...form, [key]: event.target.value })
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault()
     if (isRegister && form.password !== form.confirm) return setMessage('Mật khẩu xác nhận chưa khớp.')
-    if (isRegister && form.password.length < 6) return setMessage('Mật khẩu cần có ít nhất 6 ký tự.')
-    setMessage('')
-    if (isRegister) onRegister({ name: form.name.trim(), email: form.email.trim().toLowerCase(), phone: form.phone, password: form.password })
-    else if (!onLogin(form.email.trim().toLowerCase(), form.password)) setMessage('Email hoặc mật khẩu không chính xác. Nếu chưa có tài khoản, hãy đăng ký trước.')
+    setMessage(''); setBusy(true)
+    try {
+      if (isRegister) await onRegister(form)
+      else await onLogin(form.email, form.password, remember)
+    } catch (error) { setMessage(error.message) } finally { setBusy(false) }
   }
   return <main className="auth-page"><section className="auth-panel"><div className="auth-inner"><Brand onClick={() => go('home')} /><button className="back-home" onClick={() => go('home')}>← <span>Quay lại trang chủ</span></button><div className="auth-heading"><div className="eyebrow muted-eyebrow">{isRegister ? 'BẮT ĐẦU HÀNH TRÌNH' : 'CHÀO MỪNG TRỞ LẠI'}</div><h1>{isRegister ? 'Tạo tài khoản' : 'Đăng nhập'}</h1><p>{isRegister ? 'Tham gia cộng đồng chăm sóc và huấn luyện ngựa đua.' : 'Đăng nhập để tiếp tục công việc của bạn.'}</p></div>
     <form className="auth-form" onSubmit={submit}>
       {isRegister && <label>Họ và tên<input required value={form.name} onChange={set('name')} placeholder="Nguyễn Minh Anh" autoComplete="name"/></label>}
       <label>Email<input required type="email" value={form.email} onChange={set('email')} placeholder="ten@email.com" autoComplete="email"/></label>
       {isRegister && <label>Số điện thoại <span className="optional">Không bắt buộc</span><input type="tel" value={form.phone} onChange={set('phone')} placeholder="0912 345 678" autoComplete="tel"/></label>}
-      <label>Mật khẩu<input required type="password" minLength="6" value={form.password} onChange={set('password')} placeholder="Ít nhất 6 ký tự" autoComplete={isRegister ? 'new-password' : 'current-password'}/></label>
+      <label>Mật khẩu<input required type="password" minLength="8" value={form.password} onChange={set('password')} placeholder="Ít nhất 8 ký tự" autoComplete={isRegister ? 'new-password' : 'current-password'}/></label>
       {isRegister && <label>Xác nhận mật khẩu<input required type="password" value={form.confirm} onChange={set('confirm')} placeholder="Nhập lại mật khẩu" autoComplete="new-password"/></label>}
-      {message && <p className="form-error">{message}</p>}
-      {!isRegister && <div className="forgot-row"><label className="remember"><input type="checkbox"/> Ghi nhớ đăng nhập</label><button type="button" onClick={() => setMessage('Vui lòng liên hệ quản trị viên để đặt lại mật khẩu.')}>Quên mật khẩu?</button></div>}
-      <button className="button button-gold submit-button" type="submit">{isRegister ? 'Tạo tài khoản' : 'Đăng nhập'} <span>→</span></button>
+      {message && <p role="alert" className="form-error">{message}</p>}
+      {!isRegister && <div className="forgot-row"><label className="remember"><input type="checkbox" checked={remember} onChange={event => setRemember(event.target.checked)}/> Ghi nhớ đăng nhập</label><button type="button" onClick={() => setMessage('Vui lòng liên hệ quản trị viên để đặt lại mật khẩu.')}>Quên mật khẩu?</button></div>}
+      <button className="button button-gold submit-button" type="submit" disabled={busy}>{busy ? 'Đang xử lý...' : isRegister ? 'Tạo tài khoản' : 'Đăng nhập'} <span>→</span></button>
       {!isRegister && <button className="manager-demo-link" type="button" onClick={() => go('manager')}>Xem thử giao diện Club Manager <span>↗</span></button>}
     </form>
     <p className="auth-switch">{isRegister ? 'Đã có tài khoản?' : 'Chưa có tài khoản?'} <button onClick={() => go(isRegister ? 'login' : 'register')}>{isRegister ? 'Đăng nhập' : 'Đăng ký ngay'}</button></p><div className="auth-footnote">Bằng việc tiếp tục, bạn đồng ý với <a href="#terms">Điều khoản sử dụng</a> và <a href="#privacy">Chính sách bảo mật</a>.</div></div></section>
@@ -184,34 +189,28 @@ function ManagerDashboard({ go }) {
 
 export default function App() {
   const [page, setPage] = useState(() => window.location.pathname.replace('/', '') || 'home')
-  const [user, setUser] = useState(() => {
-    try { return JSON.parse(window.localStorage.getItem('raceforce-demo-session') || 'null') } catch { return null }
-  })
-  const go = (next) => { setPage(next); window.history.pushState({}, '', next === 'home' ? '/' : `/${next}`); window.scrollTo(0, 0) }
-  const register = (newUser) => {
-    window.localStorage.setItem('raceforce-demo-account', JSON.stringify(newUser))
-    window.localStorage.setItem('raceforce-demo-session', JSON.stringify(newUser))
-    setUser(newUser)
-    go('onboarding')
+  const [user, setUser] = useState(auth.getSession)
+  const [pendingAccount, setPendingAccount] = useState(null)
+  useEffect(() => {
+    const onBack = () => setPage(window.location.pathname.replace('/', '') || 'home')
+    window.addEventListener('popstate', onBack)
+    return () => window.removeEventListener('popstate', onBack)
+  }, [])
+  const go = (next) => { setPage(next); window.history.pushState({}, '', next === 'home' ? '/' : '/' + next); window.scrollTo(0, 0) }
+  const register = async (form) => setPendingAccount(await auth.prepareRegistration(form))
+  const login = async (email, password, remember) => {
+    setUser(await auth.login(email, password, remember)); go('onboarding')
   }
-  const login = (email, password) => {
-    try {
-      const savedUser = JSON.parse(window.localStorage.getItem('raceforce-demo-account') || 'null')
-      if (!savedUser || savedUser.email !== email || savedUser.password !== password) return false
-      window.localStorage.setItem('raceforce-demo-session', JSON.stringify(savedUser))
-      setUser(savedUser)
-      go('onboarding')
-      return true
-    } catch { return false }
+  const logout = () => { auth.logout(); setUser(null); go('login') }
+  const completeRegistration = () => {
+    setUser(auth.finishRegistration(pendingAccount)); setPendingAccount(null); go('onboarding')
   }
-  const logout = () => {
-    window.localStorage.removeItem('raceforce-demo-session')
-    setUser(null)
-    go('login')
-  }
-  if (page === 'manager') return <ManagerDashboard go={go}/>
-  if (page === 'pending' && user) return <PendingPage user={user} onLogout={logout} go={go}/>
-  if (page === 'join-center' && user) return <JoinCenterPage user={user} onLogout={logout} go={go}/>
-  if (page === 'onboarding' && user) return <OnboardingPage user={user} onLogout={logout} go={go}/> 
-  return page === 'login' || page === 'register' ? <AuthPage mode={page} go={go} onRegister={register} onLogin={login}/> : <Home go={go}/>
+  let content
+  if (page === 'manager') content = <ManagerDashboard go={go}/>
+  else if (page === 'pending' && user) content = <PendingPage user={user} onLogout={logout} go={go}/>
+  else if (page === 'join-center' && user) content = <JoinCenterPage user={user} onLogout={logout} go={go}/>
+  else if (page === 'onboarding' && user) content = <OnboardingPage user={user} onLogout={logout} go={go}/>
+  else if (['login', 'register', 'pending', 'join-center', 'onboarding'].includes(page)) content = <AuthPage key={page} mode={page === 'register' ? 'register' : 'login'} go={go} onRegister={register} onLogin={login}/>
+  else content = <Home go={go}/>
+  return <>{content}{pendingAccount && <RegistrationOTP email={pendingAccount.email} onVerified={completeRegistration} onCancel={() => setPendingAccount(null)}/>}</>
 }

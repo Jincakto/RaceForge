@@ -45,32 +45,37 @@ public class HorseService {
               .toList();
   }
 
-  public HorseResponse getHorseById(Long horseId) {
+  public HorseResponse getHorseById(String horseId) {
 
-      Horse horse = horseRepository.findById(horseId)
-              .orElseThrow(() -> new RuntimeException("Horse not found"));
+    Horse horse = horseRepository.findById(horseId)
+            .orElseThrow(() ->
+                    new RuntimeException("Horse not found"));
 
-      return horseMapper.toResponse(horse);
+    return horseMapper.toResponse(horse);
   }
 
-  public HorseResponse updateHorse(Long horseId, HorseUpdateRequest request) {
+  public HorseResponse updateHorse(
+        String horseId,
+        HorseUpdateRequest request) {
 
-      Horse horse = horseRepository.findById(horseId)
-              .orElseThrow(() -> new RuntimeException("Horse not found"));
+    Horse horse = horseRepository.findById(horseId)
+            .orElseThrow(() ->
+                    new RuntimeException("Horse not found"));
 
-      horseMapper.updateEntity(request, horse);
+    horseMapper.updateEntity(request, horse);
 
-      Horse updatedHorse = horseRepository.save(horse);
+    Horse updatedHorse = horseRepository.save(horse);
 
-      return horseMapper.toResponse(updatedHorse);
+    return horseMapper.toResponse(updatedHorse);
   }
 
-  public void deleteHorse(Long horseId) {
+  public void deleteHorse(String horseId) {
 
-      Horse horse = horseRepository.findById(horseId)
-              .orElseThrow(() -> new RuntimeException("Horse not found"));
+    Horse horse = horseRepository.findById(horseId)
+            .orElseThrow(() ->
+                    new RuntimeException("Horse not found"));
 
-      horseRepository.delete(horse);
+    horseRepository.delete(horse);
   }
   
 }

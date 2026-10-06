@@ -38,3 +38,20 @@ export function assignOwnerTrainer(state: AppState, horseId: string, trainerId: 
   if (!state.user.clubId || trainer?.role !== 'head_trainer' || trainer.clubId !== state.user.clubId || trainer.status !== 'active' || !trainer.verified) throw new Error('Huấn luyện viên phải đang hoạt động trong trung tâm của bạn.');
   return { ...state, horses: state.horses.map(item => item.id === horseId ? { ...item, headTrainerId: trainer.id, headTrainerName: trainer.name } : item), trainerSelectHorseId: null };
 }
+
+export function submitOwnerHorse(state: AppState, horseId: string, at = new Date()): AppState {
+  const user = state.user;
+  const horse = state.horses.find(item => item.id === horseId);
+  if (user?.role !== 'owner' || horse?.ownerId !== user.id) throw new Error('Không tìm thấy ngựa của bạn.');
+  if (!user.clubId || !state.clubs.some(club => club.id === user.clubId)) throw new Error('Bạn cần tham gia trung tâm trước khi gửi đăng ký.');
+  if (horse.clubId) throw new Error('Ngựa đã thuộc một trung tâm.');
+  if (state.horseClubRequests.some(request => request.horseId === horseId && request.status === 'pending')) throw new Error('Ngựa đang có yêu cầu chờ duyệt.');
+  const expires = new Date(at); expires.setDate(expires.getDate() + 7);
+  const request: import('../data').HorseClubRequest = {
+    id: crypto.randomUUID(), horseId, horseName: horse.name, horseBreed: horse.breed,
+    horseImageUrl: horse.imageUrl, ownerId: user.id, ownerName: user.name, clubId: user.clubId,
+    submittedAt: at.toLocaleDateString('vi-VN'), expiresAt: expires.toLocaleDateString('vi-VN'),
+    status: 'pending', reviewNote: '',
+  };
+  return { ...state, horseClubRequests: [...state.horseClubRequests, request], horses: state.horses.map(item => item.id === horseId ? { ...item, approvalStatus: 'pending' } : item) };
+}

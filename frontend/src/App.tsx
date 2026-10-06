@@ -10,7 +10,7 @@ import { LoginPage } from './pages/public/LoginPage';
 import { RegisterPage } from './pages/public/RegisterPage';
 import { TrainerSelectPage } from './pages/staff/TrainerSelectPage';
 import { HorseCreatePage } from './pages/horses/HorseCreatePage';
-import { ownerView, addOwnerHorse, assignOwnerTrainer } from './utils/ownerActions';
+import { ownerView, addOwnerHorse, assignOwnerTrainer, submitOwnerHorse } from './utils/ownerActions';
 import { MyHorsesPage } from './pages/horses/MyHorsesPage';
 import { OwnerDashboard } from './pages/dashboard/OwnerDashboard';
 import { ManagerDashboard } from './pages/dashboard/ManagerDashboard';
@@ -79,10 +79,14 @@ export default function App() {
     try { setState(assignOwnerTrainer(state, horseId, trainerId)); navigate('my-horses'); showSuccess('Đã chọn Head Trainer.'); }
     catch (error) { showSuccess(error instanceof Error ? error.message : 'Không thể chọn Head Trainer.'); }
   };
+  const handleSubmitToCenter = (horseId: string) => {
+    try { setState(submitOwnerHorse(state, horseId)); showSuccess('Đã gửi đăng ký ngựa. Đang chờ Quản lý trung tâm duyệt.'); }
+    catch (error) { showSuccess(error instanceof Error ? error.message : 'Không thể gửi đăng ký.'); }
+  };
   const renderOwnerPage = () => {
     if (state.page === 'trainer-select') return <TrainerSelectPage user={state.user!} state={scopedOwnerState} navigate={navigate} onSelectTrainer={handleSelectTrainer} />;
     if (state.page === 'horse-create') return <HorseCreatePage user={state.user!} state={scopedOwnerState} navigate={navigate} onCreateHorse={handleCreateHorse} />;
-    if (state.page === 'my-horses') return <MyHorsesPage user={state.user!} state={scopedOwnerState} navigate={navigate} onSelectHorse={selectHorse} onSubmitToCenter={() => showSuccess('Gửi đăng ký sẽ được triển khai tiếp theo.')} />;
+    if (state.page === 'my-horses') return <MyHorsesPage user={state.user!} state={scopedOwnerState} navigate={navigate} onSelectHorse={selectHorse} onSubmitToCenter={handleSubmitToCenter} />;
     return <OwnerDashboard state={scopedOwnerState} navigate={navigate} onSelectHorse={selectHorse} />;
   };
   let content;

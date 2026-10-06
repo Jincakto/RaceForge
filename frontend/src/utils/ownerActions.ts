@@ -55,3 +55,12 @@ export function submitOwnerHorse(state: AppState, horseId: string, at = new Date
   };
   return { ...state, horseClubRequests: [...state.horseClubRequests, request], horses: state.horses.map(item => item.id === horseId ? { ...item, approvalStatus: 'pending' } : item) };
 }
+
+export function updateOwnerHorse(state: AppState, updated: import('../data').Horse): AppState {
+  const horse = state.horses.find(item => item.id === updated.id);
+  if (state.user?.role !== 'owner' || horse?.ownerId !== state.user.id || updated.ownerId !== state.user.id) throw new Error('Bạn chỉ được sửa ngựa của mình.');
+  const invalid = validateHorseFields({ ...horse, name: updated.name, weight: updated.weight, height: updated.height });
+  if (invalid) throw new Error(invalid);
+  const allowed = { name: updated.name.trim(), biography: updated.biography, weight: updated.weight, height: updated.height, stable: updated.stable, stall: updated.stall, imageUrl: updated.imageUrl };
+  return { ...state, horses: state.horses.map(item => item.id === updated.id ? { ...item, ...allowed } : item) };
+}

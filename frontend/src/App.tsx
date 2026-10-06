@@ -8,6 +8,7 @@ import {
 import { HomePage } from './pages/public/HomePage';
 import { LoginPage } from './pages/public/LoginPage';
 import { RegisterPage } from './pages/public/RegisterPage';
+import { RaceResultsPage } from './pages/performance/RaceResultsPage';
 import { PerformancePage } from './pages/performance/PerformancePage';
 import { HealthRecordsPage } from './pages/health/HealthRecordsPage';
 import { HorseDetailPage } from './pages/horses/HorseDetailPage';
@@ -20,7 +21,7 @@ import { ManagerDashboard } from './pages/dashboard/ManagerDashboard';
 import { AppLayout } from './components/layout/AppLayout';
 import { SuccessToast } from './components/common/SuccessToast';
 
-const ownerPages = new Set<Page>(['my-horses', 'horse-create', 'trainer-select', 'horse-detail', 'health-records', 'performance']);
+const ownerPages = new Set<Page>(['my-horses', 'horse-create', 'trainer-select', 'horse-detail', 'health-records', 'performance', 'race-results']);
 const availablePages = new Set<Page>(['home', 'login', 'register', 'dashboard']);
 function pageFromLocation(): Page {
   const path = window.location.pathname.replace(/^\//, '');
@@ -95,6 +96,7 @@ export default function App() {
     catch (error) { showSuccess(error instanceof Error ? error.message : 'Không thể thêm thành tích.'); }
   };
   const renderOwnerPage = () => {
+    if (state.page === 'race-results') return <RaceResultsPage horses={scopedOwnerState.horses} />;
     if (state.page === 'performance') return <PerformancePage horses={scopedOwnerState.horses} />;
     if (state.page === 'health-records') return <HealthRecordsPage state={scopedOwnerState} navigate={navigate} />;
     if (state.page === 'horse-detail') return <HorseDetailPage state={scopedOwnerState} navigate={navigate} onUpdateHorse={handleUpdateHorse} onShowSuccess={showSuccess} onAddAchievement={handleAddAchievement} />;

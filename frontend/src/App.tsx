@@ -8,6 +8,7 @@ import {
 import { HomePage } from './pages/public/HomePage';
 import { LoginPage } from './pages/public/LoginPage';
 import { RegisterPage } from './pages/public/RegisterPage';
+import { OwnerDashboard } from './pages/dashboard/OwnerDashboard';
 import { ManagerDashboard } from './pages/dashboard/ManagerDashboard';
 import { AppLayout } from './components/layout/AppLayout';
 import { SuccessToast } from './components/common/SuccessToast';
@@ -15,7 +16,7 @@ import { SuccessToast } from './components/common/SuccessToast';
 const availablePages = new Set<Page>(['home', 'login', 'register', 'dashboard']);
 function pageFromLocation(): Page {
   const path = window.location.pathname.replace(/^\//, '');
-  if (path === 'manager' || path === 'dashboard') return 'dashboard';
+  if (path === 'manager' || path === 'owner' || path === 'dashboard') return 'dashboard';
   return path === 'login' || path === 'register' ? path : 'home';
 }
 
@@ -45,13 +46,13 @@ export default function App() {
       return;
     }
     setState(current => ({ ...current, page, user: page === 'login' ? null : current.user }));
-    window.history.pushState({}, '', page === 'home' ? '/' : page === 'dashboard' ? '/manager' : `/${page}`);
+    window.history.pushState({}, '', page === 'home' ? '/' : page === 'dashboard' ? '/dashboard' : `/${page}`);
     window.scrollTo(0, 0);
   }, []);
   const handleLogin = useCallback((user: AppUser) => {
     setState(current => ({ ...current, user }));
-    navigate(user.role === 'manager' ? 'dashboard' : 'home');
-    if (user.role !== 'manager') setState(current => ({ ...current, showSuccess: 'Đăng nhập thành công. Trang dành cho vai trò của bạn sẽ được triển khai sau.' }));
+    navigate(user.role === 'manager' || user.role === 'owner' ? 'dashboard' : 'home');
+    if (user.role !== 'manager' && user.role !== 'owner') setState(current => ({ ...current, showSuccess: 'Đăng nhập thành công. Trang dành cho vai trò của bạn sẽ được triển khai sau.' }));
   }, [navigate]);
   const handleRegister = useCallback((user: AppUser) => {
     setState(current => ({ ...current, users: [...current.users, user] }));
@@ -62,6 +63,7 @@ export default function App() {
   if (state.page === 'register') content = <RegisterPage navigate={navigate} onRegister={handleRegister} />;
   else if (state.page === 'login' || (state.page === 'dashboard' && !state.user)) content = <LoginPage navigate={navigate} users={state.users} onLogin={handleLogin} />;
   else if (state.page === 'dashboard' && state.user?.role === 'manager') content = <AppLayout user={state.user} page="dashboard" title="Dashboard" navigate={navigate} state={state}><ManagerDashboard state={state} navigate={navigate} /></AppLayout>;
+  else if (state.page === 'dashboard' && state.user?.role === 'owner') content = <AppLayout user={state.user} page="dashboard" title="Dashboard — Chủ ngựa" navigate={navigate} state={state}><OwnerDashboard state={state} navigate={navigate} onSelectHorse={id => setState(current => ({ ...current, selectedHorseId: id }))} /></AppLayout>;
   else content = <HomePage navigate={navigate} />;
   return <>{state.showSuccess && <SuccessToast message={state.showSuccess} />}{content}</>;
 }

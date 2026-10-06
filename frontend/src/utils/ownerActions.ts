@@ -2,11 +2,15 @@ import { type AppState } from '../types/reference';
 
 export function ownerView(state: AppState): AppState {
   const user = state.user;
-  if (user?.role !== 'owner') return { ...state, horses: [], healthRecords: [], trainingPlans: [], trainingSessions: [], tasks: [], horseClubRequests: [], memberRequests: [] };
+  if (user?.role !== 'owner') return { ...state, horses: [], healthRecords: [], trainingPlans: [], trainingSessions: [], tasks: [], notifications: [], horseClubRequests: [], memberRequests: [] };
   const horses = state.horses.filter(horse => horse.ownerId === user.id);
   const ids = new Set(horses.map(horse => horse.id));
   return {
     ...state, horses,
+    notifications: state.notifications.filter(notification => {
+      const horseId = ({ n1: 'RH-001', n2: 'RH-001', n3: 'RH-002' } as Record<string, string>)[notification.id];
+      return horseId ? ids.has(horseId) : notification.id === 'n4' || state.horseClubRequests.some(request => request.id === notification.id && request.ownerId === user.id);
+    }),
     healthRecords: state.healthRecords.filter(record => ids.has(record.horseId)),
     trainingPlans: state.trainingPlans.filter(plan => ids.has(plan.horseId)),
     trainingSessions: state.trainingSessions.filter(session => ids.has(session.horseId)),
@@ -53,7 +57,7 @@ export function submitOwnerHorse(state: AppState, horseId: string, at = new Date
     submittedAt: at.toLocaleDateString('vi-VN'), expiresAt: expires.toLocaleDateString('vi-VN'),
     status: 'pending', reviewNote: '',
   };
-  return { ...state, horseClubRequests: [...state.horseClubRequests, request], horses: state.horses.map(item => item.id === horseId ? { ...item, approvalStatus: 'pending' } : item) };
+  return { ...state, horseClubRequests: [...state.horseClubRequests, request], notifications: [{ id: request.id, type: 'system', message: `Đã gửi đăng ký ${horse.name} vào trung tâm. Đang chờ Quản lý duyệt.`, time: 'Vừa xong', read: false }, ...state.notifications], horses: state.horses.map(item => item.id === horseId ? { ...item, approvalStatus: 'pending' } : item) };
 }
 
 export function updateOwnerHorse(state: AppState, updated: import('../data').Horse): AppState {
@@ -78,4 +82,10 @@ export function addOwnerAchievement(state: AppState, horseId: string, achievemen
   if (!achievement.title.trim() || !validDisplayDate(achievement.date)) throw new Error('Nhập tên thành tích và ngày hợp lệ dạng DD/MM/YYYY.');
   if (achievement.position !== undefined && (!Number.isInteger(achievement.position) || achievement.position < 1)) throw new Error('Thứ hạng phải là số nguyên lớn hơn 0.');
   return { ...state, horses: state.horses.map(item => item.id === horseId ? { ...item, achievements: [...item.achievements, { ...achievement, title: achievement.title.trim() }] } : item) };
+}
+
+export function markOwnerNotification(state: AppState, id: string): AppState {
+  const permitted = new Set(ownerView(state).notifications.map(item => item.id));
+  if (!permitted.has(id)) return state;
+  return { ...state, notifications: state.notifications.map(item => item.id === id ? { ...item, read: true } : item) };
 }

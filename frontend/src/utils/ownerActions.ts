@@ -30,3 +30,11 @@ export function addOwnerHorse(state: AppState, horse: import('../data').Horse): 
   if (state.horses.some(item => item.id === horse.id)) throw new Error('Mã ngựa đã tồn tại.');
   return { ...state, horses: [...state.horses, { ...horse, name: horse.name.trim(), clubId: null, ownerName: state.user.name, approvalStatus: 'pending', vetClearance: false }], selectedHorseId: horse.id, trainerSelectHorseId: horse.id };
 }
+
+export function assignOwnerTrainer(state: AppState, horseId: string, trainerId: string): AppState {
+  const horse = state.horses.find(item => item.id === horseId);
+  const trainer = state.users.find(item => item.id === trainerId);
+  if (state.user?.role !== 'owner' || horse?.ownerId !== state.user.id) throw new Error('Không tìm thấy ngựa của bạn.');
+  if (!state.user.clubId || trainer?.role !== 'head_trainer' || trainer.clubId !== state.user.clubId || trainer.status !== 'active' || !trainer.verified) throw new Error('Huấn luyện viên phải đang hoạt động trong trung tâm của bạn.');
+  return { ...state, horses: state.horses.map(item => item.id === horseId ? { ...item, headTrainerId: trainer.id, headTrainerName: trainer.name } : item), trainerSelectHorseId: null };
+}

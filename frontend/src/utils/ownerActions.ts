@@ -15,3 +15,18 @@ export function ownerView(state: AppState): AppState {
     memberRequests: state.memberRequests.filter(request => request.userId === user.id),
   };
 }
+
+export function validateHorseFields(horse: { name: string; color: string; age: number; weight: number; height: number }): string {
+  if (!horse.name.trim() || !horse.color.trim()) return 'Vui lòng nhập tên ngựa và màu lông.';
+  if (!Number.isInteger(horse.age) || horse.age < 1 || horse.age > 40) return 'Tuổi ngựa phải từ 1 đến 40.';
+  if (!Number.isFinite(horse.weight) || horse.weight <= 0 || !Number.isFinite(horse.height) || horse.height <= 0) return 'Cân nặng và chiều cao phải lớn hơn 0.';
+  return '';
+}
+
+export function addOwnerHorse(state: AppState, horse: import('../data').Horse): AppState {
+  if (state.user?.role !== 'owner' || horse.ownerId !== state.user.id) throw new Error('Bạn chỉ được tạo hồ sơ ngựa của mình.');
+  const invalid = validateHorseFields(horse);
+  if (invalid) throw new Error(invalid);
+  if (state.horses.some(item => item.id === horse.id)) throw new Error('Mã ngựa đã tồn tại.');
+  return { ...state, horses: [...state.horses, { ...horse, name: horse.name.trim(), clubId: null, ownerName: state.user.name, approvalStatus: 'pending', vetClearance: false }], selectedHorseId: horse.id, trainerSelectHorseId: horse.id };
+}

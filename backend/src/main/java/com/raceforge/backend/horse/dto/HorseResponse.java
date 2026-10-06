@@ -4,108 +4,164 @@ import java.time.LocalDate;
 
 public class HorseResponse {
 
-  private String horseId;
-  private String horseName;
-  private LocalDate dateOfBirth;
-  private String gender;
-  private String breed;
-  private String sire;
-  private String dam;
-  private Double weight;
+    private String horseId;
+    private String horseName;
+    private LocalDate dateOfBirth;
+    private String gender;
+    private String breed;
+    private String coatColor;
 
-  private String healthStatus;
-  private Boolean trainingLocked;
-  private String status;
+    private String sire;
+    private String dam;
+    private String damSire;
 
-  public HorseResponse() {
-  }
+    private Double weight;
+    private Double height;
 
-  public String getHorseId() {
-      return horseId;
-  }
+    private String background;
+    private String declaredMedicalHistory;
+    private String imageUrl;
 
-  public void setHorseId(String horseId) {
-      this.horseId = horseId;
-  }
+    private String healthStatus;
+    private Boolean trainingLocked;
+    private String status;
 
-  public String getHorseName() {
-      return horseName;
-  }
+    public HorseResponse() {
+    }
 
-  public void setHorseName(String horseName) {
-      this.horseName = horseName;
-  }
+    public String getHorseId() {
+        return horseId;
+    }
 
-  public LocalDate getDateOfBirth() {
-      return dateOfBirth;
-  }
+    public void setHorseId(String horseId) {
+        this.horseId = horseId;
+    }
 
-  public void setDateOfBirth(LocalDate dateOfBirth) {
-      this.dateOfBirth = dateOfBirth;
-  }
+    public String getHorseName() {
+        return horseName;
+    }
 
-  public String getGender() {
-      return gender;
-  }
+    public void setHorseName(String horseName) {
+        this.horseName = horseName;
+    }
 
-  public void setGender(String gender) {
-      this.gender = gender;
-  }
+    public LocalDate getDateOfBirth() {
+        return dateOfBirth;
+    }
 
-  public String getBreed() {
-      return breed;
-  }
+    public void setDateOfBirth(LocalDate dateOfBirth) {
+        this.dateOfBirth = dateOfBirth;
+    }
 
-  public void setBreed(String breed) {
-      this.breed = breed;
-  }
+    public String getGender() {
+        return gender;
+    }
 
-  public String getSire() {
-      return sire;
-  }
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
 
-  public void setSire(String sire) {
-      this.sire = sire;
-  }
+    public String getBreed() {
+        return breed;
+    }
 
-  public String getDam() {
-      return dam;
-  }
+    public void setBreed(String breed) {
+        this.breed = breed;
+    }
 
-  public void setDam(String dam) {
-      this.dam = dam;
-  }
+    public String getCoatColor() {
+        return coatColor;
+    }
 
-  public Double getWeight() {
-      return weight;
-  }
+    public void setCoatColor(String coatColor) {
+        this.coatColor = coatColor;
+    }
 
-  public void setWeight(Double weight) {
-      this.weight = weight;
-  }
+    public String getSire() {
+        return sire;
+    }
 
-  public String getHealthStatus(){
-    return healthStatus;
-  }
+    public void setSire(String sire) {
+        this.sire = sire;
+    }
 
-  public void setHealthStatus(String healthStatus) {
-    this.healthStatus = healthStatus;
-  }
+    public String getDam() {
+        return dam;
+    }
 
-  public Boolean getTrainingLocked() {
-      return trainingLocked;
-  }
+    public void setDam(String dam) {
+        this.dam = dam;
+    }
 
-  public void setTrainingLocked(Boolean trainingLocked) {
-      this.trainingLocked = trainingLocked;
-  }
+    public String getDamSire() {
+        return damSire;
+    }
 
-  public String getStatus() {
-      return status;
-  }
+    public void setDamSire(String damSire) {
+        this.damSire = damSire;
+    }
 
-  public void setStatus(String status) {
-      this.status = status;
-  }
-  
+    public Double getWeight() {
+        return weight;
+    }
+
+    public void setWeight(Double weight) {
+        this.weight = weight;
+    }
+
+    public Double getHeight() {
+        return height;
+    }
+
+    public void setHeight(Double height) {
+        this.height = height;
+    }
+
+    public String getBackground() {
+        return background;
+    }
+
+    public void setBackground(String background) {
+        this.background = background;
+    }
+
+    public String getDeclaredMedicalHistory() {
+        return declaredMedicalHistory;
+    }
+
+    public void setDeclaredMedicalHistory(String declaredMedicalHistory) {
+        this.declaredMedicalHistory = declaredMedicalHistory;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
+    public String getHealthStatus() {
+        return healthStatus;
+    }
+
+    public void setHealthStatus(String healthStatus) {
+        this.healthStatus = healthStatus;
+    }
+
+    public Boolean getTrainingLocked() {
+        return trainingLocked;
+    }
+
+    public void setTrainingLocked(Boolean trainingLocked) {
+        this.trainingLocked = trainingLocked;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
 }

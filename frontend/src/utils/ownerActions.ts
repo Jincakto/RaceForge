@@ -89,3 +89,11 @@ export function markOwnerNotification(state: AppState, id: string): AppState {
   if (!permitted.has(id)) return state;
   return { ...state, notifications: state.notifications.map(item => item.id === id ? { ...item, read: true } : item) };
 }
+
+export function updateOwnerProfile(state: AppState, name: string): AppState {
+  if (state.user?.role !== 'owner') throw new Error('Trang này dành cho Chủ ngựa.');
+  if (!name.trim()) throw new Error('Vui lòng nhập họ tên.');
+  const trimmed = name.trim();
+  const user = { ...state.user, name: trimmed, avatar: trimmed.split(/\s+/).slice(-2).map(word => word[0]).join('').toUpperCase() };
+  return { ...state, user, users: state.users.map(item => item.id === user.id ? user : item), horses: state.horses.map(item => item.ownerId === user.id ? { ...item, ownerName: trimmed } : item) };
+}

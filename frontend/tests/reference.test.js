@@ -25,7 +25,7 @@ test('selected pages and shared declarations preserve the supplied JSX', () => {
 })
 
 test('every supplied page, OTP and the sidebar layout render successfully', async context => {
-  const server = await createServer({ root, server: { middlewareMode: true }, appType: 'custom' })
+  const server = await createServer({ root, server: { middlewareMode: true, hmr: false }, optimizeDeps: { noDiscovery: true, include: [] }, appType: 'custom' })
   context.after(() => server.close())
   const data = await server.ssrLoadModule('/src/data.ts')
   const manager = data.SEED_USERS.find(user => user.role === 'manager')

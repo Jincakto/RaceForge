@@ -26,16 +26,34 @@ public class HorseService {
   private HorseMapper horseMapper;
 
   public HorseResponse createHorse(HorseCreateRequest request) {
-
+  
       Horse horse = horseMapper.toEntity(request);
-
+  
+      String horseId = generateHorseId();
+      horse.setHorseId(horseId);
+  
       horse.setStatus("INACTIVE");
       horse.setTrainingLocked(false);
       horse.setHealthStatus(null);
-
+  
       Horse savedHorse = horseRepository.save(horse);
-
+  
       return horseMapper.toResponse(savedHorse);
+  }
+
+  private String generateHorseId() {
+
+    String latestId = horseRepository.findLatestHorseId();
+
+    if (latestId == null) {
+        return "HOR001";
+    }
+
+    int number = Integer.parseInt(latestId.substring(3));
+
+    number++;
+
+    return String.format("HOR%03d", number);
   }
 
   public List<HorseResponse> getAllHorses() {

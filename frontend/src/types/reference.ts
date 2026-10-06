@@ -97,3 +97,15 @@ export const GRANTABLE_PAGES: { page: Page; label: string; icon: string }[] = [
   { page: 'member-requests', label: 'Yêu cầu tham gia', icon: '📨' },
   { page: 'staff', label: 'Nhân sự', icon: '👥' },
 ];
+
+export type TEStatus = 'incomplete' | 'eligible' | 'conditional' | 'not-eligible';
+
+export interface NutritionSuggestion { category: string; items: string[]; note: string; }
+
+export interface TrainingEligResult {
+  status: TEStatus;
+  reasons: string[];
+  adjustments: string[];
+  trainingNote: string;
+  nutritionSuggestions: NutritionSuggestion[];
+}

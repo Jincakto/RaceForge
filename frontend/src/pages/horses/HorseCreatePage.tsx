@@ -12,9 +12,20 @@ import { ImageUpload } from '../../components/common/ImageUpload';
 export function HorseCreatePage({ user, state, navigate, onCreateHorse }:
   { user: AppUser; state: AppState; navigate: (p: Page) => void; onCreateHorse: (h: Horse) => void }) {
   const [form, setForm] = useState({ name: '', breed: 'Thoroughbred', age: '3', color: '', gender: 'Stallion', weight: '', height: '', biography: '', imageUrl: '' });
-  const raceHistory: RaceHistoryEntry[] = [];
+  const [raceHistory, setRaceHistory] = useState<RaceHistoryEntry[]>([]);
+  const [showRaceForm, setShowRaceForm] = useState(false);
+  const [newRace, setNewRace] = useState({ date: '', raceName: '', distance: '1200m', position: '1', totalHorses: '10', time: '', venue: '', jockey: '', prize: '' });
   const [error, setError] = useState('');
   const set = (k: string) => (v: string) => setForm(f => ({ ...f, [k]: v }));
+
+  const addRace = () => {
+    if (!newRace.raceName.trim() || !/^\d{2}\/\d{2}\/\d{4}$/.test(newRace.date)) { setError('Nhập tên giải và ngày đua dạng DD/MM/YYYY.'); return; }
+    if (Number(newRace.position) > Number(newRace.totalHorses)) { setError('Thứ hạng không thể lớn hơn số ngựa tham gia.'); return; }
+    setError('');
+    setRaceHistory(r => [...r, { id: crypto.randomUUID(), ...newRace, raceName: newRace.raceName.trim(), position: Number(newRace.position), totalHorses: Number(newRace.totalHorses) }]);
+    setNewRace({ date: '', raceName: '', distance: '1200m', position: '1', totalHorses: '10', time: '', venue: '', jockey: '', prize: '' });
+    setShowRaceForm(false);
+  };
 
   const handle = () => {
     const invalid = validateHorseFields({ name: form.name, color: form.color, age: Number(form.age), weight: Number(form.weight), height: Number(form.height) });
@@ -56,6 +67,35 @@ export function HorseCreatePage({ user, state, navigate, onCreateHorse }:
         {error && <p className="text-red-500 text-sm">{error}</p>}
       </Card>
 
+      {/* Race History */}
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div><h3 className="font-semibold text-[#0f1729]">Lịch sử đua (nộp kèm hồ sơ)</h3><p className="text-xs text-gray-400 mt-0.5">Không bắt buộc — cung cấp để trung tâm đánh giá tốt hơn</p></div>
+          <Btn variant="secondary" onClick={() => setShowRaceForm(!showRaceForm)}>+ Thêm kết quả</Btn>
+        </div>
+        {showRaceForm && (
+          <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Tên giải đua" value={newRace.raceName} onChange={v => setNewRace(r => ({ ...r, raceName: v }))} placeholder="VD: Saigon Sprint Cup" />
+              <Input label="Ngày đua" value={newRace.date} onChange={v => setNewRace(r => ({ ...r, date: v }))} placeholder="VD: 10/09/2026" />
+              <Select label="Cự ly" value={newRace.distance} onChange={v => setNewRace(r => ({ ...r, distance: v }))} options={['800m', '1000m', '1200m', '1400m', '1600m', '2000m'].map(v => ({ value: v, label: v }))} />
+              <Select label="Hạng đạt" value={newRace.position} onChange={v => setNewRace(r => ({ ...r, position: v }))} options={Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: `Hạng ${i + 1}` }))} />
+              <Input label="Thời gian" value={newRace.time} onChange={v => setNewRace(r => ({ ...r, time: v }))} placeholder="VD: 1:11.24" />
+              <Input label="Trường đua" value={newRace.venue} onChange={v => setNewRace(r => ({ ...r, venue: v }))} placeholder="VD: Phú Thọ Racecourse" />
+              <Input label="Jockey" value={newRace.jockey} onChange={v => setNewRace(r => ({ ...r, jockey: v }))} placeholder="Tên jockey" />
+              <Input label="Giải thưởng" value={newRace.prize} onChange={v => setNewRace(r => ({ ...r, prize: v }))} placeholder="VD: 50,000,000 VND" />
+            </div>
+            <div className="flex gap-2"><Btn variant="gold" onClick={addRace} disabled={!newRace.raceName}>✓ Thêm</Btn><Btn variant="secondary" onClick={() => setShowRaceForm(false)}>Huỷ</Btn></div>
+          </div>
+        )}
+        {raceHistory.length > 0 ? raceHistory.map(r => (
+          <div key={r.id} className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100 mb-2">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${r.position === 1 ? 'bg-[#c9973b] text-white' : 'bg-gray-400 text-white'}`}>#{r.position}</div>
+            <div className="flex-1"><div className="text-sm font-medium">{r.raceName}</div><div className="text-xs text-gray-500">{r.date} · {r.distance} · {r.time}</div></div>
+            <button onClick={() => setRaceHistory(h => h.filter(x => x.id !== r.id))} className="text-red-400 hover:text-red-600 text-xs">✕ Xóa</button>
+          </div>
+        )) : <div className="text-center py-4 text-gray-400 text-sm">Chưa có lịch sử đua — Nhấn "+ Thêm kết quả" để nộp kèm</div>}
+      </Card>
     </div>
   );
 }

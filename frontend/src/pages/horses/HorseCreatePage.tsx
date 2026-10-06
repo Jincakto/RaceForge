@@ -1,4 +1,4 @@
-import { validateHorseFields } from '../../utils/ownerActions';
+import { validateHorseFields, validDisplayDate } from '../../utils/ownerActions';
 import { type AppUser, type Horse, type RaceHistoryEntry } from '../../data';
 import { type AppState, type Page } from '../../types/reference';
 import { useState } from 'react';
@@ -19,7 +19,7 @@ export function HorseCreatePage({ user, state, navigate, onCreateHorse }:
   const set = (k: string) => (v: string) => setForm(f => ({ ...f, [k]: v }));
 
   const addRace = () => {
-    if (!newRace.raceName.trim() || !/^\d{2}\/\d{2}\/\d{4}$/.test(newRace.date)) { setError('Nhập tên giải và ngày đua dạng DD/MM/YYYY.'); return; }
+    if (!newRace.raceName.trim() || !validDisplayDate(newRace.date)) { setError('Nhập tên giải và ngày đua dạng DD/MM/YYYY.'); return; }
     if (Number(newRace.position) > Number(newRace.totalHorses)) { setError('Thứ hạng không thể lớn hơn số ngựa tham gia.'); return; }
     setError('');
     setRaceHistory(r => [...r, { id: crypto.randomUUID(), ...newRace, raceName: newRace.raceName.trim(), position: Number(newRace.position), totalHorses: Number(newRace.totalHorses) }]);

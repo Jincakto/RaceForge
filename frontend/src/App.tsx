@@ -8,15 +8,16 @@ import {
 import { HomePage } from './pages/public/HomePage';
 import { LoginPage } from './pages/public/LoginPage';
 import { RegisterPage } from './pages/public/RegisterPage';
+import { TrainerSelectPage } from './pages/staff/TrainerSelectPage';
 import { HorseCreatePage } from './pages/horses/HorseCreatePage';
-import { ownerView, addOwnerHorse } from './utils/ownerActions';
+import { ownerView, addOwnerHorse, assignOwnerTrainer } from './utils/ownerActions';
 import { MyHorsesPage } from './pages/horses/MyHorsesPage';
 import { OwnerDashboard } from './pages/dashboard/OwnerDashboard';
 import { ManagerDashboard } from './pages/dashboard/ManagerDashboard';
 import { AppLayout } from './components/layout/AppLayout';
 import { SuccessToast } from './components/common/SuccessToast';
 
-const ownerPages = new Set<Page>(['my-horses', 'horse-create']);
+const ownerPages = new Set<Page>(['my-horses', 'horse-create', 'trainer-select']);
 const availablePages = new Set<Page>(['home', 'login', 'register', 'dashboard']);
 function pageFromLocation(): Page {
   const path = window.location.pathname.replace(/^\//, '');
@@ -71,10 +72,15 @@ export default function App() {
   const selectHorse = (id: string) => setState(current => current.horses.some(horse => horse.id === id && horse.ownerId === current.user?.id) ? { ...current, selectedHorseId: id } : current);
   const scopedOwnerState = ownerView(state);
   const handleCreateHorse = (horse: Horse) => {
-    try { setState(addOwnerHorse(state, horse)); navigate('my-horses'); showSuccess('Đã tạo hồ sơ ngựa.'); }
+    try { setState(addOwnerHorse(state, horse)); navigate('trainer-select'); showSuccess('Đã tạo hồ sơ ngựa.'); }
     catch (error) { showSuccess(error instanceof Error ? error.message : 'Không thể tạo hồ sơ ngựa.'); }
   };
+  const handleSelectTrainer = (horseId: string, trainerId: string) => {
+    try { setState(assignOwnerTrainer(state, horseId, trainerId)); navigate('my-horses'); showSuccess('Đã chọn Head Trainer.'); }
+    catch (error) { showSuccess(error instanceof Error ? error.message : 'Không thể chọn Head Trainer.'); }
+  };
   const renderOwnerPage = () => {
+    if (state.page === 'trainer-select') return <TrainerSelectPage user={state.user!} state={scopedOwnerState} navigate={navigate} onSelectTrainer={handleSelectTrainer} />;
     if (state.page === 'horse-create') return <HorseCreatePage user={state.user!} state={scopedOwnerState} navigate={navigate} onCreateHorse={handleCreateHorse} />;
     if (state.page === 'my-horses') return <MyHorsesPage user={state.user!} state={scopedOwnerState} navigate={navigate} onSelectHorse={selectHorse} onSubmitToCenter={() => showSuccess('Gửi đăng ký sẽ được triển khai tiếp theo.')} />;
     return <OwnerDashboard state={scopedOwnerState} navigate={navigate} onSelectHorse={selectHorse} />;

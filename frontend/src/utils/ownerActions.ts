@@ -64,3 +64,18 @@ export function updateOwnerHorse(state: AppState, updated: import('../data').Hor
   const allowed = { name: updated.name.trim(), biography: updated.biography, weight: updated.weight, height: updated.height, stable: updated.stable, stall: updated.stall, imageUrl: updated.imageUrl };
   return { ...state, horses: state.horses.map(item => item.id === updated.id ? { ...item, ...allowed } : item) };
 }
+
+export function validDisplayDate(value: string): boolean {
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return false;
+  const [day, month, year] = value.split('/').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+}
+
+export function addOwnerAchievement(state: AppState, horseId: string, achievement: import('../data').Achievement): AppState {
+  const horse = state.horses.find(item => item.id === horseId);
+  if (state.user?.role !== 'owner' || horse?.ownerId !== state.user.id) throw new Error('Bạn chỉ được thêm thành tích cho ngựa của mình.');
+  if (!achievement.title.trim() || !validDisplayDate(achievement.date)) throw new Error('Nhập tên thành tích và ngày hợp lệ dạng DD/MM/YYYY.');
+  if (achievement.position !== undefined && (!Number.isInteger(achievement.position) || achievement.position < 1)) throw new Error('Thứ hạng phải là số nguyên lớn hơn 0.');
+  return { ...state, horses: state.horses.map(item => item.id === horseId ? { ...item, achievements: [...item.achievements, { ...achievement, title: achievement.title.trim() }] } : item) };
+}

@@ -1,5 +1,6 @@
+import { validDisplayDate } from '../../utils/ownerActions';
 import { type AppState, type Page } from '../../types/reference';
-import { type Horse, computeTrainingSuggestion } from '../../data';
+import { type Horse, type Achievement, computeTrainingSuggestion } from '../../data';
 import { useState } from 'react';
 import { sortHealthRecords } from '../../utils/trainingAlgorithm';
 import { Badge } from '../../components/common/Badge';
@@ -11,8 +12,8 @@ import { ImageUpload } from '../../components/common/ImageUpload';
 import { Select } from '../../components/common/Select';
 import { TrainingAlgorithmTab } from '../../components/training/TrainingAlgorithmTab';
 
-function HorseDetailContent({ state, navigate, onUpdateHorse, onShowSuccess }:
-  { state: AppState; navigate: (p: Page) => void; onUpdateHorse: (h: Horse) => void; onShowSuccess: (m: string) => void }) {
+function HorseDetailContent({ state, navigate, onUpdateHorse, onShowSuccess, onAddAchievement }:
+  { state: AppState; navigate: (p: Page) => void; onUpdateHorse: (h: Horse) => void; onShowSuccess: (m: string) => void; onAddAchievement: (horseId: string, achievement: Achievement) => void }) {
   const user = state.user!;
   const horse = state.horses.find(h => h.id === state.selectedHorseId)!;
   const [tab, setTab] = useState('overview');
@@ -21,7 +22,7 @@ function HorseDetailContent({ state, navigate, onUpdateHorse, onShowSuccess }:
   const [newAch, setNewAch] = useState({ title: '', date: '', description: '', prize: '', position: '1' });
   const [showAchForm, setShowAchForm] = useState(false);
   const isOwner = user.role === 'owner' && horse.ownerId === user.id;
-  const canAddAchievements = false;
+  const canAddAchievements = isOwner;
   const [error, setError] = useState('');
 
   const saveEdit = () => {
@@ -32,9 +33,10 @@ function HorseDetailContent({ state, navigate, onUpdateHorse, onShowSuccess }:
   };
 
   const addAchievement = () => {
-    if (!newAch.title) return;
-    const updated: Horse = { ...horse, achievements: [...horse.achievements, { id: `a${Date.now()}`, title: newAch.title, date: newAch.date, description: newAch.description, prize: newAch.prize, position: Number(newAch.position) }] };
-    onUpdateHorse(updated); setShowAchForm(false); setNewAch({ title: '', date: '', description: '', prize: '', position: '1' }); onShowSuccess('Đã thêm thành tích!');
+    if (!newAch.title.trim() || !validDisplayDate(newAch.date)) { setError('Nhập tên thành tích và ngày hợp lệ dạng DD/MM/YYYY.'); return; }
+    setError('');
+    onAddAchievement(horse.id, { id: crypto.randomUUID(), title: newAch.title.trim(), date: newAch.date, description: newAch.description, prize: newAch.prize, position: Number(newAch.position) });
+    setShowAchForm(false); setNewAch({ title: '', date: '', description: '', prize: '', position: '1' }); onShowSuccess('Đã thêm thành tích!');
   };
 
   const horseHealthRecords = sortHealthRecords(state.healthRecords.filter(r => r.horseId === horse.id));

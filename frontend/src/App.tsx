@@ -3,7 +3,7 @@ import { type AppState, type Page } from './types/reference';
 import {
   SEED_USERS, SEED_CLUBS, SEED_REQUESTS, HORSES, SEED_HORSE_CLUB_REQUESTS,
   MEDICAL_RECORDS, TRAINING_PLANS, TRAINING_SESSIONS, GROOM_TASKS, NOTIFICATIONS,
-  type AppUser, type Horse,
+  type AppUser, type Horse, type Achievement,
 } from './data';
 import { HomePage } from './pages/public/HomePage';
 import { LoginPage } from './pages/public/LoginPage';
@@ -11,7 +11,7 @@ import { RegisterPage } from './pages/public/RegisterPage';
 import { HorseDetailPage } from './pages/horses/HorseDetailPage';
 import { TrainerSelectPage } from './pages/staff/TrainerSelectPage';
 import { HorseCreatePage } from './pages/horses/HorseCreatePage';
-import { ownerView, addOwnerHorse, assignOwnerTrainer, submitOwnerHorse, updateOwnerHorse } from './utils/ownerActions';
+import { ownerView, addOwnerHorse, assignOwnerTrainer, submitOwnerHorse, updateOwnerHorse, addOwnerAchievement } from './utils/ownerActions';
 import { MyHorsesPage } from './pages/horses/MyHorsesPage';
 import { OwnerDashboard } from './pages/dashboard/OwnerDashboard';
 import { ManagerDashboard } from './pages/dashboard/ManagerDashboard';
@@ -88,8 +88,12 @@ export default function App() {
     try { setState(updateOwnerHorse(state, horse)); }
     catch (error) { showSuccess(error instanceof Error ? error.message : 'Không thể cập nhật ngựa.'); }
   };
+  const handleAddAchievement = (horseId: string, achievement: Achievement) => {
+    try { setState(addOwnerAchievement(state, horseId, achievement)); }
+    catch (error) { showSuccess(error instanceof Error ? error.message : 'Không thể thêm thành tích.'); }
+  };
   const renderOwnerPage = () => {
-    if (state.page === 'horse-detail') return <HorseDetailPage state={scopedOwnerState} navigate={navigate} onUpdateHorse={handleUpdateHorse} onShowSuccess={showSuccess} />;
+    if (state.page === 'horse-detail') return <HorseDetailPage state={scopedOwnerState} navigate={navigate} onUpdateHorse={handleUpdateHorse} onShowSuccess={showSuccess} onAddAchievement={handleAddAchievement} />;
     if (state.page === 'trainer-select') return <TrainerSelectPage user={state.user!} state={scopedOwnerState} navigate={navigate} onSelectTrainer={handleSelectTrainer} />;
     if (state.page === 'horse-create') return <HorseCreatePage user={state.user!} state={scopedOwnerState} navigate={navigate} onCreateHorse={handleCreateHorse} />;
     if (state.page === 'my-horses') return <MyHorsesPage user={state.user!} state={scopedOwnerState} navigate={navigate} onSelectHorse={selectHorse} onSubmitToCenter={handleSubmitToCenter} />;

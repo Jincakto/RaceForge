@@ -20,9 +20,13 @@ function HorseDetailContent({ state, navigate, onUpdateHorse, onShowSuccess }:
   const [editForm, setEditForm] = useState({ name: horse.name, biography: horse.biography, weight: String(horse.weight), height: String(horse.height), stable: horse.stable, stall: horse.stall, imageUrl: horse.imageUrl });
   const [newAch, setNewAch] = useState({ title: '', date: '', description: '', prize: '', position: '1' });
   const [showAchForm, setShowAchForm] = useState(false);
-  const isOwner = false; // Editing is enabled in the next feature commit.
+  const isOwner = user.role === 'owner' && horse.ownerId === user.id;
+  const canAddAchievements = false;
+  const [error, setError] = useState('');
 
   const saveEdit = () => {
+    if (!editForm.name.trim() || !Number.isFinite(Number(editForm.weight)) || Number(editForm.weight) <= 0 || !Number.isFinite(Number(editForm.height)) || Number(editForm.height) <= 0) { setError('Nhập tên ngựa, cân nặng và chiều cao hợp lệ.'); return; }
+    setError('');
     onUpdateHorse({ ...horse, name: editForm.name, biography: editForm.biography, weight: Number(editForm.weight), height: Number(editForm.height), stable: editForm.stable, stall: editForm.stall, imageUrl: editForm.imageUrl });
     setEditMode(false); onShowSuccess('Đã cập nhật hồ sơ ngựa!');
   };
@@ -76,6 +80,7 @@ function HorseDetailContent({ state, navigate, onUpdateHorse, onShowSuccess }:
         ))}
       </div>
 
+      {error && <p role="alert" className="text-red-500 text-sm">{error}</p>}
       {tab === 'overview' && (
         <div className="grid grid-cols-3 gap-5">
           <div className="col-span-2">
@@ -195,9 +200,9 @@ function HorseDetailContent({ state, navigate, onUpdateHorse, onShowSuccess }:
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">Thành tích của {horse.name}</h3>
-            {isOwner && <Btn variant="gold" onClick={() => setShowAchForm(!showAchForm)}>+ Thêm thành tích</Btn>}
+            {canAddAchievements && <Btn variant="gold" onClick={() => setShowAchForm(!showAchForm)}>+ Thêm thành tích</Btn>}
           </div>
-          {showAchForm && isOwner && (
+          {showAchForm && canAddAchievements && (
             <Card className="p-5 border-l-4 border-[#c9973b]">
               <h4 className="font-semibold mb-3">Thêm thành tích mới</h4>
               <div className="grid grid-cols-2 gap-3">
@@ -210,7 +215,7 @@ function HorseDetailContent({ state, navigate, onUpdateHorse, onShowSuccess }:
               <div className="flex gap-2 mt-3"><Btn variant="gold" onClick={addAchievement} disabled={!newAch.title}>✓ Lưu</Btn><Btn variant="secondary" onClick={() => setShowAchForm(false)}>Huỷ</Btn></div>
             </Card>
           )}
-          {horse.achievements.length === 0 && <Card className="p-10 text-center"><div className="text-4xl mb-3">🏆</div><div className="text-gray-500 font-semibold">Chưa có thành tích</div>{isOwner && <div className="text-sm text-gray-400 mt-1">Nhấn "+ Thêm thành tích" để ghi nhận</div>}</Card>}
+          {horse.achievements.length === 0 && <Card className="p-10 text-center"><div className="text-4xl mb-3">🏆</div><div className="text-gray-500 font-semibold">Chưa có thành tích</div>{canAddAchievements && <div className="text-sm text-gray-400 mt-1">Nhấn "+ Thêm thành tích" để ghi nhận</div>}</Card>}
           {horse.achievements.map(a => (
             <Card key={a.id} className="p-5">
               <div className="flex items-start gap-4">

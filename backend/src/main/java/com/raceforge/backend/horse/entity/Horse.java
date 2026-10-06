@@ -11,7 +11,6 @@ public class Horse {
     @Column(name = "horse_id", length = 20)
     private String horseId;
 
-    /*
     @ManyToOne
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
@@ -19,7 +18,6 @@ public class Horse {
     @ManyToOne
     @JoinColumn(name = "head_trainer_id")
     private User headTrainer;
-    */
 
     @Column(name = "horse_name", nullable = false)
     private String horseName;
@@ -206,5 +204,21 @@ public class Horse {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+    
+    public User getOwner() {
+    return owner;
+    }
+    
+    public void setOwner(User owner) {
+        this.owner = owner;
+    }
+    
+    public User getHeadTrainer() {
+        return headTrainer;
+    }
+    
+    public void setHeadTrainer(User headTrainer) {
+        this.headTrainer = headTrainer;
     }
 }

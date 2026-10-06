@@ -8,6 +8,7 @@ import {
 import { HomePage } from './pages/public/HomePage';
 import { LoginPage } from './pages/public/LoginPage';
 import { RegisterPage } from './pages/public/RegisterPage';
+import { ProfilePage } from './pages/profile/ProfilePage';
 import { NotificationsPage } from './pages/notifications/NotificationsPage';
 import { RaceResultsPage } from './pages/performance/RaceResultsPage';
 import { PerformancePage } from './pages/performance/PerformancePage';
@@ -15,14 +16,15 @@ import { HealthRecordsPage } from './pages/health/HealthRecordsPage';
 import { HorseDetailPage } from './pages/horses/HorseDetailPage';
 import { TrainerSelectPage } from './pages/staff/TrainerSelectPage';
 import { HorseCreatePage } from './pages/horses/HorseCreatePage';
-import { ownerView, addOwnerHorse, assignOwnerTrainer, submitOwnerHorse, updateOwnerHorse, addOwnerAchievement, markOwnerNotification } from './utils/ownerActions';
+import { ownerView, addOwnerHorse, assignOwnerTrainer, submitOwnerHorse, updateOwnerHorse, addOwnerAchievement, markOwnerNotification, updateOwnerProfile } from './utils/ownerActions';
 import { MyHorsesPage } from './pages/horses/MyHorsesPage';
 import { OwnerDashboard } from './pages/dashboard/OwnerDashboard';
 import { ManagerDashboard } from './pages/dashboard/ManagerDashboard';
 import { AppLayout } from './components/layout/AppLayout';
 import { SuccessToast } from './components/common/SuccessToast';
 
-const ownerPages = new Set<Page>(['my-horses', 'horse-create', 'trainer-select', 'horse-detail', 'health-records', 'performance', 'race-results', 'notifications']);
+const ownerPages = new Set<Page>(['my-horses', 'horse-create', 'trainer-select', 'horse-detail', 'health-records', 'performance', 'race-results', 'notifications', 'profile']);
+const ownerTitles: Partial<Record<Page, string>> = { dashboard: 'Dashboard — Chủ ngựa', 'my-horses': 'Ngựa của tôi', 'horse-create': 'Đăng ký ngựa mới', 'horse-detail': 'Chi tiết ngựa', 'trainer-select': 'Chọn Head Trainer', 'health-records': 'Hồ sơ y tế', performance: 'Hiệu suất', 'race-results': 'Kết quả đua', notifications: 'Thông báo', profile: 'Hồ sơ cá nhân' };
 const availablePages = new Set<Page>(['home', 'login', 'register', 'dashboard']);
 function pageFromLocation(): Page {
   const path = window.location.pathname.replace(/^\//, '');
@@ -97,6 +99,7 @@ export default function App() {
     catch (error) { showSuccess(error instanceof Error ? error.message : 'Không thể thêm thành tích.'); }
   };
   const renderOwnerPage = () => {
+    if (state.page === 'profile') return <ProfilePage key={state.user!.id} user={state.user!} state={scopedOwnerState} navigate={navigate} onLogout={() => navigate('login')} onSave={showSuccess} onUpdateName={name => setState(current => updateOwnerProfile(current, name))} />;
     if (state.page === 'notifications') return <NotificationsPage notifications={scopedOwnerState.notifications} onMarkRead={id => setState(current => markOwnerNotification(current, id))} />;
     if (state.page === 'race-results') return <RaceResultsPage horses={scopedOwnerState.horses} />;
     if (state.page === 'performance') return <PerformancePage horses={scopedOwnerState.horses} />;
@@ -111,7 +114,7 @@ export default function App() {
   if (state.page === 'register') content = <RegisterPage navigate={navigate} onRegister={handleRegister} />;
   else if (state.page === 'login' || ((state.page === 'dashboard' || ownerPages.has(state.page)) && !state.user)) content = <LoginPage navigate={navigate} users={state.users} onLogin={handleLogin} />;
   else if (state.page === 'dashboard' && state.user?.role === 'manager') content = <AppLayout user={state.user} page="dashboard" title="Dashboard" navigate={navigate} state={state}><ManagerDashboard state={state} navigate={navigate} /></AppLayout>;
-  else if ((state.page === 'dashboard' || ownerPages.has(state.page)) && state.user?.role === 'owner') content = <AppLayout user={state.user} page={state.page} title={state.page === 'dashboard' ? 'Dashboard — Chủ ngựa' : 'Ngựa của tôi'} navigate={navigate} state={scopedOwnerState}>{renderOwnerPage()}</AppLayout>;
+  else if ((state.page === 'dashboard' || ownerPages.has(state.page)) && state.user?.role === 'owner') content = <AppLayout user={state.user} page={state.page} title={ownerTitles[state.page] || 'Chủ ngựa'} navigate={navigate} state={scopedOwnerState}>{renderOwnerPage()}</AppLayout>;
   else content = <HomePage navigate={navigate} />;
   return <>{state.showSuccess && <SuccessToast message={state.showSuccess} />}{content}</>;
 }

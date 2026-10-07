@@ -21,8 +21,6 @@ public class HorseCreateRequest {
     private String declaredMedicalHistory;
     private String imageUrl;
 
-    public HorseCreateRequest() {
-    }
 
     public String getHorseName() {
         return horseName;

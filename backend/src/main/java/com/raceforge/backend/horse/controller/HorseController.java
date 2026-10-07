@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/horses")
@@ -24,14 +25,14 @@ public class HorseController {
         this.horseService = horseService;
     }
 
-    @PostMapping
+   @PostMapping
     public ResponseEntity<HorseResponse> createHorse(
             @RequestParam String ownerId,
-            @RequestBody HorseCreateRequest request) {
-
+            @Valid @RequestBody HorseCreateRequest request) {
+    
         HorseResponse response =
                 horseService.createHorse(ownerId, request);
-
+    
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
@@ -57,8 +58,8 @@ public class HorseController {
     @PutMapping("/{horseId}")
     public ResponseEntity<HorseResponse> updateHorse(
             @PathVariable String horseId,
-            @RequestBody HorseUpdateRequest request) {
-
+            @Valid @RequestBody HorseUpdateRequest request) {
+    
         return ResponseEntity.ok(
                 horseService.updateHorse(horseId, request)
         );
@@ -79,6 +80,35 @@ public class HorseController {
 
         return ResponseEntity.ok(
                 horseService.deactivateHorse(horseId)
+        );
+    }
+
+    @PostMapping("/{horseId}/race-history")
+    public ResponseEntity<HorseRaceHistoryResponse> createRaceHistory(
+            @PathVariable String horseId,
+            @Valid @RequestBody HorseRaceHistoryCreateRequest request) {
+    
+        HorseRaceHistoryResponse response =
+                raceHistoryService.createRaceHistory(
+                        horseId,
+                        request
+                );
+    
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(response);
+    }
+
+    @PutMapping("/race-history/{raceHistoryId}")
+    public ResponseEntity<HorseRaceHistoryResponse> updateRaceHistory(
+            @PathVariable String raceHistoryId,
+            @Valid @RequestBody HorseRaceHistoryUpdateRequest request) {
+    
+        return ResponseEntity.ok(
+                raceHistoryService.updateRaceHistory(
+                        raceHistoryId,
+                        request
+                )
         );
     }
 }

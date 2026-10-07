@@ -1,7 +1,3 @@
-/**
- * Horse services own horse profile business rules. Horse Owner creates profiles and submits them for review.
- * New profiles start as DRAFT or PENDING_APPROVAL. Club Manager approval or rejection belongs in the service layer.
- */
 package com.raceforge.backend.horse.service;
 
 import com.raceforge.backend.horse.dto.HorseCreateRequest;
@@ -10,8 +6,9 @@ import com.raceforge.backend.horse.dto.HorseUpdateRequest;
 import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.mapper.HorseMapper;
 import com.raceforge.backend.horse.repository.HorseRepository;
+import com.raceforge.backend.user.entity.User;
+import com.raceforge.backend.user.repository.UserRepository;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -19,81 +16,99 @@ import java.util.List;
 @Service
 public class HorseService {
 
-  @Autowired
-  private HorseRepository horseRepository;
+    private final HorseRepository horseRepository;
+    private final UserRepository userRepository;
+    private final HorseMapper horseMapper;
 
-  @Autowired
-  private HorseMapper horseMapper;
+    public HorseService(
+            HorseRepository horseRepository,
+            UserRepository userRepository,
+            HorseMapper horseMapper) {
 
-  public HorseResponse createHorse(HorseCreateRequest request) {
-  
-      Horse horse = horseMapper.toEntity(request);
-  
-      String horseId = generateHorseId();
-      horse.setHorseId(horseId);
-  
-      horse.setStatus("INACTIVE");
-      horse.setTrainingLocked(false);
-      horse.setHealthStatus(null);
-  
-      Horse savedHorse = horseRepository.save(horse);
-  
-      return horseMapper.toResponse(savedHorse);
-  }
-
-  private String generateHorseId() {
-
-    String latestId = horseRepository.findLatestHorseId();
-
-    if (latestId == null) {
-        return "HOR001";
+        this.horseRepository = horseRepository;
+        this.userRepository = userRepository;
+        this.horseMapper = horseMapper;
     }
 
-    int number = Integer.parseInt(latestId.substring(3));
+    public HorseResponse createHorse(
+            String ownerId,
+            HorseCreateRequest request) {
 
-    number++;
+        User owner = userRepository.findById(ownerId)
+                .orElseThrow(() ->
+                        new RuntimeException("Owner not found"));
 
-    return String.format("HOR%03d", number);
-  }
+        Horse horse = horseMapper.toEntity(request);
 
-  public List<HorseResponse> getAllHorses() {
-      return horseRepository.findAll()
-              .stream()
-              .map(horseMapper::toResponse)
-              .toList();
-  }
+        horse.setHorseId(generateHorseId());
 
-  public HorseResponse getHorseById(String horseId) {
+        horse.setOwner(owner);
+        horse.setHeadTrainer(null);
 
-    Horse horse = horseRepository.findById(horseId)
-            .orElseThrow(() ->
-                    new RuntimeException("Horse not found"));
+        horse.setHealthStatus(null);
+        horse.setTrainingLocked(false);
+        horse.setStatus("INACTIVE");
 
-    return horseMapper.toResponse(horse);
-  }
+        Horse savedHorse = horseRepository.save(horse);
 
-  public HorseResponse updateHorse(
-        String horseId,
-        HorseUpdateRequest request) {
+        return horseMapper.toResponse(savedHorse);
+    }
 
-    Horse horse = horseRepository.findById(horseId)
-            .orElseThrow(() ->
-                    new RuntimeException("Horse not found"));
+    public List<HorseResponse> getAllHorses() {
 
-    horseMapper.updateEntity(request, horse);
+        return horseRepository.findAll()
+                .stream()
+                .map(horseMapper::toResponse)
+                .toList();
+    }
 
-    Horse updatedHorse = horseRepository.save(horse);
+    public HorseResponse getHorseById(String horseId) {
 
-    return horseMapper.toResponse(updatedHorse);
-  }
+        Horse horse = findHorseById(horseId);
 
-  public void deleteHorse(String horseId) {
+        return horseMapper.toResponse(horse);
+    }
 
-    Horse horse = horseRepository.findById(horseId)
-            .orElseThrow(() ->
-                    new RuntimeException("Horse not found"));
+    public HorseResponse updateHorse(
+            String horseId,
+            HorseUpdateRequest request) {
 
-    horseRepository.delete(horse);
-  }
-  
+        Horse horse = findHorseById(horseId);
+
+        horseMapper.updateEntity(horse, request);
+
+        Horse updatedHorse = horseRepository.save(horse);
+
+        return horseMapper.toResponse(updatedHorse);
+    }
+
+    public void deleteHorse(String horseId) {
+
+        Horse horse = findHorseById(horseId);
+
+        horseRepository.delete(horse);
+    }
+
+    private Horse findHorseById(String horseId) {
+
+        return horseRepository.findById(horseId)
+                .orElseThrow(() ->
+                        new RuntimeException("Horse not found"));
+    }
+
+    private String generateHorseId() {
+
+        String latestId = horseRepository.findLatestHorseId();
+
+        if (latestId == null) {
+            return "HOR001";
+        }
+
+        int currentNumber =
+                Integer.parseInt(latestId.substring(3));
+
+        int nextNumber = currentNumber + 1;
+
+        return String.format("HOR%03d", nextNumber);
+    }
 }

@@ -1,26 +1,57 @@
 package com.raceforge.backend.horse.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Past;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+
 import java.time.LocalDate;
 
 public class HorseUpdateRequest {
 
+    @NotBlank(message = "Horse name is required")
+    @Size(max = 100)
     private String horseName;
+
+    @Past(message = "Date of birth must be in the past")
     private LocalDate dateOfBirth;
+
+    @Size(max = 20)
     private String gender;
+
+    @Size(max = 100)
     private String breed;
+
+    @NotBlank(message = "Coat color is required")
+    @Size(max = 50)
     private String coatColor;
 
+    @Size(max = 100)
     private String sire;
+
+    @Size(max = 100)
     private String dam;
+
+    @Size(max = 100)
     private String damSire;
 
+    @NotNull(message = "Weight is required")
+    @Positive(message = "Weight must be greater than 0")
     private Double weight;
+
+    @NotNull(message = "Height is required")
+    @Positive(message = "Height must be greater than 0")
     private Double height;
 
+    @Size(max = 1000)
     private String background;
-    private String declaredMedicalHistory;
-    private String imageUrl;
 
+    @Size(max = 1000)
+    private String declaredMedicalHistory;
+
+    @Size(max = 500)
+    private String imageUrl;
 
     public String getHorseName() {
         return horseName;

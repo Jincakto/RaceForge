@@ -69,9 +69,7 @@ public class HorseService {
         return horseMapper.toResponse(horse);
     }
 
-    public HorseResponse updateHorse(
-            String horseId,
-            HorseUpdateRequest request) {
+    public HorseResponse updateHorse(String horseId, HorseUpdateRequest request) {
 
         Horse horse = findHorseById(horseId);
 
@@ -82,11 +80,26 @@ public class HorseService {
         return horseMapper.toResponse(updatedHorse);
     }
 
-    public void deleteHorse(String horseId) {
-
+    public HorseResponse deactivateHorse(String horseId) {
+    
         Horse horse = findHorseById(horseId);
+    
+        horse.setStatus("INACTIVE");
+    
+        Horse updatedHorse = horseRepository.save(horse);
+    
+        return horseMapper.toResponse(updatedHorse);
+    }
 
-        horseRepository.delete(horse);
+    public HorseResponse activateHorse(String horseId) {
+    
+        Horse horse = findHorseById(horseId);
+    
+        horse.setStatus("ACTIVE");
+    
+        Horse updatedHorse = horseRepository.save(horse);
+    
+        return horseMapper.toResponse(updatedHorse);
     }
 
     private Horse findHorseById(String horseId) {
@@ -97,15 +110,14 @@ public class HorseService {
     }
 
     private String generateHorseId() {
-
+        
         String latestId = horseRepository.findLatestHorseId();
-
+        
         if (latestId == null) {
             return "HOR001";
         }
 
-        int currentNumber =
-                Integer.parseInt(latestId.substring(3));
+        int currentNumber = Integer.parseInt(latestId.substring(3));
 
         int nextNumber = currentNumber + 1;
 

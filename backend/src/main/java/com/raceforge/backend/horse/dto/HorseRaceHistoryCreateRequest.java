@@ -1,17 +1,39 @@
 package com.raceforge.backend.horse.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PastOrPresent;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public class HorseRaceHistoryCreateRequest {
 
+    @NotBlank(message = "Race name is required")
+    @Size(max = 150)
     private String raceName;
+
+    @PastOrPresent(message = "Race date cannot be in the future")
     private LocalDate raceDate;
+
+    @Positive(message = "Distance must be greater than 0")
     private Integer distance;
+
+    @Positive(message = "Finish position must be greater than 0")
     private Integer finishPosition;
+
+    @Size(max = 20)
     private String completionTime;
+
+    @Size(max = 150)
     private String racecourse;
+
+    @Size(max = 100)
     private String jockeyName;
+
+    @PositiveOrZero(message = "Prize cannot be negative")
     private BigDecimal prize;
 
 

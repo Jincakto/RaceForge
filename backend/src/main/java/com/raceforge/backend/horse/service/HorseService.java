@@ -36,8 +36,11 @@ public class HorseService {
             HorseCreateRequest request) {
 
         User owner = userRepository.findById(ownerId)
-                .orElseThrow(() ->
-                        new RuntimeException("Owner not found"));
+            .orElseThrow(() ->
+                new ResourceNotFoundException(
+                        "Owner not found: " + ownerId
+                )
+        );
 
         Horse horse = horseMapper.toEntity(request);
 

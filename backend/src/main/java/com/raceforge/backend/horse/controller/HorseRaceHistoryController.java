@@ -1,9 +1,12 @@
 package com.raceforge.backend.horse.controller;
 
+import com.raceforge.backend.common.response.ApiResponse;
 import com.raceforge.backend.horse.dto.HorseRaceHistoryCreateRequest;
 import com.raceforge.backend.horse.dto.HorseRaceHistoryResponse;
 import com.raceforge.backend.horse.dto.HorseRaceHistoryUpdateRequest;
 import com.raceforge.backend.horse.service.HorseRaceHistoryService;
+
+import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,11 +27,12 @@ public class HorseRaceHistoryController {
     }
 
     @PostMapping("/{horseId}/race-history")
-    public ResponseEntity<HorseRaceHistoryResponse> createRaceHistory(
+    public ResponseEntity<ApiResponse<HorseRaceHistoryResponse>>
+    createRaceHistory(
             @PathVariable String horseId,
-            @RequestBody HorseRaceHistoryCreateRequest request) {
+            @Valid @RequestBody HorseRaceHistoryCreateRequest request) {
 
-        HorseRaceHistoryResponse response =
+        HorseRaceHistoryResponse history =
                 raceHistoryService.createRaceHistory(
                         horseId,
                         request
@@ -36,51 +40,77 @@ public class HorseRaceHistoryController {
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(response);
+                .body(
+                        ApiResponse.success(
+                                "Race history created successfully",
+                                history
+                        )
+                );
     }
 
     @GetMapping("/{horseId}/race-history")
-    public ResponseEntity<List<HorseRaceHistoryResponse>>
+    public ResponseEntity<ApiResponse<List<HorseRaceHistoryResponse>>>
     getRaceHistoryByHorse(
             @PathVariable String horseId) {
 
+        List<HorseRaceHistoryResponse> histories =
+                raceHistoryService.getRaceHistoryByHorse(horseId);
+
         return ResponseEntity.ok(
-                raceHistoryService
-                        .getRaceHistoryByHorse(horseId)
+                ApiResponse.success(
+                        "Race history retrieved successfully",
+                        histories
+                )
         );
     }
 
     @GetMapping("/race-history/{raceHistoryId}")
-    public ResponseEntity<HorseRaceHistoryResponse>
+    public ResponseEntity<ApiResponse<HorseRaceHistoryResponse>>
     getRaceHistoryById(
             @PathVariable String raceHistoryId) {
 
+        HorseRaceHistoryResponse history =
+                raceHistoryService.getRaceHistoryById(raceHistoryId);
+
         return ResponseEntity.ok(
-                raceHistoryService
-                        .getRaceHistoryById(raceHistoryId)
+                ApiResponse.success(
+                        "Race history retrieved successfully",
+                        history
+                )
         );
     }
 
     @PutMapping("/race-history/{raceHistoryId}")
-    public ResponseEntity<HorseRaceHistoryResponse>
+    public ResponseEntity<ApiResponse<HorseRaceHistoryResponse>>
     updateRaceHistory(
             @PathVariable String raceHistoryId,
-            @RequestBody HorseRaceHistoryUpdateRequest request) {
+            @Valid @RequestBody HorseRaceHistoryUpdateRequest request) {
 
-        return ResponseEntity.ok(
+        HorseRaceHistoryResponse history =
                 raceHistoryService.updateRaceHistory(
                         raceHistoryId,
                         request
+                );
+
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "Race history updated successfully",
+                        history
                 )
         );
     }
 
     @DeleteMapping("/race-history/{raceHistoryId}")
-    public ResponseEntity<Void> deleteRaceHistory(
+    public ResponseEntity<ApiResponse<Void>> deleteRaceHistory(
             @PathVariable String raceHistoryId) {
 
         raceHistoryService.deleteRaceHistory(raceHistoryId);
 
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(
+                ApiResponse.success(
+                        "Race history deleted successfully",
+                        null
+                )
+        );
     }
 }

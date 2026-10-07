@@ -8,6 +8,7 @@ import com.raceforge.backend.horse.mapper.HorseMapper;
 import com.raceforge.backend.horse.repository.HorseRepository;
 import com.raceforge.backend.user.entity.User;
 import com.raceforge.backend.user.repository.UserRepository;
+import com.raceforge.backend.common.exception.ResourceNotFoundException;
 
 import org.springframework.stereotype.Service;
 
@@ -103,10 +104,12 @@ public class HorseService {
     }
 
     private Horse findHorseById(String horseId) {
-
         return horseRepository.findById(horseId)
                 .orElseThrow(() ->
-                        new RuntimeException("Horse not found"));
+                        new ResourceNotFoundException(
+                                "Horse not found: " + horseId
+                        )
+                );
     }
 
     private String generateHorseId() {

@@ -11,6 +11,7 @@ import com.raceforge.backend.horse.mapper.HorseRaceHistoryMapper;
 
 import com.raceforge.backend.horse.repository.HorseRaceHistoryRepository;
 import com.raceforge.backend.horse.repository.HorseRepository;
+import com.raceforge.backend.common.exception.ResourceNotFoundException;
 
 import org.springframework.stereotype.Service;
 
@@ -37,10 +38,12 @@ public class HorseRaceHistoryService {
     public HorseRaceHistoryResponse createRaceHistory(
             String horseId,
             HorseRaceHistoryCreateRequest request) {
-
         Horse horse = horseRepository.findById(horseId)
-                .orElseThrow(() ->
-                        new RuntimeException("Horse not found"));
+            .orElseThrow(() ->
+                new ResourceNotFoundException(
+                        "Horse not found: " + horseId
+                )
+        );
 
         HorseRaceHistory history =
                 raceHistoryMapper.toEntity(request);
@@ -63,7 +66,9 @@ public class HorseRaceHistoryService {
             String horseId) {
 
         if (!horseRepository.existsById(horseId)) {
-            throw new RuntimeException("Horse not found");
+            throw new ResourceNotFoundException(
+                    "Horse not found: " + horseId
+            );
         }
 
         return raceHistoryRepository
@@ -107,15 +112,15 @@ public class HorseRaceHistoryService {
         raceHistoryRepository.delete(history);
     }
 
-    private HorseRaceHistory findRaceHistoryById(
-            String raceHistoryId) {
+    private HorseRaceHistory findRaceHistoryById(String raceHistoryId) {
 
         return raceHistoryRepository
                 .findById(raceHistoryId)
                 .orElseThrow(() ->
-                        new RuntimeException(
-                                "Race history not found"
-                        ));
+                        new ResourceNotFoundException(
+                                "Race history not found: " + raceHistoryId
+                        )
+                );
     }
 
     private String generateRaceHistoryId() {

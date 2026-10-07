@@ -1,24 +1,59 @@
 package com.raceforge.backend.horse.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Past;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+
 import java.time.LocalDate;
 
 public class HorseCreateRequest {
 
+    @NotBlank(message = "Horse name is required")
+    @Size(max = 100, message = "Horse name must not exceed 100 characters")
     private String horseName;
+
+    @Past(message = "Date of birth must be in the past")
     private LocalDate dateOfBirth;
+
+    @Size(max = 20, message = "Gender must not exceed 20 characters")
     private String gender;
+
+    @Size(max = 100, message = "Breed must not exceed 100 characters")
     private String breed;
+
+    @NotBlank(message = "Coat color is required")
+    @Size(max = 50, message = "Coat color must not exceed 50 characters")
     private String coatColor;
 
+    @Size(max = 100, message = "Sire must not exceed 100 characters")
     private String sire;
+
+    @Size(max = 100, message = "Dam must not exceed 100 characters")
     private String dam;
+
+    @Size(max = 100, message = "Dam sire must not exceed 100 characters")
     private String damSire;
 
+    @NotNull(message = "Weight is required")
+    @Positive(message = "Weight must be greater than 0")
     private Double weight;
+
+    @NotNull(message = "Height is required")
+    @Positive(message = "Height must be greater than 0")
     private Double height;
 
+    @Size(max = 1000, message = "Background must not exceed 1000 characters")
     private String background;
+
+    @Size(
+        max = 1000,
+        message = "Declared medical history must not exceed 1000 characters"
+    )
     private String declaredMedicalHistory;
+
+    @Size(max = 500, message = "Image URL must not exceed 500 characters")
     private String imageUrl;
 
 

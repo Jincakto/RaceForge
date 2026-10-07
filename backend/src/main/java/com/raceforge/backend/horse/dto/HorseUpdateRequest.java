@@ -21,8 +21,6 @@ public class HorseUpdateRequest {
     private String declaredMedicalHistory;
     private String imageUrl;
 
-    public HorseUpdateRequest() {
-    }
 
     public String getHorseName() {
         return horseName;

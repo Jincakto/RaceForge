@@ -1,16 +1,16 @@
 package com.raceforge.backend.horse.mapper;
 
 import com.raceforge.backend.horse.dto.HorseCreateRequest;
-import com.raceforge.backend.horse.dto.HorseUpdateRequest;
 import com.raceforge.backend.horse.dto.HorseResponse;
+import com.raceforge.backend.horse.dto.HorseUpdateRequest;
 import com.raceforge.backend.horse.entity.Horse;
-
 import org.springframework.stereotype.Component;
 
 @Component
 public class HorseMapper {
 
     public Horse toEntity(HorseCreateRequest request) {
+
         Horse horse = new Horse();
 
         horse.setHorseName(request.getHorseName());
@@ -28,16 +28,31 @@ public class HorseMapper {
 
         horse.setBackground(request.getBackground());
         horse.setDeclaredMedicalHistory(
-                request.getDeclaredMedicalHistory());
+                request.getDeclaredMedicalHistory()
+        );
         horse.setImageUrl(request.getImageUrl());
 
         return horse;
     }
 
     public HorseResponse toResponse(Horse horse) {
+
         HorseResponse response = new HorseResponse();
 
         response.setHorseId(horse.getHorseId());
+
+        if (horse.getOwner() != null) {
+            response.setOwnerId(
+                    horse.getOwner().getUserId()
+            );
+        }
+
+        if (horse.getHeadTrainer() != null) {
+            response.setHeadTrainerId(
+                    horse.getHeadTrainer().getUserId()
+            );
+        }
+
         response.setHorseName(horse.getHorseName());
         response.setDateOfBirth(horse.getDateOfBirth());
         response.setGender(horse.getGender());
@@ -53,7 +68,8 @@ public class HorseMapper {
 
         response.setBackground(horse.getBackground());
         response.setDeclaredMedicalHistory(
-                horse.getDeclaredMedicalHistory());
+                horse.getDeclaredMedicalHistory()
+        );
         response.setImageUrl(horse.getImageUrl());
 
         response.setHealthStatus(horse.getHealthStatus());
@@ -64,8 +80,8 @@ public class HorseMapper {
     }
 
     public void updateEntity(
-            HorseUpdateRequest request,
-            Horse horse) {
+            Horse horse,
+            HorseUpdateRequest request) {
 
         horse.setHorseName(request.getHorseName());
         horse.setDateOfBirth(request.getDateOfBirth());
@@ -82,7 +98,8 @@ public class HorseMapper {
 
         horse.setBackground(request.getBackground());
         horse.setDeclaredMedicalHistory(
-                request.getDeclaredMedicalHistory());
+                request.getDeclaredMedicalHistory()
+        );
         horse.setImageUrl(request.getImageUrl());
     }
 }

@@ -1,6 +1,8 @@
 package com.raceforge.backend.horse.entity;
 
+import com.raceforge.backend.user.entity.User;
 import jakarta.persistence.*;
+
 import java.time.LocalDate;
 
 @Entity
@@ -67,8 +69,6 @@ public class Horse {
     @Column(name = "status", nullable = false)
     private String status;
 
-    public Horse() {
-    }
 
     public String getHorseId() {
         return horseId;
@@ -76,6 +76,22 @@ public class Horse {
 
     public void setHorseId(String horseId) {
         this.horseId = horseId;
+    }
+
+    public User getOwner() {
+        return owner;
+    }
+
+    public void setOwner(User owner) {
+        this.owner = owner;
+    }
+
+    public User getHeadTrainer() {
+        return headTrainer;
+    }
+
+    public void setHeadTrainer(User headTrainer) {
+        this.headTrainer = headTrainer;
     }
 
     public String getHorseName() {
@@ -204,21 +220,5 @@ public class Horse {
 
     public void setStatus(String status) {
         this.status = status;
-    }
-    
-    public User getOwner() {
-    return owner;
-    }
-    
-    public void setOwner(User owner) {
-        this.owner = owner;
-    }
-    
-    public User getHeadTrainer() {
-        return headTrainer;
-    }
-    
-    public void setHeadTrainer(User headTrainer) {
-        this.headTrainer = headTrainer;
     }
 }

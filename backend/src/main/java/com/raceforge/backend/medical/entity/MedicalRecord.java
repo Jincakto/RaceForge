@@ -1,3 +1,5 @@
+package com.raceforge.backend.medical.entity;
+
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -14,28 +16,23 @@ public class MedicalRecord {
     @JoinColumn(name = "profile_id", nullable = false)
     private HealthProfile healthProfile;
 
-    // Veterinarian thực hiện lần khám
     @ManyToOne
     @JoinColumn(name = "veterinarian_id", nullable = false)
     private User veterinarian;
 
-    // Nếu record này là bản sửa của record trước
     @ManyToOne
     @JoinColumn(name = "correction_of_id")
     private MedicalRecord correctionOf;
 
-    // Thông tin lần khám
     @Column(name = "exam_type", nullable = false, length = 30)
     private String examType;
 
     @Column(name = "examined_at", nullable = false)
     private LocalDateTime examinedAt;
 
-    // Kết quả tổng quát
     @Column(name = "health_status", length = 30)
     private String healthStatus;
 
-    // Kết luận của Veterinarian
     @Column(name = "diagnosis", length = 1000)
     private String diagnosis;
 
@@ -57,8 +54,7 @@ public class MedicalRecord {
 
     @Column(name = "training_note", length = 1000)
     private String trainingNote;
-
-    // Trạng thái phiếu khám
+    
     @Column(name = "status", nullable = false, length = 20)
     private String status;
 

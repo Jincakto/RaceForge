@@ -1,6 +1,6 @@
 package com.raceforge.backend.medical.repository;
 
-import your.package.entity.HealthProfile;
+import com.raceforge.backend.medical.entity.HealthProfile;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;

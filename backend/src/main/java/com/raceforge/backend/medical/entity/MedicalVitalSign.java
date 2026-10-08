@@ -1,4 +1,4 @@
-package ;
+package com.raceforge.backend.medical.entity;
 
 import jakarta.persistence.*;
 

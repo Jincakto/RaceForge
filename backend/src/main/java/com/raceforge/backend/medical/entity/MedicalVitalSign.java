@@ -1,6 +1,7 @@
 package com.raceforge.backend.medical.entity;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "Medical_Vital_Sign")
@@ -19,7 +20,7 @@ public class MedicalVitalSign {
     private MedicalRecord medicalRecord;
 
     @Column(name = "body_temperature", precision = 4, scale = 1)
-    private Double bodyTemperature;
+    private BigDecimal bodyTemperature;
 
     @Column(name = "resting_heart_rate")
     private Integer restingHeartRate;
@@ -46,11 +47,11 @@ public class MedicalVitalSign {
         this.medicalRecord = medicalRecord;
     }
 
-    public Double getBodyTemperature() {
+    public BigDecimal getBodyTemperature() {
         return bodyTemperature;
     }
 
-    public void setBodyTemperature(Double bodyTemperature) {
+    public void setBodyTemperature(BigDecimal bodyTemperature) {
         this.bodyTemperature = bodyTemperature;
     }
 

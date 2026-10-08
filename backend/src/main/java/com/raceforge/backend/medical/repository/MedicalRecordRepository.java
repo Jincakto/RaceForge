@@ -1,6 +1,6 @@
 package com.raceforge.backend.medical.repository;
 
-import your.package.entity.MedicalRecord;
+import com.raceforge.backend.medical.entity.MedicalRecord;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

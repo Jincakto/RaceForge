@@ -1,10 +1,12 @@
 package com.raceforge.backend.training.controller;
 
 import com.raceforge.backend.common.response.ApiResponse;
+
 import com.raceforge.backend.training.dto.HorsePackagePaymentRequest;
 import com.raceforge.backend.training.dto.HorsePackageResponse;
 import com.raceforge.backend.training.dto.RecoveryApprovalRequest;
 import com.raceforge.backend.training.service.RecoveryPackageService;
+
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -25,11 +27,12 @@ public class RecoveryPackageController {
     @PostMapping("/horse/{horseId}/approve-recovery")
     public ResponseEntity<ApiResponse<HorsePackageResponse>> approveRecovery(
             @PathVariable String horseId,
-            @Valid @RequestBody RecoveryApprovalRequest request
+            @Valid @RequestBody RecoveryApprovalRequest request,
+            @AuthenticationPrincipal(expression = "userId") String managerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Recovery transition approved; awaiting simulated payment",
-                service.approveRecovery(horseId, request)
+                service.approveRecovery(horseId, request, managerId)
         ));
     }
 

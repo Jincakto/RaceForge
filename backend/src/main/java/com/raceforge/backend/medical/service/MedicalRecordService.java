@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Locale;
 
 @Service
 public class MedicalRecordService {
@@ -82,9 +83,10 @@ public MedicalRecordResponse createMedicalRecord(
         }
 
         MedicalEvaluationResult evaluation =
-        medicalEvaluationService.evaluate(
-                request.getVitalSign(),
-                request.getClinicalExams()
+            medicalEvaluationService.evaluate(
+                    request.getExamType(),
+                    request.getVitalSign(),
+                    request.getClinicalExams()
         );
 
         medicalRecord.setSystemNote(
@@ -153,13 +155,19 @@ public MedicalRecordResponse createMedicalRecord(
             exam.setMedicalRecord(medicalRecord);
     
             exam.setExaminationArea(
-                    request.getExaminationArea());
+                    request.getExaminationArea().trim().toUpperCase()
+            );
     
             exam.setConditionStatus(
-                    request.getConditionStatus());
+                    request.getConditionStatus().trim().toUpperCase()
+            );
     
-            exam.setAbnormalityType(
-                    request.getAbnormalityType());
+            exam.setSeverity(
+                    request.getSeverity() == null
+                            || request.getSeverity().isBlank()
+                            ? null
+                            : request.getSeverity().trim().toUpperCase()
+            );
     
             exam.setSeverity(
                     request.getSeverity());

@@ -1,5 +1,6 @@
 package com.raceforge.backend.medical.controller;
 
+import com.raceforge.backend.common.response.ApiResponse;
 import com.raceforge.backend.medical.dto.MedicalRecordCreateRequest;
 import com.raceforge.backend.medical.dto.MedicalRecordResponse;
 import com.raceforge.backend.medical.dto.MedicalRecordUpdateRequest;
@@ -22,6 +23,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
+
 @RestController
 @RequestMapping("/api/medical")
 public class MedicalRecordController {
@@ -37,7 +39,7 @@ public class MedicalRecordController {
     }
 
     @PostMapping("/records")
-    public ResponseEntity<MedicalRecordResponse> createMedicalRecord(
+    public ResponseEntity<ApiResponse<MedicalRecordResponse>> createMedicalRecord(
             @RequestBody MedicalRecordCreateRequest request,
             Authentication authentication) {
 
@@ -45,65 +47,70 @@ public class MedicalRecordController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body is required");
         }
 
-      request.setVeterinarianId(currentUserId(authentication));
+        request.setVeterinarianId(currentUserId(authentication));
 
         MedicalRecordResponse response = medicalRecordService.createMedicalRecord(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Medical record created", response));
     }
 
     @GetMapping("/records/{medicalRecordId}")
-    public MedicalRecordResponse getMedicalRecord(
+    public ApiResponse<MedicalRecordResponse> getMedicalRecord(
             @PathVariable String medicalRecordId,
             Authentication authentication) {
 
         currentUserId(authentication);
-        return medicalRecordService.getMedicalRecordById(medicalRecordId);
+        return ApiResponse.success("Medical record retrieved",
+                medicalRecordService.getMedicalRecordById(medicalRecordId));
     }
 
     @GetMapping("/horses/{horseId}/records")
-    public List<MedicalRecordResponse> getMedicalHistory(
+    public ApiResponse<List<MedicalRecordResponse>> getMedicalHistory(
             @PathVariable String horseId,
             Authentication authentication) {
 
         currentUserId(authentication);
-        return medicalRecordService.getMedicalHistory(horseId);
+        return ApiResponse.success("Medical history retrieved",
+                medicalRecordService.getMedicalHistory(horseId));
     }
 
     @GetMapping("/horses/{horseId}/previous-examination")
-    public ResponseEntity<MedicalRecordResponse> getPreviousConfirmedExamination(
+    public ResponseEntity<ApiResponse<MedicalRecordResponse>> getPreviousConfirmedExamination(
             @PathVariable String horseId,
             Authentication authentication) {
 
         currentUserId(authentication);
         return medicalRecordService.getPreviousConfirmedExamination(horseId)
-                .map(ResponseEntity::ok)
+                .map(record -> ResponseEntity.ok(ApiResponse.success("Previous examination retrieved", record)))
                 .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @PutMapping("/records/{medicalRecordId}/draft")
-    public MedicalRecordResponse updateMedicalDraft(
+    public ApiResponse<MedicalRecordResponse> updateMedicalDraft(
             @PathVariable String medicalRecordId,
             @RequestBody MedicalRecordUpdateRequest request,
             Authentication authentication) {
 
-        return medicalRecordService.updateMedicalDraft(
-                medicalRecordId,
-                currentUserId(authentication),
-                request);
+        return ApiResponse.success("Medical draft updated",
+                medicalRecordService.updateMedicalDraft(
+                        medicalRecordId,
+                        currentUserId(authentication),
+                        request));
     }
 
     @PostMapping("/records/{medicalRecordId}/confirm")
-    public MedicalRecordResponse confirmMedicalRecord(
+    public ApiResponse<MedicalRecordResponse> confirmMedicalRecord(
             @PathVariable String medicalRecordId,
             Authentication authentication) {
 
-        return medicalRecordService.confirmMedicalRecord(
-                medicalRecordId,
-                currentUserId(authentication));
+        return ApiResponse.success("Medical record confirmed",
+                medicalRecordService.confirmMedicalRecord(
+                        medicalRecordId,
+                        currentUserId(authentication)));
     }
 
     @PostMapping("/horses/{horseId}/training-lock/unlock")
-    public TrainingLockResponse unlockHorse(
+    public ApiResponse<TrainingLockResponse> unlockHorse(
             @PathVariable String horseId,
             @RequestBody TrainingUnlockRequest request,
             Authentication authentication) {
@@ -112,22 +119,24 @@ public class MedicalRecordController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request body is required");
         }
 
-        return TrainingLockResponse.from(trainingLockService.unlockHorse(
-                horseId,
-                currentUserId(authentication),
-                request.getReason()));
+        return ApiResponse.success("Training lock released",
+                TrainingLockResponse.from(trainingLockService.unlockHorse(
+                        horseId,
+                        currentUserId(authentication),
+                        request.getReason())));
     }
 
     @GetMapping("/horses/{horseId}/training-lock/history")
-    public List<TrainingLockResponse> getTrainingLockHistory(
+    public ApiResponse<List<TrainingLockResponse>> getTrainingLockHistory(
             @PathVariable String horseId,
             Authentication authentication) {
 
         currentUserId(authentication);
-        return trainingLockService.getLockHistory(horseId)
-                .stream()
-                .map(TrainingLockResponse::from)
-                .toList();
+        return ApiResponse.success("Training lock history retrieved",
+                trainingLockService.getLockHistory(horseId)
+                        .stream()
+                        .map(TrainingLockResponse::from)
+                        .toList());
     }
 
     private String currentUserId(Authentication authentication) {

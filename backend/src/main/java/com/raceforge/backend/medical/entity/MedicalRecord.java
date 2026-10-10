@@ -2,6 +2,7 @@ package com.raceforge.backend.medical.entity;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import com.raceforge.backend.account.entity.User;
 
 @Entity
 @Table(name = "Medical_Record")
@@ -11,7 +12,6 @@ public class MedicalRecord {
     @Column(name = "medical_record_id", length = 20)
     private String medicalRecordId;
 
-    // Medical Record thuộc một Health Profile
     @ManyToOne
     @JoinColumn(name = "profile_id", nullable = false)
     private HealthProfile healthProfile;

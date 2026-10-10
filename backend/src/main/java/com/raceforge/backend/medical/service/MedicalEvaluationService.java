@@ -1,104 +1,194 @@
+
 package com.raceforge.backend.medical.service;
 
-import com.raceforge.backend.medical.dto.MedicalVitalSignRequest;
 import com.raceforge.backend.medical.dto.MedicalClinicalExamRequest;
-
+import com.raceforge.backend.medical.dto.MedicalVitalSignRequest;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+
+import static com.raceforge.backend.medical.service
+        .MedicalEvaluationResult.EvaluationLevel;
 
 @Service
 public class MedicalEvaluationService {
 
+    private final MedicalClinicalExamValidator clinicalExamValidator;
+
+    public MedicalEvaluationService(
+            MedicalClinicalExamValidator clinicalExamValidator) {
+        this.clinicalExamValidator = clinicalExamValidator;
+    }
+
     public MedicalEvaluationResult evaluate(
+            String examType,
             MedicalVitalSignRequest vitalSign,
             List<MedicalClinicalExamRequest> clinicalExams) {
 
-        StringBuilder systemNote = new StringBuilder();
+        List<String> findings = new ArrayList<>();
 
-        boolean abnormalDetected = false;
-        boolean severeDetected = false;
+        boolean hasWarning = false;
+        boolean hasCritical = false;
+        boolean incomplete = false;
 
-        if (vitalSign != null) {
+        boolean clinicalComplete =
+                clinicalExamValidator.validate(examType, clinicalExams);
 
-            if (vitalSign.getBodyTemperature() != null) {
-                systemNote.append(
-                        "Body temperature recorded: "
-                ).append(vitalSign.getBodyTemperature())
-                 .append(". ");
-            }
-
-            if (vitalSign.getRestingHeartRate() != null) {
-                systemNote.append(
-                        "Resting heart rate recorded: "
-                ).append(vitalSign.getRestingHeartRate())
-                 .append(". ");
-            }
-
-            if (vitalSign.getRestingRespiratoryRate() != null) {
-                systemNote.append(
-                        "Resting respiratory rate recorded: "
-                ).append(vitalSign.getRestingRespiratoryRate())
-                 .append(". ");
-            }
+        if (!clinicalComplete) {
+            incomplete = true;
+            findings.add("Clinical examination data is incomplete.");
         }
 
-        if (clinicalExams != null) {
+        if (vitalSign == null) {
+            incomplete = true;
+            findings.add("Vital signs are missing.");
+        } else {
 
-            for (MedicalClinicalExamRequest exam : clinicalExams) {
+            BigDecimal temperature = vitalSign.getBodyTemperature();
+            Integer heartRate = vitalSign.getRestingHeartRate();
+            Integer respiratoryRate =
+                    vitalSign.getRestingRespiratoryRate();
 
-                if ("ABNORMAL".equalsIgnoreCase(
-                        exam.getConditionStatus())) {
+            if (temperature == null) {
+                incomplete = true;
+                findings.add("Body temperature is missing.");
+            } else {
+                if (temperature.compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new IllegalArgumentException(
+                            "Body temperature must be positive."
+                    );
+                }
 
-                    abnormalDetected = true;
+                if (temperature.compareTo(
+                        MedicalReferenceRange.CRITICAL_HIGH_TEMPERATURE
+                ) >= 0) {
+                    hasCritical = true;
+                    findings.add("Critical high temperature.");
+                } else if (temperature.compareTo(
+                        MedicalReferenceRange.MIN_NORMAL_TEMPERATURE
+                ) < 0 || temperature.compareTo(
+                        MedicalReferenceRange.MAX_NORMAL_TEMPERATURE
+                ) > 0) {
+                    hasWarning = true;
+                    findings.add("Temperature outside normal range.");
+                }
+            }
 
-                    systemNote.append(
-                            "Abnormal condition detected in "
-                    ).append(exam.getExaminationArea())
-                     .append(". ");
+            if (heartRate == null) {
+                incomplete = true;
+                findings.add("Resting heart rate is missing.");
+            } else {
+                if (heartRate <= 0) {
+                    throw new IllegalArgumentException(
+                            "Resting heart rate must be positive."
+                    );
+                }
 
-                    if ("SEVERE".equalsIgnoreCase(
-                            exam.getSeverity())) {
+                if (heartRate >
+                        MedicalReferenceRange.CRITICAL_HIGH_HEART_RATE) {
+                    hasCritical = true;
+                    findings.add("Critical high resting heart rate.");
+                } else if (heartRate <
+                        MedicalReferenceRange.MIN_NORMAL_HEART_RATE
+                        || heartRate >
+                        MedicalReferenceRange.MAX_NORMAL_HEART_RATE) {
+                    hasWarning = true;
+                    findings.add("Heart rate outside normal range.");
+                }
+            }
 
-                        severeDetected = true;
-                    }
+            if (respiratoryRate == null) {
+                incomplete = true;
+                findings.add("Resting respiratory rate is missing.");
+            } else {
+                if (respiratoryRate <= 0) {
+                    throw new IllegalArgumentException(
+                            "Respiratory rate must be positive."
+                    );
+                }
+
+                if (respiratoryRate <
+                        MedicalReferenceRange.MIN_NORMAL_RESPIRATORY_RATE
+                        || respiratoryRate >
+                        MedicalReferenceRange.MAX_NORMAL_RESPIRATORY_RATE) {
+                    hasWarning = true;
+                    findings.add("Respiratory rate outside normal range.");
                 }
             }
         }
 
-        String trainingNote;
-        boolean suggestedLock = false;
+        if (clinicalExams != null) {
+            for (MedicalClinicalExamRequest exam : clinicalExams) {
 
-        if (severeDetected) {
+                if (exam == null
+                        || isBlank(exam.getExaminationArea())
+                        || isBlank(exam.getConditionStatus())) {
+                    continue;
+                }
 
-            suggestedLock = true;
+                String condition = normalize(exam.getConditionStatus());
+                String severity = isBlank(exam.getSeverity())
+                        ? ""
+                        : normalize(exam.getSeverity());
 
-            trainingNote =
-                    "Training lock is recommended. "
-                    + "Veterinarian confirmation is required.";
+                String area = normalize(exam.getExaminationArea());
 
-        } else if (abnormalDetected) {
+                if ("CRITICAL".equals(condition)
+                        || "SEVERE".equals(severity)
+                        || "CRITICAL".equals(severity)) {
 
-            trainingNote =
-                    "Medical review is recommended before training.";
+                    hasCritical = true;
+                    findings.add("Critical clinical finding in " + area + ".");
 
+                } else if ("ABNORMAL".equals(condition)
+                        && ("MILD".equals(severity)
+                        || "MODERATE".equals(severity))) {
+
+                    hasWarning = true;
+                    findings.add("Abnormal clinical finding in " + area + ".");
+                }
+            }
+        }
+
+        EvaluationLevel level;
+
+        if (hasCritical) {
+            level = EvaluationLevel.CRITICAL;
+        } else if (incomplete) {
+            level = EvaluationLevel.INCOMPLETE;
+        } else if (hasWarning) {
+            level = EvaluationLevel.WARNING;
         } else {
-
-            trainingNote =
-                    "No abnormal clinical condition was reported. "
-                    + "Veterinarian review is still required.";
+            level = EvaluationLevel.NORMAL;
         }
 
-        if (systemNote.length() == 0) {
-            systemNote.append(
-                    "No medical examination data was provided."
-            );
-        }
+        String trainingNote = switch (level) {
+            case NORMAL -> "ALLOW_TRAINING";
+            case WARNING -> "ALLOW_WITH_CAUTION";
+            case CRITICAL -> "TRAINING_LOCK";
+            case INCOMPLETE -> "EVALUATION_INCOMPLETE";
+        };
+
+        String systemNote = findings.isEmpty()
+                ? "All evaluated indicators are within normal range."
+                : String.join(" ", findings);
 
         return new MedicalEvaluationResult(
-                systemNote.toString(),
+                level,
+                systemNote,
                 trainingNote,
-                suggestedLock
+                level == EvaluationLevel.CRITICAL
         );
+    }
+
+    private String normalize(String value) {
+        return value.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }

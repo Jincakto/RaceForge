@@ -357,4 +357,33 @@ public MedicalRecordResponse createMedicalRecord(
                 .map(this::buildResponse)
                 .toList();
     }
+
+    
+    @Transactional(readOnly = true)
+    public MedicalRecordResponse getPreviousConfirmedExamination(
+            String horseId) {
+    
+        HealthProfile profile = healthProfileRepository
+                .findByHorse_HorseId(horseId)
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "Health profile not found for horse: "
+                                        + horseId
+                        )
+                );
+    
+        MedicalRecord previousRecord = medicalRecordRepository
+                .findFirstByHealthProfile_ProfileIdAndStatusOrderByExaminedAtDesc(
+                        profile.getProfileId(),
+                        "CONFIRMED"
+                )
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "No previous confirmed examination found."
+                        )
+                );
+    
+        return buildResponse(previousRecord);
+    }
+
 }

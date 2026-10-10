@@ -16,6 +16,7 @@ import com.raceforge.backend.training.mapper.HorsePackageMapper;
 import com.raceforge.backend.training.repository.HorsePackageRepository;
 import com.raceforge.backend.training.repository.TrainingPackageRepository;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +36,7 @@ public class HorsePackageService {
     private final MedicalRecordRepository medicalRecordRepository;
     private final HorsePackageMapper mapper;
     private final EntityManager entityManager;
+    private final PackageEventService packageEventService;
 
     public HorsePackageService(
             HorseRepository horseRepository,
@@ -43,7 +45,8 @@ public class HorsePackageService {
             HealthProfileRepository healthProfileRepository,
             MedicalRecordRepository medicalRecordRepository,
             HorsePackageMapper mapper,
-            EntityManager entityManager
+            EntityManager entityManager,
+            PackageEventService packageEventService
     ) {
         this.horseRepository = horseRepository;
         this.trainingPackageRepository = trainingPackageRepository;
@@ -52,6 +55,7 @@ public class HorsePackageService {
         this.medicalRecordRepository = medicalRecordRepository;
         this.mapper = mapper;
         this.entityManager = entityManager;
+        this.packageEventService = packageEventService;
     }
 
     @Transactional
@@ -60,7 +64,7 @@ public class HorsePackageService {
 
       Horse horse = horseRepository.findById(request.horseId())
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found: " + request.horseId()));
-        entityManager.lock(horse, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);
         checkOwnership(horse, ownerId);
 
         TrainingPackage trainingPackage = trainingPackageRepository.findById(request.packageId())
@@ -102,15 +106,28 @@ public class HorsePackageService {
         registration.setTotalPrice(trainingPackage.getPrice());
         registration.setStatus("PENDING");
         registration.setPaymentStatus("PENDING");
-        return mapper.toResponse(horsePackageRepository.saveAndFlush(registration));
+        HorsePackage saved = horsePackageRepository.saveAndFlush(registration);
+        packageEventService.record(ownerId, horse.getHorseId(), saved.getHorsePackageId(),
+                "NORMAL_PACKAGE_REGISTERED", "Normal training package registration pending payment");
+        packageEventService.notifyOwner(ownerId, horse.getHorseId(),
+                "NORMAL_PACKAGE_REGISTERED", "Training package registration is awaiting payment.");
+        return mapper.toResponse(saved);
     }
 
     @Transactional
     public HorsePackageResponse simulatePayment(String registrationId, boolean successful, String ownerId) {
         requireOwnerId(ownerId);
-        HorsePackage registration = horsePackageRepository.findForUpdate(registrationId)
+
+        HorsePackage registration = horsePackageRepository.findById(registrationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Registration not found: " + registrationId));
-        checkOwnership(registration.getHorse(), ownerId);
+        Horse horse = horseRepository.findById(registration.getHorse().getHorseId())
+                .orElseThrow(() -> new ResourceNotFoundException("Horse not found"));
+        entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);
+        entityManager.lock(registration, LockModeType.PESSIMISTIC_WRITE);
+        checkOwnership(horse, ownerId);
+        if ("RECOVERY".equalsIgnoreCase(registration.getTrainingPackage().getPackageType())) {
+            throw new BusinessRuleException("Recovery payments must use the Recovery workflow");
+        }
 
         if (!"PENDING".equals(registration.getStatus()) || !"PENDING".equals(registration.getPaymentStatus())) {
             throw new BusinessRuleException("This registration is not awaiting payment");
@@ -118,19 +135,23 @@ public class HorsePackageService {
         if (!successful) {
             registration.setPaymentStatus("FAILED");
             registration.setStatus("CANCELLED");
-            return mapper.toResponse(horsePackageRepository.saveAndFlush(registration));
+            HorsePackage failed = horsePackageRepository.saveAndFlush(registration);
+            packageEventService.record(ownerId, horse.getHorseId(), failed.getHorsePackageId(),
+                    "NORMAL_PACKAGE_PAYMENT_FAILED", "Simulated payment failed");
+            packageEventService.notifyOwner(ownerId, horse.getHorseId(),
+                    "NORMAL_PACKAGE_PAYMENT_FAILED", "Training package payment failed.");
+            return mapper.toResponse(failed);
         }
 
-        Horse horse = registration.getHorse();
-        entityManager.lock(horse, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         if (Boolean.TRUE.equals(horse.getTrainingLocked()) || !"READY".equalsIgnoreCase(horse.getHealthStatus())) {
             throw new BusinessRuleException("Horse is no longer eligible for normal training");
         }
         if (!"ACTIVE".equals(registration.getTrainingPackage().getStatus())) {
             throw new BusinessRuleException("Training package is no longer available");
         }
-        if (!horsePackageRepository.findByHorse_HorseIdAndStatus(horse.getHorseId(), "ACTIVE").isEmpty()) {
-            throw new BusinessRuleException("Horse already has an active package");
+        if (horsePackageRepository.existsByHorse_HorseIdAndStatusIn(
+                horse.getHorseId(), List.of("ACTIVE", "PAUSED"))) {
+            throw new BusinessRuleException("Horse already has an active or paused package");
         }
 
         LocalDate today = LocalDate.now();
@@ -141,7 +162,12 @@ public class HorsePackageService {
         registration.setStartDate(today);
         registration.setEndDate(today.plusDays(days - 1L));
         registration.setRemainingDays(days);
-        return mapper.toResponse(horsePackageRepository.saveAndFlush(registration));
+        HorsePackage saved = horsePackageRepository.saveAndFlush(registration);
+        packageEventService.record(ownerId, horse.getHorseId(), saved.getHorsePackageId(),
+                "NORMAL_PACKAGE_ACTIVATED", "Simulated payment successful");
+        packageEventService.notifyOwner(ownerId, horse.getHorseId(),
+                "NORMAL_PACKAGE_ACTIVATED", "Training package payment successful; package is active.");
+        return mapper.toResponse(saved);
     }
 
     @Transactional(readOnly = true)

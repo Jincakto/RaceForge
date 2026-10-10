@@ -51,7 +51,8 @@ public class RecoveryPackageService {
         this.trainingPackageRepository = trainingPackageRepository;
         this.trainingLockRepository = trainingLockRepository;
         this.mapper = mapper;
-        this.entityManager = entityManager;\n        this.packageEventService = packageEventService;
+        this.entityManager = entityManager;       
+        this.packageEventService = packageEventService;
     }
 
     @Transactional

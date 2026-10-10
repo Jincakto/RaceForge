@@ -1,5 +1,7 @@
 package com.raceforge.backend.medical.service;
 
+import com.raceforge.backend.common.exception.BusinessRuleException;
+import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.account.entity.User;
 import com.raceforge.backend.account.repository.UserRepository;
 import com.raceforge.backend.horse.entity.Horse;
@@ -7,6 +9,7 @@ import com.raceforge.backend.horse.repository.HorseRepository;
 import com.raceforge.backend.medical.entity.MedicalRecord;
 import com.raceforge.backend.medical.entity.TrainingLock;
 import com.raceforge.backend.medical.repository.TrainingLockRepository;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import org.springframework.stereotype.Service;
@@ -53,7 +56,7 @@ public class TrainingLockService {
             return;
         }
         if (Boolean.TRUE.equals(horse.getTrainingLocked())) {
-            throw new IllegalStateException("Horse is marked locked but has no active Training_Lock record; reconcile data first");
+            throw new BusinessRuleException("Horse is marked locked but has no active Training_Lock record; reconcile data first");
         }
         TrainingLock lock = new TrainingLock();
         lock.setLockId(generateId());
@@ -79,21 +82,21 @@ public class TrainingLockService {
             throw new IllegalArgumentException("Unlock reason must be at most 1000 characters");
         }
         User veterinarian = userRepository.findDetailedById(veterinarianId)
-                .orElseThrow(() -> new IllegalArgumentException("Veterinarian not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Veterinarian not found"));
         validateVeterinarian(veterinarian);
 
         Horse horse = horseRepository.findById(horseId)
-                .orElseThrow(() -> new IllegalArgumentException("Horse not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Horse not found"));
         entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);
         if (!"READY".equals(normalize(horse.getHealthStatus()))) {
-            throw new IllegalStateException("Only horses with READY health status may be unlocked");
+            throw new BusinessRuleException("Only horses with READY health status may be unlocked");
         }
         if (!Boolean.TRUE.equals(horse.getTrainingLocked())) {
-            throw new IllegalStateException("Horse is not currently training-locked");
+            throw new BusinessRuleException("Horse is not currently training-locked");
         }
         TrainingLock activeLock = trainingLockRepository
                 .findFirstByHorse_HorseIdAndUnlockedAtIsNullOrderByLockedAtDesc(horseId)
-                .orElseThrow(() -> new IllegalStateException("Active Training_Lock record not found"));
+                .orElseThrow(() -> new BusinessRuleException("Active Training_Lock record not found"));
         activeLock.setUnlockedBy(veterinarian);
         activeLock.setUnlockedAt(LocalDateTime.now());
         activeLock.setUnlockReason(reason.trim());
@@ -106,7 +109,7 @@ public class TrainingLockService {
     @Transactional(readOnly = true)
     public List<TrainingLock> getLockHistory(String horseId) {
         if (!horseRepository.existsById(horseId)) {
-            throw new IllegalArgumentException("Horse not found");
+            throw new ResourceNotFoundException("Horse not found");
         }
         return trainingLockRepository.findByHorse_HorseIdOrderByLockedAtDesc(horseId);
     }
@@ -114,7 +117,7 @@ public class TrainingLockService {
     private void validateVeterinarian(User user) {
         if (!"ACTIVE".equals(normalize(user.getStatus())) || user.getRole() == null
                 || !"VETERINARIAN".equals(normalize(user.getRole().getRoleName()))) {
-            throw new IllegalStateException("An active Veterinarian account is required");
+            throw new BusinessRuleException("An active Veterinarian account is required");
         }
     }
 

@@ -34,10 +34,30 @@ public class MedicalClinicalExamValidator {
             "CRITICAL"
     );
 
+    private static final Set<String> VALID_EXAM_TYPES = Set.of(
+        "INITIAL",
+        "PERIODIC",
+        "FOLLOW_UP"
+    );
+
     public boolean validate(
             String examType,
             List<MedicalClinicalExamRequest> exams) {
 
+        if (isBlank(examType)) {
+            throw new IllegalArgumentException(
+                    "Examination type is required."
+            );
+        }
+        
+        String normalizedExamType = normalize(examType);
+        
+        if (!VALID_EXAM_TYPES.contains(normalizedExamType)) {
+            throw new IllegalArgumentException(
+                    "Unsupported examination type: " + examType
+            );
+        }
+        
         if (exams == null || exams.isEmpty()) {
             return false;
         }
@@ -101,7 +121,9 @@ public class MedicalClinicalExamValidator {
             }
         }
 
-        if ("INITIAL".equalsIgnoreCase(examType)) {
+      if ("INITIAL".equals(normalizedExamType)
+                || "PERIODIC".equals(normalizedExamType)) {
+        
             complete = complete
                     && submittedAreas.containsAll(REQUIRED_AREAS);
         }

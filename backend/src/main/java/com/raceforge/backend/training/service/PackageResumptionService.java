@@ -2,12 +2,14 @@ package com.raceforge.backend.training.service;
 
 import com.raceforge.backend.common.exception.BusinessRuleException;
 import com.raceforge.backend.common.exception.ResourceNotFoundException;
+
 import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.repository.HorseRepository;
 import com.raceforge.backend.training.dto.HorsePackageResponse;
 import com.raceforge.backend.training.entity.HorsePackage;
 import com.raceforge.backend.training.mapper.HorsePackageMapper;
 import com.raceforge.backend.training.repository.HorsePackageRepository;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import org.springframework.stereotype.Service;
@@ -23,7 +25,8 @@ public class PackageResumptionService {
     private final HorseRepository horseRepository;
     private final HorsePackageRepository horsePackageRepository;
     private final HorsePackageMapper mapper;
-    private final EntityManager entityManager;
+    private final EntityManager entityManager;  
+    private final PackageEventService packageEventService;
 
     public PackageResumptionService(
             HorseRepository horseRepository,
@@ -34,8 +37,10 @@ public class PackageResumptionService {
         this.horseRepository = horseRepository;
         this.horsePackageRepository = horsePackageRepository;
         this.mapper = mapper;
-        this.entityManager = entityManager;
+        this.entityManager = entityManager;    
+        this.packageEventService = packageEventService;
     }
+
 
     @Transactional
     public HorsePackageResponse resumeOriginalPackage(String recoveryRegistrationId, String reason) {
@@ -98,8 +103,14 @@ public class PackageResumptionService {
         original.setPauseReason(null);
 
         recovery.setStatus("COMPLETED");
-        // Store CM's reason in AUDIT_LOG during Stage 6, not in a medical field.
+
         horsePackageRepository.save(recovery);
-        return mapper.toResponse(horsePackageRepository.saveAndFlush(original));
+        HorsePackage saved = horsePackageRepository.saveAndFlush(original);
+        packageEventService.record(null, horse.getHorseId(), saved.getHorsePackageId(),
+                "ORIGINAL_PACKAGE_RESUMED", reason);
+        packageEventService.notifyOwner(horse.getOwner().getUserId(), horse.getHorseId(),
+                "PACKAGE_RESUMED", "Original training package resumed with "
+                        + remaining + " preserved days.");
+        return mapper.toResponse(saved);
     }
 }

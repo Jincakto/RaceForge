@@ -20,19 +20,22 @@ public class MedicalRecordService {
     private final MedicalVitalSignRepository medicalVitalSignRepository;
     private final MedicalClinicalExamRepository medicalClinicalExamRepository;
     private final UserRepository userRepository;
-
+    private final MedicalEvaluationService medicalEvaluationService;
+    
     public MedicalRecordService(
             HealthProfileRepository healthProfileRepository,
             MedicalRecordRepository medicalRecordRepository,
             MedicalVitalSignRepository medicalVitalSignRepository,
             MedicalClinicalExamRepository medicalClinicalExamRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            MedicalEvaluationService medicalEvaluationService) {
     
         this.healthProfileRepository = healthProfileRepository;
         this.medicalRecordRepository = medicalRecordRepository;
         this.medicalVitalSignRepository = medicalVitalSignRepository;
         this.medicalClinicalExamRepository = medicalClinicalExamRepository;
         this.userRepository = userRepository;
+        this.medicalEvaluationService = medicalEvaluationService;
     }
 
     @Transactional
@@ -77,6 +80,20 @@ public MedicalRecordResponse createMedicalRecord(
     
             medicalRecord.setCorrectionOf(oldRecord);
         }
+
+        MedicalEvaluationResult evaluation =
+        medicalEvaluationService.evaluate(
+                request.getVitalSign(),
+                request.getClinicalExams()
+        );
+
+        medicalRecord.setSystemNote(
+                evaluation.systemNote()
+        );
+        
+        medicalRecord.setTrainingNote(
+                evaluation.trainingNote()
+        );
     
         medicalRecordRepository.save(medicalRecord);
     

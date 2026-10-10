@@ -1,6 +1,6 @@
 package com.raceforge.backend.horse.entity;
 
-import com.raceforge.backend.user.entity.User;
+import com.raceforge.backend.account.entity.User;
 import jakarta.persistence.*;
 
 import java.time.LocalDate;

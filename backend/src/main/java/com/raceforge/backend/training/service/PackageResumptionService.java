@@ -32,7 +32,8 @@ public class PackageResumptionService {
             HorseRepository horseRepository,
             HorsePackageRepository horsePackageRepository,
             HorsePackageMapper mapper,
-            EntityManager entityManager
+            EntityManager entityManager,
+            PackageEventService packageEventService
     ) {
         this.horseRepository = horseRepository;
         this.horsePackageRepository = horsePackageRepository;

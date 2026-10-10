@@ -44,7 +44,7 @@ public class PackageResumptionService {
 
 
     @Transactional
-    public HorsePackageResponse resumeOriginalPackage(String recoveryRegistrationId, String reason) {
+    public HorsePackageResponse resumeOriginalPackage(String recoveryRegistrationId, String reason, String managerId) {
         HorsePackage recovery = horsePackageRepository.findById(recoveryRegistrationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Recovery registration not found"));
 
@@ -107,7 +107,7 @@ public class PackageResumptionService {
 
         horsePackageRepository.save(recovery);
         HorsePackage saved = horsePackageRepository.saveAndFlush(original);
-        packageEventService.record(null, horse.getHorseId(), saved.getHorsePackageId(),
+        packageEventService.record(managerId, horse.getHorseId(), saved.getHorsePackageId(),
                 "ORIGINAL_PACKAGE_RESUMED", reason);
         packageEventService.notifyOwner(horse.getOwner().getUserId(), horse.getHorseId(),
                 "PACKAGE_RESUMED", "Original training package resumed with "

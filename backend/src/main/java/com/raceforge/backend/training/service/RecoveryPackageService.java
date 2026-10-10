@@ -44,20 +44,21 @@ public class RecoveryPackageService {
             TrainingPackageRepository trainingPackageRepository,
             TrainingLockRepository trainingLockRepository,
             HorsePackageMapper mapper,
-            EntityManager entityManager
+            EntityManager entityManager,
+            PackageEventService packageEventService
     ) {
         this.horseRepository = horseRepository;
         this.horsePackageRepository = horsePackageRepository;
         this.trainingPackageRepository = trainingPackageRepository;
         this.trainingLockRepository = trainingLockRepository;
         this.mapper = mapper;
-        this.entityManager = entityManager;       
+        this.entityManager = entityManager;
         this.packageEventService = packageEventService;
     }
 
     @Transactional
     public HorsePackageResponse approveRecovery(
-            String horseId, RecoveryApprovalRequest request
+            String horseId, RecoveryApprovalRequest request, String managerId
     ) {
         Horse horse = lockedHorse(horseId);
         requireConfirmedTrainingLock(horse);
@@ -100,9 +101,9 @@ public class RecoveryPackageService {
         if (!activeNormal.isEmpty()) {
             pendingRecovery.setReplacedHorsePackage(activeNormal.get(0));
         }
-        // The old package is NOT paused until recovery payment succeeds.
+
         HorsePackage saved = horsePackageRepository.saveAndFlush(pendingRecovery);
-        packageEventService.record(null, horseId, saved.getHorsePackageId(),
+        packageEventService.record(managerId, horseId, saved.getHorsePackageId(),
                 "RECOVERY_APPROVED", request.reason());
         packageEventService.notifyOwner(horse.getOwner().getUserId(), horseId,
                 "RECOVERY_APPROVED", "Club Manager approved Recovery; payment is pending.");

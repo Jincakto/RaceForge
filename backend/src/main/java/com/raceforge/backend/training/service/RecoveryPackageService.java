@@ -2,6 +2,7 @@ package com.raceforge.backend.training.service;
 
 import com.raceforge.backend.common.exception.BusinessRuleException;
 import com.raceforge.backend.common.exception.ResourceNotFoundException;
+
 import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.repository.HorseRepository;
 import com.raceforge.backend.medical.entity.TrainingLock;
@@ -13,6 +14,7 @@ import com.raceforge.backend.training.entity.TrainingPackage;
 import com.raceforge.backend.training.mapper.HorsePackageMapper;
 import com.raceforge.backend.training.repository.HorsePackageRepository;
 import com.raceforge.backend.training.repository.TrainingPackageRepository;
+
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import org.springframework.stereotype.Service;
@@ -33,7 +35,8 @@ public class RecoveryPackageService {
     private final TrainingPackageRepository trainingPackageRepository;
     private final TrainingLockRepository trainingLockRepository;
     private final HorsePackageMapper mapper;
-    private final EntityManager entityManager;
+    private final EntityManager entityManager;    
+    private final PackageEventService packageEventService;
 
     public RecoveryPackageService(
             HorseRepository horseRepository,
@@ -48,7 +51,7 @@ public class RecoveryPackageService {
         this.trainingPackageRepository = trainingPackageRepository;
         this.trainingLockRepository = trainingLockRepository;
         this.mapper = mapper;
-        this.entityManager = entityManager;
+        this.entityManager = entityManager;\n        this.packageEventService = packageEventService;
     }
 
     @Transactional
@@ -96,7 +99,13 @@ public class RecoveryPackageService {
         if (!activeNormal.isEmpty()) {
             pendingRecovery.setReplacedHorsePackage(activeNormal.get(0));
         }
-        return mapper.toResponse(horsePackageRepository.saveAndFlush(pendingRecovery));
+        // The old package is NOT paused until recovery payment succeeds.
+        HorsePackage saved = horsePackageRepository.saveAndFlush(pendingRecovery);
+        packageEventService.record(null, horseId, saved.getHorsePackageId(),
+                "RECOVERY_APPROVED", request.reason());
+        packageEventService.notifyOwner(horse.getOwner().getUserId(), horseId,
+                "RECOVERY_APPROVED", "Club Manager approved Recovery; payment is pending.");
+        return mapper.toResponse(saved);
     }
 
     @Transactional
@@ -120,7 +129,12 @@ public class RecoveryPackageService {
         if (!successful) {
             registration.setPaymentStatus("FAILED");
             registration.setStatus("CANCELLED");
-            return mapper.toResponse(horsePackageRepository.saveAndFlush(registration));
+            HorsePackage failed = horsePackageRepository.saveAndFlush(registration);
+            packageEventService.record(ownerId, horse.getHorseId(), failed.getHorsePackageId(),
+                    "RECOVERY_PAYMENT_FAILED", "Simulated payment failed");
+            packageEventService.notifyManagers(horse.getHorseId(),
+                    "RECOVERY_PAYMENT_FAILED", "Recovery payment was not successful.");
+            return mapper.toResponse(failed);
         }
 
         requireConfirmedTrainingLock(horse);
@@ -164,7 +178,14 @@ public class RecoveryPackageService {
         registration.setStartDate(today);
         registration.setEndDate(today.plusDays(days - 1L));
         registration.setRemainingDays(days);
-        return mapper.toResponse(horsePackageRepository.saveAndFlush(registration));
+        HorsePackage saved = horsePackageRepository.saveAndFlush(registration);
+        packageEventService.record(ownerId, horse.getHorseId(), saved.getHorsePackageId(),
+                "RECOVERY_ACTIVATED", "Recovery payment successful; normal package paused");
+        packageEventService.notifyOwner(ownerId, horse.getHorseId(),
+                "RECOVERY_ACTIVATED", "Recovery is active; original package days preserved.");
+        packageEventService.notifyManagers(horse.getHorseId(),
+                "RECOVERY_ACTIVATED", "Recovery activated and original package paused.");
+        return mapper.toResponse(saved);
     }
 
     private Horse lockedHorse(String horseId) {

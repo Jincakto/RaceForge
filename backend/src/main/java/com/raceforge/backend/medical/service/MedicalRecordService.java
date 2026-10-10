@@ -2,20 +2,21 @@ package com.raceforge.backend.medical.service;
 
 import com.raceforge.backend.account.entity.User;
 import com.raceforge.backend.account.repository.UserRepository;
+import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.medical.dto.*;
 import com.raceforge.backend.medical.entity.*;
 import com.raceforge.backend.medical.mapper.MedicalRecordMapper;
-import com.raceforge.backend.horse.entity.Horse;
+import com.raceforge.backend.medical.repository.*;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import com.raceforge.backend.medical.repository.*;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class MedicalRecordService {
@@ -64,13 +65,13 @@ public class MedicalRecordService {
         record.setCareRecommendation(request.getCareRecommendation());
         record.setNotes(request.getNotes());
         record.setStatus("DRAFT");
-
         if (request.getCorrectionOfId() != null && !request.getCorrectionOfId().isBlank()) {
             MedicalRecord original = medicalRecordRepository.findById(request.getCorrectionOfId())
                     .orElseThrow(() -> new IllegalArgumentException("Original medical record not found"));
             if (!original.getHealthProfile().getProfileId().equals(profile.getProfileId())) {
                 throw new IllegalArgumentException("Correction must belong to the same health profile");
             }
+
             record.setCorrectionOf(original);
         }
 
@@ -79,13 +80,17 @@ public class MedicalRecordService {
         record.setSystemNote(evaluation.systemNote());
         record.setTrainingNote(evaluation.trainingNote());
         medicalRecordRepository.save(record);
+
         saveVitalSign(record, request.getVitalSign());
         saveClinicalExams(record, request.getClinicalExams());
+
         return buildResponse(record);
     }
 
     private void saveVitalSign(MedicalRecord record, MedicalVitalSignRequest request) {
-        if (request == null) return;
+        if (request == null) {
+            return;
+        }
         MedicalVitalSign entity = new MedicalVitalSign();
         entity.setVitalSignId(generateId("VIT"));
         entity.setMedicalRecord(record);
@@ -96,11 +101,15 @@ public class MedicalRecordService {
     }
 
     private void saveClinicalExams(MedicalRecord record, List<MedicalClinicalExamRequest> requests) {
-        if (requests == null) return;
+        if (requests == null) {
+            return;
+        }
         for (MedicalClinicalExamRequest request : requests) {
 
             if (request == null || isBlank(request.getExaminationArea())
-                    || isBlank(request.getConditionStatus())) continue;
+                    || isBlank(request.getConditionStatus())) {
+                continue;
+            }
             MedicalClinicalExam entity = new MedicalClinicalExam();
             entity.setClinicalExamId(generateId("CLN"));
             entity.setMedicalRecord(record);
@@ -157,6 +166,76 @@ public class MedicalRecordService {
                 .map(this::buildResponse);
     }
 
+    @Transactional
+    public MedicalRecordResponse updateMedicalDraft(String medicalRecordId,
+                                                     String veterinarianId,
+                                                     MedicalRecordUpdateRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Update request is required");
+        }
+
+        User veterinarian = getVeterinarian(veterinarianId);
+        MedicalRecord record = medicalRecordRepository.findById(medicalRecordId)
+                .orElseThrow(() -> new IllegalArgumentException("Medical record not found"));
+        if (!"DRAFT".equals(record.getStatus())) {
+            throw new IllegalStateException("Only DRAFT medical records can be edited");
+        }
+
+        if (!record.getVeterinarian().getUserId().equals(veterinarian.getUserId())) {
+            throw new IllegalStateException("Only the assigned veterinarian can edit this record");
+        }
+
+        if (request.getExaminedAt() == null) {
+            throw new IllegalArgumentException("ExaminedAt is required");
+        }
+
+        String healthStatus = normalize(request.getHealthStatus());
+        if (healthStatus != null && !List.of("READY", "INJURED", "QUARANTINED").contains(healthStatus)) {
+            throw new IllegalArgumentException("Unsupported horse health status: " + healthStatus);
+        }
+
+        MedicalEvaluationResult evaluation = medicalEvaluationService.evaluate(
+                record.getExamType(), request.getVitalSign(), request.getClinicalExams());
+        record.setExaminedAt(request.getExaminedAt());
+        record.setHealthStatus(healthStatus);
+        record.setDiagnosis(request.getDiagnosis());
+        record.setTreatment(request.getTreatment());
+        record.setMedication(request.getMedication());
+        record.setCareRecommendation(request.getCareRecommendation());
+        record.setNotes(request.getNotes());
+        record.setSystemNote(evaluation.systemNote());
+        record.setTrainingNote(evaluation.trainingNote());
+        medicalRecordRepository.save(record);
+
+        MedicalVitalSign existingVital = medicalVitalSignRepository
+                .findByMedicalRecord_MedicalRecordId(medicalRecordId).orElse(null);
+        MedicalVitalSignRequest newVital = request.getVitalSign();
+        if (newVital == null) {
+            if (existingVital != null) {
+                medicalVitalSignRepository.delete(existingVital);
+            }
+        } else {
+            MedicalVitalSign vital = existingVital == null ? new MedicalVitalSign() : existingVital;
+            if (existingVital == null) {
+                vital.setVitalSignId(generateId("VIT"));
+                vital.setMedicalRecord(record);
+            }
+
+            vital.setBodyTemperature(newVital.getBodyTemperature());
+            vital.setRestingHeartRate(newVital.getRestingHeartRate());
+            vital.setRestingRespiratoryRate(newVital.getRestingRespiratoryRate());
+            medicalVitalSignRepository.save(vital);
+        }
+
+        List<MedicalClinicalExam> oldExams = medicalClinicalExamRepository
+                .findByMedicalRecord_MedicalRecordId(medicalRecordId);
+        medicalClinicalExamRepository.deleteAll(oldExams);
+        medicalClinicalExamRepository.flush();
+        saveClinicalExams(record, request.getClinicalExams());
+
+        return buildResponse(record);
+    }
+
 
     @Transactional
     public MedicalRecordResponse confirmMedicalRecord(String medicalRecordId,
@@ -164,10 +243,10 @@ public class MedicalRecordService {
         User veterinarian = getVeterinarian(veterinarianId);
         MedicalRecord record = medicalRecordRepository.findById(medicalRecordId)
                 .orElseThrow(() -> new IllegalArgumentException("Medical record not found"));
-
         if (!"DRAFT".equals(record.getStatus())) {
             throw new IllegalStateException("Only DRAFT medical records can be confirmed");
         }
+
         if (!record.getVeterinarian().getUserId().equals(veterinarian.getUserId())) {
             throw new IllegalStateException("Only the assigned veterinarian can confirm this record");
         }
@@ -176,7 +255,6 @@ public class MedicalRecordService {
                 .findByMedicalRecord_MedicalRecordId(medicalRecordId).orElse(null);
         List<MedicalClinicalExam> savedExams = medicalClinicalExamRepository
                 .findByMedicalRecord_MedicalRecordId(medicalRecordId);
-
         MedicalVitalSignRequest vitalRequest = null;
         if (savedVital != null) {
             vitalRequest = new MedicalVitalSignRequest();
@@ -221,20 +299,20 @@ public class MedicalRecordService {
         boolean mustLock = evaluation.suggestedLock()
                 || "INJURED".equals(healthStatus)
                 || "QUARANTINED".equals(healthStatus);
-
         record.setHealthStatus(healthStatus);
         record.setSystemNote(evaluation.systemNote());
         record.setTrainingNote(evaluation.trainingNote());
         record.setStatus("CONFIRMED");
         record.setConfirmedAt(LocalDateTime.now());
         horse.setHealthStatus(healthStatus);
-
         if (mustLock) {
             String reason = "Confirmed medical examination " + medicalRecordId
                     + ": " + evaluation.systemNote()
                     + ("INJURED".equals(healthStatus) || "QUARANTINED".equals(healthStatus)
                        ? " Health status: " + healthStatus + "." : "");
-            if (reason.length() > 1000) reason = reason.substring(0, 1000);
+            if (reason.length() > 1000) {
+                reason = reason.substring(0, 1000);
+            }
             trainingLockService.lockFromConfirmedExamination(horse, record, veterinarian, reason);
         }
 

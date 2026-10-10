@@ -1,8 +1,11 @@
 package com.raceforge.backend.medical.service;
 
+import com.raceforge.backend.common.exception.BusinessRuleException;
+import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.account.entity.User;
 import com.raceforge.backend.account.repository.UserRepository;
 import com.raceforge.backend.horse.entity.Horse;
+
 import com.raceforge.backend.medical.dto.*;
 import com.raceforge.backend.medical.entity.*;
 import com.raceforge.backend.medical.mapper.MedicalRecordMapper;
@@ -51,7 +54,7 @@ public class MedicalRecordService {
     @Transactional
     public MedicalRecordResponse createMedicalRecord(MedicalRecordCreateRequest request) {
         HealthProfile profile = healthProfileRepository.findById(request.getProfileId())
-                .orElseThrow(() -> new IllegalArgumentException("Health profile not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Health profile not found"));
         MedicalRecord record = new MedicalRecord();
         record.setMedicalRecordId(generateId("MED"));
         record.setHealthProfile(profile);
@@ -67,9 +70,9 @@ public class MedicalRecordService {
         record.setStatus("DRAFT");
         if (request.getCorrectionOfId() != null && !request.getCorrectionOfId().isBlank()) {
             MedicalRecord original = medicalRecordRepository.findById(request.getCorrectionOfId())
-                    .orElseThrow(() -> new IllegalArgumentException("Original medical record not found"));
+                    .orElseThrow(() -> new ResourceNotFoundException("Original medical record not found"));
             if (!original.getHealthProfile().getProfileId().equals(profile.getProfileId())) {
-                throw new IllegalArgumentException("Correction must belong to the same health profile");
+                throw new BusinessRuleException("Correction must belong to the same health profile");
             }
 
             record.setCorrectionOf(original);
@@ -133,25 +136,27 @@ public class MedicalRecordService {
 
     private User getVeterinarian(String veterinarianId) {
         User user = userRepository.findDetailedById(veterinarianId)
-                .orElseThrow(() -> new IllegalArgumentException("Veterinarian not found"));
-        if (!"ACTIVE".equals(user.getStatus()))
-            throw new IllegalStateException("Veterinarian account is not active");
-        if (user.getRole() == null || !"VETERINARIAN".equals(user.getRole().getRoleName()))
-            throw new IllegalStateException("User does not have Veterinarian role");
+                .orElseThrow(() -> new ResourceNotFoundException("Veterinarian not found"));
+        if (!"ACTIVE".equals(user.getStatus())) {
+            throw new BusinessRuleException("Veterinarian account is not active");
+        }
+        if (user.getRole() == null || !"VETERINARIAN".equals(user.getRole().getRoleName())) {
+            throw new BusinessRuleException("User does not have Veterinarian role");
+        }
         return user;
     }
 
     @Transactional(readOnly = true)
     public MedicalRecordResponse getMedicalRecordById(String medicalRecordId) {
         MedicalRecord record = medicalRecordRepository.findById(medicalRecordId)
-                .orElseThrow(() -> new IllegalArgumentException("Medical record not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
         return buildResponse(record);
     }
 
     @Transactional(readOnly = true)
     public List<MedicalRecordResponse> getMedicalHistory(String horseId) {
         HealthProfile profile = healthProfileRepository.findByHorse_HorseId(horseId)
-                .orElseThrow(() -> new IllegalArgumentException("Health profile not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Health profile not found"));
         return medicalRecordRepository.findByHealthProfile_ProfileIdOrderByExaminedAtDesc(profile.getProfileId())
                 .stream().map(this::buildResponse).toList();
     }
@@ -159,7 +164,7 @@ public class MedicalRecordService {
     @Transactional(readOnly = true)
     public Optional<MedicalRecordResponse> getPreviousConfirmedExamination(String horseId) {
         HealthProfile profile = healthProfileRepository.findByHorse_HorseId(horseId)
-                .orElseThrow(() -> new IllegalArgumentException("Health profile not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Health profile not found"));
         return medicalRecordRepository
                 .findFirstByHealthProfile_ProfileIdAndStatusOrderByExaminedAtDesc(
                         profile.getProfileId(), "CONFIRMED")
@@ -176,13 +181,13 @@ public class MedicalRecordService {
 
         User veterinarian = getVeterinarian(veterinarianId);
         MedicalRecord record = medicalRecordRepository.findById(medicalRecordId)
-                .orElseThrow(() -> new IllegalArgumentException("Medical record not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
         if (!"DRAFT".equals(record.getStatus())) {
-            throw new IllegalStateException("Only DRAFT medical records can be edited");
+            throw new BusinessRuleException("Only DRAFT medical records can be edited");
         }
 
         if (!record.getVeterinarian().getUserId().equals(veterinarian.getUserId())) {
-            throw new IllegalStateException("Only the assigned veterinarian can edit this record");
+            throw new BusinessRuleException("Only the assigned veterinarian can edit this record");
         }
 
         if (request.getExaminedAt() == null) {
@@ -242,13 +247,13 @@ public class MedicalRecordService {
                                                        String veterinarianId) {
         User veterinarian = getVeterinarian(veterinarianId);
         MedicalRecord record = medicalRecordRepository.findById(medicalRecordId)
-                .orElseThrow(() -> new IllegalArgumentException("Medical record not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
         if (!"DRAFT".equals(record.getStatus())) {
-            throw new IllegalStateException("Only DRAFT medical records can be confirmed");
+            throw new BusinessRuleException("Only DRAFT medical records can be confirmed");
         }
 
         if (!record.getVeterinarian().getUserId().equals(veterinarian.getUserId())) {
-            throw new IllegalStateException("Only the assigned veterinarian can confirm this record");
+            throw new BusinessRuleException("Only the assigned veterinarian can confirm this record");
         }
 
         MedicalVitalSign savedVital = medicalVitalSignRepository
@@ -277,12 +282,12 @@ public class MedicalRecordService {
         MedicalEvaluationResult evaluation = medicalEvaluationService.evaluate(
                 record.getExamType(), vitalRequest, examRequests);
         if (evaluation.level() == MedicalEvaluationResult.EvaluationLevel.INCOMPLETE) {
-            throw new IllegalStateException("Incomplete medical examination cannot be confirmed");
+            throw new BusinessRuleException("Incomplete medical examination cannot be confirmed");
         }
 
         String healthStatus = normalize(record.getHealthStatus());
         if (healthStatus == null || healthStatus.isBlank()) {
-            throw new IllegalStateException("Veterinarian must provide health status before confirmation");
+            throw new BusinessRuleException("Veterinarian must provide health status before confirmation");
         }
 
         if (!List.of("READY", "INJURED", "QUARANTINED").contains(healthStatus)) {
@@ -291,7 +296,7 @@ public class MedicalRecordService {
 
         if (evaluation.level() == MedicalEvaluationResult.EvaluationLevel.CRITICAL
                 && "READY".equals(healthStatus)) {
-            throw new IllegalStateException(
+            throw new BusinessRuleException(
                     "CRITICAL examination cannot be confirmed with READY health status");
         }
 

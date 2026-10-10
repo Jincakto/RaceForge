@@ -20,6 +20,14 @@ public class HorseResponse {
   public HorseResponse() {
   }
 
+  public Long getHorseId() {
+      return horseId;
+  }
+
+  public void setHorseId(Long horseId) {
+      this.horseId = horseId;
+  }
+
   public String getHorseName() {
       return horseName;
   }

@@ -165,12 +165,45 @@ public class MedicalEvaluationService {
             level = EvaluationLevel.NORMAL;
         }
 
-        String trainingNote = switch (level) {
-            case NORMAL -> "ALLOW_TRAINING";
-            case WARNING -> "ALLOW_WITH_CAUTION";
-            case CRITICAL -> "TRAINING_LOCK";
-            case INCOMPLETE -> "EVALUATION_INCOMPLETE";
-        };
+
+        String normalizedExamType =
+                examType.trim().toUpperCase(Locale.ROOT);
+        
+        String trainingNote;
+
+        if ("FOLLOW_UP".equals(normalizedExamType)) {
+
+            trainingNote = switch (level) {
+                case NORMAL ->
+                        "FOLLOW_UP_NORMAL_REVIEW_REQUIRED";
+        
+                case WARNING ->
+                        "FOLLOW_UP_CAUTION_REVIEW_REQUIRED";
+        
+                case CRITICAL ->
+                        "TRAINING_LOCK";
+        
+                case INCOMPLETE ->
+                        "EVALUATION_INCOMPLETE";
+            };
+        
+        } else {
+        
+            trainingNote = switch (level) {
+                case NORMAL ->
+                        "ALLOW_TRAINING";
+        
+                case WARNING ->
+                        "ALLOW_WITH_CAUTION";
+        
+                case CRITICAL ->
+                        "TRAINING_LOCK";
+        
+                case INCOMPLETE ->
+                        "EVALUATION_INCOMPLETE";
+            };
+        }
+
 
         String systemNote = findings.isEmpty()
                 ? "All evaluated indicators are within normal range."

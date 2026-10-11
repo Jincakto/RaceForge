@@ -26,7 +26,7 @@ public class HorseController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<HorseResponse>> createHorse(
-            @RequestParam String ownerId,
+            @RequestParam Integer ownerId,
             @Valid @RequestBody HorseCreateRequest request) {
 
         HorseResponse horse =
@@ -58,7 +58,7 @@ public class HorseController {
 
     @GetMapping("/{horseId}")
     public ResponseEntity<ApiResponse<HorseResponse>> getHorseById(
-            @PathVariable String horseId) {
+            @PathVariable Integer horseId) {
 
         HorseResponse horse =
                 horseService.getHorseById(horseId);
@@ -73,7 +73,7 @@ public class HorseController {
 
     @PutMapping("/{horseId}")
     public ResponseEntity<ApiResponse<HorseResponse>> updateHorse(
-            @PathVariable String horseId,
+            @PathVariable Integer horseId,
             @Valid @RequestBody HorseUpdateRequest request) {
 
         HorseResponse horse =
@@ -89,7 +89,7 @@ public class HorseController {
 
     @PatchMapping("/{horseId}/activate")
     public ResponseEntity<ApiResponse<HorseResponse>> activateHorse(
-            @PathVariable String horseId) {
+            @PathVariable Integer horseId) {
 
         HorseResponse horse =
                 horseService.activateHorse(horseId);
@@ -104,7 +104,7 @@ public class HorseController {
 
     @PatchMapping("/{horseId}/deactivate")
     public ResponseEntity<ApiResponse<HorseResponse>> deactivateHorse(
-            @PathVariable String horseId) {
+            @PathVariable Integer horseId) {
 
         HorseResponse horse =
                 horseService.deactivateHorse(horseId);

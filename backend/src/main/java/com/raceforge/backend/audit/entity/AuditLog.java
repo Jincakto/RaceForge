@@ -3,6 +3,9 @@ package com.raceforge.backend.audit.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
@@ -11,14 +14,16 @@ import java.time.Instant;
 public class AuditLog {
 
     @Id
-    @Column(name = "audit_id", length = 20)
-    private String auditId;
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "audit_id_seq")
+    @SequenceGenerator(name = "audit_id_seq", sequenceName = "seq_Audit_Log", allocationSize = 1)
+    @Column(name = "audit_id")
+    private Integer auditId;
 
     @Column(name = "user_id", length = 20)
-    private String userId;
+    private Integer userId;
 
     @Column(name = "horse_id", length = 20)
-    private String horseId;
+    private Integer horseId;
 
     @Column(name = "action", nullable = false, length = 100)
     private String action;
@@ -27,7 +32,7 @@ public class AuditLog {
     private String entityType;
 
     @Column(name = "entity_id", length = 20)
-    private String entityId;
+    private Integer entityId;
 
     @Column(name = "result", nullable = false, length = 50)
     private String result;
@@ -38,27 +43,27 @@ public class AuditLog {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    public String getAuditId() {
+    public Integer getAuditId() {
         return auditId;
     }
 
-    public void setAuditId(String auditId) {
+    public void setAuditId(Integer auditId) {
         this.auditId = auditId;
     }
 
-    public String getUserId() {
+    public Integer getUserId() {
         return userId;
     }
 
-    public void setUserId(String userId) {
+    public void setUserId(Integer userId) {
         this.userId = userId;
     }
 
-    public String getHorseId() {
+    public Integer getHorseId() {
         return horseId;
     }
 
-    public void setHorseId(String horseId) {
+    public void setHorseId(Integer horseId) {
         this.horseId = horseId;
     }
 
@@ -78,11 +83,11 @@ public class AuditLog {
         this.entityType = entityType;
     }
 
-    public String getEntityId() {
+    public Integer getEntityId() {
         return entityId;
     }
 
-    public void setEntityId(String entityId) {
+    public void setEntityId(Integer entityId) {
         this.entityId = entityId;
     }
 

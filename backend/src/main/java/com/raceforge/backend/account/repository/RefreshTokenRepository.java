@@ -10,7 +10,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface RefreshTokenRepository extends JpaRepository<RefreshToken, String> {
+public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Integer> {
 
     Optional<RefreshToken> findByTokenHash(String tokenHash);
 
@@ -24,5 +24,5 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Stri
             set t.revokedAt = :now
             where t.user.userId = :userId and t.revokedAt is null
             """)
-    int revokeAllForUser(@Param("userId") String userId, @Param("now") Instant now);
+    int revokeAllForUser(@Param("userId") Integer userId, @Param("now") Instant now);
 }

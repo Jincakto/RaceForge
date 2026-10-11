@@ -11,17 +11,14 @@ import com.raceforge.backend.account.dto.UserDtos.ChangePasswordRequest;
 import com.raceforge.backend.account.dto.UserDtos.UpdateMeRequest;
 import com.raceforge.backend.account.dto.UserDtos.UpdateStatusRequest;
 import com.raceforge.backend.account.entity.User;
-import com.raceforge.backend.account.entity.UserExternalLogin;
 import com.raceforge.backend.account.mapper.AccountMapper;
 import com.raceforge.backend.account.repository.RefreshTokenRepository;
 import com.raceforge.backend.account.repository.RegistrationRequestRepository;
-import com.raceforge.backend.account.repository.UserExternalLoginRepository;
 import com.raceforge.backend.account.repository.UserRepository;
 import com.raceforge.backend.audit.service.AuditService;
 import com.raceforge.backend.common.exception.ApiException;
 import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.common.util.EmailNormalizer;
-import com.raceforge.backend.common.util.IdGenerator;
 import com.raceforge.backend.notification.service.NotificationService;
 import java.time.Instant;
 import org.springframework.data.domain.PageRequest;
@@ -38,7 +35,6 @@ public class UserService {
     private final UserRepository userRepository;
     private final RegistrationRequestRepository registrationRequestRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final UserExternalLoginRepository externalLoginRepository;
     private final PasswordEncoder passwordEncoder;
     private final GoogleTokenVerifier googleTokenVerifier;
     private final AccountMapper mapper;
@@ -49,7 +45,6 @@ public class UserService {
             UserRepository userRepository,
             RegistrationRequestRepository registrationRequestRepository,
             RefreshTokenRepository refreshTokenRepository,
-            UserExternalLoginRepository externalLoginRepository,
             PasswordEncoder passwordEncoder,
             GoogleTokenVerifier googleTokenVerifier,
             AccountMapper mapper,
@@ -59,7 +54,6 @@ public class UserService {
         this.userRepository = userRepository;
         this.registrationRequestRepository = registrationRequestRepository;
         this.refreshTokenRepository = refreshTokenRepository;
-        this.externalLoginRepository = externalLoginRepository;
         this.passwordEncoder = passwordEncoder;
         this.googleTokenVerifier = googleTokenVerifier;
         this.mapper = mapper;
@@ -68,12 +62,12 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public UserResponse me(String userId) {
+    public UserResponse me(Integer userId) {
         return mapper.toUserResponse(findUser(userId));
     }
 
     @Transactional
-    public UserResponse updateMe(String userId, UpdateMeRequest request) {
+    public UserResponse updateMe(Integer userId, UpdateMeRequest request) {
         User user = findUser(userId);
         user.setFullName(request.fullName().trim());
         user.setPhone(request.phone());
@@ -82,7 +76,7 @@ public class UserService {
     }
 
     @Transactional
-    public void changePassword(String userId, ChangePasswordRequest request) {
+    public void changePassword(Integer userId, ChangePasswordRequest request) {
         User user = findUser(userId);
         if (user.getPassword() == null || !passwordEncoder.matches(request.currentPassword(), user.getPassword())) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_CURRENT_PASSWORD", "Current password is invalid");
@@ -93,49 +87,45 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public RegistrationRequestResponse myRegistrationRequest(String userId) {
+    public RegistrationRequestResponse myRegistrationRequest(Integer userId) {
         return registrationRequestRepository.findFirstByUserUserIdOrderByCreatedAtDesc(userId)
                 .map(mapper::toRegistrationRequestResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Registration request not found"));
     }
 
     @Transactional
-    public void linkGoogle(String userId, String idToken) {
-        User user = findUser(userId);
+    public void linkGoogle(Integer userId, String idToken) {
+        User user = userRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         GoogleIdentity identity = googleTokenVerifier.verify(idToken);
         if (!identity.emailVerified() || !EmailNormalizer.normalize(identity.email()).equals(user.getEmail())) {
             throw new ApiException(HttpStatus.CONFLICT, "GOOGLE_EMAIL_MISMATCH", "Google account email must match your RaceForge email");
         }
-        if (externalLoginRepository.existsByProviderAndProviderUserId("GOOGLE", identity.subject())) {
+        if (userRepository.existsByGoogleSubject(identity.subject())) {
             throw new ApiException(HttpStatus.CONFLICT, "GOOGLE_ALREADY_LINKED", "Google account is already linked");
         }
-        if (externalLoginRepository.existsByUserUserIdAndProvider(userId, "GOOGLE")) {
+        if (user.getGoogleSubject() != null) {
             throw new ApiException(HttpStatus.CONFLICT, "USER_ALREADY_HAS_GOOGLE", "User already has a Google login");
         }
-        UserExternalLogin login = new UserExternalLogin();
-        login.setExternalLoginId(IdGenerator.uuid());
-        login.setUser(user);
-        login.setProvider("GOOGLE");
-        login.setProviderUserId(identity.subject());
-        login.setCreatedAt(Instant.now());
-        externalLoginRepository.save(login);
+        user.setGoogleSubject(identity.subject());
+        user.setGoogleLinkedAt(Instant.now());
         auditService.record(userId, "GOOGLE_LINKED", "User", userId, "SUCCESS", null);
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<UserResponse> listUsers(String search, String status, String roleId, int page, int size) {
+    public PageResponse<UserResponse> listUsers(String search, String status, Integer roleId, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "userId"));
-        return mapper.toPageResponse(userRepository.searchUsers(blankToNull(search), blankToNull(status), blankToNull(roleId), pageable)
+        return mapper.toPageResponse(userRepository.searchUsers(blankToNull(search), blankToNull(status), roleId, pageable)
                 .map(mapper::toUserResponse));
     }
 
     @Transactional(readOnly = true)
-    public UserResponse getUser(String id) {
+    public UserResponse getUser(Integer id) {
         return mapper.toUserResponse(findUser(id));
     }
 
     @Transactional
-    public UserResponse updateStatus(String managerId, String id, UpdateStatusRequest request) {
+    public UserResponse updateStatus(Integer managerId, Integer id, UpdateStatusRequest request) {
         if (managerId.equals(id)) {
             throw new ApiException(HttpStatus.CONFLICT, "CANNOT_UPDATE_SELF_STATUS", "Manager cannot update own status");
         }
@@ -159,7 +149,7 @@ public class UserService {
         return mapper.toUserResponse(user);
     }
 
-    private User findUser(String id) {
+    private User findUser(Integer id) {
         return userRepository.findDetailedById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }

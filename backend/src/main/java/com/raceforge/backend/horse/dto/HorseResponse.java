@@ -4,7 +4,7 @@ import java.time.LocalDate;
 
 public class HorseResponse {
 
-  private Long horseId;
+  private Integer horseId;
   private String horseName;
   private LocalDate dateOfBirth;
   private String gender;
@@ -20,11 +20,11 @@ public class HorseResponse {
   public HorseResponse() {
   }
 
-  public Long getHorseId() {
+  public Integer getHorseId() {
       return horseId;
   }
 
-  public void setHorseId(Long horseId) {
+  public void setHorseId(Integer horseId) {
       this.horseId = horseId;
   }
 

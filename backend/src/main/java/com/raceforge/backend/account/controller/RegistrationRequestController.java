@@ -7,6 +7,7 @@ import com.raceforge.backend.account.dto.RegistrationReviewDtos.RejectRequest;
 import com.raceforge.backend.account.service.RegistrationRequestService;
 import com.raceforge.backend.common.response.ApiResponse;
 import com.raceforge.backend.security.AuthenticatedUser;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/registration-requests")
+@Tag(name = "Registration Requests")
 public class RegistrationRequestController {
 
     private final RegistrationRequestService service;
@@ -38,14 +40,14 @@ public class RegistrationRequestController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<RegistrationRequestResponse> get(@PathVariable String id) {
+    public ApiResponse<RegistrationRequestResponse> get(@PathVariable Integer id) {
         return ApiResponse.success("Registration request", service.get(id));
     }
 
     @PostMapping("/{id}/approve")
     public ApiResponse<RegistrationRequestResponse> approve(
             @AuthenticationPrincipal AuthenticatedUser currentUser,
-            @PathVariable String id,
+            @PathVariable Integer id,
             @Valid @RequestBody(required = false) ApproveRequest request
     ) {
         return ApiResponse.success("Registration approved", service.approve(id, currentUser.userId(), request == null ? null : request.note()));
@@ -54,7 +56,7 @@ public class RegistrationRequestController {
     @PostMapping("/{id}/reject")
     public ApiResponse<RegistrationRequestResponse> reject(
             @AuthenticationPrincipal AuthenticatedUser currentUser,
-            @PathVariable String id,
+            @PathVariable Integer id,
             @Valid @RequestBody RejectRequest request
     ) {
         return ApiResponse.success("Registration rejected", service.reject(id, currentUser.userId(), request.reason()));

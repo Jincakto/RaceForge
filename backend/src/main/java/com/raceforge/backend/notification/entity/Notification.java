@@ -3,6 +3,9 @@ package com.raceforge.backend.notification.entity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
@@ -11,11 +14,13 @@ import java.time.Instant;
 public class Notification {
 
     @Id
-    @Column(name = "notification_id", length = 20)
-    private String notificationId;
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "notification_id_seq")
+    @SequenceGenerator(name = "notification_id_seq", sequenceName = "seq_Notification", allocationSize = 1)
+    @Column(name = "notification_id")
+    private Integer notificationId;
 
     @Column(name = "user_id", nullable = false, length = 20)
-    private String userId;
+    private Integer userId;
 
     @Column(name = "notification_type", nullable = false, length = 50)
     private String notificationType;
@@ -32,19 +37,19 @@ public class Notification {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    public String getNotificationId() {
+    public Integer getNotificationId() {
         return notificationId;
     }
 
-    public void setNotificationId(String notificationId) {
+    public void setNotificationId(Integer notificationId) {
         this.notificationId = notificationId;
     }
 
-    public String getUserId() {
+    public Integer getUserId() {
         return userId;
     }
 
-    public void setUserId(String userId) {
+    public void setUserId(Integer userId) {
         this.userId = userId;
     }
 

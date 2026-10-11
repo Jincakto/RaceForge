@@ -4,6 +4,9 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -14,8 +17,10 @@ import java.time.Instant;
 public class RegistrationRequest {
 
     @Id
-    @Column(name = "request_id", length = 36)
-    private String requestId;
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "request_id_seq")
+    @SequenceGenerator(name = "request_id_seq", sequenceName = "seq_Registration_Request", allocationSize = 1)
+    @Column(name = "request_id")
+    private Integer requestId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
@@ -41,11 +46,11 @@ public class RegistrationRequest {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    public String getRequestId() {
+    public Integer getRequestId() {
         return requestId;
     }
 
-    public void setRequestId(String requestId) {
+    public void setRequestId(Integer requestId) {
         this.requestId = requestId;
     }
 

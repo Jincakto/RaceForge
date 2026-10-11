@@ -29,7 +29,7 @@ public class JwtService {
         Instant now = Instant.now();
         Role role = user.getRole();
         return Jwts.builder()
-                .subject(user.getUserId())
+                .subject(user.getUserId().toString())
                 .issuer(properties.getJwt().getIssuer())
                 .audience().add(properties.getJwt().getAudience()).and()
                 .issuedAt(Date.from(now))
@@ -52,10 +52,10 @@ public class JwtService {
                 .getPayload();
 
         return new AuthenticatedUser(
-                claims.getSubject(),
+                Integer.valueOf(claims.getSubject()),
                 claims.get("email", String.class),
                 claims.get("status", String.class),
-                claims.get("role_id", String.class),
+                claims.get("role_id", Integer.class),
                 claims.get("role_name", String.class)
         );
     }
@@ -65,6 +65,7 @@ public class JwtService {
     }
 
     public boolean hasBusinessAuthority(User user) {
-        return AccountConstants.STATUS_ACTIVE.equals(user.getStatus()) && user.getRole() != null;
+        return AccountConstants.STATUS_ACTIVE.equals(user.getStatus()) && user.getRole() != null
+                && AccountConstants.BUSINESS_ROLES.contains(user.getRole().getRoleId());
     }
 }

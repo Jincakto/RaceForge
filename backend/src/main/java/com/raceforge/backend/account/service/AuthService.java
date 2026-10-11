@@ -2,6 +2,7 @@ package com.raceforge.backend.account.service;
 
 import static com.raceforge.backend.account.AccountConstants.REQUEST_PENDING;
 import static com.raceforge.backend.account.AccountConstants.ROLE_MANAGER;
+import static com.raceforge.backend.account.AccountConstants.ROLE_USER;
 import static com.raceforge.backend.account.AccountConstants.SELF_REGISTRATION_ROLES;
 import static com.raceforge.backend.account.AccountConstants.STATUS_ACTIVE;
 import static com.raceforge.backend.account.AccountConstants.STATUS_INACTIVE;
@@ -20,26 +21,22 @@ import com.raceforge.backend.account.dto.AuthDtos.ResetPasswordRequest;
 import com.raceforge.backend.account.dto.AuthDtos.ResendOtpRequest;
 import com.raceforge.backend.account.dto.AuthDtos.UserResponse;
 import com.raceforge.backend.account.dto.AuthDtos.VerifyEmailRequest;
-import com.raceforge.backend.account.entity.EmailVerificationOtp;
 import com.raceforge.backend.account.entity.PasswordResetToken;
 import com.raceforge.backend.account.entity.RefreshToken;
 import com.raceforge.backend.account.entity.RegistrationRequest;
 import com.raceforge.backend.account.entity.Role;
 import com.raceforge.backend.account.entity.User;
-import com.raceforge.backend.account.entity.UserExternalLogin;
 import com.raceforge.backend.account.mapper.AccountMapper;
-import com.raceforge.backend.account.repository.EmailVerificationOtpRepository;
 import com.raceforge.backend.account.repository.PasswordResetTokenRepository;
 import com.raceforge.backend.account.repository.RefreshTokenRepository;
 import com.raceforge.backend.account.repository.RegistrationRequestRepository;
 import com.raceforge.backend.account.repository.RoleRepository;
-import com.raceforge.backend.account.repository.UserExternalLoginRepository;
 import com.raceforge.backend.account.repository.UserRepository;
 import com.raceforge.backend.audit.service.AuditService;
 import com.raceforge.backend.common.exception.ApiException;
+import com.raceforge.backend.common.exception.InvalidOtpException;
 import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.common.util.EmailNormalizer;
-import com.raceforge.backend.common.util.IdGenerator;
 import com.raceforge.backend.common.util.SecureTokenUtil;
 import com.raceforge.backend.config.AuthProperties;
 import com.raceforge.backend.notification.service.NotificationService;
@@ -57,11 +54,9 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
-    private final EmailVerificationOtpRepository otpRepository;
     private final RegistrationRequestRepository registrationRequestRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
-    private final UserExternalLoginRepository externalLoginRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final EmailService emailService;
@@ -74,11 +69,9 @@ public class AuthService {
     public AuthService(
             UserRepository userRepository,
             RoleRepository roleRepository,
-            EmailVerificationOtpRepository otpRepository,
             RegistrationRequestRepository registrationRequestRepository,
             RefreshTokenRepository refreshTokenRepository,
             PasswordResetTokenRepository passwordResetTokenRepository,
-            UserExternalLoginRepository externalLoginRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             EmailService emailService,
@@ -90,11 +83,9 @@ public class AuthService {
     ) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
-        this.otpRepository = otpRepository;
         this.registrationRequestRepository = registrationRequestRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
-        this.externalLoginRepository = externalLoginRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.emailService = emailService;
@@ -114,7 +105,7 @@ public class AuthService {
         Role requestedRole = selfRegistrationRole(request.requestedRoleId());
 
         User user = new User();
-        user.setUserId(newUserId());
+        user.setRole(defaultRole());
         user.setFullName(request.fullName().trim());
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(request.password()));
@@ -128,54 +119,55 @@ public class AuthService {
         return new MessageResponse("Registration created. Please verify email with OTP.");
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = InvalidOtpException.class)
     public MessageResponse verifyEmail(VerifyEmailRequest request) {
         String email = EmailNormalizer.normalize(request.email());
-        User user = userRepository.findByEmail(email)
+        User user = userRepository.findByEmailForUpdate(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "INVALID_OTP", "Invalid or expired OTP"));
         if (!STATUS_UNVERIFIED.equals(user.getStatus())) {
             return new MessageResponse("Email is already verified.");
         }
 
-        EmailVerificationOtp otp = otpRepository.findFirstByUserUserIdAndUsedAtIsNullOrderByCreatedAtDesc(user.getUserId())
-                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "INVALID_OTP", "Invalid or expired OTP"));
         Instant now = Instant.now();
-        if (otp.getExpiresAt().isBefore(now) || otp.getAttemptCount() >= properties.getOtp().getMaxAttempts()) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_OTP", "Invalid or expired OTP");
+        if (user.getOtpHash() == null || user.getOtpExpiresAt() == null
+                || !user.getOtpExpiresAt().isAfter(now)
+                || user.getOtpAttemptCount() >= properties.getOtp().getMaxAttempts()) {
+            throw new InvalidOtpException();
         }
 
         String expectedHash = SecureTokenUtil.hmacSha256Hex(properties.getOtp().getSecret(), user.getUserId() + ":" + request.otp());
-        if (!SecureTokenUtil.constantTimeEquals(otp.getOtpHash(), expectedHash)) {
-            otp.setAttemptCount(otp.getAttemptCount() + 1);
-            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_OTP", "Invalid or expired OTP");
+        if (!SecureTokenUtil.constantTimeEquals(user.getOtpHash(), expectedHash)) {
+            user.setOtpAttemptCount(user.getOtpAttemptCount() + 1);
+            throw new InvalidOtpException();
         }
 
-        otp.setUsedAt(now);
+        user.setOtpHash(null);
+        user.setOtpExpiresAt(null);
         user.setEmailVerified(true);
-        user.setStatus(STATUS_PENDING);
+        user.setStatus(user.getRequestedRole() == null ? STATUS_ACTIVE : STATUS_PENDING);
 
-        if (!registrationRequestRepository.existsByUserUserIdAndStatus(user.getUserId(), REQUEST_PENDING)) {
-            Role requestedRole = inferRequestedRoleFromUnverifiedUser(user);
-            createRegistrationRequest(user, requestedRole);
+        if (user.getRequestedRole() != null
+                && !registrationRequestRepository.existsByUserUserIdAndStatus(user.getUserId(), REQUEST_PENDING)) {
+            createRegistrationRequest(user, user.getRequestedRole());
             notifyManagersForRegistration(user);
         }
-        return new MessageResponse("Email verified. Registration request is pending manager review.");
+        return new MessageResponse(user.getRequestedRole() == null
+                ? "Email verified. You can log in to your USER account."
+                : "Email verified. Registration request is pending manager review.");
     }
 
     @Transactional
     public MessageResponse resendOtp(ResendOtpRequest request) {
         String email = EmailNormalizer.normalize(request.email());
-        User user = userRepository.findByEmail(email)
+        User user = userRepository.findByEmailForUpdate(email)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", "User not found"));
         if (!STATUS_UNVERIFIED.equals(user.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "EMAIL_ALREADY_VERIFIED", "Email is already verified");
         }
-        otpRepository.findFirstByUserUserIdOrderByCreatedAtDesc(user.getUserId()).ifPresent(lastOtp -> {
-            if (lastOtp.getCreatedAt().plusSeconds(properties.getOtp().getResendSeconds()).isAfter(Instant.now())) {
-                throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "OTP_RESEND_LIMIT", "Please wait before requesting another OTP");
-            }
-        });
-        otpRepository.invalidateUnusedForUser(user.getUserId(), Instant.now());
+        if (user.getOtpSentAt() != null
+                && user.getOtpSentAt().plusSeconds(properties.getOtp().getResendSeconds()).isAfter(Instant.now())) {
+            throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "OTP_RESEND_LIMIT", "Please wait before requesting another OTP");
+        }
         createAndSendOtp(user);
         return new MessageResponse("A new OTP has been sent.");
     }
@@ -199,8 +191,7 @@ public class AuthService {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "GOOGLE_EMAIL_NOT_VERIFIED", "Google email is not verified");
         }
         String email = EmailNormalizer.normalize(identity.email());
-        return externalLoginRepository.findByProviderAndProviderUserId("GOOGLE", identity.subject())
-                .map(UserExternalLogin::getUser)
+        return userRepository.findByGoogleSubject(identity.subject())
                 .map(user -> {
                     ensureLoginAllowed(user);
                     return createSession(user);
@@ -230,7 +221,7 @@ public class AuthService {
     }
 
     @Transactional
-    public MessageResponse logout(String currentUserId, String refreshToken) {
+    public MessageResponse logout(Integer currentUserId, String refreshToken) {
         if (refreshToken != null && !refreshToken.isBlank()) {
             refreshTokenRepository.findByTokenHash(SecureTokenUtil.sha256Hex(refreshToken)).ifPresent(token -> {
                 if (token.getUser().getUserId().equals(currentUserId) && token.getRevokedAt() == null) {
@@ -250,7 +241,6 @@ public class AuthService {
             }
             String token = SecureTokenUtil.randomToken(32);
             PasswordResetToken resetToken = new PasswordResetToken();
-            resetToken.setResetTokenId(IdGenerator.uuid());
             resetToken.setUser(user);
             resetToken.setTokenHash(SecureTokenUtil.sha256Hex(token));
             resetToken.setExpiresAt(Instant.now().plusSeconds(properties.getPasswordReset().getMinutes() * 60));
@@ -295,44 +285,37 @@ public class AuthService {
         }
         Role requestedRole = selfRegistrationRole(request.requestedRoleId());
         User user = new User();
-        user.setUserId(newUserId());
+        user.setRole(defaultRole());
         user.setEmail(email);
         user.setFullName(identity.name() == null || identity.name().isBlank() ? email : identity.name());
         user.setAvatarUrl(identity.picture());
         user.setEmailVerified(true);
-        user.setStatus(STATUS_PENDING);
+        user.setStatus(requestedRole == null ? STATUS_ACTIVE : STATUS_PENDING);
+        user.setRequestedRole(requestedRole);
+        user.setGoogleSubject(identity.subject());
+        user.setGoogleLinkedAt(Instant.now());
         userRepository.save(user);
 
-        UserExternalLogin login = new UserExternalLogin();
-        login.setExternalLoginId(IdGenerator.uuid());
-        login.setProvider("GOOGLE");
-        login.setProviderUserId(identity.subject());
-        login.setUser(user);
-        login.setCreatedAt(Instant.now());
-        externalLoginRepository.save(login);
-
-        createRegistrationRequest(user, requestedRole);
-        notifyManagersForRegistration(user);
+        if (requestedRole != null) {
+            createRegistrationRequest(user, requestedRole);
+            notifyManagersForRegistration(user);
+        }
         auditService.record(user.getUserId(), "GOOGLE_REGISTER", "User", user.getUserId(), "SUCCESS", null);
         return createSession(user);
     }
 
     private void createAndSendOtp(User user) {
         String otp = SecureTokenUtil.randomOtp();
-        EmailVerificationOtp entity = new EmailVerificationOtp();
-        entity.setOtpId(IdGenerator.uuid());
-        entity.setUser(user);
-        entity.setOtpHash(SecureTokenUtil.hmacSha256Hex(properties.getOtp().getSecret(), user.getUserId() + ":" + otp));
-        entity.setExpiresAt(Instant.now().plusSeconds(properties.getOtp().getMinutes() * 60));
-        entity.setCreatedAt(Instant.now());
-        entity.setAttemptCount(0);
-        otpRepository.save(entity);
+        Instant now = Instant.now();
+        user.setOtpHash(SecureTokenUtil.hmacSha256Hex(properties.getOtp().getSecret(), user.getUserId() + ":" + otp));
+        user.setOtpExpiresAt(now.plusSeconds(properties.getOtp().getMinutes() * 60));
+        user.setOtpSentAt(now);
+        user.setOtpAttemptCount(0);
         emailService.sendOtp(user.getEmail(), otp);
     }
 
     private RegistrationRequest createRegistrationRequest(User user, Role requestedRole) {
         RegistrationRequest request = new RegistrationRequest();
-        request.setRequestId(IdGenerator.uuid());
         request.setUser(user);
         request.setRequestedRole(requestedRole);
         request.setStatus(REQUEST_PENDING);
@@ -354,7 +337,6 @@ public class AuthService {
     private AuthSession createSession(User user) {
         String refreshToken = SecureTokenUtil.randomToken(32);
         RefreshToken entity = new RefreshToken();
-        entity.setRefreshTokenId(IdGenerator.uuid());
         entity.setUser(user);
         entity.setTokenHash(SecureTokenUtil.sha256Hex(refreshToken));
         entity.setExpiresAt(Instant.now().plusSeconds(properties.getRefreshToken().getDays() * 24 * 60 * 60));
@@ -363,7 +345,10 @@ public class AuthService {
         return new AuthSession(jwtService.createAccessToken(user), refreshToken, user);
     }
 
-    private Role selfRegistrationRole(String requestedRoleId) {
+    private Role selfRegistrationRole(Integer requestedRoleId) {
+        if (requestedRoleId == null || ROLE_USER.equals(requestedRoleId)) {
+            return null;
+        }
         if (ROLE_MANAGER.equals(requestedRoleId) || !SELF_REGISTRATION_ROLES.contains(requestedRoleId)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_REQUESTED_ROLE", "Requested role is not allowed for public registration");
         }
@@ -371,11 +356,9 @@ public class AuthService {
                 .orElseThrow(() -> new ResourceNotFoundException("Role not found"));
     }
 
-    private Role inferRequestedRoleFromUnverifiedUser(User user) {
-        if (user.getRequestedRole() == null) {
-            throw new ApiException(HttpStatus.CONFLICT, "REQUESTED_ROLE_MISSING", "Requested role is missing");
-        }
-        return user.getRequestedRole();
+    private Role defaultRole() {
+        return roleRepository.findById(ROLE_USER)
+                .orElseThrow(() -> new ResourceNotFoundException("Default USER role not found"));
     }
 
     private void ensureLoginAllowed(User user) {
@@ -390,14 +373,6 @@ public class AuthService {
                 && !STATUS_REJECTED.equals(user.getStatus())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "LOGIN_NOT_ALLOWED", "Login is not allowed for this account");
         }
-    }
-
-    private String newUserId() {
-        String id;
-        do {
-            id = IdGenerator.prefixed("USR", 20);
-        } while (userRepository.existsById(id));
-        return id;
     }
 
     public record AuthSession(String accessToken, String refreshToken, User user) {

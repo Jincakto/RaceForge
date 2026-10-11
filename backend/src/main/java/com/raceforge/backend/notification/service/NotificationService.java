@@ -1,6 +1,5 @@
 package com.raceforge.backend.notification.service;
 
-import com.raceforge.backend.common.util.IdGenerator;
 import com.raceforge.backend.notification.entity.Notification;
 import com.raceforge.backend.notification.repository.NotificationRepository;
 import java.time.Instant;
@@ -15,9 +14,8 @@ public class NotificationService {
         this.notificationRepository = notificationRepository;
     }
 
-    public void notify(String userId, String type, String title, String message) {
+    public void notify(Integer userId, String type, String title, String message) {
         Notification notification = new Notification();
-        notification.setNotificationId(IdGenerator.prefixed("NTF", 20));
         notification.setUserId(userId);
         notification.setNotificationType(type);
         notification.setTitle(title);

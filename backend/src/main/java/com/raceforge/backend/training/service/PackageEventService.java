@@ -4,7 +4,6 @@ import com.raceforge.backend.account.entity.User;
 import com.raceforge.backend.account.repository.UserRepository;
 import com.raceforge.backend.audit.entity.AuditLog;
 import com.raceforge.backend.audit.repository.AuditLogRepository;
-import com.raceforge.backend.common.util.IdGenerator;
 import com.raceforge.backend.notification.service.NotificationService;
 import org.springframework.stereotype.Service;
 import java.time.Instant;
@@ -24,10 +23,10 @@ public class PackageEventService {
         this.userRepository = userRepository;
     }
 
-    public void record(String actorId, String horseId, String entityId,
+    public void record(Integer actorId, Integer horseId, Integer entityId,
                        String action, String reason) {
         AuditLog log = new AuditLog();
-        log.setAuditId(IdGenerator.prefixed("AUD", 20));
+        
         log.setUserId(actorId);
         log.setHorseId(horseId);
         log.setEntityType("HORSE_PACKAGE");
@@ -39,7 +38,7 @@ public class PackageEventService {
         auditLogRepository.save(log);
     }
 
-    public void notifyOwner(String ownerId, String horseId,
+    public void notifyOwner(Integer ownerId, Integer horseId,
                             String type, String message) {
         if (ownerId != null && !ownerId.isBlank()) {
             notificationService.notify(ownerId, type,
@@ -47,7 +46,7 @@ public class PackageEventService {
         }
     }
 
-    public void notifyManagers(String horseId, String type, String message) {
+    public void notifyManagers(Integer horseId, String type, String message) {
         for (User manager : userRepository.findActiveManagers()) {
             notificationService.notify(manager.getUserId(), type,
                     "Horse medical/training update", "Horse " + horseId + ": " + message);

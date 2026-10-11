@@ -9,8 +9,9 @@ import java.time.LocalDateTime;
 @Table(name = "Training_Lock")
 public class TrainingLock {
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "lock_id", length = 20)
-    private String lockId;
+    private Integer lockId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "horse_id", nullable = false)
@@ -40,22 +41,76 @@ public class TrainingLock {
     @Column(name = "unlock_reason", length = 1000)
     private String unlockReason;
 
-    public String getLockId() { return lockId; }
-    public void setLockId(String lockId) { this.lockId = lockId; }
-    public Horse getHorse() { return horse; }
-    public void setHorse(Horse horse) { this.horse = horse; }
-    public MedicalRecord getMedicalRecord() { return medicalRecord; }
-    public void setMedicalRecord(MedicalRecord medicalRecord) { this.medicalRecord = medicalRecord; }
-    public User getLockedBy() { return lockedBy; }
-    public void setLockedBy(User lockedBy) { this.lockedBy = lockedBy; }
-    public User getUnlockedBy() { return unlockedBy; }
-    public void setUnlockedBy(User unlockedBy) { this.unlockedBy = unlockedBy; }
-    public LocalDateTime getLockedAt() { return lockedAt; }
-    public void setLockedAt(LocalDateTime lockedAt) { this.lockedAt = lockedAt; }
-    public String getLockReason() { return lockReason; }
-    public void setLockReason(String lockReason) { this.lockReason = lockReason; }
-    public LocalDateTime getUnlockedAt() { return unlockedAt; }
-    public void setUnlockedAt(LocalDateTime unlockedAt) { this.unlockedAt = unlockedAt; }
-    public String getUnlockReason() { return unlockReason; }
-    public void setUnlockReason(String unlockReason) { this.unlockReason = unlockReason; }
+    public Integer getLockId() { 
+        return lockId; 
+    }
+    
+    public void setLockId(Integer lockId) { 
+        this.lockId = lockId; 
+    }
+    
+    public Horse getHorse() { 
+        return horse; 
+    }
+    
+    public void setHorse(Horse horse) {
+        this.horse = horse; 
+    }
+    
+    public MedicalRecord getMedicalRecord() { 
+        return medicalRecord; 
+    }
+    
+    public void setMedicalRecord(MedicalRecord medicalRecord) { 
+        this.medicalRecord = medicalRecord; 
+    }
+    
+    public User getLockedBy() { 
+        return lockedBy; 
+    }
+    
+    public void setLockedBy(User lockedBy) { 
+        this.lockedBy = lockedBy; 
+    }
+    
+    public User getUnlockedBy() { 
+        return unlockedBy; 
+    }
+    
+    public void setUnlockedBy(User unlockedBy) { 
+        this.unlockedBy = unlockedBy; 
+    }
+    
+    public LocalDateTime getLockedAt() { 
+        return lockedAt; 
+    }
+    
+    public void setLockedAt(LocalDateTime lockedAt) { 
+        this.lockedAt = lockedAt; 
+    }
+    
+    public String getLockReason() { 
+        return lockReason; 
+    }
+    
+    public void setLockReason(String lockReason) { 
+        this.lockReason = lockReason; 
+    }
+    
+    public LocalDateTime getUnlockedAt() { 
+        return unlockedAt; 
+    }
+    
+    public void setUnlockedAt(LocalDateTime unlockedAt) { 
+        this.unlockedAt = unlockedAt; 
+    }
+    
+    public String getUnlockReason() { 
+        return unlockReason; 
+    }
+    
+    public void setUnlockReason(String unlockReason) { 
+        this.unlockReason = unlockReason; 
+    }
+    
 }

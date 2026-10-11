@@ -2,7 +2,7 @@ package com.raceforge.backend.medical.dto;
 
 public class MedicalClinicalExamResponse {
 
-    private String clinicalExamId;
+    private Integer clinicalExamId;
     private String examinationArea;
     private String conditionStatus;
     private String abnormalityType;
@@ -12,11 +12,11 @@ public class MedicalClinicalExamResponse {
     public MedicalClinicalExamResponse() {
     }
 
-    public String getClinicalExamId() {
+    public Integer getClinicalExamId() {
         return clinicalExamId;
     }
 
-    public void setClinicalExamId(String clinicalExamId) {
+    public void setClinicalExamId(Integer clinicalExamId) {
         this.clinicalExamId = clinicalExamId;
     }
 

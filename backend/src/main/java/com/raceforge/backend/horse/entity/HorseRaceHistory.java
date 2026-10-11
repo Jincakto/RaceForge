@@ -11,8 +11,9 @@ import java.time.LocalDateTime;
 public class HorseRaceHistory {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "race_history_id", length = 20)
-    private String raceHistoryId;
+    private Integer raceHistoryId;
 
     @ManyToOne
     @JoinColumn(name = "horse_id", nullable = false)
@@ -48,11 +49,11 @@ public class HorseRaceHistory {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    public String getRaceHistoryId() {
+    public Integer getRaceHistoryId() {
         return raceHistoryId;
     }
 
-    public void setRaceHistoryId(String raceHistoryId) {
+    public void setRaceHistoryId(Integer raceHistoryId) {
         this.raceHistoryId = raceHistoryId;
     }
 

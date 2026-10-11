@@ -56,7 +56,7 @@ public class MedicalRecordController {
 
     @GetMapping("/records/{medicalRecordId}")
     public ApiResponse<MedicalRecordResponse> getMedicalRecord(
-            @PathVariable String medicalRecordId,
+            @PathVariable Integer medicalRecordId,
             Authentication authentication) {
 
         currentUserId(authentication);
@@ -66,7 +66,7 @@ public class MedicalRecordController {
 
     @GetMapping("/horses/{horseId}/records")
     public ApiResponse<List<MedicalRecordResponse>> getMedicalHistory(
-            @PathVariable String horseId,
+            @PathVariable Integer horseId,
             Authentication authentication) {
 
         currentUserId(authentication);
@@ -76,7 +76,7 @@ public class MedicalRecordController {
 
     @GetMapping("/horses/{horseId}/previous-examination")
     public ResponseEntity<ApiResponse<MedicalRecordResponse>> getPreviousConfirmedExamination(
-            @PathVariable String horseId,
+            @PathVariable Integer horseId,
             Authentication authentication) {
 
         currentUserId(authentication);
@@ -87,7 +87,7 @@ public class MedicalRecordController {
 
     @PutMapping("/records/{medicalRecordId}/draft")
     public ApiResponse<MedicalRecordResponse> updateMedicalDraft(
-            @PathVariable String medicalRecordId,
+            @PathVariable Integer medicalRecordId,
             @RequestBody MedicalRecordUpdateRequest request,
             Authentication authentication) {
 
@@ -100,7 +100,7 @@ public class MedicalRecordController {
 
     @PostMapping("/records/{medicalRecordId}/confirm")
     public ApiResponse<MedicalRecordResponse> confirmMedicalRecord(
-            @PathVariable String medicalRecordId,
+            @PathVariable Integer medicalRecordId,
             Authentication authentication) {
 
         return ApiResponse.success("Medical record confirmed",
@@ -111,7 +111,7 @@ public class MedicalRecordController {
 
     @PostMapping("/horses/{horseId}/training-lock/unlock")
     public ApiResponse<TrainingLockResponse> unlockHorse(
-            @PathVariable String horseId,
+            @PathVariable Integer horseId,
             @RequestBody TrainingUnlockRequest request,
             Authentication authentication) {
 
@@ -128,7 +128,7 @@ public class MedicalRecordController {
 
     @GetMapping("/horses/{horseId}/training-lock/history")
     public ApiResponse<List<TrainingLockResponse>> getTrainingLockHistory(
-            @PathVariable String horseId,
+            @PathVariable Integer horseId,
             Authentication authentication) {
 
         currentUserId(authentication);
@@ -139,7 +139,7 @@ public class MedicalRecordController {
                         .toList());
     }
 
-    private String currentUserId(Authentication authentication) {
+    private Integer currentUserId(Authentication authentication) {
         if (authentication == null
                 || !authentication.isAuthenticated()
                 || authentication.getName() == null
@@ -149,6 +149,10 @@ public class MedicalRecordController {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication is required");
         }
 
-        return authentication.getName();
+        try {
+            return Integer.valueOf(authentication.getName());
+        } catch (NumberFormatException ex) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication user ID must be numeric");
+        }
     }
 }

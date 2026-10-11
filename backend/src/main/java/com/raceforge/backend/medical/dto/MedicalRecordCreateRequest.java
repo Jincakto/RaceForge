@@ -5,9 +5,9 @@ import java.util.List;
 
 public class MedicalRecordCreateRequest {
 
-    private String profileId;
-    private String veterinarianId;
-    private String correctionOfId;
+    private Integer profileId;
+    private Integer veterinarianId;
+    private Integer correctionOfId;
 
     private String examType;
     private LocalDateTime examinedAt;
@@ -24,27 +24,27 @@ public class MedicalRecordCreateRequest {
 
     private List<MedicalClinicalExamRequest> clinicalExams;
 
-    public String getProfileId() {
+    public Integer getProfileId() {
         return profileId;
     }
 
-    public void setProfileId(String profileId) {
+    public void setProfileId(Integer profileId) {
         this.profileId = profileId;
     }
 
-    public String getVeterinarianId() {
+    public Integer getVeterinarianId() {
         return veterinarianId;
     }
 
-    public void setVeterinarianId(String veterinarianId) {
+    public void setVeterinarianId(Integer veterinarianId) {
         this.veterinarianId = veterinarianId;
     }
 
-    public String getCorrectionOfId() {
+    public Integer getCorrectionOfId() {
         return correctionOfId;
     }
 
-    public void setCorrectionOfId(String correctionOfId) {
+    public void setCorrectionOfId(Integer correctionOfId) {
         this.correctionOfId = correctionOfId;
     }
 

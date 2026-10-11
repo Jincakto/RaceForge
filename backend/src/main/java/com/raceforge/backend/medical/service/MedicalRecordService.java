@@ -1,5 +1,6 @@
 package com.raceforge.backend.medical.service;
 
+import com.raceforge.backend.audit.service.AuditLogService;
 import com.raceforge.backend.common.exception.BusinessRuleException;
 import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.account.entity.User;
@@ -30,6 +31,7 @@ public class MedicalRecordService {
     private final MedicalEvaluationService medicalEvaluationService;
     private final MedicalRecordMapper medicalRecordMapper;
     private final TrainingLockService trainingLockService;
+    private final AuditLogService auditLogService;
 
     public MedicalRecordService(
             HealthProfileRepository healthProfileRepository,
@@ -39,7 +41,8 @@ public class MedicalRecordService {
             UserRepository userRepository,
             MedicalEvaluationService medicalEvaluationService,
             MedicalRecordMapper medicalRecordMapper,
-            TrainingLockService trainingLockService) {
+            TrainingLockService trainingLockService,
+            AuditLogService auditLogService) {
         this.healthProfileRepository = healthProfileRepository;
         this.medicalRecordRepository = medicalRecordRepository;
         this.medicalVitalSignRepository = medicalVitalSignRepository;
@@ -48,6 +51,7 @@ public class MedicalRecordService {
         this.medicalEvaluationService = medicalEvaluationService;
         this.medicalRecordMapper = medicalRecordMapper;
         this.trainingLockService = trainingLockService;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -66,7 +70,7 @@ public class MedicalRecordService {
         record.setCareRecommendation(request.getCareRecommendation());
         record.setNotes(request.getNotes());
         record.setStatus("DRAFT");
-        if (request.getCorrectionOfId() != null && !request.getCorrectionOfId().isBlank()) {
+        if (request.getCorrectionOfId() != null) {
             MedicalRecord original = medicalRecordRepository.findById(request.getCorrectionOfId())
                     .orElseThrow(() -> new ResourceNotFoundException("Original medical record not found"));
             if (!original.getHealthProfile().getProfileId().equals(profile.getProfileId())) {
@@ -84,6 +88,7 @@ public class MedicalRecordService {
 
         saveVitalSign(record, request.getVitalSign());
         saveClinicalExams(record, request.getClinicalExams());
+        auditLogService.record(record.getVeterinarian().getUserId(), profile.getHorse().getHorseId(), "MEDICAL_RECORD", record.getMedicalRecordId(), "MEDICAL_RECORD_CREATED", "SUCCESS", null);
 
         return buildResponse(record);
     }
@@ -232,6 +237,7 @@ public class MedicalRecordService {
         medicalClinicalExamRepository.deleteAll(oldExams);
         medicalClinicalExamRepository.flush();
         saveClinicalExams(record, request.getClinicalExams());
+        auditLogService.record(veterinarianId, record.getHealthProfile().getHorse().getHorseId(), "MEDICAL_RECORD", record.getMedicalRecordId(), "MEDICAL_DRAFT_UPDATED", "SUCCESS", null);
 
         return buildResponse(record);
     }
@@ -317,6 +323,7 @@ public class MedicalRecordService {
         }
 
         medicalRecordRepository.save(record);
+        auditLogService.record(veterinarianId, horse.getHorseId(), "MEDICAL_RECORD", medicalRecordId, "MEDICAL_RECORD_CONFIRMED", "SUCCESS", null);
         return buildResponse(record);
     }
 

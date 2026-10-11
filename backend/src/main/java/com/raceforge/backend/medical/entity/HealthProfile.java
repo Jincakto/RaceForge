@@ -8,8 +8,9 @@ import java.time.LocalDateTime;
 public class HealthProfile {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "profile_id", length = 20)
-    private String profileId;
+    private Integer profileId;
 
     @OneToOne
     @JoinColumn(
@@ -39,11 +40,11 @@ public class HealthProfile {
     public HealthProfile() {
     }
 
-    public String getProfileId() {
+    public Integer getProfileId() {
         return profileId;
     }
 
-    public void setProfileId(String profileId) {
+    public void setProfileId(Integer profileId) {
         this.profileId = profileId;
     }
 

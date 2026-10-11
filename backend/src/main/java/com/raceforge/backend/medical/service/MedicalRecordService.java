@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,7 +55,6 @@ public class MedicalRecordService {
         HealthProfile profile = healthProfileRepository.findById(request.getProfileId())
                 .orElseThrow(() -> new ResourceNotFoundException("Health profile not found"));
         MedicalRecord record = new MedicalRecord();
-        record.setMedicalRecordId(generateId("MED"));
         record.setHealthProfile(profile);
         record.setVeterinarian(getVeterinarian(request.getVeterinarianId()));
         record.setExamType(normalize(request.getExamType()));
@@ -95,7 +93,6 @@ public class MedicalRecordService {
             return;
         }
         MedicalVitalSign entity = new MedicalVitalSign();
-        entity.setVitalSignId(generateId("VIT"));
         entity.setMedicalRecord(record);
         entity.setBodyTemperature(request.getBodyTemperature());
         entity.setRestingHeartRate(request.getRestingHeartRate());
@@ -114,7 +111,6 @@ public class MedicalRecordService {
                 continue;
             }
             MedicalClinicalExam entity = new MedicalClinicalExam();
-            entity.setClinicalExamId(generateId("CLN"));
             entity.setMedicalRecord(record);
             entity.setExaminationArea(normalize(request.getExaminationArea()));
             entity.setConditionStatus(normalize(request.getConditionStatus()));
@@ -134,7 +130,7 @@ public class MedicalRecordService {
         return medicalRecordMapper.toResponse(record, vitalSign, exams);
     }
 
-    private User getVeterinarian(String veterinarianId) {
+    private User getVeterinarian(Integer veterinarianId) {
         User user = userRepository.findDetailedById(veterinarianId)
                 .orElseThrow(() -> new ResourceNotFoundException("Veterinarian not found"));
         if (!"ACTIVE".equals(user.getStatus())) {
@@ -147,14 +143,14 @@ public class MedicalRecordService {
     }
 
     @Transactional(readOnly = true)
-    public MedicalRecordResponse getMedicalRecordById(String medicalRecordId) {
+    public MedicalRecordResponse getMedicalRecordById(Integer medicalRecordId) {
         MedicalRecord record = medicalRecordRepository.findById(medicalRecordId)
                 .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
         return buildResponse(record);
     }
 
     @Transactional(readOnly = true)
-    public List<MedicalRecordResponse> getMedicalHistory(String horseId) {
+    public List<MedicalRecordResponse> getMedicalHistory(Integer horseId) {
         HealthProfile profile = healthProfileRepository.findByHorse_HorseId(horseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Health profile not found"));
         return medicalRecordRepository.findByHealthProfile_ProfileIdOrderByExaminedAtDesc(profile.getProfileId())
@@ -162,7 +158,7 @@ public class MedicalRecordService {
     }
 
     @Transactional(readOnly = true)
-    public Optional<MedicalRecordResponse> getPreviousConfirmedExamination(String horseId) {
+    public Optional<MedicalRecordResponse> getPreviousConfirmedExamination(Integer horseId) {
         HealthProfile profile = healthProfileRepository.findByHorse_HorseId(horseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Health profile not found"));
         return medicalRecordRepository
@@ -172,8 +168,8 @@ public class MedicalRecordService {
     }
 
     @Transactional
-    public MedicalRecordResponse updateMedicalDraft(String medicalRecordId,
-                                                     String veterinarianId,
+    public MedicalRecordResponse updateMedicalDraft(Integer medicalRecordId,
+                                                     Integer veterinarianId,
                                                      MedicalRecordUpdateRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("Update request is required");
@@ -222,7 +218,6 @@ public class MedicalRecordService {
         } else {
             MedicalVitalSign vital = existingVital == null ? new MedicalVitalSign() : existingVital;
             if (existingVital == null) {
-                vital.setVitalSignId(generateId("VIT"));
                 vital.setMedicalRecord(record);
             }
 
@@ -243,8 +238,8 @@ public class MedicalRecordService {
 
 
     @Transactional
-    public MedicalRecordResponse confirmMedicalRecord(String medicalRecordId,
-                                                       String veterinarianId) {
+    public MedicalRecordResponse confirmMedicalRecord(Integer medicalRecordId,
+                                                       Integer veterinarianId) {
         User veterinarian = getVeterinarian(veterinarianId);
         MedicalRecord record = medicalRecordRepository.findById(medicalRecordId)
                 .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
@@ -325,10 +320,7 @@ public class MedicalRecordService {
         return buildResponse(record);
     }
 
-    private String generateId(String prefix) {
-        return prefix + UUID.randomUUID().toString().replace("-", "")
-                .substring(0, 10).toUpperCase(Locale.ROOT);
-    }
+
 
     private String normalize(String value) {
         return value == null ? null : value.trim().toUpperCase(Locale.ROOT);

@@ -10,8 +10,9 @@ import java.time.LocalDate;
 public class Horse {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "horse_id", length = 20)
-    private String horseId;
+    private Integer horseId;
 
     @ManyToOne
     @JoinColumn(name = "owner_id", nullable = false)
@@ -70,11 +71,11 @@ public class Horse {
     private String status;
 
 
-    public String getHorseId() {
+    public Integer getHorseId() {
         return horseId;
     }
 
-    public void setHorseId(String horseId) {
+    public void setHorseId(Integer horseId) {
         this.horseId = horseId;
     }
 

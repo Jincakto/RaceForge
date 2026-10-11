@@ -15,6 +15,7 @@ import com.raceforge.backend.account.service.AuthService.AuthSession;
 import com.raceforge.backend.common.response.ApiResponse;
 import com.raceforge.backend.config.AuthProperties;
 import com.raceforge.backend.security.AuthenticatedUser;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.time.Duration;
@@ -29,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/auth")
+@Tag(name = "Authentication")
 public class AuthController {
 
     private final AuthService authService;

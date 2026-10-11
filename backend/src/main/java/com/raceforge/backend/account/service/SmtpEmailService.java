@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -16,11 +17,11 @@ public class SmtpEmailService implements EmailService {
     private final String mailHost;
 
     public SmtpEmailService(
-            JavaMailSender mailSender,
+            ObjectProvider<JavaMailSender> mailSender,
             AuthProperties authProperties,
             @Value("${spring.mail.host:}") String mailHost
     ) {
-        this.mailSender = mailSender;
+        this.mailSender = mailSender.getIfAvailable();
         this.authProperties = authProperties;
         this.mailHost = mailHost;
     }
@@ -48,7 +49,7 @@ public class SmtpEmailService implements EmailService {
     }
 
     private void ensureConfigured() {
-        if (mailHost == null || mailHost.isBlank()) {
+        if (mailSender == null || mailHost == null || mailHost.isBlank()) {
             throw new ApiException(
                     HttpStatus.SERVICE_UNAVAILABLE,
                     "MAIL_NOT_CONFIGURED",

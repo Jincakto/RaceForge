@@ -13,18 +13,16 @@ public class TrainingSessionMapper {
       response.setSessionId(session.getSessionId());
       response.setPlanId(session.getPlan().getPlanId());
       response.setHorseId(session.getHorse().getHorseId());
-      response.setScheduledTime(session.getScheduledTime());
+      response.setScheduledStart(session.getScheduledStart());
+      response.setScheduledEnd(session.getScheduledEnd());
+      response.setDistance(session.getDistance());
+      response.setIntensity(session.getIntensity());
+      response.setSurface(session.getSurface());
       response.setStatus(session.getStatus());
-      response.setPerformanceNotes(session.getPerformanceNotes());
-      response.setActivityName(session.getActivityName());
-      response.setAbsenceReason(session.getAbsenceReason());
-      response.setAbsenceNote(session.getAbsenceNote());
-      response.setHeartRate(session.getHeartRate());
-      response.setAvgSpeed(session.getAvgSpeed());
-      response.setMaxSpeed(session.getMaxSpeed());
-      response.setWarningTriggered(session.getWarningTriggered());
-      response.setPerformedBy(session.getPerformedBy());
-      response.setUpdatedAt(session.getUpdatedAt());
+      response.setActualStart(session.getActualStart());
+      response.setActualEnd(session.getActualEnd());
+      response.setEvaluation(session.getEvaluation());
+      response.setNotes(session.getNotes());
 
       return response;
   }

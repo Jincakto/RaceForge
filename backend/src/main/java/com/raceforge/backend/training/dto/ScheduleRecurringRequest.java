@@ -8,7 +8,7 @@ import java.time.LocalTime;
 import java.util.Set;
 
 /**
- * Creates one or many sessions for the horse that owns the given training plan.
+ * Creates one or many sessions for a horse attached to the given training plan (Horse_Plan).
  * - daysOfWeek given: one session per listed weekday, repeated for durationWeeks weeks.
  * - daysOfWeek empty: one session on startDate, repeated weekly for durationWeeks weeks.
  * - durationWeeks null or <= 0: treated as 1 week.
@@ -16,7 +16,10 @@ import java.util.Set;
 public class ScheduleRecurringRequest {
 
   @NotNull
-  private Long planId;
+  private Integer planId;
+
+  // Optional when the plan has exactly one horse.
+  private Integer horseId;
 
   @NotBlank
   private String activityName;
@@ -34,11 +37,11 @@ public class ScheduleRecurringRequest {
   public ScheduleRecurringRequest() {
   }
 
-  public Long getPlanId() {
+  public Integer getPlanId() {
       return planId;
   }
 
-  public void setPlanId(Long planId) {
+  public void setPlanId(Integer planId) {
       this.planId = planId;
   }
 
@@ -80,5 +83,13 @@ public class ScheduleRecurringRequest {
 
   public void setSessionTime(LocalTime sessionTime) {
       this.sessionTime = sessionTime;
+  }
+
+  public Integer getHorseId() {
+      return horseId;
+  }
+
+  public void setHorseId(Integer horseId) {
+      this.horseId = horseId;
   }
 }

@@ -4,55 +4,85 @@ import java.time.LocalDateTime;
 
 public class TrainingSessionResponse {
 
-  private Long sessionId;
-  private Long planId;
-  private Long horseId;
-  private LocalDateTime scheduledTime;
+  private Integer sessionId;
+  private Integer planId;
+  private Integer horseId;
+  private LocalDateTime scheduledStart;
+  private LocalDateTime scheduledEnd;
+  private Double distance;
+  private String intensity;
+  private String surface;
   private String status;
-  private String performanceNotes;
-  private String activityName;
-  private String absenceReason;
-  private String absenceNote;
-  private Integer heartRate;
-  private Double avgSpeed;
-  private Double maxSpeed;
-  private Boolean warningTriggered;
-  private Long performedBy;
-  private LocalDateTime updatedAt;
+  private LocalDateTime actualStart;
+  private LocalDateTime actualEnd;
+  private String evaluation;
+  private String notes;
 
   public TrainingSessionResponse() {
   }
 
-  public Long getSessionId() {
+  public Integer getSessionId() {
       return sessionId;
   }
 
-  public void setSessionId(Long sessionId) {
+  public void setSessionId(Integer sessionId) {
       this.sessionId = sessionId;
   }
 
-  public Long getPlanId() {
+  public Integer getPlanId() {
       return planId;
   }
 
-  public void setPlanId(Long planId) {
+  public void setPlanId(Integer planId) {
       this.planId = planId;
   }
 
-  public Long getHorseId() {
+  public Integer getHorseId() {
       return horseId;
   }
 
-  public void setHorseId(Long horseId) {
+  public void setHorseId(Integer horseId) {
       this.horseId = horseId;
   }
 
-  public LocalDateTime getScheduledTime() {
-      return scheduledTime;
+  public LocalDateTime getScheduledStart() {
+      return scheduledStart;
   }
 
-  public void setScheduledTime(LocalDateTime scheduledTime) {
-      this.scheduledTime = scheduledTime;
+  public void setScheduledStart(LocalDateTime scheduledStart) {
+      this.scheduledStart = scheduledStart;
+  }
+
+  public LocalDateTime getScheduledEnd() {
+      return scheduledEnd;
+  }
+
+  public void setScheduledEnd(LocalDateTime scheduledEnd) {
+      this.scheduledEnd = scheduledEnd;
+  }
+
+  public Double getDistance() {
+      return distance;
+  }
+
+  public void setDistance(Double distance) {
+      this.distance = distance;
+  }
+
+  public String getIntensity() {
+      return intensity;
+  }
+
+  public void setIntensity(String intensity) {
+      this.intensity = intensity;
+  }
+
+  public String getSurface() {
+      return surface;
+  }
+
+  public void setSurface(String surface) {
+      this.surface = surface;
   }
 
   public String getStatus() {
@@ -63,83 +93,35 @@ public class TrainingSessionResponse {
       this.status = status;
   }
 
-  public String getPerformanceNotes() {
-      return performanceNotes;
+  public LocalDateTime getActualStart() {
+      return actualStart;
   }
 
-  public void setPerformanceNotes(String performanceNotes) {
-      this.performanceNotes = performanceNotes;
+  public void setActualStart(LocalDateTime actualStart) {
+      this.actualStart = actualStart;
   }
 
-  public String getActivityName() {
-      return activityName;
+  public LocalDateTime getActualEnd() {
+      return actualEnd;
   }
 
-  public void setActivityName(String activityName) {
-      this.activityName = activityName;
+  public void setActualEnd(LocalDateTime actualEnd) {
+      this.actualEnd = actualEnd;
   }
 
-  public String getAbsenceReason() {
-      return absenceReason;
+  public String getEvaluation() {
+      return evaluation;
   }
 
-  public void setAbsenceReason(String absenceReason) {
-      this.absenceReason = absenceReason;
+  public void setEvaluation(String evaluation) {
+      this.evaluation = evaluation;
   }
 
-  public String getAbsenceNote() {
-      return absenceNote;
+  public String getNotes() {
+      return notes;
   }
 
-  public void setAbsenceNote(String absenceNote) {
-      this.absenceNote = absenceNote;
-  }
-
-  public Integer getHeartRate() {
-      return heartRate;
-  }
-
-  public void setHeartRate(Integer heartRate) {
-      this.heartRate = heartRate;
-  }
-
-  public Double getAvgSpeed() {
-      return avgSpeed;
-  }
-
-  public void setAvgSpeed(Double avgSpeed) {
-      this.avgSpeed = avgSpeed;
-  }
-
-  public Double getMaxSpeed() {
-      return maxSpeed;
-  }
-
-  public void setMaxSpeed(Double maxSpeed) {
-      this.maxSpeed = maxSpeed;
-  }
-
-  public Boolean getWarningTriggered() {
-      return warningTriggered;
-  }
-
-  public void setWarningTriggered(Boolean warningTriggered) {
-      this.warningTriggered = warningTriggered;
-  }
-
-  public Long getPerformedBy() {
-      return performedBy;
-  }
-
-  public void setPerformedBy(Long performedBy) {
-      this.performedBy = performedBy;
-  }
-
-  public LocalDateTime getUpdatedAt() {
-      return updatedAt;
-  }
-
-  public void setUpdatedAt(LocalDateTime updatedAt) {
-      this.updatedAt = updatedAt;
+  public void setNotes(String notes) {
+      this.notes = notes;
   }
 }

@@ -7,14 +7,17 @@ import org.springframework.stereotype.Component;
 @Component
 public class TrainingPlanMapper {
 
-  public TrainingPlanResponse toResponse(TrainingPlan plan) {
+  public TrainingPlanResponse toResponse(TrainingPlan plan, Integer horseId) {
       TrainingPlanResponse response = new TrainingPlanResponse();
 
       response.setPlanId(plan.getPlanId());
-      response.setHorseId(plan.getHorse().getHorseId());
-      response.setCreatedByTrainerId(plan.getCreatedByTrainerId());
-      response.setDescription(plan.getDescription());
-      response.setCreatedAt(plan.getCreatedAt());
+      response.setHorseId(horseId);
+      response.setCreatedBy(plan.getCreatedBy());
+      response.setPlanName(plan.getPlanName());
+      response.setGoal(plan.getGoal());
+      response.setDuration(plan.getDuration());
+      response.setStatus(plan.getStatus());
+      response.setNotes(plan.getNotes());
 
       return response;
   }

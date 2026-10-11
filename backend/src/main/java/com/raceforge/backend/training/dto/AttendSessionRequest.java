@@ -19,7 +19,7 @@ public class AttendSessionRequest {
   private Double maxSpeed;
 
   @NotNull
-  private Long performedBy;
+  private Integer performedBy;
 
   public AttendSessionRequest() {
   }
@@ -72,11 +72,11 @@ public class AttendSessionRequest {
       this.maxSpeed = maxSpeed;
   }
 
-  public Long getPerformedBy() {
+  public Integer getPerformedBy() {
       return performedBy;
   }
 
-  public void setPerformedBy(Long performedBy) {
+  public void setPerformedBy(Integer performedBy) {
       this.performedBy = performedBy;
   }
 }

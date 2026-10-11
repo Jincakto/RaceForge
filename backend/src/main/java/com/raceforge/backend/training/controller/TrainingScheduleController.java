@@ -32,7 +32,7 @@ public class TrainingScheduleController {
 
   @PutMapping("/{sessionId}/attendance")
   public ResponseEntity<ApiResponse<AttendanceResponse>> submitAttendance(
-          @PathVariable Long sessionId,
+          @PathVariable Integer sessionId,
           @Valid @RequestBody AttendSessionRequest request) {
       AttendanceResponse response = trainingScheduleService.submitAttendance(sessionId, request);
       String message = response.isWarningTriggered()
@@ -42,7 +42,7 @@ public class TrainingScheduleController {
   }
 
   @GetMapping("/horse/{horseId}")
-  public ResponseEntity<ApiResponse<List<TrainingSessionResponse>>> getByHorse(@PathVariable Long horseId) {
+  public ResponseEntity<ApiResponse<List<TrainingSessionResponse>>> getByHorse(@PathVariable Integer horseId) {
       return ResponseEntity.ok(ApiResponse.success(
               "Training schedule retrieved", trainingScheduleService.getScheduleByHorseId(horseId)));
   }

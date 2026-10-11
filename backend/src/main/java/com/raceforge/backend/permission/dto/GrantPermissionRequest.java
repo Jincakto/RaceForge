@@ -12,7 +12,7 @@ public class GrantPermissionRequest {
   private String permissionCode;
 
   @NotNull
-  private Long performedBy;
+  private Integer performedBy;
 
   public GrantPermissionRequest() {
   }
@@ -33,11 +33,11 @@ public class GrantPermissionRequest {
       this.permissionCode = permissionCode;
   }
 
-  public Long getPerformedBy() {
+  public Integer getPerformedBy() {
       return performedBy;
   }
 
-  public void setPerformedBy(Long performedBy) {
+  public void setPerformedBy(Integer performedBy) {
       this.performedBy = performedBy;
   }
 }

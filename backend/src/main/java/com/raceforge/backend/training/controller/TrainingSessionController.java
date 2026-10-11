@@ -26,14 +26,14 @@ public class TrainingSessionController {
   }
 
   @PatchMapping("/{sessionId}/start")
-  public ResponseEntity<ApiResponse<TrainingSessionResponse>> start(@PathVariable Long sessionId) {
+  public ResponseEntity<ApiResponse<TrainingSessionResponse>> start(@PathVariable Integer sessionId) {
       TrainingSessionResponse response = trainingSessionService.startSession(sessionId);
       return ResponseEntity.ok(ApiResponse.success("Session started", response));
   }
 
   @PatchMapping("/{sessionId}/complete")
   public ResponseEntity<ApiResponse<TrainingSessionResponse>> complete(
-          @PathVariable Long sessionId,
+          @PathVariable Integer sessionId,
           @RequestBody CompleteSessionRequest request) {
 
       TrainingSessionResponse response = trainingSessionService.completeSession(sessionId, request);

@@ -7,15 +7,15 @@ import org.springframework.stereotype.Component;
 @Component
 public class PermissionAuditLogMapper {
 
-  public PermissionAuditLogResponse toResponse(PermissionAuditLog log) {
+  public PermissionAuditLogResponse toResponse(PermissionAuditLog log, String roleName) {
       PermissionAuditLogResponse response = new PermissionAuditLogResponse();
 
-      response.setLogId(log.getLogId());
+      response.setLogId(log.getAuditId());
       response.setAction(log.getAction());
-      response.setRoleName(log.getRoleName());
-      response.setPermissionCode(log.getPermissionCode());
-      response.setPerformedBy(log.getPerformedBy());
-      response.setPerformedAt(log.getPerformedAt());
+      response.setRoleName(roleName);
+      response.setPermissionCode(log.getReason()); // reason holds the permission_name
+      response.setPerformedBy(log.getUserId());
+      response.setPerformedAt(log.getCreatedAt());
 
       return response;
   }

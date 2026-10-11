@@ -7,43 +7,43 @@ import java.util.Objects;
 @Embeddable
 public class RolePermissionId implements Serializable {
 
-  private String roleName;
-  private String permissionCode;
+  private Integer roleId;
+  private Integer permissionId;
 
   public RolePermissionId() {
   }
 
-  public RolePermissionId(String roleName, String permissionCode) {
-      this.roleName = roleName;
-      this.permissionCode = permissionCode;
+  public RolePermissionId(Integer roleId, Integer permissionId) {
+      this.roleId = roleId;
+      this.permissionId = permissionId;
   }
 
-  public String getRoleName() {
-      return roleName;
+  public Integer getRoleId() {
+      return roleId;
   }
 
-  public void setRoleName(String roleName) {
-      this.roleName = roleName;
+  public void setRoleId(Integer roleId) {
+      this.roleId = roleId;
   }
 
-  public String getPermissionCode() {
-      return permissionCode;
+  public Integer getPermissionId() {
+      return permissionId;
   }
 
-  public void setPermissionCode(String permissionCode) {
-      this.permissionCode = permissionCode;
+  public void setPermissionId(Integer permissionId) {
+      this.permissionId = permissionId;
   }
 
   @Override
   public boolean equals(Object o) {
       if (this == o) return true;
       if (!(o instanceof RolePermissionId that)) return false;
-      return Objects.equals(roleName, that.roleName)
-              && Objects.equals(permissionCode, that.permissionCode);
+      return Objects.equals(roleId, that.roleId)
+              && Objects.equals(permissionId, that.permissionId);
   }
 
   @Override
   public int hashCode() {
-      return Objects.hash(roleName, permissionCode);
+      return Objects.hash(roleId, permissionId);
   }
 }

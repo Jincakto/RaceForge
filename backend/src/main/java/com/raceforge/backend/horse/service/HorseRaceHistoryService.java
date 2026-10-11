@@ -1,5 +1,6 @@
 package com.raceforge.backend.horse.service;
 
+import com.raceforge.backend.audit.service.AuditLogService;
 import com.raceforge.backend.horse.dto.HorseRaceHistoryCreateRequest;
 import com.raceforge.backend.horse.dto.HorseRaceHistoryResponse;
 import com.raceforge.backend.horse.dto.HorseRaceHistoryUpdateRequest;
@@ -24,17 +25,21 @@ public class HorseRaceHistoryService {
     private final HorseRaceHistoryRepository raceHistoryRepository;
     private final HorseRepository horseRepository;
     private final HorseRaceHistoryMapper raceHistoryMapper;
+    private final AuditLogService auditLogService;
 
     public HorseRaceHistoryService(
             HorseRaceHistoryRepository raceHistoryRepository,
             HorseRepository horseRepository,
-            HorseRaceHistoryMapper raceHistoryMapper) {
+            HorseRaceHistoryMapper raceHistoryMapper,
+            AuditLogService auditLogService) {
 
         this.raceHistoryRepository = raceHistoryRepository;
         this.horseRepository = horseRepository;
         this.raceHistoryMapper = raceHistoryMapper;
+        this.auditLogService = auditLogService;
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public HorseRaceHistoryResponse createRaceHistory(
             Integer horseId,
             HorseRaceHistoryCreateRequest request) {
@@ -59,6 +64,7 @@ public class HorseRaceHistoryService {
         HorseRaceHistory savedHistory =
                 raceHistoryRepository.save(history);
 
+        auditLogService.record(null, horseId, "HORSE_RACE_HISTORY", savedHistory.getRaceHistoryId(), "RACE_HISTORY_CREATED", "SUCCESS", null);
         return raceHistoryMapper.toResponse(savedHistory);
     }
 
@@ -87,6 +93,7 @@ public class HorseRaceHistoryService {
         return raceHistoryMapper.toResponse(history);
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public HorseRaceHistoryResponse updateRaceHistory(
             Integer raceHistoryId,
             HorseRaceHistoryUpdateRequest request) {
@@ -101,15 +108,18 @@ public class HorseRaceHistoryService {
         HorseRaceHistory updatedHistory =
                 raceHistoryRepository.save(history);
 
+        auditLogService.record(null, updatedHistory.getHorse().getHorseId(), "HORSE_RACE_HISTORY", updatedHistory.getRaceHistoryId(), "RACE_HISTORY_UPDATED", "SUCCESS", null);
         return raceHistoryMapper.toResponse(updatedHistory);
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public void deleteRaceHistory(Integer raceHistoryId) {
 
         HorseRaceHistory history =
                 findRaceHistoryById(raceHistoryId);
 
         raceHistoryRepository.delete(history);
+        auditLogService.record(null, history.getHorse().getHorseId(), "HORSE_RACE_HISTORY", raceHistoryId, "RACE_HISTORY_DELETED", "SUCCESS", null);
     }
 
     private HorseRaceHistory findRaceHistoryById(Integer raceHistoryId) {

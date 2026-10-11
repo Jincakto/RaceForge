@@ -36,7 +36,7 @@ public class HorseRaceHistoryService {
     }
 
     public HorseRaceHistoryResponse createRaceHistory(
-            String horseId,
+            Integer horseId,
             HorseRaceHistoryCreateRequest request) {
         Horse horse = horseRepository.findById(horseId)
             .orElseThrow(() ->
@@ -48,7 +48,7 @@ public class HorseRaceHistoryService {
         HorseRaceHistory history =
                 raceHistoryMapper.toEntity(request);
 
-        history.setRaceHistoryId(generateRaceHistoryId());
+        
         history.setHorse(horse);
 
         LocalDateTime now = LocalDateTime.now();
@@ -63,7 +63,7 @@ public class HorseRaceHistoryService {
     }
 
     public List<HorseRaceHistoryResponse> getRaceHistoryByHorse(
-            String horseId) {
+            Integer horseId) {
 
         if (!horseRepository.existsById(horseId)) {
             throw new ResourceNotFoundException(
@@ -79,7 +79,7 @@ public class HorseRaceHistoryService {
     }
 
     public HorseRaceHistoryResponse getRaceHistoryById(
-            String raceHistoryId) {
+            Integer raceHistoryId) {
 
         HorseRaceHistory history =
                 findRaceHistoryById(raceHistoryId);
@@ -88,7 +88,7 @@ public class HorseRaceHistoryService {
     }
 
     public HorseRaceHistoryResponse updateRaceHistory(
-            String raceHistoryId,
+            Integer raceHistoryId,
             HorseRaceHistoryUpdateRequest request) {
 
         HorseRaceHistory history =
@@ -104,7 +104,7 @@ public class HorseRaceHistoryService {
         return raceHistoryMapper.toResponse(updatedHistory);
     }
 
-    public void deleteRaceHistory(String raceHistoryId) {
+    public void deleteRaceHistory(Integer raceHistoryId) {
 
         HorseRaceHistory history =
                 findRaceHistoryById(raceHistoryId);
@@ -112,7 +112,7 @@ public class HorseRaceHistoryService {
         raceHistoryRepository.delete(history);
     }
 
-    private HorseRaceHistory findRaceHistoryById(String raceHistoryId) {
+    private HorseRaceHistory findRaceHistoryById(Integer raceHistoryId) {
 
         return raceHistoryRepository
                 .findById(raceHistoryId)
@@ -123,21 +123,5 @@ public class HorseRaceHistoryService {
                 );
     }
 
-    private String generateRaceHistoryId() {
 
-        String latestId =
-                raceHistoryRepository.findLatestRaceHistoryId();
-
-        if (latestId == null) {
-            return "RHI001";
-        }
-
-        int currentNumber =
-                Integer.parseInt(latestId.substring(3));
-
-        return String.format(
-                "RHI%03d",
-                currentNumber + 1
-        );
-    }
 }

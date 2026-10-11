@@ -24,7 +24,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
-import java.util.UUID;
 
 @Service
 public class HorsePackageService {
@@ -59,7 +58,7 @@ public class HorsePackageService {
     }
 
     @Transactional
-    public HorsePackageResponse register(HorsePackageRegisterRequest request, String ownerId) {
+    public HorsePackageResponse register(HorsePackageRegisterRequest request, Integer ownerId) {
         requireOwnerId(ownerId);
 
       Horse horse = horseRepository.findById(request.horseId())
@@ -100,7 +99,6 @@ public class HorsePackageService {
         }
 
         HorsePackage registration = new HorsePackage();
-        registration.setHorsePackageId(newId());
         registration.setHorse(horse);
         registration.setTrainingPackage(trainingPackage);
         registration.setTotalPrice(trainingPackage.getPrice());
@@ -115,7 +113,7 @@ public class HorsePackageService {
     }
 
     @Transactional
-    public HorsePackageResponse simulatePayment(String registrationId, boolean successful, String ownerId) {
+    public HorsePackageResponse simulatePayment(Integer registrationId, boolean successful, Integer ownerId) {
         requireOwnerId(ownerId);
 
         HorsePackage registration = horsePackageRepository.findById(registrationId)
@@ -171,7 +169,7 @@ public class HorsePackageService {
     }
 
     @Transactional(readOnly = true)
-    public List<HorsePackageResponse> history(String horseId, String ownerId) {
+    public List<HorsePackageResponse> history(Integer horseId, Integer ownerId) {
         requireOwnerId(ownerId);
         Horse horse = horseRepository.findById(horseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found: " + horseId));
@@ -185,20 +183,17 @@ public class HorsePackageService {
                 && "CONFIRMED".equalsIgnoreCase(record.getStatus());
     }
 
-    private void checkOwnership(Horse horse, String ownerId) {
+    private void checkOwnership(Horse horse, Integer ownerId) {
         if (horse.getOwner() == null || !ownerId.equals(horse.getOwner().getUserId())) {
             throw new BusinessRuleException("You are not the owner of this horse");
         }
     }
 
-    private void requireOwnerId(String ownerId) {
-        if (ownerId == null || ownerId.isBlank()) {
+    private void requireOwnerId(Integer ownerId) {
+        if (ownerId == null || ownerId <= 0) {
             throw new BusinessRuleException("Authenticated Horse Owner is required");
         }
     }
 
-    private String newId() {
-        return "HPK" + UUID.randomUUID().toString().replace("-", "")
-                .substring(0, 17).toUpperCase(Locale.ROOT);
-    }
+
 }

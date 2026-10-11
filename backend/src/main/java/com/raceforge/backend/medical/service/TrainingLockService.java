@@ -18,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
-import java.util.UUID;
 
 @Service
 public class TrainingLockService {
@@ -59,7 +58,6 @@ public class TrainingLockService {
             throw new BusinessRuleException("Horse is marked locked but has no active Training_Lock record; reconcile data first");
         }
         TrainingLock lock = new TrainingLock();
-        lock.setLockId(generateId());
         lock.setHorse(horse);
         lock.setMedicalRecord(record);
         lock.setLockedBy(veterinarian);
@@ -71,7 +69,7 @@ public class TrainingLockService {
     }
 
     @Transactional
-    public TrainingLock unlockHorse(String horseId, String veterinarianId, String reason) {
+    public TrainingLock unlockHorse(Integer horseId, Integer veterinarianId, String reason) {
         if (horseId == null || horseId.isBlank() || veterinarianId == null || veterinarianId.isBlank()) {
             throw new IllegalArgumentException("Horse ID and veterinarian ID are required");
         }
@@ -107,7 +105,7 @@ public class TrainingLockService {
     }
 
     @Transactional(readOnly = true)
-    public List<TrainingLock> getLockHistory(String horseId) {
+    public List<TrainingLock> getLockHistory(Integer horseId) {
         if (!horseRepository.existsById(horseId)) {
             throw new ResourceNotFoundException("Horse not found");
         }
@@ -125,8 +123,5 @@ public class TrainingLockService {
         return value == null ? null : value.trim().toUpperCase(Locale.ROOT);
     }
 
-    private String generateId() {
-        return "LCK" + UUID.randomUUID().toString().replace("-", "")
-                .substring(0, 10).toUpperCase(Locale.ROOT);
-    }
+
 }

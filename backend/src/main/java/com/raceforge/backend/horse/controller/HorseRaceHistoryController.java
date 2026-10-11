@@ -29,7 +29,7 @@ public class HorseRaceHistoryController {
     @PostMapping("/{horseId}/race-history")
     public ResponseEntity<ApiResponse<HorseRaceHistoryResponse>>
     createRaceHistory(
-            @PathVariable String horseId,
+            @PathVariable Integer horseId,
             @Valid @RequestBody HorseRaceHistoryCreateRequest request) {
 
         HorseRaceHistoryResponse history =
@@ -51,7 +51,7 @@ public class HorseRaceHistoryController {
     @GetMapping("/{horseId}/race-history")
     public ResponseEntity<ApiResponse<List<HorseRaceHistoryResponse>>>
     getRaceHistoryByHorse(
-            @PathVariable String horseId) {
+            @PathVariable Integer horseId) {
 
         List<HorseRaceHistoryResponse> histories =
                 raceHistoryService.getRaceHistoryByHorse(horseId);
@@ -67,7 +67,7 @@ public class HorseRaceHistoryController {
     @GetMapping("/race-history/{raceHistoryId}")
     public ResponseEntity<ApiResponse<HorseRaceHistoryResponse>>
     getRaceHistoryById(
-            @PathVariable String raceHistoryId) {
+            @PathVariable Integer raceHistoryId) {
 
         HorseRaceHistoryResponse history =
                 raceHistoryService.getRaceHistoryById(raceHistoryId);
@@ -83,7 +83,7 @@ public class HorseRaceHistoryController {
     @PutMapping("/race-history/{raceHistoryId}")
     public ResponseEntity<ApiResponse<HorseRaceHistoryResponse>>
     updateRaceHistory(
-            @PathVariable String raceHistoryId,
+            @PathVariable Integer raceHistoryId,
             @Valid @RequestBody HorseRaceHistoryUpdateRequest request) {
 
         HorseRaceHistoryResponse history =
@@ -102,7 +102,7 @@ public class HorseRaceHistoryController {
 
     @DeleteMapping("/race-history/{raceHistoryId}")
     public ResponseEntity<ApiResponse<Void>> deleteRaceHistory(
-            @PathVariable String raceHistoryId) {
+            @PathVariable Integer raceHistoryId) {
 
         raceHistoryService.deleteRaceHistory(raceHistoryId);
 

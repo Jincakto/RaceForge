@@ -40,7 +40,7 @@ export default function App() {
     horses: HORSES, horseClubRequests: SEED_HORSE_CLUB_REQUESTS,
     healthRecords: MEDICAL_RECORDS, trainingPlans: TRAINING_PLANS, trainingSessions: TRAINING_SESSIONS,
     tasks: GROOM_TASKS, notifications: NOTIFICATIONS,
-    selectedHorseId: 'RH-001', trainerSelectHorseId: null, viewTrainerId: null,
+    selectedHorseId: 1, trainerSelectHorseId: null, viewTrainerId: null,
     showSuccess: null, userPermissions: {},
   }));
   useEffect(() => {
@@ -76,17 +76,17 @@ export default function App() {
     setState(current => ({ ...current, showSuccess: 'OTP xác thực thành công. Bạn có thể đăng nhập.' }));
   }, [navigate]);
   const showSuccess = (message: string) => setState(current => ({ ...current, showSuccess: message }));
-  const selectHorse = (id: string) => setState(current => current.horses.some(horse => horse.id === id && horse.ownerId === current.user?.id) ? { ...current, selectedHorseId: id } : current);
+  const selectHorse = (id: number) => setState(current => current.horses.some(horse => horse.id === id && horse.ownerId === current.user?.id) ? { ...current, selectedHorseId: id } : current);
   const scopedOwnerState = ownerView(state);
   const handleCreateHorse = (horse: Horse) => {
     try { setState(addOwnerHorse(state, horse)); navigate('trainer-select'); showSuccess('Đã tạo hồ sơ ngựa.'); }
     catch (error) { showSuccess(error instanceof Error ? error.message : 'Không thể tạo hồ sơ ngựa.'); }
   };
-  const handleSelectTrainer = (horseId: string, trainerId: string) => {
+  const handleSelectTrainer = (horseId: number, trainerId: number) => {
     try { setState(assignOwnerTrainer(state, horseId, trainerId)); navigate('my-horses'); showSuccess('Đã chọn Head Trainer.'); }
     catch (error) { showSuccess(error instanceof Error ? error.message : 'Không thể chọn Head Trainer.'); }
   };
-  const handleSubmitToCenter = (horseId: string) => {
+  const handleSubmitToCenter = (horseId: number) => {
     try { setState(submitOwnerHorse(state, horseId)); showSuccess('Đã gửi đăng ký ngựa. Đang chờ Quản lý trung tâm duyệt.'); }
     catch (error) { showSuccess(error instanceof Error ? error.message : 'Không thể gửi đăng ký.'); }
   };
@@ -94,7 +94,7 @@ export default function App() {
     try { setState(updateOwnerHorse(state, horse)); }
     catch (error) { showSuccess(error instanceof Error ? error.message : 'Không thể cập nhật ngựa.'); }
   };
-  const handleAddAchievement = (horseId: string, achievement: Achievement) => {
+  const handleAddAchievement = (horseId: number, achievement: Achievement) => {
     try { setState(addOwnerAchievement(state, horseId, achievement)); }
     catch (error) { showSuccess(error instanceof Error ? error.message : 'Không thể thêm thành tích.'); }
   };

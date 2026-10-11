@@ -23,14 +23,15 @@ export interface AppState {
   trainingSessions: TrainingSession[];
   tasks: typeof GROOM_TASKS;
   notifications: typeof NOTIFICATIONS;
-  selectedHorseId: string;
-  trainerSelectHorseId: string | null;
-  viewTrainerId: string | null;
+  selectedHorseId: number;
+  trainerSelectHorseId: number | null;
+  viewTrainerId: number | null;
   showSuccess: string | null;
-  userPermissions: Record<string, Page[]>;
+  userPermissions: Record<number, Page[]>;
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
+  user: 'USER',
   manager: 'Quản lý trung tâm', head_trainer: 'Head Trainer',
   veterinarian: 'Thú y', groom: 'Groom', owner: 'Chủ ngựa',
 };
@@ -45,6 +46,10 @@ export const DEMO_ACCOUNTS = [
 ];
 
 export const NAV_ITEMS: Partial<Record<Role, { icon: string; label: string; page: Page; badge?: string }[]>> = {
+  user: [
+    { icon: '⌂', label: 'Trang chủ', page: 'home' },
+    { icon: '👤', label: 'Hồ sơ cá nhân', page: 'profile' },
+  ],
   manager: [
     { icon: '⊞', label: 'Dashboard', page: 'dashboard' },
     { icon: '🐎', label: 'Ngựa trong trung tâm', page: 'horse-list' },

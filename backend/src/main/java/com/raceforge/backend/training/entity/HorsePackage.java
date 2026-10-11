@@ -11,8 +11,9 @@ import com.raceforge.backend.horse.entity.Horse;
 public class HorsePackage {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "horse_package_id", nullable = false, length = 20)
-    private String horsePackageId;
+    private Integer horsePackageId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "horse_id", nullable = false)
@@ -78,11 +79,11 @@ public class HorsePackage {
         updatedAt = LocalDateTime.now();
     }
 
-    public String getHorsePackageId() {
+    public Integer getHorsePackageId() {
         return horsePackageId;
     }
 
-    public void setHorsePackageId(String horsePackageId) {
+    public void setHorsePackageId(Integer horsePackageId) {
         this.horsePackageId = horsePackageId;
     }
 

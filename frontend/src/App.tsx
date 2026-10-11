@@ -58,7 +58,8 @@ export default function App() {
       setState(current => ({ ...current, showSuccess: 'Trang này sẽ được triển khai ở đợt sau.' }));
       return;
     }
-    if (ownerPages.has(page) && state.user?.role !== 'owner') {
+    if (state.user?.role === 'user' && !['home', 'profile', 'login'].includes(page)) return;
+    if (ownerPages.has(page) && state.user?.role !== 'owner' && !(page === 'profile' && state.user?.role === 'user')) {
       setState(current => ({ ...current, showSuccess: 'Trang này dành cho Chủ ngựa.' })); return;
     }
     setState(current => ({ ...current, page, user: page === 'login' ? null : current.user }));
@@ -68,7 +69,7 @@ export default function App() {
   const handleLogin = useCallback((user: AppUser) => {
     setState(current => ({ ...current, user }));
     navigate(user.role === 'manager' || user.role === 'owner' ? 'dashboard' : 'home');
-    if (user.role !== 'manager' && user.role !== 'owner') setState(current => ({ ...current, showSuccess: 'Đăng nhập thành công. Trang dành cho vai trò của bạn sẽ được triển khai sau.' }));
+    if (user.role !== 'manager' && user.role !== 'owner' && user.role !== 'user') setState(current => ({ ...current, showSuccess: 'Đăng nhập thành công. Trang dành cho vai trò của bạn sẽ được triển khai sau.' }));
   }, [navigate]);
   const handleRegister = useCallback((user: AppUser) => {
     setState(current => ({ ...current, users: [...current.users, user] }));
@@ -115,6 +116,7 @@ export default function App() {
   else if (state.page === 'login' || ((state.page === 'dashboard' || ownerPages.has(state.page)) && !state.user)) content = <LoginPage navigate={navigate} users={state.users} onLogin={handleLogin} />;
   else if (state.page === 'dashboard' && state.user?.role === 'manager') content = <AppLayout user={state.user} page="dashboard" title="Dashboard" navigate={navigate} state={state}><ManagerDashboard state={state} navigate={navigate} /></AppLayout>;
   else if ((state.page === 'dashboard' || ownerPages.has(state.page)) && state.user?.role === 'owner') content = <AppLayout user={state.user} page={state.page} title={ownerTitles[state.page] || 'Chủ ngựa'} navigate={navigate} state={scopedOwnerState}>{renderOwnerPage()}</AppLayout>;
-  else content = <HomePage navigate={navigate} />;
+  else if (state.page === 'profile' && state.user?.role === 'user') content = <AppLayout user={state.user} page="profile" title="Hồ sơ cá nhân" navigate={navigate} state={scopedOwnerState}>{renderOwnerPage()}</AppLayout>;
+  else content = <HomePage navigate={navigate} user={state.user} />;
   return <>{state.showSuccess && <SuccessToast message={state.showSuccess} />}{content}</>;
 }

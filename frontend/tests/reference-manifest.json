@@ -82,7 +82,7 @@
     {
       "name": "HomePage",
       "file": "src/pages/public/HomePage.tsx",
-      "sha256": "59baf275430e0930b604266975492f5b4b09e3f8dcbb600e8c907c568b5b89ca"
+      "sha256": "32afef8bd28fc9248e4b4345e86bda5a2df0f6a59dc97036176b464b29fead66"
     },
     {
       "name": "LoginPage",
@@ -97,12 +97,12 @@
     {
       "name": "Sidebar",
       "file": "src/components/layout/Sidebar.tsx",
-      "sha256": "00a89c23ba7c610264286a0f0a4a488cd6485d2763901d6a29dc26c52b1653d2"
+      "sha256": "3ce43e773b8eec7219a19d7909ceef123c1f233dd10c1a62c1d350777bbca17e"
     },
     {
       "name": "AppLayout",
       "file": "src/components/layout/AppLayout.tsx",
-      "sha256": "eb7efbf0b1f7fe98171253293e1a68d85d504b9887173bba9c5cd7234cf0fd77"
+      "sha256": "a147f0244835c252a3820607d93dbb89b99eb7ce021986999359d73ab0b4af8b"
     },
     {
       "name": "ManagerDashboard",

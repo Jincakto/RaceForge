@@ -5,9 +5,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public record HorsePackageResponse(
-        String horsePackageId,
-        String horseId,
-        String packageId,
+        Integer horsePackageId,
+        Integer horseId,
+        Integer packageId,
         String packageName,
         String packageType,
         String status,
@@ -18,6 +18,6 @@ public record HorsePackageResponse(
         LocalDate startDate,
         LocalDate endDate,
         Integer remainingDays,
-        String replacedHorsePackageId
+        Integer replacedHorsePackageId
 ) {
 }

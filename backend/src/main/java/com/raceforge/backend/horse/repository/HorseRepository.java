@@ -6,16 +6,5 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public interface HorseRepository extends JpaRepository<Horse, String> {
-
-    @Query(value = """
-            SELECT TOP 1 horse_id
-            FROM Horse
-            WHERE horse_id LIKE 'HOR%'
-            ORDER BY TRY_CAST(
-                SUBSTRING(horse_id, 4, LEN(horse_id))
-                AS INT
-            ) DESC
-            """, nativeQuery = true)
-    String findLatestHorseId();
+public interface HorseRepository extends JpaRepository<Horse, Integer> {
 }

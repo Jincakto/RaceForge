@@ -4,6 +4,7 @@ import com.raceforge.backend.common.exception.BusinessRuleException;
 import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.account.entity.User;
 import com.raceforge.backend.account.repository.UserRepository;
+import com.raceforge.backend.audit.service.AuditLogService;
 import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.repository.HorseRepository;
 import com.raceforge.backend.medical.entity.MedicalRecord;
@@ -25,15 +26,18 @@ public class TrainingLockService {
     private final HorseRepository horseRepository;
     private final UserRepository userRepository;
     private final EntityManager entityManager;
+    private final AuditLogService auditLogService;
 
     public TrainingLockService(TrainingLockRepository trainingLockRepository,
                                HorseRepository horseRepository,
                                UserRepository userRepository,
+                               AuditLogService auditLogService,
                                EntityManager entityManager) {
         this.trainingLockRepository = trainingLockRepository;
         this.horseRepository = horseRepository;
         this.userRepository = userRepository;
         this.entityManager = entityManager;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -66,11 +70,12 @@ public class TrainingLockService {
         trainingLockRepository.save(lock);
         horse.setTrainingLocked(true);
         horseRepository.save(horse);
+        auditLogService.record(veterinarian.getUserId(), horse.getHorseId(), "TRAINING_LOCK", lock.getLockId(), "TRAINING_LOCKED", "SUCCESS", reason.trim());
     }
 
     @Transactional
     public TrainingLock unlockHorse(Integer horseId, Integer veterinarianId, String reason) {
-        if (horseId == null || horseId.isBlank() || veterinarianId == null || veterinarianId.isBlank()) {
+        if (horseId == null || veterinarianId == null) {
             throw new IllegalArgumentException("Horse ID and veterinarian ID are required");
         }
         if (reason == null || reason.isBlank()) {
@@ -101,6 +106,7 @@ public class TrainingLockService {
         horse.setTrainingLocked(false);
         trainingLockRepository.save(activeLock);
         horseRepository.save(horse);
+        auditLogService.record(veterinarianId, horseId, "TRAINING_LOCK", activeLock.getLockId(), "TRAINING_UNLOCKED", "SUCCESS", reason.trim());
         return activeLock;
     }
 

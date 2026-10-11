@@ -4,10 +4,10 @@ import java.time.LocalDate;
 
 public class HorseResponse {
 
-    private String horseId;
+    private Integer horseId;
 
-    private String ownerId;
-    private String headTrainerId;
+    private Integer ownerId;
+    private Integer headTrainerId;
 
     private String horseName;
     private LocalDate dateOfBirth;
@@ -30,27 +30,27 @@ public class HorseResponse {
     private Boolean trainingLocked;
     private String status;
 
-    public String getHorseId() {
+    public Integer getHorseId() {
     return horseId;
     }
     
-    public void setHorseId(String horseId) {
+    public void setHorseId(Integer horseId) {
         this.horseId = horseId;
     }
     
-    public String getOwnerId() {
+    public Integer getOwnerId() {
         return ownerId;
     }
     
-    public void setOwnerId(String ownerId) {
+    public void setOwnerId(Integer ownerId) {
         this.ownerId = ownerId;
     }
     
-    public String getHeadTrainerId() {
+    public Integer getHeadTrainerId() {
         return headTrainerId;
     }
     
-    public void setHeadTrainerId(String headTrainerId) {
+    public void setHeadTrainerId(Integer headTrainerId) {
         this.headTrainerId = headTrainerId;
     }
     

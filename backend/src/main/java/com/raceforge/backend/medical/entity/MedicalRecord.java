@@ -9,8 +9,9 @@ import com.raceforge.backend.account.entity.User;
 public class MedicalRecord {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "medical_record_id", length = 20)
-    private String medicalRecordId;
+    private Integer medicalRecordId;
 
     @ManyToOne
     @JoinColumn(name = "profile_id", nullable = false)
@@ -89,11 +90,11 @@ public class MedicalRecord {
         updatedAt = LocalDateTime.now();
     }
 
-    public String getMedicalRecordId() {
+    public Integer getMedicalRecordId() {
         return medicalRecordId;
     }
 
-    public void setMedicalRecordId(String medicalRecordId) {
+    public void setMedicalRecordId(Integer medicalRecordId) {
         this.medicalRecordId = medicalRecordId;
     }
 

@@ -2,45 +2,34 @@ package com.raceforge.backend.training.service;
 
 import com.raceforge.backend.account.entity.User;
 import com.raceforge.backend.account.repository.UserRepository;
-import com.raceforge.backend.audit.entity.AuditLog;
-import com.raceforge.backend.audit.repository.AuditLogRepository;
+import com.raceforge.backend.audit.service.AuditLogService;
 import com.raceforge.backend.notification.service.NotificationService;
 import org.springframework.stereotype.Service;
-import java.time.Instant;
 
 @Service
 public class PackageEventService {
 
     private final NotificationService notificationService;
-    private final AuditLogRepository auditLogRepository;
+    private final AuditLogService auditLogService;
     private final UserRepository userRepository;
 
     public PackageEventService(NotificationService notificationService,
-                               AuditLogRepository auditLogRepository,
+                               AuditLogService auditLogService,
                                UserRepository userRepository) {
         this.notificationService = notificationService;
-        this.auditLogRepository = auditLogRepository;
+        this.auditLogService = auditLogService;
         this.userRepository = userRepository;
     }
 
     public void record(Integer actorId, Integer horseId, Integer entityId,
                        String action, String reason) {
-        AuditLog log = new AuditLog();
-        
-        log.setUserId(actorId);
-        log.setHorseId(horseId);
-        log.setEntityType("HORSE_PACKAGE");
-        log.setEntityId(entityId);
-        log.setAction(action);
-        log.setResult("SUCCESS");
-        log.setReason(reason);
-        log.setCreatedAt(Instant.now());
-        auditLogRepository.save(log);
+        auditLogService.record(actorId, horseId, "HORSE_PACKAGE", entityId,
+                action, "SUCCESS", reason);
     }
 
     public void notifyOwner(Integer ownerId, Integer horseId,
                             String type, String message) {
-        if (ownerId != null && !ownerId.isBlank()) {
+        if (ownerId != null) {
             notificationService.notify(ownerId, type,
                     "Horse package update", "Horse " + horseId + ": " + message);
         }

@@ -32,7 +32,7 @@ public class HorseService {
     }
 
     public HorseResponse createHorse(
-            String ownerId,
+            Integer ownerId,
             HorseCreateRequest request) {
 
         User owner = userRepository.findById(ownerId)
@@ -44,7 +44,7 @@ public class HorseService {
 
         Horse horse = horseMapper.toEntity(request);
 
-        horse.setHorseId(generateHorseId());
+        
 
         horse.setOwner(owner);
         horse.setHeadTrainer(null);
@@ -66,14 +66,14 @@ public class HorseService {
                 .toList();
     }
 
-    public HorseResponse getHorseById(String horseId) {
+    public HorseResponse getHorseById(Integer horseId) {
 
         Horse horse = findHorseById(horseId);
 
         return horseMapper.toResponse(horse);
     }
 
-    public HorseResponse updateHorse(String horseId, HorseUpdateRequest request) {
+    public HorseResponse updateHorse(Integer horseId, HorseUpdateRequest request) {
 
         Horse horse = findHorseById(horseId);
 
@@ -84,7 +84,7 @@ public class HorseService {
         return horseMapper.toResponse(updatedHorse);
     }
 
-    public HorseResponse deactivateHorse(String horseId) {
+    public HorseResponse deactivateHorse(Integer horseId) {
     
         Horse horse = findHorseById(horseId);
     
@@ -95,7 +95,7 @@ public class HorseService {
         return horseMapper.toResponse(updatedHorse);
     }
 
-    public HorseResponse activateHorse(String horseId) {
+    public HorseResponse activateHorse(Integer horseId) {
     
         Horse horse = findHorseById(horseId);
     
@@ -106,7 +106,7 @@ public class HorseService {
         return horseMapper.toResponse(updatedHorse);
     }
 
-    private Horse findHorseById(String horseId) {
+    private Horse findHorseById(Integer horseId) {
         return horseRepository.findById(horseId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
@@ -115,18 +115,5 @@ public class HorseService {
                 );
     }
 
-    private String generateHorseId() {
-        
-        String latestId = horseRepository.findLatestHorseId();
-        
-        if (latestId == null) {
-            return "HOR001";
-        }
 
-        int currentNumber = Integer.parseInt(latestId.substring(3));
-
-        int nextNumber = currentNumber + 1;
-
-        return String.format("HOR%03d", nextNumber);
-    }
 }

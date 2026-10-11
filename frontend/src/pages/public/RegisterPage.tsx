@@ -2,6 +2,7 @@ import { type Page } from '../../types/reference';
 import { type AppUser } from '../../data';
 import { useState, useRef } from 'react';
 import { OTPModal } from '../../components/common/OTPModal';
+import { newDemoId } from '../../utils/demoId';
 
 export function RegisterPage({ navigate, onRegister }: { navigate: (p: Page) => void; onRegister: (u: AppUser) => void }) {
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirm: '' });
@@ -21,7 +22,7 @@ export function RegisterPage({ navigate, onRegister }: { navigate: (p: Page) => 
 
   const handleVerified = () => {
     const initials = form.name.trim().split(' ').map(w => w[0]).slice(-2).join('').toUpperCase();
-    onRegister({ id: `u${Date.now()}`, name: form.name, email: form.email, password: form.password, avatar: initials, role: null, clubId: null, status: 'active', phone: form.phone, verified: true });
+    onRegister({ id: newDemoId(), name: form.name, email: form.email, password: form.password, avatar: initials, role: 'user', clubId: null, status: 'active', phone: form.phone, verified: true });
   };
 
   return (

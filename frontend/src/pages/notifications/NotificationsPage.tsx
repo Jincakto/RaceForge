@@ -2,7 +2,7 @@ import { NOTIFICATIONS } from '../../data';
 import { Btn } from '../../components/common/Button';
 import { Card } from '../../components/common/Card';
 
-export function NotificationsPage({ notifications, onMarkRead }: { notifications: typeof NOTIFICATIONS; onMarkRead: (id: string) => void }) {
+export function NotificationsPage({ notifications, onMarkRead }: { notifications: typeof NOTIFICATIONS; onMarkRead: (id: number) => void }) {
   const icons: Record<string, string> = { health: '🏥', training: '🏇', race: '🏆', system: '⚙️' };
   return (
     <div className="space-y-4 max-w-2xl">

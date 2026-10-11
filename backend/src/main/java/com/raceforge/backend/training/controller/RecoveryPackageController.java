@@ -26,9 +26,9 @@ public class RecoveryPackageController {
     @PreAuthorize("hasAuthority('CLUB_MANAGER')")
     @PostMapping("/horse/{horseId}/approve-recovery")
     public ResponseEntity<ApiResponse<HorsePackageResponse>> approveRecovery(
-            @PathVariable String horseId,
+            @PathVariable Integer horseId,
             @Valid @RequestBody RecoveryApprovalRequest request,
-            @AuthenticationPrincipal(expression = "userId") String managerId
+            @AuthenticationPrincipal(expression = "userId") Integer managerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Recovery transition approved; awaiting simulated payment",
@@ -39,9 +39,9 @@ public class RecoveryPackageController {
     @PreAuthorize("hasAuthority('HORSE_OWNER')")
     @PostMapping("/{id}/simulate-recovery-payment")
     public ResponseEntity<ApiResponse<HorsePackageResponse>> simulateRecoveryPayment(
-            @PathVariable String id,
+            @PathVariable Integer id,
             @Valid @RequestBody HorsePackagePaymentRequest request,
-            @AuthenticationPrincipal(expression = "userId") String ownerId
+            @AuthenticationPrincipal(expression = "userId") Integer ownerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Recovery payment simulation processed",

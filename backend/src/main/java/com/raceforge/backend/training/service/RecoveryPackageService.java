@@ -25,7 +25,6 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
-import java.util.UUID;
 
 @Service
 public class RecoveryPackageService {
@@ -58,7 +57,7 @@ public class RecoveryPackageService {
 
     @Transactional
     public HorsePackageResponse approveRecovery(
-            String horseId, RecoveryApprovalRequest request, String managerId
+            Integer horseId, RecoveryApprovalRequest request, Integer managerId
     ) {
         Horse horse = lockedHorse(horseId);
         requireConfirmedTrainingLock(horse);
@@ -124,7 +123,6 @@ public class RecoveryPackageService {
         }
 
         HorsePackage pendingRecovery = new HorsePackage();
-        pendingRecovery.setHorsePackageId(newId());
         pendingRecovery.setHorse(horse);
         pendingRecovery.setTrainingPackage(recovery);
         pendingRecovery.setTotalPrice(recovery.getPrice());
@@ -145,7 +143,7 @@ public class RecoveryPackageService {
 
     @Transactional
     public HorsePackageResponse simulateRecoveryPayment(
-            String recoveryRegistrationId, boolean successful, String ownerId
+            Integer recoveryRegistrationId, boolean successful, Integer ownerId
     ) {
         HorsePackage registration = horsePackageRepository.findById(recoveryRegistrationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Recovery registration not found"));
@@ -213,7 +211,7 @@ public class RecoveryPackageService {
         return mapper.toResponse(saved);
     }
 
-    private Horse lockedHorse(String horseId) {
+    private Horse lockedHorse(Integer horseId) {
         Horse horse = horseRepository.findById(horseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found"));
         entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);
@@ -233,8 +231,5 @@ public class RecoveryPackageService {
         }
     }
 
-    private String newId() {
-        return "HPK" + UUID.randomUUID().toString().replace("-", "")
-                .substring(0, 17).toUpperCase(Locale.ROOT);
-    }
+
 }

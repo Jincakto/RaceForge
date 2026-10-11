@@ -1,116 +1,124 @@
 package com.raceforge.backend.horse.service;
 
-import com.raceforge.backend.horse.dto.HorseCreateRequest;
-import com.raceforge.backend.horse.dto.HorseResponse;
-import com.raceforge.backend.horse.dto.HorseUpdateRequest;
+import com.raceforge.backend.horse.dto.HorseRaceHistoryCreateRequest;
+import com.raceforge.backend.horse.dto.HorseRaceHistoryResponse;
+import com.raceforge.backend.horse.dto.HorseRaceHistoryUpdateRequest;
+
 import com.raceforge.backend.horse.entity.Horse;
-import com.raceforge.backend.horse.mapper.HorseMapper;
+import com.raceforge.backend.horse.entity.HorseRaceHistory;
+
+import com.raceforge.backend.horse.mapper.HorseRaceHistoryMapper;
+
+import com.raceforge.backend.horse.repository.HorseRaceHistoryRepository;
 import com.raceforge.backend.horse.repository.HorseRepository;
-import com.raceforge.backend.user.entity.User;
-import com.raceforge.backend.user.repository.UserRepository;
 import com.raceforge.backend.common.exception.ResourceNotFoundException;
 
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
-public class HorseService {
+public class HorseRaceHistoryService {
 
+    private final HorseRaceHistoryRepository raceHistoryRepository;
     private final HorseRepository horseRepository;
-    private final UserRepository userRepository;
-    private final HorseMapper horseMapper;
+    private final HorseRaceHistoryMapper raceHistoryMapper;
 
-    public HorseService(
+    public HorseRaceHistoryService(
+            HorseRaceHistoryRepository raceHistoryRepository,
             HorseRepository horseRepository,
-            UserRepository userRepository,
-            HorseMapper horseMapper) {
+            HorseRaceHistoryMapper raceHistoryMapper) {
 
+        this.raceHistoryRepository = raceHistoryRepository;
         this.horseRepository = horseRepository;
-        this.userRepository = userRepository;
-        this.horseMapper = horseMapper;
+        this.raceHistoryMapper = raceHistoryMapper;
     }
 
-    public HorseResponse createHorse(
-            Integer ownerId,
-            HorseCreateRequest request) {
-
-        User owner = userRepository.findById(ownerId)
+    public HorseRaceHistoryResponse createRaceHistory(
+            Integer horseId,
+            HorseRaceHistoryCreateRequest request) {
+        Horse horse = horseRepository.findById(horseId)
             .orElseThrow(() ->
                 new ResourceNotFoundException(
-                        "Owner not found: " + ownerId
+                        "Horse not found: " + horseId
                 )
         );
 
-        Horse horse = horseMapper.toEntity(request);
+        HorseRaceHistory history =
+                raceHistoryMapper.toEntity(request);
 
         
+        history.setHorse(horse);
 
-        horse.setOwner(owner);
-        horse.setHeadTrainer(null);
+        LocalDateTime now = LocalDateTime.now();
 
-        horse.setHealthStatus(null);
-        horse.setTrainingLocked(false);
-        horse.setStatus("INACTIVE");
+        history.setCreatedAt(now);
+        history.setUpdatedAt(now);
 
-        Horse savedHorse = horseRepository.save(horse);
+        HorseRaceHistory savedHistory =
+                raceHistoryRepository.save(history);
 
-        return horseMapper.toResponse(savedHorse);
+        return raceHistoryMapper.toResponse(savedHistory);
     }
 
-    public List<HorseResponse> getAllHorses() {
+    public List<HorseRaceHistoryResponse> getRaceHistoryByHorse(
+            Integer horseId) {
 
-        return horseRepository.findAll()
+        if (!horseRepository.existsById(horseId)) {
+            throw new ResourceNotFoundException(
+                    "Horse not found: " + horseId
+            );
+        }
+
+        return raceHistoryRepository
+                .findByHorseHorseId(horseId)
                 .stream()
-                .map(horseMapper::toResponse)
+                .map(raceHistoryMapper::toResponse)
                 .toList();
     }
 
-    public HorseResponse getHorseById(Integer horseId) {
+    public HorseRaceHistoryResponse getRaceHistoryById(
+            Integer raceHistoryId) {
 
-        Horse horse = findHorseById(horseId);
+        HorseRaceHistory history =
+                findRaceHistoryById(raceHistoryId);
 
-        return horseMapper.toResponse(horse);
+        return raceHistoryMapper.toResponse(history);
     }
 
-    public HorseResponse updateHorse(Integer horseId, HorseUpdateRequest request) {
+    public HorseRaceHistoryResponse updateRaceHistory(
+            Integer raceHistoryId,
+            HorseRaceHistoryUpdateRequest request) {
 
-        Horse horse = findHorseById(horseId);
+        HorseRaceHistory history =
+                findRaceHistoryById(raceHistoryId);
 
-        horseMapper.updateEntity(horse, request);
+        raceHistoryMapper.updateEntity(history, request);
 
-        Horse updatedHorse = horseRepository.save(horse);
+        history.setUpdatedAt(LocalDateTime.now());
 
-        return horseMapper.toResponse(updatedHorse);
+        HorseRaceHistory updatedHistory =
+                raceHistoryRepository.save(history);
+
+        return raceHistoryMapper.toResponse(updatedHistory);
     }
 
-    public HorseResponse deactivateHorse(Integer horseId) {
-    
-        Horse horse = findHorseById(horseId);
-    
-        horse.setStatus("INACTIVE");
-    
-        Horse updatedHorse = horseRepository.save(horse);
-    
-        return horseMapper.toResponse(updatedHorse);
+    public void deleteRaceHistory(Integer raceHistoryId) {
+
+        HorseRaceHistory history =
+                findRaceHistoryById(raceHistoryId);
+
+        raceHistoryRepository.delete(history);
     }
 
-    public HorseResponse activateHorse(Integer horseId) {
-    
-        Horse horse = findHorseById(horseId);
-    
-        horse.setStatus("ACTIVE");
-    
-        Horse updatedHorse = horseRepository.save(horse);
-    
-        return horseMapper.toResponse(updatedHorse);
-    }
+    private HorseRaceHistory findRaceHistoryById(Integer raceHistoryId) {
 
-    private Horse findHorseById(Integer horseId) {
-        return horseRepository.findById(horseId)
+        return raceHistoryRepository
+                .findById(raceHistoryId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
-                                "Horse not found: " + horseId
+                                "Race history not found: " + raceHistoryId
                         )
                 );
     }

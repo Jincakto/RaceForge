@@ -8,12 +8,26 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 
-public interface UserRepository extends JpaRepository<User, String> {
+public interface UserRepository extends JpaRepository<User, Integer> {
 
     Optional<User> findByEmail(String email);
 
     boolean existsByEmail(String email);
+
+    Optional<User> findByGoogleSubject(String googleSubject);
+
+    boolean existsByGoogleSubject(String googleSubject);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from User u where u.email = :email")
+    Optional<User> findByEmailForUpdate(@Param("email") String email);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from User u where u.userId = :userId")
+    Optional<User> findByIdForUpdate(@Param("userId") Integer userId);
 
     @Query("""
             select u from User u
@@ -21,7 +35,7 @@ public interface UserRepository extends JpaRepository<User, String> {
             left join fetch u.requestedRole
             where u.userId = :userId
             """)
-    Optional<User> findDetailedById(@Param("userId") String userId);
+    Optional<User> findDetailedById(@Param("userId") Integer userId);
 
     @Query("""
             select u from User u
@@ -35,14 +49,14 @@ public interface UserRepository extends JpaRepository<User, String> {
     Page<User> searchUsers(
             @Param("search") String search,
             @Param("status") String status,
-            @Param("roleId") String roleId,
+            @Param("roleId") Integer roleId,
             Pageable pageable
     );
 
     @Query("""
             select u from User u
             join u.role r
-            where r.roleId = 'ROL001' and u.status = 'ACTIVE'
+            where r.roleName = 'CLUB_MANAGER' and u.status = 'ACTIVE'
             """)
     List<User> findActiveManagers();
 }

@@ -1,10 +1,10 @@
 package com.raceforge.backend.security;
 
 public record AuthenticatedUser(
-        String userId,
+        Integer userId,
         String email,
         String status,
-        String roleId,
+        Integer roleId,
         String roleName
 ) {
 }

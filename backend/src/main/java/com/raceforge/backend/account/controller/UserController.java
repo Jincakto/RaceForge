@@ -11,6 +11,7 @@ import com.raceforge.backend.account.dto.UserDtos.UpdateStatusRequest;
 import com.raceforge.backend.account.service.UserService;
 import com.raceforge.backend.common.response.ApiResponse;
 import com.raceforge.backend.security.AuthenticatedUser;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/users")
+@Tag(name = "Users")
 public class UserController {
 
     private final UserService userService;
@@ -75,7 +77,7 @@ public class UserController {
     public ApiResponse<PageResponse<UserResponse>> listUsers(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) String roleId,
+            @RequestParam(required = false) Integer roleId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
@@ -83,14 +85,14 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<UserResponse> getUser(@PathVariable String id) {
+    public ApiResponse<UserResponse> getUser(@PathVariable Integer id) {
         return ApiResponse.success("User", userService.getUser(id));
     }
 
     @PatchMapping("/{id}/status")
     public ApiResponse<UserResponse> updateStatus(
             @AuthenticationPrincipal AuthenticatedUser currentUser,
-            @PathVariable String id,
+            @PathVariable Integer id,
             @Valid @RequestBody UpdateStatusRequest request
     ) {
         return ApiResponse.success("User status updated", userService.updateStatus(currentUser.userId(), id, request));

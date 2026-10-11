@@ -15,6 +15,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import com.raceforge.backend.account.AccountConstants;
 
 @Configuration
 @EnableMethodSecurity
@@ -37,6 +38,7 @@ public class SecurityConfig {
                                 "/swagger-ui.html", "/swagger-ui/**",
                                 "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml"
                         ).permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/health", "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.POST,
                                 "/api/auth/register",
@@ -55,7 +57,9 @@ public class SecurityConfig {
                         .anyRequest().access((authentication, context) -> {
                             Object principal = authentication.get().getPrincipal();
                             boolean active = principal instanceof AuthenticatedUser user
-                                    && "ACTIVE".equals(user.status());
+                                    && "ACTIVE".equals(user.status())
+                                    && user.roleId() != null
+                                    && AccountConstants.BUSINESS_ROLES.contains(user.roleId());
                             return new AuthorizationDecision(authentication.get().isAuthenticated() && active);
                         })
                 )

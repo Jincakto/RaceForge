@@ -4,6 +4,9 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -14,8 +17,10 @@ import java.time.Instant;
 public class PasswordResetToken {
 
     @Id
-    @Column(name = "reset_token_id", length = 36)
-    private String resetTokenId;
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "reset_token_id_seq")
+    @SequenceGenerator(name = "reset_token_id_seq", sequenceName = "seq_Password_Reset_Token", allocationSize = 1)
+    @Column(name = "reset_token_id")
+    private Integer resetTokenId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
@@ -33,11 +38,11 @@ public class PasswordResetToken {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    public String getResetTokenId() {
+    public Integer getResetTokenId() {
         return resetTokenId;
     }
 
-    public void setResetTokenId(String resetTokenId) {
+    public void setResetTokenId(Integer resetTokenId) {
         this.resetTokenId = resetTokenId;
     }
 

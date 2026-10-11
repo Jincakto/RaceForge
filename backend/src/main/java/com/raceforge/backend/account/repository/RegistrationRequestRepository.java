@@ -10,15 +10,15 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface RegistrationRequestRepository extends JpaRepository<RegistrationRequest, String> {
+public interface RegistrationRequestRepository extends JpaRepository<RegistrationRequest, Integer> {
 
-    boolean existsByUserUserIdAndStatus(String userId, String status);
+    boolean existsByUserUserIdAndStatus(Integer userId, String status);
 
-    Optional<RegistrationRequest> findFirstByUserUserIdOrderByCreatedAtDesc(String userId);
+    Optional<RegistrationRequest> findFirstByUserUserIdOrderByCreatedAtDesc(Integer userId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from RegistrationRequest r where r.requestId = :requestId")
-    Optional<RegistrationRequest> findByIdForUpdate(@Param("requestId") String requestId);
+    Optional<RegistrationRequest> findByIdForUpdate(@Param("requestId") Integer requestId);
 
     @Query("""
             select r from RegistrationRequest r

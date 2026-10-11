@@ -4,20 +4,26 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.Instant;
 
 @Entity
 @Table(name = "[User]")
 public class User {
 
     @Id
-    @Column(name = "user_id", length = 20)
-    private String userId;
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "user_id_seq")
+    @SequenceGenerator(name = "user_id_seq", sequenceName = "seq_User", allocationSize = 1)
+    @Column(name = "user_id")
+    private Integer userId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "role_id")
+    @JoinColumn(name = "role_id", nullable = false)
     private Role role;
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -45,11 +51,42 @@ public class User {
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
 
-    public String getUserId() {
+    @Column(name = "google_subject", length = 255)
+    private String googleSubject;
+
+    @Column(name = "google_linked_at")
+    private Instant googleLinkedAt;
+
+    @Column(name = "otp_hash", length = 64)
+    private String otpHash;
+
+    @Column(name = "otp_expires_at")
+    private Instant otpExpiresAt;
+
+    @Column(name = "otp_sent_at")
+    private Instant otpSentAt;
+
+    @Column(name = "otp_attempt_count", nullable = false)
+    private int otpAttemptCount;
+
+    public String getGoogleSubject() { return googleSubject; }
+    public void setGoogleSubject(String googleSubject) { this.googleSubject = googleSubject; }
+    public Instant getGoogleLinkedAt() { return googleLinkedAt; }
+    public void setGoogleLinkedAt(Instant googleLinkedAt) { this.googleLinkedAt = googleLinkedAt; }
+    public String getOtpHash() { return otpHash; }
+    public void setOtpHash(String otpHash) { this.otpHash = otpHash; }
+    public Instant getOtpExpiresAt() { return otpExpiresAt; }
+    public void setOtpExpiresAt(Instant otpExpiresAt) { this.otpExpiresAt = otpExpiresAt; }
+    public Instant getOtpSentAt() { return otpSentAt; }
+    public void setOtpSentAt(Instant otpSentAt) { this.otpSentAt = otpSentAt; }
+    public int getOtpAttemptCount() { return otpAttemptCount; }
+    public void setOtpAttemptCount(int otpAttemptCount) { this.otpAttemptCount = otpAttemptCount; }
+
+    public Integer getUserId() {
         return userId;
     }
 
-    public void setUserId(String userId) {
+    public void setUserId(Integer userId) {
         this.userId = userId;
     }
 

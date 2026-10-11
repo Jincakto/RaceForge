@@ -17,7 +17,7 @@ public final class AuthDtos {
             @NotBlank @Email @Size(max = 255) String email,
             @NotBlank @Size(min = 8, max = 100) String password,
             @Size(max = 20) String phone,
-            @NotBlank String requestedRoleId
+            Integer requestedRoleId
     ) {
     }
 
@@ -38,7 +38,7 @@ public final class AuthDtos {
 
     public record GoogleAuthRequest(
             @NotBlank String idToken,
-            String requestedRoleId
+            Integer requestedRoleId
     ) {
     }
 
@@ -66,7 +66,7 @@ public final class AuthDtos {
     }
 
     public record UserResponse(
-            String userId,
+            Integer userId,
             String fullName,
             String email,
             String phone,
@@ -77,15 +77,15 @@ public final class AuthDtos {
     ) {
     }
 
-    public record RoleResponse(String roleId, String roleName) {
+    public record RoleResponse(Integer roleId, String roleName) {
     }
 
     public record RegistrationRequestResponse(
-            String requestId,
+            Integer requestId,
             UserResponse user,
             RoleResponse requestedRole,
             String status,
-            String reviewedBy,
+            Integer reviewedBy,
             Instant reviewedAt,
             String reviewNote,
             Instant createdAt

@@ -28,7 +28,7 @@ public class HorsePackageController {
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<HorsePackageResponse>> register(
             @Valid @RequestBody HorsePackageRegisterRequest request,
-            @AuthenticationPrincipal(expression = "userId") String ownerId
+            @AuthenticationPrincipal(expression = "userId") Integer ownerId
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Registration created", service.register(request, ownerId)));
@@ -37,9 +37,9 @@ public class HorsePackageController {
     @PreAuthorize("hasAuthority('HORSE_OWNER')")
     @PostMapping("/{id}/simulate-payment")
     public ResponseEntity<ApiResponse<HorsePackageResponse>> simulatePayment(
-            @PathVariable String id,
+            @PathVariable Integer id,
             @Valid @RequestBody HorsePackagePaymentRequest request,
-            @AuthenticationPrincipal(expression = "userId") String ownerId
+            @AuthenticationPrincipal(expression = "userId") Integer ownerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Payment simulation processed",
@@ -50,8 +50,8 @@ public class HorsePackageController {
     @PreAuthorize("hasAuthority('HORSE_OWNER')")
     @GetMapping("/horse/{horseId}")
     public ResponseEntity<ApiResponse<List<HorsePackageResponse>>> history(
-            @PathVariable String horseId,
-            @AuthenticationPrincipal(expression = "userId") String ownerId
+            @PathVariable Integer horseId,
+            @AuthenticationPrincipal(expression = "userId") Integer ownerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Horse package history retrieved", service.history(horseId, ownerId)

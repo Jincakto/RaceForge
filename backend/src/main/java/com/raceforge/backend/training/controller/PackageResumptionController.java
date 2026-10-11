@@ -23,9 +23,9 @@ public class PackageResumptionController {
     @PreAuthorize("hasAuthority('CLUB_MANAGER')")
     @PostMapping("/{recoveryId}/resume-original")
     public ResponseEntity<ApiResponse<HorsePackageResponse>> resumeOriginal(
-            @PathVariable String recoveryId,
+            @PathVariable Integer recoveryId,
             @Valid @RequestBody ResumeOriginalPackageRequest request,
-            @AuthenticationPrincipal(expression = "userId") String managerId
+            @AuthenticationPrincipal(expression = "userId") Integer managerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Original training package resumed",

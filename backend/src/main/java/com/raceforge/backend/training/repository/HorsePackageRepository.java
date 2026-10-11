@@ -10,13 +10,13 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
-public interface HorsePackageRepository extends JpaRepository<HorsePackage, String> {
+public interface HorsePackageRepository extends JpaRepository<HorsePackage, Integer> {
 
-    List<HorsePackage> findByHorse_HorseIdOrderByRegisteredAtDesc(String horseId);
+    List<HorsePackage> findByHorse_HorseIdOrderByRegisteredAtDesc(Integer horseId);
 
-    List<HorsePackage> findByHorse_HorseIdAndStatus(String horseId, String status);
+    List<HorsePackage> findByHorse_HorseIdAndStatus(Integer horseId, String status);
 
-    boolean existsByHorse_HorseIdAndStatusIn(String horseId, List<String> statuses);
+    boolean existsByHorse_HorseIdAndStatusIn(Integer horseId, List<String> statuses);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT hp FROM HorsePackage hp WHERE hp.horsePackageId = :id")

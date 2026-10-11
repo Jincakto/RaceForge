@@ -4,11 +4,11 @@ import com.raceforge.backend.medical.entity.TrainingLock;
 import java.time.LocalDateTime;
 
 public class TrainingLockResponse {
-    private String lockId;
-    private String horseId;
-    private String medicalRecordId;
-    private String lockedById;
-    private String unlockedById;
+    private Integer lockId;
+    private Integer horseId;
+    private Integer medicalRecordId;
+    private Integer lockedById;
+    private Integer unlockedById;
     private LocalDateTime lockedAt;
     private String lockReason;
     private LocalDateTime unlockedAt;
@@ -27,13 +27,41 @@ public class TrainingLockResponse {
         result.unlockReason = lock.getUnlockReason();
         return result;
     }
-    public String getLockId() { return lockId; }
-    public String getHorseId() { return horseId; }
-    public String getMedicalRecordId() { return medicalRecordId; }
-    public String getLockedById() { return lockedById; }
-    public String getUnlockedById() { return unlockedById; }
-    public LocalDateTime getLockedAt() { return lockedAt; }
-    public String getLockReason() { return lockReason; }
-    public LocalDateTime getUnlockedAt() { return unlockedAt; }
-    public String getUnlockReason() { return unlockReason; }
+    
+    public Integer getLockId() {
+         return lockId; 
+    }
+
+    public Integer getHorseId() { 
+        return horseId; 
+    }
+
+    public Integer getMedicalRecordId() { 
+        return medicalRecordId; 
+    }
+
+    public Integer getLockedById() { 
+        return lockedById; 
+    }
+
+    public Integer getUnlockedById() { 
+        return unlockedById; 
+    }
+
+    public LocalDateTime getLockedAt() { 
+        return lockedAt; 
+    }
+
+    public String getLockReason() { 
+        return lockReason; 
+    }
+
+    public LocalDateTime getUnlockedAt() { 
+        return unlockedAt; 
+    }
+
+    public String getUnlockReason() { 
+        return unlockReason; 
+    }
+    
 }

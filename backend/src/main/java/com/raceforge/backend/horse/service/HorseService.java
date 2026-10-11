@@ -7,8 +7,8 @@ import com.raceforge.backend.horse.dto.HorseUpdateRequest;
 import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.mapper.HorseMapper;
 import com.raceforge.backend.horse.repository.HorseRepository;
-import com.raceforge.backend.user.entity.User;
-import com.raceforge.backend.user.repository.UserRepository;
+import com.raceforge.backend.account.entity.User;
+import com.raceforge.backend.account.repository.UserRepository;
 import com.raceforge.backend.common.exception.ResourceNotFoundException;
 
 import org.springframework.stereotype.Service;

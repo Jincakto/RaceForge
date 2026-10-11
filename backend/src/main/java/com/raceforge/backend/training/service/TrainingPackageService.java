@@ -12,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.UUID;
 
 @Service
 public class TrainingPackageService {
@@ -40,7 +39,7 @@ public class TrainingPackageService {
     }
 
     @Transactional(readOnly = true)
-    public TrainingPackageResponse getPackage(String id) {
+    public TrainingPackageResponse getPackage(Integer id) {
         return mapper.toResponse(findById(id));
     }
 
@@ -48,13 +47,11 @@ public class TrainingPackageService {
     public TrainingPackageResponse create(TrainingPackageCreateRequest request) {
         validateType(request.packageType());
         TrainingPackage entity = mapper.toEntity(request);
-        // Temporary collision-resistant ID; align with team's central ID generator during integration.
-        entity.setPackageId("PKG" + UUID.randomUUID().toString().replace("-", "").substring(0, 17).toUpperCase(Locale.ROOT));
         return mapper.toResponse(repository.saveAndFlush(entity));
     }
 
     @Transactional
-    public TrainingPackageResponse update(String id, TrainingPackageUpdateRequest request) {
+    public TrainingPackageResponse update(Integer id, TrainingPackageUpdateRequest request) {
         validateType(request.packageType());
         TrainingPackage entity = findById(id);
         mapper.updateEntity(entity, request);
@@ -62,7 +59,7 @@ public class TrainingPackageService {
     }
 
     @Transactional
-    public TrainingPackageResponse changeStatus(String id, TrainingPackageStatusRequest request) {
+    public TrainingPackageResponse changeStatus(Integer id, TrainingPackageStatusRequest request) {
         String status = request.status().trim().toUpperCase(Locale.ROOT);
         if (!ALLOWED_STATUSES.contains(status)) {
             throw new BusinessRuleException("Invalid training package status: " + request.status());
@@ -72,7 +69,7 @@ public class TrainingPackageService {
         return mapper.toResponse(repository.saveAndFlush(entity));
     }
 
-    private TrainingPackage findById(String id) {
+    private TrainingPackage findById(Integer id) {
         return repository.findById(id).orElseThrow(
                 () -> new ResourceNotFoundException("Training package not found: " + id)
         );

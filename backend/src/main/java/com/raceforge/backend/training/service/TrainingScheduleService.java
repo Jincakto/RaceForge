@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,7 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Recurring schedule generation, attendance (COMPLETED / MISSED) and the speed-drop warning.
+ * Recurring schedule generation and attendance (COMPLETED / MISSED).
  * Works on the same TrainingSession entity as TrainingSessionService, and goes through the horse's
  * training lock the same way (BR-B01, BR-C01, BR-C02).
  */
@@ -41,8 +40,6 @@ public class TrainingScheduleService {
   private static final String STATUS_MISSED = "MISSED";
   private static final String REASON_TRAINING_LOCK = "TRAINING_LOCK";
 
-  // Warn when average speed falls more than 35% below the previous completed session.
-  private static final double SPEED_DROP_LIMIT = 0.35;
   private static final LocalTime DEFAULT_SESSION_TIME = LocalTime.of(7, 0);
 
   @Autowired
@@ -57,13 +54,16 @@ public class TrainingScheduleService {
   @Autowired
   private TrainingSessionMapper sessionMapper;
 
+  @Autowired
+  private TrainingPlanHorseResolver horseResolver;
+
   // All-or-nothing: if any generated slot clashes with an existing session, nothing is saved.
   @Transactional
   public List<TrainingSessionResponse> createRecurringSchedule(ScheduleRecurringRequest request) {
       TrainingPlan plan = planRepository.findById(request.getPlanId())
               .orElseThrow(() -> new ResourceNotFoundException("Training plan not found: " + request.getPlanId()));
 
-      Horse horse = plan.getHorse();
+      Horse horse = horseResolver.resolve(plan.getPlanId(), request.getHorseId());
       if (Boolean.TRUE.equals(horse.getTrainingLocked())) {
           throw new BusinessRuleException("Horse is training-locked, cannot schedule sessions.");
       }
@@ -94,15 +94,15 @@ public class TrainingScheduleService {
       for (LocalDate date : dates) {
           LocalDateTime when = LocalDateTime.of(date, time);
           // BR-C03: checked up front so the caller gets a clear 409 instead of a raw DB error.
-          if (sessionRepository.existsByHorse_HorseIdAndScheduledTime(horse.getHorseId(), when)) {
+          if (sessionRepository.existsByHorse_HorseIdAndScheduledStart(horse.getHorseId(), when)) {
               throw new BusinessRuleException(
                       "Horse already has a session at " + when + ". No sessions were created.");
           }
           TrainingSession session = new TrainingSession();
           session.setPlan(plan);
           session.setHorse(horse);
-          session.setScheduledTime(when);
-          session.setActivityName(request.getActivityName());
+          session.setScheduledStart(when);
+          session.setNotes(request.getActivityName());
           toSave.add(session);
       }
 
@@ -111,8 +111,11 @@ public class TrainingScheduleService {
               .collect(Collectors.toList());
   }
 
+  // The schema has no columns for heart rate / speed / absence reason, so the speed-drop warning
+  // can no longer be computed or stored. What is persisted: status, actual_start/actual_end and
+  // the absence reason/note (written into notes).
   @Transactional
-  public AttendanceResponse submitAttendance(Long sessionId, AttendSessionRequest request) {
+  public AttendanceResponse submitAttendance(Integer sessionId, AttendSessionRequest request) {
       TrainingSession session = sessionRepository.findById(sessionId)
               .orElseThrow(() -> new ResourceNotFoundException("Training session not found: " + sessionId));
 
@@ -127,9 +130,6 @@ public class TrainingScheduleService {
               .orElseThrow(() -> new ResourceNotFoundException("Horse not found"));
       boolean locked = Boolean.TRUE.equals(horse.getTrainingLocked());
 
-      boolean warningTriggered = false;
-      String warningMessage = null;
-
       if (STATUS_MISSED.equals(status)) {
           String reason = request.getAbsenceReason();
           if (reason == null || reason.isBlank()) {
@@ -140,61 +140,36 @@ public class TrainingScheduleService {
           }
 
           session.setStatus(STATUS_MISSED);
-          session.setAbsenceReason(reason.trim().toUpperCase(Locale.ROOT));
-          session.setAbsenceNote(request.getAbsenceNote());
-          // Clear the COMPLETED-only fields in case this session was recorded differently before.
-          session.setHeartRate(null);
-          session.setAvgSpeed(null);
-          session.setMaxSpeed(null);
-          session.setWarningTriggered(false);
+          String note = "MISSED: " + reason.trim().toUpperCase(Locale.ROOT);
+          if (request.getAbsenceNote() != null && !request.getAbsenceNote().isBlank()) {
+              note += " - " + request.getAbsenceNote().trim();
+          }
+          session.setNotes(note);
+          session.setActualStart(null);
+          session.setActualEnd(null);
       } else {
           if (locked) {
               throw new BusinessRuleException(
                       "Horse is training-locked, this session cannot be recorded as COMPLETED. Mark it MISSED instead.");
           }
-          if (request.getAvgSpeed() == null || request.getAvgSpeed() <= 0) {
-              throw new BusinessRuleException("avgSpeed (> 0) is required when status is COMPLETED.");
-          }
-
+          LocalDateTime now = LocalDateTime.now();
           session.setStatus(STATUS_COMPLETED);
-          session.setHeartRate(request.getHeartRate());
-          session.setAvgSpeed(request.getAvgSpeed());
-          session.setMaxSpeed(request.getMaxSpeed());
-          session.setAbsenceReason(null);
-          session.setAbsenceNote(null);
-          session.setWarningTriggered(false);
-
-          // Baseline: the latest completed session BEFORE this one, with a recorded speed.
-          Optional<TrainingSession> previous = sessionRepository
-                  .findFirstByHorse_HorseIdAndStatusAndAvgSpeedIsNotNullAndScheduledTimeBeforeOrderByScheduledTimeDesc(
-                          horse.getHorseId(), STATUS_COMPLETED, session.getScheduledTime());
-
-          if (previous.isPresent()) {
-              double previousSpeed = previous.get().getAvgSpeed();
-              double currentSpeed = request.getAvgSpeed();
-              if (previousSpeed > 0 && currentSpeed < previousSpeed * (1 - SPEED_DROP_LIMIT)) {
-                  warningTriggered = true;
-                  session.setWarningTriggered(true);
-                  warningMessage = String.format(Locale.ROOT,
-                          "WARNING: average speed (%.2f km/h) dropped more than 35%% versus the previous completed session (%.2f km/h).",
-                          currentSpeed, previousSpeed);
-              }
+          if (session.getActualStart() == null) {
+              session.setActualStart(now);
           }
+          session.setActualEnd(now);
       }
 
-      session.setPerformedBy(request.getPerformedBy());
-      session.setUpdatedAt(LocalDateTime.now());
-
       TrainingSession saved = sessionRepository.save(session);
-      return new AttendanceResponse(sessionMapper.toResponse(saved), warningTriggered, warningMessage);
+      return new AttendanceResponse(sessionMapper.toResponse(saved), false, null);
   }
 
   @Transactional(readOnly = true)
-  public List<TrainingSessionResponse> getScheduleByHorseId(Long horseId) {
+  public List<TrainingSessionResponse> getScheduleByHorseId(Integer horseId) {
       if (!horseRepository.existsById(horseId)) {
           throw new ResourceNotFoundException("Horse not found: " + horseId);
       }
-      return sessionRepository.findByHorse_HorseIdOrderByScheduledTimeAsc(horseId).stream()
+      return sessionRepository.findByHorse_HorseIdOrderByScheduledStartAsc(horseId).stream()
               .map(sessionMapper::toResponse)
               .collect(Collectors.toList());
   }

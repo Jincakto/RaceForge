@@ -8,80 +8,58 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
-// Append-only: a RolePermission row gets deleted on revoke, so without this table that event
-// would leave no trace. One row per grant AND per revoke — never updated, never deleted.
+// Maps to the existing table Audit_Log. A grant/revoke is stored as:
+//   action = "GRANT" | "REVOKE", entity_type = "ROLE_PERMISSION",
+//   entity_id = role_id, reason = permission_name, user_id = who did it.
 @Entity
-@Table(name = "permission_audit_log")
+@Table(name = "audit_log")
 public class PermissionAuditLog {
+
+  public static final String ENTITY_TYPE = "ROLE_PERMISSION";
 
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
-  @Column(name = "log_id")
-  private Long logId;
+  @Column(name = "audit_id")
+  private Integer auditId;
 
-  @Column(name = "action", nullable = false)
-  private String action; // "GRANT" or "REVOKE"
+  @Column(name = "user_id")
+  private Integer userId;
 
-  @Column(name = "role_name", nullable = false)
-  private String roleName;
+  @Column(name = "action", nullable = false, length = 100)
+  private String action;
 
-  @Column(name = "permission_code", nullable = false)
-  private String permissionCode;
+  @Column(name = "entity_type", length = 100)
+  private String entityType;
 
-  @Column(name = "performed_by", nullable = false)
-  private Long performedBy;
+  @Column(name = "entity_id")
+  private Integer entityId;
 
-  @Column(name = "performed_at", nullable = false)
-  private LocalDateTime performedAt;
+  @Column(name = "result", length = 50)
+  private String result;
+
+  @Column(name = "reason", length = 1000)
+  private String reason;
+
+  @Column(name = "created_at", nullable = false)
+  private LocalDateTime createdAt;
 
   public PermissionAuditLog() {
   }
 
-  public Long getLogId() {
-      return logId;
-  }
-
-  public void setLogId(Long logId) {
-      this.logId = logId;
-  }
-
-  public String getAction() {
-      return action;
-  }
-
-  public void setAction(String action) {
-      this.action = action;
-  }
-
-  public String getRoleName() {
-      return roleName;
-  }
-
-  public void setRoleName(String roleName) {
-      this.roleName = roleName;
-  }
-
-  public String getPermissionCode() {
-      return permissionCode;
-  }
-
-  public void setPermissionCode(String permissionCode) {
-      this.permissionCode = permissionCode;
-  }
-
-  public Long getPerformedBy() {
-      return performedBy;
-  }
-
-  public void setPerformedBy(Long performedBy) {
-      this.performedBy = performedBy;
-  }
-
-  public LocalDateTime getPerformedAt() {
-      return performedAt;
-  }
-
-  public void setPerformedAt(LocalDateTime performedAt) {
-      this.performedAt = performedAt;
-  }
+  public Integer getAuditId() { return auditId; }
+  public void setAuditId(Integer auditId) { this.auditId = auditId; }
+  public Integer getUserId() { return userId; }
+  public void setUserId(Integer userId) { this.userId = userId; }
+  public String getAction() { return action; }
+  public void setAction(String action) { this.action = action; }
+  public String getEntityType() { return entityType; }
+  public void setEntityType(String entityType) { this.entityType = entityType; }
+  public Integer getEntityId() { return entityId; }
+  public void setEntityId(Integer entityId) { this.entityId = entityId; }
+  public String getResult() { return result; }
+  public void setResult(String result) { this.result = result; }
+  public String getReason() { return reason; }
+  public void setReason(String reason) { this.reason = reason; }
+  public LocalDateTime getCreatedAt() { return createdAt; }
+  public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

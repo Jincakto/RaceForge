@@ -6,7 +6,10 @@ import java.time.LocalDateTime;
 public class ScheduleSessionRequest {
 
   @NotNull
-  private Long planId;
+  private Integer planId;
+
+  // Optional when the plan has exactly one horse.
+  private Integer horseId;
 
   @NotNull
   private LocalDateTime scheduledTime;
@@ -14,11 +17,11 @@ public class ScheduleSessionRequest {
   public ScheduleSessionRequest() {
   }
 
-  public Long getPlanId() {
+  public Integer getPlanId() {
       return planId;
   }
 
-  public void setPlanId(Long planId) {
+  public void setPlanId(Integer planId) {
       this.planId = planId;
   }
 
@@ -28,5 +31,13 @@ public class ScheduleSessionRequest {
 
   public void setScheduledTime(LocalDateTime scheduledTime) {
       this.scheduledTime = scheduledTime;
+  }
+
+  public Integer getHorseId() {
+      return horseId;
+  }
+
+  public void setHorseId(Integer horseId) {
+      this.horseId = horseId;
   }
 }

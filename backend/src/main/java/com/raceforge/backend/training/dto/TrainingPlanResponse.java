@@ -1,55 +1,80 @@
 package com.raceforge.backend.training.dto;
 
-import java.time.LocalDateTime;
-
 public class TrainingPlanResponse {
 
-  private Long planId;
-  private Long horseId;
-  private Long createdByTrainerId;
-  private String description;
-  private LocalDateTime createdAt;
+  private Integer planId;
+  private Integer horseId;
+  private Integer createdBy;
+  private String planName;
+  private String goal;
+  private Integer duration;
+  private String status;
+  private String notes;
 
   public TrainingPlanResponse() {
   }
 
-  public Long getPlanId() {
+  public Integer getPlanId() {
       return planId;
   }
 
-  public void setPlanId(Long planId) {
+  public void setPlanId(Integer planId) {
       this.planId = planId;
   }
 
-  public Long getHorseId() {
+  public Integer getHorseId() {
       return horseId;
   }
 
-  public void setHorseId(Long horseId) {
+  public void setHorseId(Integer horseId) {
       this.horseId = horseId;
   }
 
-  public Long getCreatedByTrainerId() {
-      return createdByTrainerId;
+  public Integer getCreatedBy() {
+      return createdBy;
   }
 
-  public void setCreatedByTrainerId(Long createdByTrainerId) {
-      this.createdByTrainerId = createdByTrainerId;
+  public void setCreatedBy(Integer createdBy) {
+      this.createdBy = createdBy;
   }
 
-  public String getDescription() {
-      return description;
+  public String getPlanName() {
+      return planName;
   }
 
-  public void setDescription(String description) {
-      this.description = description;
+  public void setPlanName(String planName) {
+      this.planName = planName;
   }
 
-  public LocalDateTime getCreatedAt() {
-      return createdAt;
+  public String getGoal() {
+      return goal;
   }
 
-  public void setCreatedAt(LocalDateTime createdAt) {
-      this.createdAt = createdAt;
+  public void setGoal(String goal) {
+      this.goal = goal;
+  }
+
+  public Integer getDuration() {
+      return duration;
+  }
+
+  public void setDuration(Integer duration) {
+      this.duration = duration;
+  }
+
+  public String getStatus() {
+      return status;
+  }
+
+  public void setStatus(String status) {
+      this.status = status;
+  }
+
+  public String getNotes() {
+      return notes;
+  }
+
+  public void setNotes(String notes) {
+      this.notes = notes;
   }
 }

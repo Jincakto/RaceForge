@@ -23,8 +23,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Single-club system: no club_id anywhere here. Roles are granted permissions by name/code
- * (both are String primary keys), not by numeric id.
+ * Single-club system: no club_id anywhere here. Roles and permissions use INT ids (role_id,
+ * permission_id) like the database; the API still accepts role/permission names and resolves
+ * them to ids here.
  *
  * MANAGE_PERMISSION is exclusive to CLUB_MANAGER: it can never be granted to any other role,
  * and it can never be revoked from CLUB_MANAGER — either would leave nobody able to configure
@@ -56,9 +57,9 @@ public class PermissionService {
       String roleName = request.getRoleName();
       String permissionCode = request.getPermissionCode();
 
-      Role role = roleRepository.findById(roleName)
+      Role role = roleRepository.findByRoleName(roleName)
               .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleName));
-      Permission permission = permissionRepository.findById(permissionCode)
+      Permission permission = permissionRepository.findByPermissionName(permissionCode)
               .orElseThrow(() -> new ResourceNotFoundException("Permission not found: " + permissionCode));
 
       if (MANAGE_PERMISSION_CODE.equals(permissionCode) && !CLUB_MANAGER_ROLE.equals(roleName)) {
@@ -66,7 +67,7 @@ public class PermissionService {
                   "MANAGE_PERMISSION is exclusive to CLUB_MANAGER, cannot grant it to " + roleName);
       }
 
-      RolePermissionId id = new RolePermissionId(roleName, permissionCode);
+      RolePermissionId id = new RolePermissionId(role.getRoleId(), permission.getPermissionId());
       if (rolePermissionRepository.existsById(id)) {
           return; // idempotent, no change -> no new audit entry
       }
@@ -75,52 +76,67 @@ public class PermissionService {
       rp.setId(id);
       rp.setRole(role);
       rp.setPermission(permission);
-      rp.setGrantedBy(request.getPerformedBy());
-      rp.setGrantedAt(LocalDateTime.now());
       rolePermissionRepository.save(rp);
 
-      writeAuditLog("GRANT", roleName, permissionCode, request.getPerformedBy());
+      writeAuditLog("GRANT", role, permission, request.getPerformedBy());
   }
 
   @Transactional
-  public void revoke(String roleName, String permissionCode, Long performedBy) {
+  public void revoke(String roleName, String permissionCode, Integer performedBy) {
       if (MANAGE_PERMISSION_CODE.equals(permissionCode) && CLUB_MANAGER_ROLE.equals(roleName)) {
           throw new BusinessRuleException(
                   "Cannot revoke MANAGE_PERMISSION from CLUB_MANAGER — would leave nobody able to configure permissions.");
       }
 
-      RolePermissionId id = new RolePermissionId(roleName, permissionCode);
+      Role role = roleRepository.findByRoleName(roleName)
+              .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleName));
+      Permission permission = permissionRepository.findByPermissionName(permissionCode)
+              .orElseThrow(() -> new ResourceNotFoundException("Permission not found: " + permissionCode));
+
+      RolePermissionId id = new RolePermissionId(role.getRoleId(), permission.getPermissionId());
       if (!rolePermissionRepository.existsById(id)) {
           return; // nothing to revoke, no new audit entry
       }
 
       rolePermissionRepository.deleteById(id);
-      writeAuditLog("REVOKE", roleName, permissionCode, performedBy);
+      writeAuditLog("REVOKE", role, permission, performedBy);
   }
 
   public Set<String> getPermissionsForRole(String roleName) {
-      return rolePermissionRepository.findById_RoleName(roleName).stream()
-              .map(rp -> rp.getId().getPermissionCode())
+      Role role = roleRepository.findByRoleName(roleName)
+              .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleName));
+      return rolePermissionRepository.findById_RoleId(role.getRoleId()).stream()
+              .map(rp -> rp.getPermission().getPermissionName())
               .collect(Collectors.toSet());
   }
 
   public boolean hasPermission(String roleName, String permissionCode) {
-      return rolePermissionRepository.existsById(new RolePermissionId(roleName, permissionCode));
+      return roleRepository.findByRoleName(roleName)
+              .flatMap(role -> permissionRepository.findByPermissionName(permissionCode)
+                      .map(permission -> rolePermissionRepository.existsById(
+                              new RolePermissionId(role.getRoleId(), permission.getPermissionId()))))
+              .orElse(false);
   }
 
   public List<PermissionAuditLogResponse> getAuditLog(String roleName) {
-      return auditLogRepository.findByRoleNameOrderByPerformedAtDesc(roleName).stream()
-              .map(auditLogMapper::toResponse)
+      Role role = roleRepository.findByRoleName(roleName)
+              .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleName));
+      return auditLogRepository
+              .findByEntityTypeAndEntityIdOrderByCreatedAtDesc(PermissionAuditLog.ENTITY_TYPE, role.getRoleId())
+              .stream()
+              .map(log -> auditLogMapper.toResponse(log, roleName))
               .collect(Collectors.toList());
   }
 
-  private void writeAuditLog(String action, String roleName, String permissionCode, Long performedBy) {
+  private void writeAuditLog(String action, Role role, Permission permission, Integer performedBy) {
       PermissionAuditLog log = new PermissionAuditLog();
+      log.setUserId(performedBy);
       log.setAction(action);
-      log.setRoleName(roleName);
-      log.setPermissionCode(permissionCode);
-      log.setPerformedBy(performedBy);
-      log.setPerformedAt(LocalDateTime.now());
+      log.setEntityType(PermissionAuditLog.ENTITY_TYPE);
+      log.setEntityId(role.getRoleId());
+      log.setResult("SUCCESS");
+      log.setReason(permission.getPermissionName());
+      log.setCreatedAt(LocalDateTime.now());
       auditLogRepository.save(log);
   }
 }

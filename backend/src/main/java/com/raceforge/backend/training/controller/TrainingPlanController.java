@@ -18,7 +18,7 @@ public class TrainingPlanController {
 
   @PostMapping
   public ResponseEntity<ApiResponse<TrainingPlanResponse>> create(
-          @PathVariable Long horseId,
+          @PathVariable Integer horseId,
           @Valid @RequestBody TrainingPlanCreateRequest request) {
 
       TrainingPlanResponse response = trainingPlanService.createPlan(horseId, request);

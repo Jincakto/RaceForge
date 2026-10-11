@@ -1,16 +1,13 @@
 package com.raceforge.backend.permission.entity;
 
-import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MapsId;
 import jakarta.persistence.Table;
-import java.time.LocalDateTime;
 
-// One row per (role, permission) currently granted. userId is assumed to already exist
-// elsewhere — no User entity here, grantedBy is just the raw id.
+// Maps to table Role_Permission (role_id, permission_id). Who granted/revoked goes to Audit_Log.
 @Entity
 @Table(name = "role_permission")
 public class RolePermission {
@@ -19,20 +16,14 @@ public class RolePermission {
   private RolePermissionId id;
 
   @ManyToOne
-  @MapsId("roleName")
-  @JoinColumn(name = "role_name")
+  @MapsId("roleId")
+  @JoinColumn(name = "role_id")
   private Role role;
 
   @ManyToOne
-  @MapsId("permissionCode")
-  @JoinColumn(name = "permission_code")
+  @MapsId("permissionId")
+  @JoinColumn(name = "permission_id")
   private Permission permission;
-
-  @Column(name = "granted_by", nullable = false)
-  private Long grantedBy;
-
-  @Column(name = "granted_at", nullable = false)
-  private LocalDateTime grantedAt;
 
   public RolePermission() {
   }
@@ -59,21 +50,5 @@ public class RolePermission {
 
   public void setPermission(Permission permission) {
       this.permission = permission;
-  }
-
-  public Long getGrantedBy() {
-      return grantedBy;
-  }
-
-  public void setGrantedBy(Long grantedBy) {
-      this.grantedBy = grantedBy;
-  }
-
-  public LocalDateTime getGrantedAt() {
-      return grantedAt;
-  }
-
-  public void setGrantedAt(LocalDateTime grantedAt) {
-      this.grantedAt = grantedAt;
   }
 }

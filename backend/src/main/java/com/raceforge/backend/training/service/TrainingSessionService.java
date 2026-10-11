@@ -12,6 +12,7 @@ import com.raceforge.backend.training.entity.TrainingSession;
 import com.raceforge.backend.training.mapper.TrainingSessionMapper;
 import com.raceforge.backend.training.repository.TrainingPlanRepository;
 import com.raceforge.backend.training.repository.TrainingSessionRepository;
+import java.time.LocalDateTime;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,12 +37,15 @@ public class TrainingSessionService {
   @Autowired
   private TrainingSessionMapper trainingSessionMapper;
 
+  @Autowired
+  private TrainingPlanHorseResolver horseResolver;
+
   @Transactional
   public TrainingSessionResponse scheduleSession(ScheduleSessionRequest request) {
       TrainingPlan plan = trainingPlanRepository.findById(request.getPlanId())
               .orElseThrow(() -> new ResourceNotFoundException("Training plan not found: " + request.getPlanId()));
 
-      Horse horse = plan.getHorse();
+      Horse horse = horseResolver.resolve(plan.getPlanId(), request.getHorseId());
       if (Boolean.TRUE.equals(horse.getTrainingLocked())) {
           throw new BusinessRuleException("Horse is training-locked, cannot schedule a session.");
       }
@@ -49,14 +53,19 @@ public class TrainingSessionService {
       TrainingSession session = new TrainingSession();
       session.setPlan(plan);
       session.setHorse(horse);
-      session.setScheduledTime(request.getScheduledTime());
+      session.setScheduledStart(request.getScheduledTime());
+
+      // BR-C03: checked up front so the caller gets a clear error instead of a raw DB one.
+      if (trainingSessionRepository.existsByHorse_HorseIdAndScheduledStart(horse.getHorseId(), request.getScheduledTime())) {
+          throw new BusinessRuleException("Horse already has a session at " + request.getScheduledTime());
+      }
 
       TrainingSession saved = trainingSessionRepository.save(session);
       return trainingSessionMapper.toResponse(saved);
   }
 
   @Transactional
-  public TrainingSessionResponse startSession(Long sessionId) {
+  public TrainingSessionResponse startSession(Integer sessionId) {
       TrainingSession session = trainingSessionRepository.findById(sessionId)
               .orElseThrow(() -> new ResourceNotFoundException("Training session not found: " + sessionId));
 
@@ -74,12 +83,13 @@ public class TrainingSessionService {
   }
 
   @Transactional
-  public TrainingSessionResponse completeSession(Long sessionId, CompleteSessionRequest request) {
+  public TrainingSessionResponse completeSession(Integer sessionId, CompleteSessionRequest request) {
       TrainingSession session = trainingSessionRepository.findById(sessionId)
               .orElseThrow(() -> new ResourceNotFoundException("Training session not found: " + sessionId));
 
       session.setStatus("COMPLETED");
-      session.setPerformanceNotes(request.getPerformanceNotes());
+      session.setActualEnd(LocalDateTime.now());
+      session.setEvaluation(request.getPerformanceNotes());
 
       TrainingSession saved = trainingSessionRepository.save(session);
       return trainingSessionMapper.toResponse(saved);

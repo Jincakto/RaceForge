@@ -31,7 +31,7 @@ public class PermissionController {
   public ResponseEntity<ApiResponse<Void>> revoke(
           @RequestParam String roleName,
           @RequestParam String permissionCode,
-          @RequestParam @NotNull Long performedBy) {
+          @RequestParam @NotNull Integer performedBy) {
       permissionService.revoke(roleName, permissionCode, performedBy);
       return ResponseEntity.ok(ApiResponse.success("Permission revoked", null));
   }

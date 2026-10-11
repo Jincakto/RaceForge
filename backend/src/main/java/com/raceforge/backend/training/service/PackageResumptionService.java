@@ -44,7 +44,7 @@ public class PackageResumptionService {
 
 
     @Transactional
-    public HorsePackageResponse resumeOriginalPackage(String recoveryRegistrationId, String reason, String managerId) {
+    public HorsePackageResponse resumeOriginalPackage(Integer recoveryRegistrationId, String reason, Integer managerId) {
         HorsePackage recovery = horsePackageRepository.findById(recoveryRegistrationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Recovery registration not found"));
 

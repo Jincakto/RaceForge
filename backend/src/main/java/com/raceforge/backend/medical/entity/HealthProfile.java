@@ -1,5 +1,6 @@
 package com.raceforge.backend.medical.entity;
 
+import com.raceforge.backend.horse.entity.Horse;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 

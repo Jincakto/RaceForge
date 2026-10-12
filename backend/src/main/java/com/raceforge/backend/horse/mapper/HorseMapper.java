@@ -8,6 +8,7 @@ import com.raceforge.backend.horse.dto.HorseUpdateRequest;
 import com.raceforge.backend.horse.dto.HorseResponse;
 import com.raceforge.backend.horse.entity.Horse;
 import org.springframework.stereotype.Component;
+import java.math.BigDecimal;
 
 @Component
 public class HorseMapper {
@@ -21,7 +22,7 @@ public class HorseMapper {
       horse.setBreed(request.getBreed());
       horse.setSire(request.getSire());
       horse.setDam(request.getDam());
-      horse.setWeight(request.getWeight());
+      horse.setWeight(request.getWeight() == null ? null : BigDecimal.valueOf(request.getWeight()));
 
       return horse;
   }
@@ -36,7 +37,7 @@ public class HorseMapper {
       response.setBreed(horse.getBreed());
       response.setSire(horse.getSire());
       response.setDam(horse.getDam());
-      response.setWeight(horse.getWeight());
+      response.setWeight(horse.getWeight() == null ? null : horse.getWeight().doubleValue());
 
       response.setHealthStatus(horse.getHealthStatus());
       response.setTrainingLocked(horse.getTrainingLocked());
@@ -52,7 +53,7 @@ public class HorseMapper {
       horse.setBreed(request.getBreed());
       horse.setSire(request.getSire());
       horse.setDam(request.getDam());
-      horse.setWeight(request.getWeight());
+      horse.setWeight(request.getWeight() == null ? null : BigDecimal.valueOf(request.getWeight()));
   }
   
 }

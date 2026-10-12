@@ -13,7 +13,7 @@ const root = fileURLToPath(new URL('../', import.meta.url))
 const manifest = JSON.parse(fs.readFileSync(new URL('./reference-manifest.json', import.meta.url), 'utf8'))
 const digest = text => createHash('sha256').update(text.replaceAll('\r\n', '\n')).digest('hex')
 
-test('selected pages and shared declarations preserve the supplied JSX', () => {
+test('selected pages preserve the reference with integer IDs and the basic USER role', () => {
   for (const expected of manifest.declarations) {
     const source = fs.readFileSync(path.join(root, expected.file), 'utf8')
     const ast = ts.createSourceFile(expected.file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
@@ -71,5 +71,35 @@ test('every supplied page, OTP and the sidebar layout render successfully', asyn
     const { default: App } = await server.ssrLoadModule('/src/App.tsx')
     const html = renderToStaticMarkup(React.createElement(App))
     assert.ok(html.includes('RaceForce'))
+  })
+  await context.test('USER navigation is limited to landing and profile even with granted pages', async () => {
+    const { NAV_ITEMS } = await server.ssrLoadModule('/src/types/reference.ts')
+    assert.deepEqual(NAV_ITEMS.user.map(item => item.page), ['home', 'profile'])
+    const { Sidebar } = await server.ssrLoadModule('/src/components/layout/Sidebar.tsx')
+    const user = { ...manager, id: 999, role: 'user', clubId: null }
+    const html = renderToStaticMarkup(React.createElement(Sidebar, {
+      user, page: 'profile', navigate: noop, memberReqCount: 0, horseReqCount: 0,
+      grantedPages: ['horse-list', 'staff'],
+    }))
+    assert.ok(html.includes('Hồ sơ cá nhân'))
+    assert.ok(!html.includes('Danh sách ngựa'))
+    assert.ok(!html.includes('Nhân sự'))
+  })
+  await context.test('all seed IDs and generated prototype IDs are SQL int compatible', async () => {
+    function check(value) {
+      if (!value || typeof value !== 'object') return
+      for (const [key, item] of Object.entries(value)) {
+        if ((key === 'id' || key.endsWith('Id')) && item !== null) {
+          assert.ok(Number.isInteger(item) && item > 0 && item <= 2147483647, key)
+        } else if (key.endsWith('Ids')) {
+          assert.ok(item.every(id => Number.isInteger(id) && id > 0 && id <= 2147483647), key)
+        } else check(item)
+      }
+    }
+    for (const value of Object.values(data)) check(value)
+    const { newDemoId } = await server.ssrLoadModule('/src/utils/demoId.ts')
+    const ids = Array.from({ length: 100 }, newDemoId)
+    assert.equal(new Set(ids).size, 100)
+    assert.ok(ids.every(id => Number.isInteger(id) && id > 0 && id <= 2147483647))
   })
 })

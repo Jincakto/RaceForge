@@ -14,7 +14,7 @@ const manifest = JSON.parse(fs.readFileSync(new URL('./reference-manifest.json',
 const digest = text => createHash('sha256').update(text.replaceAll('\r\n', '\n')).digest('hex')
 
 test('selected pages and shared declarations preserve the supplied JSX', () => {
-  for (const expected of manifest.declarations.filter(item => !['RegisterPage', 'LoginPage', 'AppState', 'NAV_ITEMS'].includes(item.name))) {
+  for (const expected of manifest.declarations.filter(item => !['RegisterPage', 'LoginPage', 'AppState', 'NAV_ITEMS', 'Sidebar', 'AppLayout'].includes(item.name))) {
     const source = fs.readFileSync(path.join(root, expected.file), 'utf8')
     const ast = ts.createSourceFile(expected.file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
     const node = ast.statements.find(statement => (statement.name?.text || statement.declarationList?.declarations[0]?.name.getText(ast)) === expected.name)

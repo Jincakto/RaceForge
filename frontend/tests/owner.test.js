@@ -16,23 +16,23 @@ test('owner prototype workflows and views', async context => {
   const trainer = data.SEED_USERS.find(user => user.role === 'head_trainer' && user.clubId === owner.clubId)
   function fixture(user = owner) {
     return structuredClone({ user, page: 'dashboard', users: data.SEED_USERS, clubs: data.SEED_CLUBS,
-      horses: [...data.HORSES, { ...data.HORSES[0], id: 'foreign-horse', ownerId: newOwner.id, ownerName: newOwner.name }],
+      horses: [...data.HORSES, { ...data.HORSES[0], id: 9001, ownerId: newOwner.id, ownerName: newOwner.name }],
       memberRequests: data.SEED_REQUESTS, horseClubRequests: data.SEED_HORSE_CLUB_REQUESTS,
       healthRecords: data.MEDICAL_RECORDS, trainingPlans: data.TRAINING_PLANS,
       trainingSessions: data.TRAINING_SESSIONS, tasks: data.GROOM_TASKS, notifications: data.NOTIFICATIONS,
       selectedHorseId: data.HORSES[0].id, trainerSelectHorseId: null, viewTrainerId: null, showSuccess: null, userPermissions: {} })
   }
   function draft(state = fixture()) {
-    return { ...state.horses[0], id: 'new-horse', name: ' Silver Arrow ', ownerId: state.user.id, clubId: null, color: 'Bay', age: 3,
+    return { ...state.horses[0], id: 9002, name: ' Silver Arrow ', ownerId: state.user.id, clubId: null, color: 'Bay', age: 3,
       weight: 500, height: 160, headTrainerId: 0, headTrainerName: '', healthStatus: 'Pending Vet', trainingStatus: 'Pending Approval',
       approvalStatus: 'pending', vetClearance: false, approvedAt: null, achievements: [], raceHistory: [], wins: 0, totalRaces: 0 }
   }
   await context.test('owner scope excludes another owner and linked records', () => {
     const state = fixture()
-    state.healthRecords.push({ ...state.healthRecords[0], id: 'foreign-record', horseId: 'foreign-horse' })
+    state.healthRecords.push({ ...state.healthRecords[0], id: 9003, horseId: 9001 })
     const view = actions.ownerView(state)
     assert.ok(view.horses.every(horse => horse.ownerId === owner.id))
-    assert.ok(!view.healthRecords.some(record => record.id === 'foreign-record'))
+    assert.ok(!view.healthRecords.some(record => record.id === 9003))
     assert.ok(!view.notifications.some(notification => notification.id === 45))
     assert.equal(actions.ownerView({ ...state, user: null }).horses.length, 0)
   })
@@ -42,7 +42,7 @@ test('owner prototype workflows and views', async context => {
     assert.equal(next.horses.at(-1).name, 'Silver Arrow')
     assert.equal(next.horses.at(-1).clubId, null)
     assert.equal(next.horses.at(-1).vetClearance, false)
-    assert.equal(next.trainerSelectHorseId, 'new-horse')
+    assert.equal(next.trainerSelectHorseId, 9002)
     assert.equal(state.horses.length + 1, next.horses.length)
     assert.throws(() => actions.addOwnerHorse(next, draft(state)), /đã tồn tại/)
     assert.throws(() => actions.addOwnerHorse(state, { ...draft(state), ownerId: newOwner.id }), /của mình/)
@@ -60,19 +60,19 @@ test('owner prototype workflows and views', async context => {
   })
   await context.test('trainer assignment accepts active verified members of the same club', () => {
     const state = actions.addOwnerHorse(fixture(), draft())
-    const next = actions.assignOwnerTrainer(state, 'new-horse', trainer.id)
+    const next = actions.assignOwnerTrainer(state, 9002, trainer.id)
     assert.equal(next.horses.at(-1).headTrainerId, trainer.id)
     assert.equal(next.trainerSelectHorseId, null)
-    const foreignClub = { ...state, users: state.users.map(user => user.id === trainer.id ? { ...user, clubId: 'other-club' } : user) }
-    assert.throws(() => actions.assignOwnerTrainer(foreignClub, 'new-horse', trainer.id), /trung tâm/)
+    const foreignClub = { ...state, users: state.users.map(user => user.id === trainer.id ? { ...user, clubId: 9004 } : user) }
+    assert.throws(() => actions.assignOwnerTrainer(foreignClub, 9002, trainer.id), /trung tâm/)
     const inactive = { ...state, users: state.users.map(user => user.id === trainer.id ? { ...user, status: 'pending' } : user) }
-    assert.throws(() => actions.assignOwnerTrainer(inactive, 'new-horse', trainer.id), /trung tâm/)
-    assert.throws(() => actions.assignOwnerTrainer(state, 'foreign-horse', trainer.id), /của bạn/)
+    assert.throws(() => actions.assignOwnerTrainer(inactive, 9002, trainer.id), /trung tâm/)
+    assert.throws(() => actions.assignOwnerTrainer(state, 9001, trainer.id), /của bạn/)
   })
   await context.test('club submission stays pending, adds an owner notification and prevents duplicates', () => {
-    const state = actions.assignOwnerTrainer(actions.addOwnerHorse(fixture(), draft()), 'new-horse', trainer.id)
+    const state = actions.assignOwnerTrainer(actions.addOwnerHorse(fixture(), draft()), 9002, trainer.id)
     const at = new Date(2026, 9, 6, 12)
-    const next = actions.submitOwnerHorse(state, 'new-horse', at)
+    const next = actions.submitOwnerHorse(state, 9002, at)
     const request = next.horseClubRequests.at(-1)
     assert.equal(request.status, 'pending')
     assert.equal(request.ownerId, owner.id)
@@ -83,14 +83,14 @@ test('owner prototype workflows and views', async context => {
     assert.equal(next.horses.at(-1).clubId, null)
     assert.equal(next.horses.at(-1).headTrainerId, trainer.id)
     assert.ok(actions.ownerView(next).notifications.some(notification => notification.id === request.id))
-    assert.throws(() => actions.submitOwnerHorse(next, 'new-horse', at), /chờ duyệt/)
-    assert.throws(() => actions.submitOwnerHorse(state, 'foreign-horse', at), /của bạn/)
-    assert.throws(() => actions.submitOwnerHorse({ ...state, user: { ...owner, clubId: null } }, 'new-horse', at), /tham gia trung tâm/)
+    assert.throws(() => actions.submitOwnerHorse(next, 9002, at), /chờ duyệt/)
+    assert.throws(() => actions.submitOwnerHorse(state, 9001, at), /của bạn/)
+    assert.throws(() => actions.submitOwnerHorse({ ...state, user: { ...owner, clubId: null } }, 9002, at), /tham gia trung tâm/)
   })
   await context.test('edits cannot change ownership, club approvals, health clearance or achievements', () => {
     const state = fixture()
     const original = state.horses[0]
-    const next = actions.updateOwnerHorse(state, { ...original, name: ' Updated ', weight: 510, clubId: 'forged', vetClearance: !original.vetClearance, achievements: [] })
+    const next = actions.updateOwnerHorse(state, { ...original, name: ' Updated ', weight: 510, clubId: 9005, vetClearance: !original.vetClearance, achievements: [] })
     const updated = next.horses[0]
     assert.equal(updated.name, 'Updated')
     assert.equal(updated.weight, 510)
@@ -107,7 +107,7 @@ test('owner prototype workflows and views', async context => {
     assert.equal(next.horses[0].achievements.at(-1).title, 'Sprint Cup')
     assert.equal(next.horses[0].achievements.length, state.horses[0].achievements.length + 1)
     assert.deepEqual(next.horses.at(-1), state.horses.at(-1))
-    assert.throws(() => actions.addOwnerAchievement(state, 'foreign-horse', achievement), /của mình/)
+    assert.throws(() => actions.addOwnerAchievement(state, 9001, achievement), /của mình/)
     assert.throws(() => actions.addOwnerAchievement(state, state.horses[0].id, { ...achievement, date: '31/02/2026' }), /ngày hợp lệ/)
   })
   await context.test('notification reading is scoped and profile changes persist in the current React data', () => {

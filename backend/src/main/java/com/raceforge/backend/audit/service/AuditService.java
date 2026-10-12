@@ -2,7 +2,7 @@ package com.raceforge.backend.audit.service;
 
 import com.raceforge.backend.audit.entity.AuditLog;
 import com.raceforge.backend.audit.repository.AuditLogRepository;
-import java.time.Instant;
+import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -22,7 +22,7 @@ public class AuditService {
         log.setEntityId(entityId);
         log.setResult(result);
         log.setReason(reason);
-        log.setCreatedAt(Instant.now());
+        log.setCreatedAt(LocalDateTime.now());
         auditLogRepository.save(log);
     }
 }

@@ -1,14 +1,14 @@
+import { createInitialState } from '../utils/initialState.js';
+import * as flow from '../utils/phucWorkflow.js';
+import { liveApi } from '../services/api.ts';
+import { authService } from '../services/authService.ts';
+import { tokenStore } from '../services/tokenStore.ts';
 import { demoId } from '../utils/demoId.ts';
-import { createContext, useCallback, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { pagePath } from '../routes/paths.js';
-import { RATIONS, SEED_INVENTORY, SEED_INV_LOGS } from '../data/care.js';
-import { CARE_LABELS, LIFECYCLE_LABEL, REHAB_PACKAGES, TODAY, TRAINING_PACKAGES } from '../data/constants.js';
-import { MEDICAL_RECORDS } from '../data/health.js';
-import { HORSES, SEED_HORSE_CLUB_REQUESTS } from '../data/horses.js';
-import { NOTIFICATIONS } from '../data/notifications.js';
-import { SEED_ENROLLMENTS, TRAINING_PLANS, TRAINING_SESSIONS } from '../data/training.js';
-import { SEED_CLUBS, SEED_REQUESTS, SEED_USERS } from '../data/users.js';
+import { RATIONS } from '../data/care.js';
+import { CARE_LABELS, LIFECYCLE_LABEL, TODAY } from '../data/constants.js';
 import { isLow } from '../utils/care.js';
 import { addDays, addWeeks, toDDMMYYYY } from '../utils/date.js';
 import { fmtQty } from '../utils/format.js';
@@ -20,15 +20,7 @@ export const AppContext = createContext(null);
 
 /** Holds all in-memory application state + actions. Replace the handler bodies with services/ calls when the Spring Boot API is wired in. */
 export function AppProvider({ children }) {
-  const [state, setState] = useState({
-    user: null,
-    users: SEED_USERS, clubs: SEED_CLUBS, memberRequests: SEED_REQUESTS,
-    horses: HORSES, horseClubRequests: SEED_HORSE_CLUB_REQUESTS,
-    healthRecords: MEDICAL_RECORDS, trainingPlans: TRAINING_PLANS, trainingSessions: TRAINING_SESSIONS,
-    inventory: SEED_INVENTORY, invLogs: SEED_INV_LOGS, careRecords: [], incidents: [], notifications: NOTIFICATIONS, enrollments: SEED_ENROLLMENTS, errorMsg: null,
-    selectedHorseId: 14, trainerSelectHorseId: null, viewTrainerId: null, showSuccess: null,
-    userPermissions: {},
-  });
+  const [state, setState] = useState(()=>createInitialState(liveApi));
 
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -59,9 +51,15 @@ export function AppProvider({ children }) {
     setTimeout(() => setState(s => ({ ...s, showSuccess: null })), 3000);
   }, []);
 
+  const transition=useCallback((reducer,...args)=>{try{if(liveApi)throw new Error('Thao tác này dùng trang Medical & Training API.');const next=reducer(stateRef.current,...args);stateRef.current=next;setState(next);return null;}catch(e){const message=e instanceof Error?e.message:'Thao tác thất bại.';showError(message);return message;}},[showError]);
+  const handleSaveDraft=useCallback(rec=>transition(flow.saveDraft,rec),[transition]);
+  const handleConfirmMedical=useCallback(id=>transition(flow.confirmMedical,id),[transition]);
+  const handlePayPackage=useCallback((id,success)=>transition(flow.payPackage,id,success),[transition]);
+  const handleResumePackage=useCallback((id,reason)=>transition(flow.resumePackage,id,reason),[transition]);
+  useEffect(()=>{const expired=()=>{setState(s=>({...s,user:null,errorMsg:'Phiên đăng nhập hết hạn.'}));navigate('login');};window.addEventListener('raceforge:unauthorized',expired);return()=>window.removeEventListener('raceforge:unauthorized',expired);},[navigate]);
   const handleLogin = useCallback((user) => {
     setState(s => ({ ...s, user }));
-    navigate(user.role ? 'dashboard' : 'onboarding');
+    navigate(liveApi && ['owner','manager','veterinarian'].includes(user.role) ? 'api-workflow' : user.role ? 'dashboard' : 'onboarding');
   }, [navigate]);
 
   const handleRegister = useCallback((user) => {
@@ -103,26 +101,14 @@ export function AppProvider({ children }) {
     showSuccess('Đã từ chối yêu cầu.');
   }, [showSuccess]);
 
-  const handleCreateHorse = useCallback((horse) => {
-    setState(s => {
-      const clubId = s.user.clubId;
-      const req = clubId ? { id: demoId(), horseId: horse.id, horseName: horse.name, horseBreed: horse.breed, horseImageUrl: horse.imageUrl, ownerId: s.user.id, ownerName: s.user.name, clubId, submittedAt: TODAY, expiresAt: '02/10/2026', status: 'pending', reviewNote: '' } : null;
-      return {
-        ...s, horses: [...s.horses, horse],
-        horseClubRequests: req ? [...s.horseClubRequests, req] : s.horseClubRequests,
-        notifications: clubId ? [newNotif({ type: 'approval', message: `Chủ ngựa ${s.user.name} gửi đăng ký ngựa "${horse.name}" — chờ bạn duyệt vào nhóm`, toRoles: ['manager'], clubId, action: 'center-requests' }), ...s.notifications] : s.notifications,
-      };
-    });
-    navigate('my-horses');
-    showSuccess(`Hồ sơ "${horse.name}" đã gửi cho Quản lý duyệt!`);
-  }, [showSuccess, navigate]);
+  const handleCreateHorse = useCallback((horse) => { const error=transition(flow.createHorse,horse);if(!error){navigate('my-horses');showSuccess('Đã tạo hồ sơ; chờ CM Approval trước Initial Medical.');}return error; },[transition,navigate,showSuccess]);
 
-  const handleUpdateHorse = useCallback((updated) => {
-    setState(s => ({ ...s, horses: s.horses.map(h => h.id === updated.id ? updated : h) }));
-  }, []);
+  const handleUpdateHorse = useCallback((horse) => transition(flow.updateOwnerHorse,horse),[transition,navigate,showSuccess]);
 
   const handleSelectTrainer = useCallback((horseId, trainerId) => {
+    const own=state.horses.find(h=>h.id===horseId && h.ownerId===state.user?.id);
     const trainer = state.users.find(u => u.id === trainerId);
+    if(state.user?.role!=='owner' || !own || trainer?.role!=='head_trainer' || trainer.clubId!==state.user.clubId || trainer.status!=='active' || !trainer.verified){showError('Chỉ chọn HLV đang hoạt động trong trung tâm cho ngựa của bạn.');return;}
     setState(s => ({
       ...s,
       horses: s.horses.map(h => h.id === horseId ? { ...h, headTrainerId: trainerId, headTrainerName: trainer?.name || '' } : h),
@@ -130,54 +116,16 @@ export function AppProvider({ children }) {
     }));
     navigate('my-horses');
     showSuccess(`Đã chọn ${trainer?.name} làm Head Trainer!`);
-  }, [showSuccess, state.users, navigate]);
+  }, [showSuccess, state.users, state.user, state.horses, showError, navigate]);
 
-  const handleSubmitToCenter = useCallback((horseId) => {
-    setState(s => {
-      const horse = s.horses.find(h => h.id === horseId);
-      if (!horse || !s.user.clubId) return s;
-      const req = { id: demoId(), horseId, horseName: horse.name, horseBreed: horse.breed, horseImageUrl: horse.imageUrl, ownerId: s.user.id, ownerName: s.user.name, clubId: s.user.clubId, submittedAt: '25/09/2026', expiresAt: '02/10/2026', status: 'pending', reviewNote: '' };
-      return {
-        ...s, horseClubRequests: [...s.horseClubRequests, req],
-        horses: s.horses.map(h => h.id === horseId ? { ...h, approvalStatus: 'pending', lifecycle: 'pending' } : h),
-        notifications: [newNotif({ type: 'approval', message: `Chủ ngựa ${s.user.name} gửi đăng ký ngựa "${horse.name}" — chờ bạn duyệt vào nhóm`, toRoles: ['manager'], clubId: s.user.clubId, action: 'center-requests' }), ...s.notifications],
-      };
-    });
-    showSuccess('Đã nộp đơn đăng ký ngựa!');
-  }, [showSuccess]);
+  const handleSubmitToCenter = useCallback((id) => transition(flow.submitHorse,id),[transition,navigate,showSuccess]);
 
-  const handleApproveHorse = useCallback((reqId) => {
-    setState(s => {
-      const req = s.horseClubRequests.find(r => r.id === reqId);
-      if (!req) return s;
-      return {
-        ...s,
-        horseClubRequests: s.horseClubRequests.map(r => r.id === reqId ? { ...r, status: 'approved' } : r),
-        horses: s.horses.map(h => h.id === req.horseId ? { ...h, clubId: req.clubId, approvalStatus: 'approved', approvedAt: TODAY, lifecycle: 'awaiting_vet', healthStatus: 'Pending Vet', trainingStatus: 'Inactive' } : h),
-        notifications: [
-          newNotif({ type: 'health', message: `Ngựa "${req.horseName}" (chủ: ${req.ownerName}) vừa được duyệt — cần khám sức khỏe trước khi huấn luyện`, toRoles: ['veterinarian'], clubId: req.clubId, action: 'post-exam' }),
-          newNotif({ type: 'approval', message: `Ngựa "${req.horseName}" đã được duyệt vào trung tâm — trạng thái: Chờ khám sức khỏe`, toUserIds: [req.ownerId], clubId: req.clubId, action: 'my-horses' }),
-          ...s.notifications,
-        ],
-      };
-    });
-    showSuccess('Ngựa đã vào trung tâm!');
-  }, [showSuccess]);
+  const handleApproveHorse = useCallback((id) => {const error=transition(flow.approveHorse,id);if(!error)showSuccess('Đã duyệt. Chờ Initial Medical.');return error;},[transition,navigate,showSuccess]);
 
-  const handleRejectHorse = useCallback((reqId, note) => {
-    setState(s => {
-      const req = s.horseClubRequests.find(r => r.id === reqId);
-      return {
-        ...s,
-        horseClubRequests: s.horseClubRequests.map(r => r.id === reqId ? { ...r, status: 'rejected', reviewNote: note } : r),
-        horses: s.horses.map(h => req && h.id === req.horseId ? { ...h, approvalStatus: 'rejected' } : h),
-        notifications: req ? [newNotif({ type: 'approval', message: `Đơn đăng ký ngựa "${req.horseName}" bị từ chối${note ? `: ${note}` : ''}`, toUserIds: [req.ownerId], clubId: req.clubId, action: 'my-horses' }), ...s.notifications] : s.notifications,
-      };
-    });
-    showSuccess('Đã từ chối đơn đăng ký ngựa.');
-  }, [showSuccess]);
+  const handleRejectHorse = useCallback((id,note)=>transition(flow.rejectHorse,id,note),[transition]);
 
   const handleLogout = useCallback(() => {
+    if(liveApi){void authService.logout().catch(()=>{});tokenStore.clear();}
     setState(s => ({ ...s, user: null }));
     navigate('home');
   }, [navigate]);
@@ -191,120 +139,9 @@ export function AppProvider({ children }) {
     navigate('trainer-profile');
   }, [navigate]);
 
-  const handleSaveHealthRecord = useCallback((rec) => {
-    setState(s => {
-      const allRecords = [...s.healthRecords, rec];
-      const latest = sortHealthRecords(allRecords.filter(r => r.horseId === rec.horseId))[0];
-      const notifications = [...s.notifications];
-      const examinedHorse = s.horses.find(h => h.id === rec.horseId);
-      const injurySummary = Object.values(rec.injuryDetails || {}).map(d => `${d.issue} (${d.severity === 'severe' ? 'nặng' : d.severity === 'moderate' ? 'vừa' : 'nhẹ'})`).join(', ');
-      const shouldLock = !!examinedHorse && getLifecycle(examinedHorse) === 'training' && rec.trainingEligibility === 'not-eligible';
-      const lockReason = rec.diagnosis?.trim() || injurySummary || rec.trainingReasons?.join('; ') || 'Không đủ điều kiện huấn luyện';
-      if (examinedHorse && injurySummary) {
-        notifications.unshift(
-          newNotif({ type: 'health', message: `Phát hiện chấn thương ở "${examinedHorse.name}": ${injurySummary}.`, toUserIds: [examinedHorse.ownerId], clubId: examinedHorse.clubId || undefined, action: 'horse-detail', horseId: examinedHorse.id }),
-          newNotif({ type: 'health', message: `Hồ sơ mới của "${examinedHorse.name}": ${injurySummary}. ${shouldLock ? 'Ngựa đã bị khóa huấn luyện.' : 'Cần điều chỉnh và theo dõi trong các buổi tập.'}`, ...trainerTarget(examinedHorse), clubId: examinedHorse.clubId || undefined, action: 'health-records', horseId: examinedHorse.id }),
-        );
-      }
-      if (shouldLock && examinedHorse && s.user) {
-        const voidedCount = s.trainingSessions.filter(x => x.horseId === examinedHorse.id && x.status === 'Scheduled' && isHeavySession(x.type)).length;
-        notifications.unshift(
-          newNotif({ type: 'lock', message: `KHÓA HUẤN LUYỆN: "${examinedHorse.name}" — ${lockReason}. ${voidedCount} buổi tập nặng chuyển sang "Không thực hiện".`, toUserIds: [examinedHorse.ownerId], clubId: examinedHorse.clubId || undefined, action: 'horse-detail', horseId: examinedHorse.id }),
-          newNotif({ type: 'lock', message: `KHÓA HUẤN LUYỆN: "${examinedHorse.name}" — ${lockReason}. Hãy rà soát lại lịch tập.`, ...trainerTarget(examinedHorse), clubId: examinedHorse.clubId || undefined, action: 'training-hub', horseId: examinedHorse.id }),
-          newNotif({ type: 'lock', message: `"${examinedHorse.name}" cần kích hoạt gói phục hồi (${lockReason}).`, toRoles: ['manager'], clubId: examinedHorse.clubId || undefined, action: 'rehab-center', horseId: examinedHorse.id }),
-        );
-      }
-      const horses = s.horses.map(h => {
-        if (h.id !== rec.horseId) return h;
-        const lc0 = getLifecycle(h);
-        if (lc0 === 'locked' || lc0 === 'rehab') return h;
-        if (shouldLock) return {
-          ...h, healthStatus: 'Injured', trainingStatus: 'Inactive', vetClearance: false, lifecycle: 'locked',
-          lock: { reason: lockReason, notes: rec.notes, lockedAt: TODAY, lockedById: s.user.id, lockedByName: s.user.name },
-          recoveryBadge: null,
-        };
-        let next = h;
-        if (latest.trainingEligibility === 'eligible')
-          next = { ...h, vetClearance: true, healthStatus: 'Eligible', trainingStatus: 'Active' };
-        else if (latest.trainingEligibility === 'conditional')
-          next = { ...h, healthStatus: 'Monitor', trainingStatus: 'Active' };
-        else if (latest.trainingEligibility === 'not-eligible')
-          next = { ...h, vetClearance: false, healthStatus: 'Injured', trainingStatus: 'Inactive' };
-        let lc = lc0;
-        if ((lc0 === 'awaiting_vet' || lc0 === 'ready') && latest.trainingEligibility === 'eligible') lc = 'ready';
-        else if (lc0 === 'ready') lc = 'awaiting_vet';
-        if (lc !== 'training') next = { ...next, trainingStatus: 'Inactive' };
-        if (lc0 === 'awaiting_vet' && lc === 'ready')
-          notifications.unshift(newNotif({ type: 'health', message: `Ngựa "${h.name}" đã được Thú y xác nhận ĐỦ ĐIỀU KIỆN HUẤN LUYỆN — trạng thái: Sẵn sàng huấn luyện. Hãy chọn gói huấn luyện.`, toUserIds: [h.ownerId], clubId: h.clubId || undefined, action: 'training-register' }));
-        return { ...next, lifecycle: lc };
-      });
-      return {
-        ...s,
-        healthRecords: allRecords,
-        horses,
-        notifications,
-        enrollments: shouldLock ? s.enrollments.map(e => e.horseId === rec.horseId && e.status === 'active' ? { ...e, status: 'paused', pausedAt: TODAY, pauseReason: lockReason, scheduleConfirmed: false } : e) : s.enrollments,
-        trainingPlans: shouldLock ? s.trainingPlans.map(p => p.horseId === rec.horseId && p.status === 'Active' ? { ...p, status: 'Paused' } : p) : s.trainingPlans,
-        trainingSessions: shouldLock ? s.trainingSessions.map(x => x.horseId === rec.horseId && x.status === 'Scheduled' && isHeavySession(x.type) ? { ...x, status: 'Not Performed', voidedByLock: true } : x) : s.trainingSessions,
-      };
-    });
-  }, []);
+  const handleSaveHealthRecord = handleSaveDraft;
 
-  const handleEnroll = useCallback((horseId, packageId) => {
-    const s = stateRef.current;
-    const horse = s.horses.find(h => h.id === horseId);
-    const pkg = TRAINING_PACKAGES.find(p => p.id === packageId);
-    if (!horse || !pkg || !s.user) return 'Không tìm thấy ngựa hoặc gói huấn luyện.';
-    if (s.user.role !== 'owner' || horse.ownerId !== s.user.id) return 'Chỉ chủ ngựa mới đăng ký huấn luyện cho ngựa của mình.';
-    if (getLifecycle(horse) !== 'ready') return 'Chỉ ngựa "Sẵn sàng huấn luyện" mới đăng ký huấn luyện được.';
-    if (s.enrollments.some(e => e.horseId === horseId && e.status !== 'completed')) return 'Ngựa này đã có một gói huấn luyện — mỗi ngựa chỉ được chọn một gói.';
-    const trainers = s.users.filter(u => u.role === 'head_trainer' && u.clubId === horse.clubId);
-    if (trainers.length === 0) return 'Trung tâm chưa có Head Trainer để phân công.';
-    const load = (id) => s.enrollments.filter(e => e.trainerId === id && e.status !== 'completed').length;
-    const trainer = [...trainers].sort((a, b) => load(a.id) - load(b.id))[0];
-    const phase = pkg.id === 509 ? 'Foundation' : pkg.id === 510 ? 'Base Building' : 'Competition Prep';
-    const stamp = Date.now();
-    const planId = demoId();
-    const sessionTypes = pkg.id === 509
-      ? ['Walk & Trot', 'Endurance', 'Recovery']
-      : pkg.id === 510
-        ? ['Interval', 'Tempo', 'Recovery']
-        : ['Sprint', 'Race-Pace', 'Recovery'];
-    const generatedSessions = Array.from({ length: pkg.sessions }, (_, index) => {
-      const type = sessionTypes[index % sessionTypes.length];
-      return {
-        id: demoId(),
-        horseId,
-        planId,
-        date: addDays(TODAY, index + 1),
-        time: '09:00',
-        type,
-        trainerName: trainer.name,
-        trainerId: trainer.id,
-        assignedStaffIds: [trainer.id],
-        assignedStaffNames: [trainer.name],
-        status: 'Scheduled',
-        distance: type === 'Recovery' ? 'Đi bộ 20 phút' : pkg.id === 509 ? '800m' : '1200m',
-        targetTime: type === 'Recovery' ? '20 phút' : 'Theo giáo án',
-        notes: `Buổi ${index + 1}/${pkg.sessions} · Tự động tạo theo gói ${pkg.name}`,
-        conflictChecked: false,
-      };
-    });
-    setState(st => ({
-      ...st,
-      horses: st.horses.map(h => h.id === horseId ? { ...h, lifecycle: 'training', trainingStatus: 'Active', headTrainerId: trainer.id, headTrainerName: trainer.name } : h),
-      enrollments: [...st.enrollments, { id: demoId(), horseId, packageId, packageName: pkg.name, sessionsTotal: pkg.sessions, sessionsDone: 0, status: 'active', trainerId: trainer.id, trainerName: trainer.name, startedAt: TODAY, scheduleConfirmed: false }],
-      trainingPlans: [...st.trainingPlans, { id: planId, horseId, phase, startDate: TODAY, endDate: addWeeks(TODAY, pkg.weeks), distance: '1200m', workload: pkg.id === 509 ? 'Moderate' : 'High', surface: 'Turf', goals: `Gói ${pkg.name}: ${pkg.sessions} buổi / ${pkg.weeks} tuần — lịch được tạo tự động theo số buổi`, status: 'Active', locked: false, createdBy: `Gói ${pkg.name} (tự động)`, progress: 0 }],
-      trainingSessions: [...st.trainingSessions, ...generatedSessions],
-      notifications: [
-        newNotif({ type: 'training', message: `Bạn được phân công huấn luyện ngựa "${horse.name}" — hệ thống đã tạo đủ ${pkg.sessions} buổi theo ngày. Hãy rà soát và xác nhận lịch.`, toUserIds: [trainer.id], clubId: horse.clubId || undefined, action: 'training-hub' }),
-        newNotif({ type: 'training', message: `Ngựa "${horse.name}" đã đăng ký gói huấn luyện ${pkg.name}, Head Trainer: ${trainer.name}`, toRoles: ['manager'], clubId: horse.clubId || undefined }),
-        ...st.notifications,
-      ],
-    }));
-    showSuccess(`Đã chọn gói ${pkg.name}. Head Trainer ${trainer.name} được tự động phân công!`);
-    return null;
-  }, [showSuccess]);
+  const handleEnroll = useCallback((id,packageId) => {const error=transition(flow.registerPackage,id,packageId);if(!error)showSuccess('Đăng ký gói thành công. Chờ thanh toán mô phỏng.');return error;},[transition,navigate,showSuccess]);
 
   const reject = useCallback((msg) => { showError(msg); return msg; }, [showError]);
 
@@ -493,6 +330,7 @@ export function AppProvider({ children }) {
 
   const handleStartSession = useCallback((sessionId) => {
     const s = stateRef.current;
+    if(s.user?.role!=='head_trainer')return reject('Chỉ Head Trainer được bắt đầu buổi tập.');
     const session = s.trainingSessions.find(x => x.id === sessionId);
     const horse = session && s.horses.find(h => h.id === session.horseId);
     if (!session || !horse) return reject('Không tìm thấy buổi tập.');
@@ -524,54 +362,7 @@ export function AppProvider({ children }) {
     return null;
   }, [reject, showSuccess]);
 
-  const handlePostExam = useCallback((sessionId, form) => {
-    const s = stateRef.current;
-    const session = s.trainingSessions.find(x => x.id === sessionId);
-    const horse = session && s.horses.find(h => h.id === session.horseId);
-    if (!session || !horse || !s.user) return reject('Không tìm thấy buổi tập.');
-    if (s.user.role !== 'veterinarian') return reject('Chỉ Thú y mới ghi kết quả khám sau buổi tập.');
-    if (session.postExamDone) return reject('Buổi tập này đã được khám sau tập.');
-    const elig = form.trainingEligibility;
-    if (!elig) return reject('Vui lòng nhập đủ sinh hiệu (nhiệt độ + nhịp tim) để hệ thống đánh giá.');
-    const club = s.clubs.find(c => c.id === horse.clubId);
-    const problem = elig === 'not-eligible';
-    const diagnosis = form.diagnosis?.trim() || form.trainingReasons?.join('; ') || 'Không đủ điều kiện sau buổi tập';
-    const rec = { ...form, id: demoId(), date: TODAY, type: 'Khám sau buổi tập', vet: s.user.name, isPostTraining: true, diagnosis, ownerId: horse.ownerId, headTrainerId: horse.headTrainerId, managerId: club?.managerId, createdAt: Date.now() };
-    if (!problem) {
-      const cond = elig === 'conditional';
-      setState(st => ({
-        ...st,
-        healthRecords: [...st.healthRecords, rec],
-        horses: cond ? st.horses.map(h => h.id === horse.id ? { ...h, healthStatus: 'Monitor' } : h) : st.horses,
-        trainingSessions: st.trainingSessions.map(x => x.id === sessionId ? { ...x, postExamDone: true } : x),
-        notifications: [
-          newNotif({ type: 'health', message: cond ? `Khám sau tập "${horse.name}": ĐƯỢC HUẤN LUYỆN CÓ ĐIỀU KIỆN. ${rec.trainingAdjustments?.join(' ') || ''}` : `Khám sau tập "${horse.name}": đủ điều kiện, không phát hiện bất thường.`, ...trainerTarget(horse), clubId: horse.clubId || undefined, action: 'health-records' }),
-          ...(cond ? [newNotif({ type: 'health', message: `Sau buổi tập, "${horse.name}" cần theo dõi thêm (huấn luyện có điều kiện) — xem hồ sơ y tế`, toUserIds: [horse.ownerId], clubId: horse.clubId || undefined, action: 'horse-detail', horseId: horse.id })] : []),
-          ...st.notifications,
-        ],
-      }));
-      showSuccess(`Đã lưu hồ sơ khám sau tập: ${horse.name} ${cond ? 'huấn luyện có điều kiện' : 'đạt chuẩn'}.`);
-      return null;
-    }
-    const voidedCount = s.trainingSessions.filter(x => x.horseId === horse.id && x.status === 'Scheduled' && isHeavySession(x.type)).length;
-    const notes = form.notes || '';
-    setState(st => ({
-      ...st,
-      healthRecords: [...st.healthRecords, { ...rec, trainingNote: `${rec.trainingNote || ''}\n\nKHÓA HUẤN LUYỆN được kích hoạt sau buổi tập.`.trim() }],
-      horses: st.horses.map(h => h.id === horse.id ? { ...h, healthStatus: 'Injured', trainingStatus: 'Inactive', vetClearance: false, lifecycle: h.rehab ? 'rehab' : 'locked', recoveryBadge: null, lock: { reason: diagnosis, notes, lockedAt: TODAY, lockedById: st.user.id, lockedByName: st.user.name } } : h),
-      enrollments: st.enrollments.map(e => e.horseId === horse.id && e.status === 'active' ? { ...e, status: 'paused', pausedAt: TODAY, pauseReason: diagnosis, scheduleConfirmed: false } : e),
-      trainingPlans: st.trainingPlans.map(p => p.horseId === horse.id && p.status === 'Active' ? { ...p, status: 'Paused' } : p),
-      trainingSessions: st.trainingSessions.map(x => x.id === sessionId ? { ...x, postExamDone: true } : x.horseId === horse.id && x.status === 'Scheduled' && isHeavySession(x.type) ? { ...x, status: 'Not Performed', voidedByLock: true } : x),
-      notifications: [
-        newNotif({ type: 'lock', message: `KHÓA HUẤN LUYỆN: "${horse.name}" — ${diagnosis}. Gói tạm dừng, ${voidedCount} buổi tập nặng đã xếp bị đánh dấu "Không thực hiện".`, ...trainerTarget(horse), clubId: horse.clubId || undefined, action: 'training-hub' }),
-        newNotif({ type: 'lock', message: `Ngựa "${horse.name}" bị chấn thương / không đủ điều kiện sau tập (${diagnosis}) và đã bị khóa huấn luyện.`, toUserIds: [horse.ownerId], clubId: horse.clubId || undefined, action: 'horse-detail', horseId: horse.id }),
-        newNotif({ type: 'lock', message: `Ngựa "${horse.name}" bị khóa huấn luyện (${diagnosis}). Cần chọn và kích hoạt gói phục hồi chức năng.`, toRoles: ['manager'], clubId: horse.clubId || undefined, action: 'rehab-center' }),
-        ...st.notifications,
-      ],
-    }));
-    showSuccess(`Đã KHÓA HUẤN LUYỆN cho ${horse.name}. Gói tạm dừng, đã thông báo HLV, Groom và Quản lý.`);
-    return null;
-  }, [reject, showSuccess]);
+  const handlePostExam = useCallback((sessionId,form)=>{const session=stateRef.current.trainingSessions.find(s=>s.id===sessionId && s.status==='Completed' && !s.postExamDone);if(!session)return 'Buổi tập không chờ khám.';const record={...form,id:form.id||demoId(),horseId:session.horseId,sessionId,examType:'FOLLOW_UP'};const error=transition(flow.saveDraft,record);if(error)return error;return transition(flow.confirmMedical,record.id);},[transition]);
 
   const handleManualLock = useCallback((horseId, reason) => {
     const s = stateRef.current;
@@ -612,58 +403,9 @@ export function AppProvider({ children }) {
     return null;
   }, [reject, showSuccess]);
 
-  const handleActivateRehab = useCallback((horseId, packageId) => {
-    const s = stateRef.current;
-    const horse = s.horses.find(h => h.id === horseId);
-    const pkg = REHAB_PACKAGES.find(p => p.id === packageId);
-    if (!horse || !pkg || !s.user) return 'Không tìm thấy ngựa hoặc gói phục hồi.';
-    if (s.user.role !== 'manager') return reject('Chỉ Quản lý mới kích hoạt gói phục hồi.');
-    if (!horse.lock) return 'Ngựa này không bị khóa huấn luyện.';
-    if (horse.rehab) return 'Ngựa đã có gói phục hồi đang chạy.';
-    const en = s.enrollments.find(e => e.horseId === horseId && e.status !== 'completed');
-    setState(st => ({
-      ...st,
-      horses: st.horses.map(h => h.id === horseId ? { ...h, lifecycle: 'rehab', trainingStatus: 'Resting', rehab: { packageId, name: pkg.name, durationWeeks: pkg.weeks, activatedAt: TODAY, activatedBy: st.user.name } } : h),
-      notifications: [
-        newNotif({ type: 'rehab', message: `Gói huấn luyện${en ? ` "${en.packageName}"` : ''} của "${horse.name}" vừa được TẠM DỪNG. Gói phục hồi "${pkg.name}" (${pkg.weeks} tuần) đã được kích hoạt. Tình trạng hiện tại (chẩn đoán Thú y): ${horse.lock.reason}`, toUserIds: [horse.ownerId], clubId: horse.clubId || undefined, action: 'horse-detail', horseId }),
-        newNotif({ type: 'rehab', message: `Gói phục hồi "${pkg.name}" đã kích hoạt cho "${horse.name}". Cập nhật sức khỏe và gỡ khóa khi ngựa đủ điều kiện.`, toRoles: ['veterinarian'], clubId: horse.clubId || undefined, action: 'post-exam' }),
-        newNotif({ type: 'rehab', message: `"${horse.name}" bắt đầu gói phục hồi "${pkg.name}" — thực hiện chăm sóc phục hồi theo lịch`, toRoles: ['groom'], clubId: horse.clubId || undefined, action: 'care-hub' }),
-        ...st.notifications,
-      ],
-    }));
-    showSuccess(`Đã kích hoạt gói phục hồi "${pkg.name}" cho ${horse.name}.`);
-    return null;
-  }, [reject, showSuccess]);
+  const handleActivateRehab = useCallback((id,packageId) => {const error=transition(flow.approveRecovery,id,packageId);if(!error)showSuccess('Đã duyệt Recovery; gói thường tạm dừng, chờ chủ ngựa thanh toán.');return error;},[transition,navigate,showSuccess]);
 
-  const handleUnlock = useCallback((horseId, note) => {
-    const s = stateRef.current;
-    const horse = s.horses.find(h => h.id === horseId);
-    if (!horse || !s.user) return 'Không tìm thấy ngựa.';
-    if (s.user.role !== 'veterinarian') return reject('Chỉ Thú y mới có quyền gỡ khóa huấn luyện.');
-    if (!horse.lock) return 'Ngựa này không bị khóa.';
-    if (!note.trim()) return 'Vui lòng ghi cập nhật sức khỏe xác nhận ngựa đủ điều kiện trước khi gỡ khóa.';
-    const club = s.clubs.find(c => c.id === horse.clubId);
-    const rec = {
-      id: demoId(), horseId, date: TODAY, type: 'Cập nhật sức khỏe — gỡ khóa', vet: s.user.name, notes: note, result: 'Eligible',
-      medications: '', isPostTraining: false, vetClearanceGranted: true, diagnosis: note, autoEvaluation: 'pass', trainingEligibility: 'eligible',
-      trainingNote: 'Gỡ KHÓA HUẤN LUYỆN — Head Trainer cần điều chỉnh và xác nhận lại lịch tập.',
-      ownerId: horse.ownerId, headTrainerId: horse.headTrainerId, managerId: club?.managerId, createdAt: Date.now(),
-    };
-    setState(st => ({
-      ...st,
-      healthRecords: [...st.healthRecords, rec],
-      horses: st.horses.map(h => h.id === horseId ? { ...h, lock: null, rehab: null, lifecycle: 'training', healthStatus: 'Eligible', trainingStatus: 'Active', vetClearance: true, recoveryBadge: { date: TODAY, note } } : h),
-      enrollments: st.enrollments.map(e => e.horseId === horseId && e.status === 'paused' ? { ...e, status: 'active', pausedAt: undefined, pauseReason: undefined, scheduleConfirmed: false } : e),
-      notifications: [
-        newNotif({ type: 'training', message: `Thú y đã gỡ khóa cho "${horse.name}" và đánh dấu ĐÃ HỒI PHỤC. Hãy điều chỉnh và XÁC NHẬN LẠI lịch tập — lịch cũ sẽ không tự chạy lại.`, ...trainerTarget(horse), clubId: horse.clubId || undefined, action: 'training-hub', horseId }),
-        newNotif({ type: 'health', message: `"${horse.name}" đã đủ điều kiện và được gỡ khóa huấn luyện. Chờ Head Trainer xác nhận lại lịch tập.`, toUserIds: [horse.ownerId], clubId: horse.clubId || undefined, action: 'horse-detail', horseId }),
-        newNotif({ type: 'health', message: `"${horse.name}" kết thúc phục hồi và được gỡ khóa huấn luyện`, toRoles: ['manager'], clubId: horse.clubId || undefined }),
-        ...st.notifications,
-      ],
-    }));
-    showSuccess(`Đã gỡ khóa huấn luyện cho ${horse.name}.`);
-    return null;
-  }, [reject, showSuccess]);
+  const handleUnlock = useCallback((id,reason) => {const error=transition(flow.unlockHorse,id,reason);if(!error)showSuccess('Đã Unlock riêng. Gói gốc vẫn chờ CM Resume.');return error;},[transition,navigate,showSuccess]);
 
   const handleConfirmSchedule = useCallback((horseId, note, restoreIds) => {
     const s = stateRef.current;
@@ -671,6 +413,7 @@ export function AppProvider({ children }) {
     if (!horse || !s.user) return 'Không tìm thấy ngựa.';
     if (s.user.role !== 'head_trainer') return reject('Chỉ Head Trainer mới xác nhận lịch tập.');
     if (horse.lock) return reject(lockMessage(horse, 'xác nhận lịch tập'));
+    if(!s.enrollments.some(e=>e.horseId===horseId && e.status==='active' && e.paymentStatus==='PAID' && e.packageType!=='RECOVERY'))return reject('Cần gói thường ACTIVE/PAID; CM Resume trước khi xác nhận lịch.');
     setState(st => ({
       ...st,
       enrollments: st.enrollments.map(e => e.horseId === horseId && e.status === 'active' ? { ...e, scheduleConfirmed: true } : e),
@@ -696,6 +439,7 @@ export function AppProvider({ children }) {
   }, [selectHorse, navigate]);
 
   const value = useMemo(() => ({
+    handleSaveDraft, handleConfirmMedical, handlePayPackage, handleResumePackage,
     state,
     setState,
     navigate,
@@ -737,7 +481,7 @@ export function AppProvider({ children }) {
     selectHorse,
     markNotificationRead,
     openNotification,
-  }), [state, showError, showSuccess, handleLogin, handleRegister, handleJoinRequest, handleApproveRequest, handleRejectRequest, handleCreateHorse, handleUpdateHorse, handleSelectTrainer, handleSubmitToCenter, handleApproveHorse, handleRejectHorse, handleLogout, handleUpdatePermissions, handleViewTrainer, handleSaveHealthRecord, handleEnroll, invAddItem, invReceive, invEdit, invAdjust, invDelete, completeCare, undoCare, reportIncident, handleCreatePlan, handleCreateSession, handleStartSession, handleCompleteSession, handlePostExam, handleManualLock, handleActivateRehab, handleUnlock, handleConfirmSchedule, selectHorse, navigate, markNotificationRead, openNotification]);
+  }), [handleSaveDraft, handleConfirmMedical, handlePayPackage, handleResumePackage,state, showError, showSuccess, handleLogin, handleRegister, handleJoinRequest, handleApproveRequest, handleRejectRequest, handleCreateHorse, handleUpdateHorse, handleSelectTrainer, handleSubmitToCenter, handleApproveHorse, handleRejectHorse, handleLogout, handleUpdatePermissions, handleViewTrainer, handleSaveHealthRecord, handleEnroll, invAddItem, invReceive, invEdit, invAdjust, invDelete, completeCare, undoCare, reportIncident, handleCreatePlan, handleCreateSession, handleStartSession, handleCompleteSession, handlePostExam, handleManualLock, handleActivateRehab, handleUnlock, handleConfirmSchedule, selectHorse, navigate, markNotificationRead, openNotification]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

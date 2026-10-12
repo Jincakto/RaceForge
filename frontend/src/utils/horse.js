@@ -3,6 +3,7 @@ export function isHeavySession(type) {
 }
 
 export function getLifecycle(h) {
+  if (h.lock || h.trainingLocked) return h.rehab ? 'rehab' : 'locked';
   if (h.lifecycle) return h.lifecycle;
   if (h.approvalStatus !== 'approved' || !h.clubId) return 'pending';
   if (h.lock) return h.rehab ? 'rehab' : 'locked';

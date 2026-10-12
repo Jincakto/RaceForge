@@ -9,8 +9,8 @@ export function deriveTrainingEligibility(params) {
   if (hasFail || severeInjuries.length > 0) {
     const reasons = [];
     if (hrSt === 'fail' && hrVal !== null) reasons.push(`Nhịp tim: ${hrVal} lần/phút (Bình thường: 28–44) — vượt ngưỡng ±10%`);
-    if (tempSt === 'fail' && tempVal !== null) reasons.push(`Nhiệt độ: ${tempVal}°C (Bình thường: 37,2–38,3°C) — vượt ngưỡng ±10%`);
-    if (rrSt === 'fail' && rrVal !== null) reasons.push(`Nhịp thở: ${rrVal} lần/phút (Bình thường: 8–16) — vượt ngưỡng ±10%`);
+    if (tempSt === 'fail' && tempVal !== null) reasons.push(`Nhiệt độ: ${tempVal}°C (Bình thường: 37,5–38,5°C) — vượt ngưỡng ±10%`);
+    if (rrSt === 'fail' && rrVal !== null) reasons.push(`Nhịp thở: ${rrVal} lần/phút (Bình thường: 10–20) — vượt ngưỡng ±10%`);
     severeInjuries.forEach(([, detail]) => reasons.push(`Chấn thương nặng: ${detail.issue}`));
     const adjustments = ['Tạm ngưng huấn luyện ngay lập tức.', 'Theo dõi sát tình trạng ngựa.', 'Tái khám trước khi được phép luyện tập trở lại.'];
     const trainingNote = `Lý do:\n${reasons.map(r => `- ${r}`).join('\n')}\n\nKhuyến nghị:\n${adjustments.map(a => `- ${a}`).join('\n')}`;
@@ -29,12 +29,12 @@ export function deriveTrainingEligibility(params) {
     else { hasLowVital = true; reasons.push(`Nhịp tim thấp hơn mức tham chiếu: ${hrVal} lần/phút (Bình thường: 28–44)`); }
   }
   if (tempSt === 'watch' && tempVal !== null) {
-    if (tempVal > 38.3) { hasHighVital = true; reasons.push(`Nhiệt độ cao hơn mức tham chiếu: ${tempVal}°C (Bình thường: 37,2–38,3°C)`); }
-    else { hasLowVital = true; reasons.push(`Nhiệt độ thấp hơn mức tham chiếu: ${tempVal}°C (Bình thường: 37,2–38,3°C)`); }
+    if (tempVal > 38.5) { hasHighVital = true; reasons.push(`Nhiệt độ cao hơn mức tham chiếu: ${tempVal}°C (Bình thường: 37,5–38,5°C)`); }
+    else { hasLowVital = true; reasons.push(`Nhiệt độ thấp hơn mức tham chiếu: ${tempVal}°C (Bình thường: 37,5–38,5°C)`); }
   }
   if (rrSt === 'watch' && rrVal !== null) {
-    if (rrVal > 16) { hasHighVital = true; reasons.push(`Nhịp thở cao hơn mức tham chiếu: ${rrVal} lần/phút (Bình thường: 8–16)`); }
-    else { hasLowVital = true; reasons.push(`Nhịp thở thấp hơn mức tham chiếu: ${rrVal} lần/phút (Bình thường: 8–16)`); }
+    if (rrVal > 16) { hasHighVital = true; reasons.push(`Nhịp thở cao hơn mức tham chiếu: ${rrVal} lần/phút (Bình thường: 10–20)`); }
+    else { hasLowVital = true; reasons.push(`Nhịp thở thấp hơn mức tham chiếu: ${rrVal} lần/phút (Bình thường: 10–20)`); }
   }
 
   const clinicalLabels = {

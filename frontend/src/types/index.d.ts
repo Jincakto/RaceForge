@@ -125,7 +125,13 @@ export interface Enrollment {
   packageName: string;
   sessionsTotal: number;
   sessionsDone: number;
-  status: 'active' | 'paused' | 'completed';
+  status: 'pending' | 'active' | 'paused' | 'completed' | 'cancelled';
+  paymentStatus?: 'PENDING' | 'PAID' | 'FAILED';
+  packageType?: string;
+  remainingDays?: number | null;
+  replacedHorsePackageId?: number | null;
+  startDate?: string | null;
+  endDate?: string | null;
   trainerId: number;
   trainerName: string;
   startedAt: string;
@@ -148,6 +154,8 @@ export interface AppNotification {
 }
 
 export interface Horse {
+  backendHealthStatus?: 'READY' | 'INJURED' | 'QUARANTINED' | null;
+  trainingLocked?: boolean;
   id: number;
   name: string;
   breed: string;
@@ -255,6 +263,12 @@ export interface TrainingSession {
 }
 
 export interface HealthRecord {
+  status?: 'DRAFT' | 'CONFIRMED';
+  veterinarianId?: number;
+  examType?: 'INITIAL' | 'PERIODIC' | 'FOLLOW_UP';
+  healthStatus?: 'READY' | 'INJURED' | 'QUARANTINED' | null;
+  systemNote?: string;
+  confirmedAt?: string | null;
   id: number;
   horseId: number;
   date: string;
@@ -362,7 +376,7 @@ export type Page =
   | 'training-hub' | 'care-hub'
   | 'performance' | 'race-results' | 'reports'
   | 'staff' | 'member-requests' | 'notifications' | 'profile'
-  | 'training-register' | 'post-exam' | 'rehab-center' | 'inventory' | 'inventory-log';
+  | 'api-workflow' | 'training-register' | 'post-exam' | 'rehab-center' | 'inventory' | 'inventory-log';
 
 export interface AppState {
   user: AppUser | null;

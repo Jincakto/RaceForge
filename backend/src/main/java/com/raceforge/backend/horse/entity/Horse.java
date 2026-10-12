@@ -4,15 +4,17 @@
 package com.raceforge.backend.horse.entity;
 import jakarta.persistence.*;
 import java.time.LocalDate;
+import java.math.BigDecimal;
 
 @Entity
-@Table(name = "horse")
+@Table(name = "Horse")
 public class Horse{
   
   @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "horse_id_seq")
+  @SequenceGenerator(name = "horse_id_seq", sequenceName = "seq_Horse", allocationSize = 1)
   @Column(name = "horse_id")
-  private Long horseId;
+  private Integer horseId;
 
   // @ManyToOne
   // @JoinColumn(name = "club_id")
@@ -44,8 +46,8 @@ public class Horse{
   @Column(name = "dam")
   private String dam;
 
-  @Column(name = "weight")
-  private Double weight;
+  @Column(name = "weight", precision = 8, scale = 2)
+  private BigDecimal weight;
 
   @Column(name = "health_status")
   private String healthStatus;
@@ -59,11 +61,11 @@ public class Horse{
   public Horse() {
   }
 
-  public Long getHorseId() {
+  public Integer getHorseId() {
       return horseId;
   }
   
-  public void setHorseId(Long horseId) {
+  public void setHorseId(Integer horseId) {
       this.horseId = horseId;
   }
 
@@ -115,11 +117,11 @@ public class Horse{
       this.dam = dam;
   }
 
-  public Double getWeight() {
+  public BigDecimal getWeight() {
       return weight;
   }
 
-  public void setWeight(Double weight) {
+  public void setWeight(BigDecimal weight) {
       this.weight = weight;
   }
 

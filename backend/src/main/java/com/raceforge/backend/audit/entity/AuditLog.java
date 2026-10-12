@@ -1,0 +1,117 @@
+package com.raceforge.backend.audit.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.Table;
+import java.time.Instant;
+
+@Entity
+@Table(name = "Audit_Log")
+public class AuditLog {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "audit_id_seq")
+    @SequenceGenerator(name = "audit_id_seq", sequenceName = "seq_Audit_Log", allocationSize = 1)
+    @Column(name = "audit_id")
+    private Integer auditId;
+
+    @Column(name = "user_id", length = 20)
+    private Integer userId;
+
+    @Column(name = "horse_id", length = 20)
+    private Integer horseId;
+
+    @Column(name = "action", nullable = false, length = 100)
+    private String action;
+
+    @Column(name = "entity_type", nullable = false, length = 100)
+    private String entityType;
+
+    @Column(name = "entity_id", length = 20)
+    private Integer entityId;
+
+    @Column(name = "result", nullable = false, length = 50)
+    private String result;
+
+    @Column(name = "reason", length = 1000)
+    private String reason;
+
+    @Column(name = "created_at", nullable = false)
+    private Instant createdAt;
+
+    public Integer getAuditId() {
+        return auditId;
+    }
+
+    public void setAuditId(Integer auditId) {
+        this.auditId = auditId;
+    }
+
+    public Integer getUserId() {
+        return userId;
+    }
+
+    public void setUserId(Integer userId) {
+        this.userId = userId;
+    }
+
+    public Integer getHorseId() {
+        return horseId;
+    }
+
+    public void setHorseId(Integer horseId) {
+        this.horseId = horseId;
+    }
+
+    public String getAction() {
+        return action;
+    }
+
+    public void setAction(String action) {
+        this.action = action;
+    }
+
+    public String getEntityType() {
+        return entityType;
+    }
+
+    public void setEntityType(String entityType) {
+        this.entityType = entityType;
+    }
+
+    public Integer getEntityId() {
+        return entityId;
+    }
+
+    public void setEntityId(Integer entityId) {
+        this.entityId = entityId;
+    }
+
+    public String getResult() {
+        return result;
+    }
+
+    public void setResult(String result) {
+        this.result = result;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
+    public void setReason(String reason) {
+        this.reason = reason;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+}

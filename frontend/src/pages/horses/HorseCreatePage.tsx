@@ -22,7 +22,7 @@ export function HorseCreatePage({ user, state, navigate, onCreateHorse }:
     if (!newRace.raceName.trim() || !validDisplayDate(newRace.date)) { setError('Nhập tên giải và ngày đua dạng DD/MM/YYYY.'); return; }
     if (Number(newRace.position) > Number(newRace.totalHorses)) { setError('Thứ hạng không thể lớn hơn số ngựa tham gia.'); return; }
     setError('');
-    setRaceHistory(r => [...r, { id: crypto.randomUUID(), ...newRace, raceName: newRace.raceName.trim(), position: Number(newRace.position), totalHorses: Number(newRace.totalHorses) }]);
+    setRaceHistory(r => [...r, { id: newDemoId(), ...newRace, raceName: newRace.raceName.trim(), position: Number(newRace.position), totalHorses: Number(newRace.totalHorses) }]);
     setNewRace({ date: '', raceName: '', distance: '1200m', position: '1', totalHorses: '10', time: '', venue: '', jockey: '', prize: '' });
     setShowRaceForm(false);
   };
@@ -30,12 +30,12 @@ export function HorseCreatePage({ user, state, navigate, onCreateHorse }:
   const handle = () => {
     const invalid = validateHorseFields({ name: form.name, color: form.color, age: Number(form.age), weight: Number(form.weight), height: Number(form.height) });
     if (invalid) { setError(invalid); return; }
-    const id = `RH-${crypto.randomUUID()}`;
+    const id = newDemoId();
     onCreateHorse({
       id, name: form.name, breed: form.breed, age: Number(form.age), color: form.color, gender: form.gender,
       weight: Number(form.weight), height: Number(form.height), stable: '', stall: '', clubId: null,
-      ownerId: user.id, ownerName: user.name, headTrainerId: '', headTrainerName: '',
-      vetId: '', vetName: '', groomId: '', groomName: '',
+      ownerId: user.id, ownerName: user.name, headTrainerId: null, headTrainerName: '',
+      vetId: null, vetName: '', groomId: null, groomName: '',
       healthStatus: 'Pending Vet', trainingStatus: 'Pending Approval', approvalStatus: 'pending',
       registrationDate: new Date().toLocaleDateString('vi-VN'), approvedAt: null, totalRaces: raceHistory.length,
       wins: raceHistory.filter(r => r.position === 1).length,
@@ -99,3 +99,4 @@ export function HorseCreatePage({ user, state, navigate, onCreateHorse }:
     </div>
   );
 }
+import { newDemoId } from '../../utils/demoId';

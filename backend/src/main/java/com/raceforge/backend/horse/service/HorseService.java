@@ -45,7 +45,7 @@ public class HorseService {
               .toList();
   }
 
-  public HorseResponse getHorseById(Long horseId) {
+  public HorseResponse getHorseById(Integer horseId) {
 
       Horse horse = horseRepository.findById(horseId)
               .orElseThrow(() -> new RuntimeException("Horse not found"));
@@ -53,7 +53,7 @@ public class HorseService {
       return horseMapper.toResponse(horse);
   }
 
-  public HorseResponse updateHorse(Long horseId, HorseUpdateRequest request) {
+  public HorseResponse updateHorse(Integer horseId, HorseUpdateRequest request) {
 
       Horse horse = horseRepository.findById(horseId)
               .orElseThrow(() -> new RuntimeException("Horse not found"));
@@ -65,7 +65,7 @@ public class HorseService {
       return horseMapper.toResponse(updatedHorse);
   }
 
-  public void deleteHorse(Long horseId) {
+  public void deleteHorse(Integer horseId) {
 
       Horse horse = horseRepository.findById(horseId)
               .orElseThrow(() -> new RuntimeException("Horse not found"));

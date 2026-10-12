@@ -6,7 +6,7 @@ export function Sidebar({ user, page, navigate, memberReqCount, horseReqCount, g
   const roleItems = NAV_ITEMS[user.role!] || [];
   const rolePages = new Set(roleItems.map(i => i.page));
   const extraItems = GRANTABLE_PAGES
-    .filter(g => grantedPages.includes(g.page) && !rolePages.has(g.page))
+    .filter(g => user.role !== 'user' && grantedPages.includes(g.page) && !rolePages.has(g.page))
     .map(g => ({ icon: g.icon, label: g.label, page: g.page }));
   const items = [...roleItems, ...extraItems];
   return (

@@ -5,7 +5,7 @@ import { Card } from '../../components/common/Card';
 import { Badge } from '../../components/common/Badge';
 
 export function MyHorsesPage({ user, state, navigate, onSubmitToCenter, onSelectHorse }:
-  { user: AppUser; state: AppState; navigate: (p: Page) => void; onSubmitToCenter: (horseId: string) => void; onSelectHorse: (id: string) => void }) {
+  { user: AppUser; state: AppState; navigate: (p: Page) => void; onSubmitToCenter: (horseId: number) => void; onSelectHorse: (id: number) => void }) {
   const myHorses = state.horses.filter(h => h.ownerId === user.id);
   const clubHorses = myHorses.filter(h => !!h.clubId && h.clubId === user.clubId);
   const unregistered = myHorses.filter(h => !h.clubId);

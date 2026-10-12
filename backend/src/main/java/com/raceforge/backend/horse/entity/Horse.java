@@ -1,149 +1,227 @@
-/**
- * JPA entities for Horse, HorseOwnership, Stall, and StallAssignment data.
- */
 package com.raceforge.backend.horse.entity;
+
+import com.raceforge.backend.account.entity.User;
 import jakarta.persistence.*;
+
 import java.time.LocalDate;
+import java.math.BigDecimal;
 
 @Entity
-@Table(name = "horse")
-public class Horse{
-  
-  @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
-  @Column(name = "horse_id")
-  private Long horseId;
+@Table(name = "Horse")
+public class Horse {
 
-  // @ManyToOne
-  // @JoinColumn(name = "club_id")
-  // private Club club;
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "horse_id_seq")
+    @SequenceGenerator(name = "horse_id_seq", sequenceName = "seq_Horse", allocationSize = 1)
+    @Column(name = "horse_id")
+    private Integer horseId;
 
-  // @ManyToOne
-  // @JoinColumn(name = "owner_id")
-  // private User owner;
+    @ManyToOne
+    @JoinColumn(name = "owner_id", nullable = false)
+    private User owner;
 
-  // @ManyToOne
-  // @JoinColumn(name = "head_trainer_id")
-  // private User headTrainer;
+    @ManyToOne
+    @JoinColumn(name = "head_trainer_id")
+    private User headTrainer;
 
-  @Column(name = "horse_name", nullable = false)
-  private String horseName;
+    @Column(name = "horse_name", nullable = false)
+    private String horseName;
 
-  @Column(name = "date_of_birth")
-  private LocalDate dateOfBirth;
+    @Column(name = "date_of_birth")
+    private LocalDate dateOfBirth;
 
-  @Column(name = "gender")
-  private String gender;
+    @Column(name = "gender")
+    private String gender;
 
-  @Column(name = "breed")
-  private String breed;
+    @Column(name = "breed")
+    private String breed;
 
-  @Column(name = "sire")
-  private String sire;
+    @Column(name = "coat_color")
+    private String coatColor;
 
-  @Column(name = "dam")
-  private String dam;
+    @Column(name = "sire")
+    private String sire;
 
-  @Column(name = "weight")
-  private Double weight;
+    @Column(name = "dam")
+    private String dam;
 
-  @Column(name = "health_status")
-  private String healthStatus;
+    @Column(name = "dam_sire")
+    private String damSire;
 
-  @Column(name = "training_locked", nullable = false)
-  private Boolean trainingLocked = false;
+    @Column(name = "weight", precision = 8, scale = 2)
+    private BigDecimal weight;
 
-  @Column(name = "status", nullable = false)
-  private String status;
+    @Column(name = "height")
+    private Double height;
 
-  public Horse() {
-  }
+    @Column(name = "background")
+    private String background;
 
-  public Long getHorseId() {
-      return horseId;
-  }
-  
-  public void setHorseId(Long horseId) {
-      this.horseId = horseId;
-  }
+    @Column(name = "declared_medical_history")
+    private String declaredMedicalHistory;
 
-  public String getHorseName() {
-      return horseName;
-  }
+    @Column(name = "image_url")
+    private String imageUrl;
 
-  public void setHorseName(String horseName) {
-      this.horseName = horseName;
-  }
+    @Column(name = "health_status")
+    private String healthStatus;
 
-  public LocalDate getDateOfBirth() {
-      return dateOfBirth;
-  }
+    @Column(name = "training_locked", nullable = false)
+    private Boolean trainingLocked = false;
 
-  public void setDateOfBirth(LocalDate dateOfBirth) {
-      this.dateOfBirth = dateOfBirth;
-  }
+    @Column(name = "status", nullable = false)
+    private String status;
 
-   public String getGender() {
-      return gender;
-  }
 
-  public void setGender(String gender) {
-      this.gender = gender;
-  }
+    public Integer getHorseId() {
+        return horseId;
+    }
 
-  public String getBreed() {
-      return breed;
-  }
+    public void setHorseId(Integer horseId) {
+        this.horseId = horseId;
+    }
 
-  public void setBreed(String breed) {
-      this.breed = breed;
-  }
+    public User getOwner() {
+        return owner;
+    }
 
-  public String getSire() {
-      return sire;
-  }
+    public void setOwner(User owner) {
+        this.owner = owner;
+    }
 
-  public void setSire(String sire) {
-      this.sire = sire;
-  }
+    public User getHeadTrainer() {
+        return headTrainer;
+    }
 
-  public String getDam() {
-      return dam;
-  }
+    public void setHeadTrainer(User headTrainer) {
+        this.headTrainer = headTrainer;
+    }
 
-  public void setDam(String dam) {
-      this.dam = dam;
-  }
+    public String getHorseName() {
+        return horseName;
+    }
 
-  public Double getWeight() {
-      return weight;
-  }
+    public void setHorseName(String horseName) {
+        this.horseName = horseName;
+    }
 
-  public void setWeight(Double weight) {
-      this.weight = weight;
-  }
+    public LocalDate getDateOfBirth() {
+        return dateOfBirth;
+    }
 
-  public String getHealthStatus() {
-      return healthStatus;
-  }
+    public void setDateOfBirth(LocalDate dateOfBirth) {
+        this.dateOfBirth = dateOfBirth;
+    }
 
-  public void setHealthStatus(String healthStatus) {
-      this.healthStatus = healthStatus;
-  }
+    public String getGender() {
+        return gender;
+    }
 
-  public Boolean getTrainingLocked() {
-      return trainingLocked;
-  }
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
 
-  public void setTrainingLocked(Boolean trainingLocked) {
-      this.trainingLocked = trainingLocked;
-  }
+    public String getBreed() {
+        return breed;
+    }
 
-  public String getStatus() {
-      return status;
-  }
+    public void setBreed(String breed) {
+        this.breed = breed;
+    }
 
-  public void setStatus(String status) {
-      this.status = status;
-  }
+    public String getCoatColor() {
+        return coatColor;
+    }
+
+    public void setCoatColor(String coatColor) {
+        this.coatColor = coatColor;
+    }
+
+    public String getSire() {
+        return sire;
+    }
+
+    public void setSire(String sire) {
+        this.sire = sire;
+    }
+
+    public String getDam() {
+        return dam;
+    }
+
+    public void setDam(String dam) {
+        this.dam = dam;
+    }
+
+    public String getDamSire() {
+        return damSire;
+    }
+
+    public void setDamSire(String damSire) {
+        this.damSire = damSire;
+    }
+
+    public BigDecimal getWeight() {
+        return weight;
+    }
+
+    public void setWeight(BigDecimal weight) {
+        this.weight = weight;
+    }
+
+    public Double getHeight() {
+        return height;
+    }
+
+    public void setHeight(Double height) {
+        this.height = height;
+    }
+
+    public String getBackground() {
+        return background;
+    }
+
+    public void setBackground(String background) {
+        this.background = background;
+    }
+
+    public String getDeclaredMedicalHistory() {
+        return declaredMedicalHistory;
+    }
+
+    public void setDeclaredMedicalHistory(String declaredMedicalHistory) {
+        this.declaredMedicalHistory = declaredMedicalHistory;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
+    public String getHealthStatus() {
+        return healthStatus;
+    }
+
+    public void setHealthStatus(String healthStatus) {
+        this.healthStatus = healthStatus;
+    }
+
+    public Boolean getTrainingLocked() {
+        return trainingLocked;
+    }
+
+    public void setTrainingLocked(Boolean trainingLocked) {
+        this.trainingLocked = trainingLocked;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
 }

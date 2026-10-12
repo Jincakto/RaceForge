@@ -4,7 +4,7 @@ import { Card } from '../../components/common/Card';
 import { Btn } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
 
-export function OwnerDashboard({ state, navigate, onSelectHorse }: { state: AppState; navigate: (p: Page) => void; onSelectHorse: (id: string) => void }) {
+export function OwnerDashboard({ state, navigate, onSelectHorse }: { state: AppState; navigate: (p: Page) => void; onSelectHorse: (id: number) => void }) {
   const myHorses = state.horses.filter(h => h.ownerId === state.user!.id && !!h.clubId && h.clubId === state.user!.clubId);
   const totalWins = myHorses.reduce((s, h) => s + h.wins, 0);
   const totalRaces = myHorses.reduce((s, h) => s + h.totalRaces, 0);

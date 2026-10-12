@@ -1,13 +1,13 @@
-export type Role = 'manager' | 'head_trainer' | 'veterinarian' | 'groom' | 'owner';
+export type Role = 'manager' | 'head_trainer' | 'veterinarian' | 'groom' | 'owner' | 'user';
 
 export interface AppUser {
-  id: string;
+  id: number;
   name: string;
   email: string;
   password: string;
   avatar: string;
   role: Role | null;
-  clubId: string | null;
+  clubId: number | null;
   status: 'active' | 'pending';
   phone?: string;
   bio?: string;
@@ -18,11 +18,11 @@ export interface AppUser {
 }
 
 export interface Club {
-  id: string;
+  id: number;
   name: string;
   location: string;
   description: string;
-  managerId: string;
+  managerId: number;
   managerName: string;
   memberCount: number;
   founded: string;
@@ -30,13 +30,13 @@ export interface Club {
 }
 
 export interface MemberRequest {
-  id: string;
-  userId: string;
+  id: number;
+  userId: number;
   userName: string;
   userEmail: string;
   userAvatar: string;
   userRole: Role | null;
-  clubId: string;
+  clubId: number;
   requestedAt: string;
   expiresAt: string;
   status: 'pending' | 'approved' | 'rejected' | 'expired';
@@ -48,7 +48,7 @@ export type TrainingStatus = 'Active' | 'Resting' | 'Inactive' | 'Pending Approv
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired';
 
 export interface Achievement {
-  id: string;
+  id: number;
   date: string;
   title: string;
   description: string;
@@ -57,7 +57,7 @@ export interface Achievement {
 }
 
 export interface RaceHistoryEntry {
-  id: string;
+  id: number;
   date: string;
   raceName: string;
   distance: string;
@@ -70,7 +70,7 @@ export interface RaceHistoryEntry {
 }
 
 export interface Horse {
-  id: string;
+  id: number;
   name: string;
   breed: string;
   age: number;
@@ -80,14 +80,14 @@ export interface Horse {
   height: number;
   stable: string;
   stall: string;
-  clubId: string | null;
-  ownerId: string;
+  clubId: number | null;
+  ownerId: number;
   ownerName: string;
-  headTrainerId: string;
+  headTrainerId: number | null;
   headTrainerName: string;
-  vetId: string;
+  vetId: number | null;
   vetName: string;
-  groomId: string;
+  groomId: number | null;
   groomName: string;
   healthStatus: HealthStatus;
   trainingStatus: TrainingStatus;
@@ -104,14 +104,14 @@ export interface Horse {
 }
 
 export interface HorseClubRequest {
-  id: string;
-  horseId: string;
+  id: number;
+  horseId: number;
   horseName: string;
   horseBreed: string;
   horseImageUrl: string;
-  ownerId: string;
+  ownerId: number;
   ownerName: string;
-  clubId: string;
+  clubId: number;
   submittedAt: string;
   expiresAt: string;
   status: 'pending' | 'approved' | 'rejected' | 'expired';
@@ -119,8 +119,8 @@ export interface HorseClubRequest {
 }
 
 export interface TrainingPlan {
-  id: string;
-  horseId: string;
+  id: number;
+  horseId: number;
   phase: string;
   startDate: string;
   endDate: string;
@@ -142,15 +142,15 @@ export interface TrainingPlan {
 }
 
 export interface TrainingSession {
-  id: string;
-  horseId: string;
-  planId: string;
+  id: number;
+  horseId: number;
+  planId: number;
   date: string;
   time: string;
   type: string;
   trainerName: string;
-  trainerId: string;
-  assignedStaffIds: string[];
+  trainerId: number;
+  assignedStaffIds: number[];
   assignedStaffNames: string[];
   status: 'Scheduled' | 'Completed' | 'Cancelled' | 'In Progress';
   distance: string;
@@ -167,8 +167,8 @@ export interface TrainingSession {
 }
 
 export interface HealthRecord {
-  id: string;
-  horseId: string;
+  id: number;
+  horseId: number;
   date: string;
   type: string;
   vet: string;
@@ -199,9 +199,9 @@ export interface HealthRecord {
   diagnosis?: string;
   recommendations?: string;
   // Linked IDs snapshotted at exam time for audit history
-  ownerId?: string;
-  headTrainerId?: string;
-  managerId?: string;
+  ownerId?: number;
+  headTrainerId?: number | null;
+  managerId?: number;
   // Auto-derived training eligibility (Section 6)
   trainingEligibility?: 'eligible' | 'conditional' | 'not-eligible';
   trainingReasons?: string[];
@@ -394,15 +394,15 @@ function buildPlan(phase: string, score: number, opts: {
 export const SEED_USERS: AppUser[] = [
   // Manager
   {
-    id: 'u1', name: 'Nguyen Van Binh', email: 'manager@raceforce.vn', password: '123456',
-    role: 'manager', clubId: 'c1', status: 'active', avatar: 'NB', verified: true,
+    id: 2, name: 'Nguyen Van Binh', email: 'manager@raceforce.vn', password: '123456',
+    role: 'manager', clubId: 3, status: 'active', avatar: 'NB', verified: true,
     phone: '0901 234 567',
     bio: 'Quản lý trung tâm huấn luyện với 10 năm kinh nghiệm trong ngành đua ngựa chuyên nghiệp.',
   },
   // Head Trainer
   {
-    id: 'u2', name: 'Nguyen Minh Tuan', email: 'trainer@raceforce.vn', password: '123456',
-    role: 'head_trainer', clubId: 'c1', status: 'active', avatar: 'NT', verified: true,
+    id: 4, name: 'Nguyen Minh Tuan', email: 'trainer@raceforce.vn', password: '123456',
+    role: 'head_trainer', clubId: 3, status: 'active', avatar: 'NT', verified: true,
     phone: '0912 345 678',
     bio: 'Head Trainer với 12 năm kinh nghiệm huấn luyện ngựa đua Thoroughbred và Arabian.',
     experience: '12 năm huấn luyện ngựa đua · Trước đây làm tại Happy Valley (HK)',
@@ -411,7 +411,7 @@ export const SEED_USERS: AppUser[] = [
   },
   // Head Trainer 2 (chưa vào trung tâm — chờ manager duyệt)
   {
-    id: 'u3', name: 'Tran Duc Khai', email: 'trainer2@raceforce.vn', password: '123456',
+    id: 5, name: 'Tran Duc Khai', email: 'trainer2@raceforce.vn', password: '123456',
     role: 'head_trainer', clubId: null, status: 'active', avatar: 'TK', verified: true,
     phone: '0933 456 789',
     bio: 'Cựu jockey chuyển sang huấn luyện. Chuyên về conditioning và sprint training.',
@@ -421,30 +421,30 @@ export const SEED_USERS: AppUser[] = [
   },
   // Veterinarian
   {
-    id: 'u4', name: 'Dr. Le Thi An', email: 'vet@raceforce.vn', password: '123456',
-    role: 'veterinarian', clubId: 'c1', status: 'active', avatar: 'LA', verified: true,
+    id: 6, name: 'Dr. Le Thi An', email: 'vet@raceforce.vn', password: '123456',
+    role: 'veterinarian', clubId: 3, status: 'active', avatar: 'LA', verified: true,
     phone: '0945 678 901',
     bio: 'Bác sĩ thú y chuyên về ngựa đua với hơn 8 năm kinh nghiệm.',
     certifications: 'DVM · Chuyên khoa ngựa đua · Chứng chỉ siêu âm cơ xương khớp',
   },
   // Groom
   {
-    id: 'u5', name: 'Le Van Nam', email: 'groom@raceforce.vn', password: '123456',
-    role: 'groom', clubId: 'c1', status: 'active', avatar: 'LN', verified: true,
+    id: 7, name: 'Le Van Nam', email: 'groom@raceforce.vn', password: '123456',
+    role: 'groom', clubId: 3, status: 'active', avatar: 'LN', verified: true,
     phone: '0956 789 012',
     bio: 'Groom chuyên nghiệp với 7 năm kinh nghiệm chăm sóc ngựa đua.',
   },
   // Owner 1 (đã có 2 ngựa — 1 ok, 1 có vấn đề)
   {
-    id: 'u6', name: 'Nguyen Van An', email: 'owner@raceforce.vn', password: '123456',
-    role: 'owner', clubId: 'c1', status: 'active', avatar: 'NA', verified: true,
+    id: 8, name: 'Nguyen Van An', email: 'owner@raceforce.vn', password: '123456',
+    role: 'owner', clubId: 3, status: 'active', avatar: 'NA', verified: true,
     phone: '0967 890 123',
     bio: 'Chủ ngựa đua với đam mê thể thao kỵ mã. Sở hữu 2 ngựa đua tại Saigon Racing Center.',
   },
   // Owner 2 (mới, chưa có ngựa)
   {
-    id: 'u7', name: 'Pham Thi Lan', email: 'owner2@raceforce.vn', password: '123456',
-    role: 'owner', clubId: 'c1', status: 'active', avatar: 'PL', verified: true,
+    id: 9, name: 'Pham Thi Lan', email: 'owner2@raceforce.vn', password: '123456',
+    role: 'owner', clubId: 3, status: 'active', avatar: 'PL', verified: true,
     phone: '0978 901 234',
     bio: 'Chủ ngựa mới gia nhập. Đang tìm kiếm ngựa giống phù hợp.',
   },
@@ -452,26 +452,26 @@ export const SEED_USERS: AppUser[] = [
 
 export const SEED_CLUBS: Club[] = [
   {
-    id: 'c1', name: 'Saigon Racing Center', location: 'TP. Hồ Chí Minh',
+    id: 3, name: 'Saigon Racing Center', location: 'TP. Hồ Chí Minh',
     description: 'Trung tâm huấn luyện ngựa đua hàng đầu tại Việt Nam, thành lập năm 2015 với đội ngũ chuyên nghiệp.',
-    managerId: 'u1', managerName: 'Nguyen Van Binh', memberCount: 6, founded: '2015', logoLetter: 'S',
+    managerId: 2, managerName: 'Nguyen Van Binh', memberCount: 6, founded: '2015', logoLetter: 'S',
   },
   {
-    id: 'c2', name: 'Hanoi Equestrian Center', location: 'Hà Nội',
+    id: 10, name: 'Hanoi Equestrian Center', location: 'Hà Nội',
     description: 'Trung tâm huấn luyện ngựa đua truyền thống tại Hà Nội, chuyên về các giải đua quốc gia và quốc tế.',
-    managerId: 'u99', managerName: 'Tran Duc Manh', memberCount: 12, founded: '2010', logoLetter: 'H',
+    managerId: 11, managerName: 'Tran Duc Manh', memberCount: 12, founded: '2010', logoLetter: 'H',
   },
   {
-    id: 'c3', name: 'Da Nang Racing Center', location: 'Đà Nẵng',
+    id: 12, name: 'Da Nang Racing Center', location: 'Đà Nẵng',
     description: 'Trung tâm huấn luyện ngựa đua miền Trung với sân đua tiêu chuẩn quốc tế.',
-    managerId: 'u98', managerName: 'Le Hoang Nam', memberCount: 8, founded: '2018', logoLetter: 'D',
+    managerId: 13, managerName: 'Le Hoang Nam', memberCount: 8, founded: '2018', logoLetter: 'D',
   },
 ];
 
 export const SEED_REQUESTS: MemberRequest[] = [
   {
-    id: 'req001', userId: 'u3', userName: 'Tran Duc Khai', userEmail: 'trainer2@raceforce.vn',
-    userAvatar: 'TK', userRole: 'head_trainer', clubId: 'c1',
+    id: 14, userId: 5, userName: 'Tran Duc Khai', userEmail: 'trainer2@raceforce.vn',
+    userAvatar: 'TK', userRole: 'head_trainer', clubId: 3,
     requestedAt: '20/09/2026', expiresAt: '27/09/2026', status: 'pending', assignedRole: 'head_trainer',
   },
 ];
@@ -484,34 +484,34 @@ export const SEED_HORSE_CLUB_REQUESTS: HorseClubRequest[] = [];
 
 export const HORSES: Horse[] = [
   {
-    id: 'RH-001', name: 'Thunder King', breed: 'Thoroughbred', age: 5, color: 'Bay',
+    id: 1, name: 'Thunder King', breed: 'Thoroughbred', age: 5, color: 'Bay',
     gender: 'Stallion', weight: 512, height: 163, stable: 'Stable A', stall: 'A-12',
-    clubId: 'c1', ownerId: 'u6', ownerName: 'Nguyen Van An',
-    headTrainerId: 'u2', headTrainerName: 'Nguyen Minh Tuan',
-    vetId: 'u4', vetName: 'Dr. Le Thi An', groomId: 'u5', groomName: 'Le Van Nam',
+    clubId: 3, ownerId: 8, ownerName: 'Nguyen Van An',
+    headTrainerId: 4, headTrainerName: 'Nguyen Minh Tuan',
+    vetId: 6, vetName: 'Dr. Le Thi An', groomId: 7, groomName: 'Le Van Nam',
     healthStatus: 'Eligible', trainingStatus: 'Active',
     approvalStatus: 'approved', registrationDate: '15/03/2021', approvedAt: '20/03/2021',
     totalRaces: 12, wins: 7, vetClearance: true,
     biography: 'Thoroughbred giống thuần chủng nhập từ Úc năm 2021. Tiếng là nước rút xuất sắc ở chặng cuối, nhịp tim hồi phục nhanh sau cường độ cao. Tốc độ đỉnh 59.9 km/h.',
     imageUrl: 'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?w=700&h=500&fit=crop&auto=format',
     achievements: [
-      { id: 'a1', date: '10/09/2026', title: 'Saigon Sprint Cup', description: 'Vô địch cự ly 1200m, dẫn đầu từ góc cua cuối', prize: '50,000,000 VND', position: 1 },
-      { id: 'a2', date: '20/07/2026', title: 'Summer Classic 1600m', description: 'Vô địch cự ly 1600m với khoảng cách 2 thân so với ngựa thứ 2', prize: '80,000,000 VND', position: 1 },
-      { id: 'a3', date: '15/08/2026', title: 'Golden Gate Stakes', description: 'Hạng nhì cự ly 1400m, sát nút với ngựa vô địch', prize: '20,000,000 VND', position: 2 },
+      { id: 15, date: '10/09/2026', title: 'Saigon Sprint Cup', description: 'Vô địch cự ly 1200m, dẫn đầu từ góc cua cuối', prize: '50,000,000 VND', position: 1 },
+      { id: 16, date: '20/07/2026', title: 'Summer Classic 1600m', description: 'Vô địch cự ly 1600m với khoảng cách 2 thân so với ngựa thứ 2', prize: '80,000,000 VND', position: 1 },
+      { id: 17, date: '15/08/2026', title: 'Golden Gate Stakes', description: 'Hạng nhì cự ly 1400m, sát nút với ngựa vô địch', prize: '20,000,000 VND', position: 2 },
     ],
     raceHistory: [
-      { id: 'rh1', date: '10/09/2026', raceName: 'Saigon Sprint Cup', distance: '1200m', position: 1, totalHorses: 10, time: '1:11.24', venue: 'Phú Thọ Racecourse', jockey: 'Nguyen Duc', prize: '50,000,000 VND' },
-      { id: 'rh2', date: '15/08/2026', raceName: 'Golden Gate Stakes', distance: '1400m', position: 2, totalHorses: 12, time: '1:25.10', venue: 'Phú Thọ Racecourse', jockey: 'Nguyen Duc', prize: '20,000,000 VND' },
-      { id: 'rh3', date: '20/07/2026', raceName: 'Summer Classic', distance: '1600m', position: 1, totalHorses: 9, time: '1:38.55', venue: 'Phú Thọ Racecourse', jockey: 'Nguyen Duc', prize: '80,000,000 VND' },
-      { id: 'rh4', date: '05/06/2026', raceName: 'Monsoon Mile', distance: '1600m', position: 3, totalHorses: 11, time: '1:39.80', venue: 'Phú Thọ Racecourse', jockey: 'Nguyen Duc', prize: '10,000,000 VND' },
+      { id: 18, date: '10/09/2026', raceName: 'Saigon Sprint Cup', distance: '1200m', position: 1, totalHorses: 10, time: '1:11.24', venue: 'Phú Thọ Racecourse', jockey: 'Nguyen Duc', prize: '50,000,000 VND' },
+      { id: 19, date: '15/08/2026', raceName: 'Golden Gate Stakes', distance: '1400m', position: 2, totalHorses: 12, time: '1:25.10', venue: 'Phú Thọ Racecourse', jockey: 'Nguyen Duc', prize: '20,000,000 VND' },
+      { id: 20, date: '20/07/2026', raceName: 'Summer Classic', distance: '1600m', position: 1, totalHorses: 9, time: '1:38.55', venue: 'Phú Thọ Racecourse', jockey: 'Nguyen Duc', prize: '80,000,000 VND' },
+      { id: 21, date: '05/06/2026', raceName: 'Monsoon Mile', distance: '1600m', position: 3, totalHorses: 11, time: '1:39.80', venue: 'Phú Thọ Racecourse', jockey: 'Nguyen Duc', prize: '10,000,000 VND' },
     ],
   },
   {
-    id: 'RH-002', name: 'Storm Wreck', breed: 'Quarter Horse', age: 9, color: 'Dark Bay',
+    id: 22, name: 'Storm Wreck', breed: 'Quarter Horse', age: 9, color: 'Dark Bay',
     gender: 'Gelding', weight: 598, height: 158, stable: 'Stable C', stall: 'C-08',
-    clubId: 'c1', ownerId: 'u6', ownerName: 'Nguyen Van An',
-    headTrainerId: 'u2', headTrainerName: 'Nguyen Minh Tuan',
-    vetId: 'u4', vetName: 'Dr. Le Thi An', groomId: 'u5', groomName: 'Le Van Nam',
+    clubId: 3, ownerId: 8, ownerName: 'Nguyen Van An',
+    headTrainerId: 4, headTrainerName: 'Nguyen Minh Tuan',
+    vetId: 6, vetName: 'Dr. Le Thi An', groomId: 7, groomName: 'Le Van Nam',
     healthStatus: 'Injured', trainingStatus: 'Inactive',
     approvalStatus: 'approved', registrationDate: '10/02/2023', approvedAt: '15/02/2023',
     totalRaces: 6, wins: 1, vetClearance: false,
@@ -519,15 +519,15 @@ export const HORSES: Horse[] = [
     imageUrl: 'https://images.unsplash.com/photo-1566288623394-377af472d81b?w=700&h=500&fit=crop&auto=format',
     achievements: [],
     raceHistory: [
-      { id: 'rh5', date: '12/05/2026', raceName: 'Northern Sprint Open', distance: '1000m', position: 4, totalHorses: 10, time: '1:02.80', venue: 'Gia Lâm Racecourse', jockey: 'Tran Van Hung', prize: '0 VND' },
-      { id: 'rh6', date: '01/04/2026', raceName: 'Spring Classic', distance: '1200m', position: 1, totalHorses: 8, time: '1:16.40', venue: 'Gia Lâm Racecourse', jockey: 'Tran Van Hung', prize: '25,000,000 VND' },
+      { id: 23, date: '12/05/2026', raceName: 'Northern Sprint Open', distance: '1000m', position: 4, totalHorses: 10, time: '1:02.80', venue: 'Gia Lâm Racecourse', jockey: 'Tran Van Hung', prize: '0 VND' },
+      { id: 24, date: '01/04/2026', raceName: 'Spring Classic', distance: '1200m', position: 1, totalHorses: 8, time: '1:16.40', venue: 'Gia Lâm Racecourse', jockey: 'Tran Van Hung', prize: '25,000,000 VND' },
     ],
   },
 ];
 
 export const MEDICAL_RECORDS: HealthRecord[] = [
   {
-    id: 'm1', horseId: 'RH-001', date: '22/09/2026', type: 'Kiểm tra định kỳ', vet: 'Dr. Le Thi An',
+    id: 25, horseId: 1, date: '22/09/2026', type: 'Kiểm tra định kỳ', vet: 'Dr. Le Thi An',
     notes: 'Tất cả chỉ số xuất sắc. Ngựa trong phong độ đỉnh cao, sẵn sàng thi đấu.',
     result: 'Eligible', medications: 'Vitamin E 500IU/ngày', isPostTraining: false, vetClearanceGranted: true,
     vitals: { heartRate: '32', temperature: '37.7', weight: '512', respRate: '11', bloodPressure: '108/68' },
@@ -535,7 +535,7 @@ export const MEDICAL_RECORDS: HealthRecord[] = [
     recommendations: 'Tiếp tục chế độ tập luyện Competition Prep. Bổ sung vitamin E và điện giải hàng ngày.',
   },
   {
-    id: 'm2', horseId: 'RH-001', date: '20/08/2026', type: 'Tiêm phòng', vet: 'Dr. Le Thi An',
+    id: 26, horseId: 1, date: '20/08/2026', type: 'Tiêm phòng', vet: 'Dr. Le Thi An',
     notes: 'Tiêm vaccine cúm ngựa (EIV) và uốn ván định kỳ. Phản ứng bình thường.',
     result: 'Completed', medications: 'EIV Vaccine + Tetanus Toxoid', isPostTraining: false, vetClearanceGranted: false,
     vitals: { heartRate: '38', temperature: '38.0', weight: '510', respRate: '13', bloodPressure: '112/72' },
@@ -543,7 +543,7 @@ export const MEDICAL_RECORDS: HealthRecord[] = [
     recommendations: 'Nghỉ nhẹ 24 giờ sau tiêm. Theo dõi phản ứng.',
   },
   {
-    id: 'm3', horseId: 'RH-002', date: '21/09/2026', type: 'Khám chấn thương', vet: 'Dr. Le Thi An',
+    id: 27, horseId: 22, date: '21/09/2026', type: 'Khám chấn thương', vet: 'Dr. Le Thi An',
     notes: 'Phát hiện tổn thương dây chằng bên ngoài chân phải trước. Sưng rõ, phản ứng đau dương tính.',
     result: 'Injured', medications: 'NSAID (Phenylbutazone 4.4mg/kg) · Bao đá lạnh 20 phút × 3/ngày · Băng cố định',
     isPostTraining: false, vetClearanceGranted: false,
@@ -555,7 +555,7 @@ export const MEDICAL_RECORDS: HealthRecord[] = [
 
 export const TRAINING_PLANS: TrainingPlan[] = [
   {
-    id: 'tp1', horseId: 'RH-001', phase: 'Competition Prep',
+    id: 28, horseId: 1, phase: 'Competition Prep',
     startDate: '01/09/2026', endDate: '31/10/2026',
     distance: '1200m', workload: 'High', surface: 'Turf',
     goals: 'Cải thiện tốc độ sprint, chuẩn bị cho Saigon Grand Prix 15/10',
@@ -567,24 +567,24 @@ export const TRAINING_PLANS: TrainingPlan[] = [
 
 export const TRAINING_SESSIONS: TrainingSession[] = [
   {
-    id: 'ts1', horseId: 'RH-001', planId: 'tp1', date: '25/09/2026', time: '09:00',
-    type: 'Sprint Interval', trainerName: 'Nguyen Minh Tuan', trainerId: 'u2',
-    assignedStaffIds: ['u5'], assignedStaffNames: ['Le Van Nam'],
+    id: 29, horseId: 1, planId: 28, date: '25/09/2026', time: '09:00',
+    type: 'Sprint Interval', trainerName: 'Nguyen Minh Tuan', trainerId: 4,
+    assignedStaffIds: [7], assignedStaffNames: ['Le Van Nam'],
     status: 'Scheduled', distance: '4 × 200m', targetTime: '23s/rep',
     notes: 'Tập trung vào xuất phát cổng + nước rút chặng cuối', conflictChecked: true,
   },
   {
-    id: 'ts2', horseId: 'RH-001', planId: 'tp1', date: '23/09/2026', time: '08:00',
-    type: 'Race-Pace Gallop', trainerName: 'Nguyen Minh Tuan', trainerId: 'u2',
-    assignedStaffIds: ['u5'], assignedStaffNames: ['Le Van Nam'],
+    id: 30, horseId: 1, planId: 28, date: '23/09/2026', time: '08:00',
+    type: 'Race-Pace Gallop', trainerName: 'Nguyen Minh Tuan', trainerId: 4,
+    assignedStaffIds: [7], assignedStaffNames: ['Le Van Nam'],
     status: 'Completed', distance: '1200m', targetTime: '74s',
     notes: 'Duy trì nhịp tốt, tập trung vào góc cua', conflictChecked: true,
     result: { time: '73.8s', speed: '58.6', heartRate: 188, notes: 'Phong độ xuất sắc — kỷ lục cá nhân mới!', performanceScore: 94 },
   },
   {
-    id: 'ts3', horseId: 'RH-001', planId: 'tp1', date: '21/09/2026', time: '07:00',
-    type: 'Recovery Trot', trainerName: 'Nguyen Minh Tuan', trainerId: 'u2',
-    assignedStaffIds: ['u5'], assignedStaffNames: ['Le Van Nam'],
+    id: 31, horseId: 1, planId: 28, date: '21/09/2026', time: '07:00',
+    type: 'Recovery Trot', trainerName: 'Nguyen Minh Tuan', trainerId: 4,
+    assignedStaffIds: [7], assignedStaffNames: ['Le Van Nam'],
     status: 'Completed', distance: '3000m', targetTime: '—',
     notes: 'Phục hồi tích cực sau Sprint Interval', conflictChecked: true,
     result: { time: '—', speed: '20.4', heartRate: 138, notes: 'Thư giãn tốt, không có dấu hiệu mỏi', performanceScore: 82 },
@@ -601,20 +601,20 @@ export const PERFORMANCE_DATA = [
 ];
 
 export const GROOM_TASKS = [
-  { id: 'gt1', horseId: 'RH-001', date: '25/09/2026', type: 'Cho ăn sáng', time: '06:00', description: '5kg hỗn hợp ngũ cốc + 3kg cỏ khô + Vitamin E', status: 'Pending', completedAt: null },
-  { id: 'gt2', horseId: 'RH-001', date: '25/09/2026', type: 'Chải chuốt', time: '07:00', description: 'Chải lông toàn thân, vệ sinh móng, chải bờm đuôi', status: 'Pending', completedAt: null },
-  { id: 'gt3', horseId: 'RH-001', date: '25/09/2026', type: 'Dọn chuồng', time: '08:00', description: 'Dọn rác thải, thay lớp rơm mới, khử trùng nền', status: 'Pending', completedAt: null },
-  { id: 'gt4', horseId: 'RH-001', date: '25/09/2026', type: 'Cho ăn trưa', time: '12:00', description: '3kg ngũ cốc + kiểm tra nước uống (tối thiểu 15L)', status: 'Pending', completedAt: null },
-  { id: 'gt5', horseId: 'RH-001', date: '25/09/2026', type: 'Đi bộ thư giãn', time: '14:00', description: '20 phút đi bộ nhẹ tại bãi cỏ', status: 'Pending', completedAt: null },
-  { id: 'gt6', horseId: 'RH-001', date: '25/09/2026', type: 'Cho ăn tối', time: '18:00', description: '5kg ngũ cốc + điện giải ORS + 4kg cỏ khô', status: 'Pending', completedAt: null },
-  { id: 'gt7', horseId: 'RH-002', date: '25/09/2026', type: 'Hydrotherapy', time: '09:00', description: 'Ngâm chân phải trước trong nước lạnh 20 phút', status: 'Pending', completedAt: null },
-  { id: 'gt8', horseId: 'RH-002', date: '25/09/2026', type: 'Thay băng', time: '10:00', description: 'Thay băng cố định chân phải trước, kiểm tra tình trạng sưng', status: 'Pending', completedAt: null },
+  { id: 32, horseId: 1, date: '25/09/2026', type: 'Cho ăn sáng', time: '06:00', description: '5kg hỗn hợp ngũ cốc + 3kg cỏ khô + Vitamin E', status: 'Pending', completedAt: null },
+  { id: 33, horseId: 1, date: '25/09/2026', type: 'Chải chuốt', time: '07:00', description: 'Chải lông toàn thân, vệ sinh móng, chải bờm đuôi', status: 'Pending', completedAt: null },
+  { id: 34, horseId: 1, date: '25/09/2026', type: 'Dọn chuồng', time: '08:00', description: 'Dọn rác thải, thay lớp rơm mới, khử trùng nền', status: 'Pending', completedAt: null },
+  { id: 35, horseId: 1, date: '25/09/2026', type: 'Cho ăn trưa', time: '12:00', description: '3kg ngũ cốc + kiểm tra nước uống (tối thiểu 15L)', status: 'Pending', completedAt: null },
+  { id: 36, horseId: 1, date: '25/09/2026', type: 'Đi bộ thư giãn', time: '14:00', description: '20 phút đi bộ nhẹ tại bãi cỏ', status: 'Pending', completedAt: null },
+  { id: 37, horseId: 1, date: '25/09/2026', type: 'Cho ăn tối', time: '18:00', description: '5kg ngũ cốc + điện giải ORS + 4kg cỏ khô', status: 'Pending', completedAt: null },
+  { id: 38, horseId: 22, date: '25/09/2026', type: 'Hydrotherapy', time: '09:00', description: 'Ngâm chân phải trước trong nước lạnh 20 phút', status: 'Pending', completedAt: null },
+  { id: 39, horseId: 22, date: '25/09/2026', type: 'Thay băng', time: '10:00', description: 'Thay băng cố định chân phải trước, kiểm tra tình trạng sưng', status: 'Pending', completedAt: null },
 ];
 
 export const NOTIFICATIONS = [
-  { id: 'n1', type: 'health', message: 'Thunder King (RH-001) — Kiểm tra sức khỏe định kỳ tới hạn trong 7 ngày', time: '2 giờ trước', read: false },
-  { id: 'n2', type: 'training', message: 'Kết quả buổi tập Race-Pace 1200m: 73.8s — Kỷ lục cá nhân mới!', time: '4 giờ trước', read: false },
-  { id: 'n3', type: 'health', message: 'Storm Wreck (RH-002) — Cần tái khám sau 2 tuần điều trị chấn thương', time: '1 ngày trước', read: false },
-  { id: 'n4', type: 'race', message: 'Saigon Grand Prix 15/10 — Hạn đăng ký còn 5 ngày', time: '1 ngày trước', read: true },
-  { id: 'n5', type: 'system', message: 'Yêu cầu tham gia từ Tran Duc Khai (Head Trainer) — Đang chờ duyệt', time: '2 ngày trước', read: true },
+  { id: 40, type: 'health', message: 'Thunder King (RH-001) — Kiểm tra sức khỏe định kỳ tới hạn trong 7 ngày', time: '2 giờ trước', read: false },
+  { id: 41, type: 'training', message: 'Kết quả buổi tập Race-Pace 1200m: 73.8s — Kỷ lục cá nhân mới!', time: '4 giờ trước', read: false },
+  { id: 42, type: 'health', message: 'Storm Wreck (RH-002) — Cần tái khám sau 2 tuần điều trị chấn thương', time: '1 ngày trước', read: false },
+  { id: 43, type: 'race', message: 'Saigon Grand Prix 15/10 — Hạn đăng ký còn 5 ngày', time: '1 ngày trước', read: true },
+  { id: 44, type: 'system', message: 'Yêu cầu tham gia từ Tran Duc Khai (Head Trainer) — Đang chờ duyệt', time: '2 ngày trước', read: true },
 ];

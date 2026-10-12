@@ -1,6 +1,7 @@
 import { type Page } from '../../types/reference';
+import { type AppUser } from '../../data';
 
-export function HomePage({ navigate }: { navigate: (p: Page) => void }) {
+export function HomePage({ navigate, user = null }: { navigate: (p: Page) => void; user?: AppUser | null }) {
   return (
     <div className="min-h-screen bg-[#0f1729] overflow-x-hidden">
       <nav className="flex items-center justify-between px-10 py-5 border-b border-white/10">
@@ -12,8 +13,8 @@ export function HomePage({ navigate }: { navigate: (p: Page) => void }) {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('login')} className="px-5 py-2 text-sm text-gray-300 hover:text-white font-medium transition-colors">Đăng nhập</button>
-          <button onClick={() => navigate('register')} className="px-5 py-2 bg-[#c9973b] hover:bg-[#b8852a] text-white text-sm font-semibold rounded-lg transition-all">Đăng ký</button>
+          <button onClick={() => navigate('login')} className="px-5 py-2 text-sm text-gray-300 hover:text-white font-medium transition-colors">{user ? 'Đăng xuất' : 'Đăng nhập'}</button>
+          <button onClick={() => navigate(user ? user.role === 'user' ? 'profile' : 'dashboard' : 'register')} className="px-5 py-2 bg-[#c9973b] hover:bg-[#b8852a] text-white text-sm font-semibold rounded-lg transition-all">{user ? 'Tài khoản' : 'Đăng ký'}</button>
         </div>
       </nav>
       <div className="max-w-6xl mx-auto px-10 pt-20 pb-16 grid grid-cols-2 gap-12 items-center">
@@ -27,8 +28,8 @@ export function HomePage({ navigate }: { navigate: (p: Page) => void }) {
           </h1>
           <p className="text-gray-400 text-lg leading-relaxed mb-8">Sức khỏe, giáo án AI, chăm sóc và kết quả đua — tất cả trong một hệ thống duy nhất.</p>
           <div className="flex items-center gap-4">
-            <button onClick={() => navigate('register')} className="px-7 py-3.5 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all text-base shadow-lg shadow-[#c9973b]/20">Bắt đầu miễn phí →</button>
-            <button onClick={() => navigate('login')} className="px-7 py-3.5 bg-white/10 hover:bg-white/15 text-white font-semibold rounded-xl transition-all text-base border border-white/20">Đăng nhập</button>
+            <button onClick={() => navigate(user ? user.role === 'user' ? 'profile' : 'dashboard' : 'register')} className="px-7 py-3.5 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all text-base shadow-lg shadow-[#c9973b]/20">{user ? 'Tài khoản' : 'Bắt đầu miễn phí →'}</button>
+            {!user && <button onClick={() => navigate('login')} className="px-7 py-3.5 bg-white/10 hover:bg-white/15 text-white font-semibold rounded-xl transition-all text-base border border-white/20">Đăng nhập</button>}
           </div>
         </div>
         <div className="relative">

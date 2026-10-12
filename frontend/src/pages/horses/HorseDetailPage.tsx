@@ -13,7 +13,7 @@ import { Select } from '../../components/common/Select';
 import { TrainingAlgorithmTab } from '../../components/training/TrainingAlgorithmTab';
 
 function HorseDetailContent({ state, navigate, onUpdateHorse, onShowSuccess, onAddAchievement }:
-  { state: AppState; navigate: (p: Page) => void; onUpdateHorse: (h: Horse) => void; onShowSuccess: (m: string) => void; onAddAchievement: (horseId: string, achievement: Achievement) => void }) {
+  { state: AppState; navigate: (p: Page) => void; onUpdateHorse: (h: Horse) => void; onShowSuccess: (m: string) => void; onAddAchievement: (horseId: number, achievement: Achievement) => void }) {
   const user = state.user!;
   const horse = state.horses.find(h => h.id === state.selectedHorseId)!;
   const [tab, setTab] = useState('overview');
@@ -35,7 +35,7 @@ function HorseDetailContent({ state, navigate, onUpdateHorse, onShowSuccess, onA
   const addAchievement = () => {
     if (!newAch.title.trim() || !validDisplayDate(newAch.date)) { setError('Nhập tên thành tích và ngày hợp lệ dạng DD/MM/YYYY.'); return; }
     setError('');
-    onAddAchievement(horse.id, { id: crypto.randomUUID(), title: newAch.title.trim(), date: newAch.date, description: newAch.description, prize: newAch.prize, position: Number(newAch.position) });
+    onAddAchievement(horse.id, { id: Date.now() + Math.floor(Math.random() * 1000), title: newAch.title.trim(), date: newAch.date, description: newAch.description, prize: newAch.prize, position: Number(newAch.position) });
     setShowAchForm(false); setNewAch({ title: '', date: '', description: '', prize: '', position: '1' }); onShowSuccess('Đã thêm thành tích!');
   };
 

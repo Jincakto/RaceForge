@@ -8,8 +8,8 @@ export function ownerView(state: AppState): AppState {
   return {
     ...state, horses,
     notifications: state.notifications.filter(notification => {
-      const horseId = ({ n1: 'RH-001', n2: 'RH-001', n3: 'RH-002' } as Record<string, string>)[notification.id];
-      return horseId ? ids.has(horseId) : notification.id === 'n4' || state.horseClubRequests.some(request => request.id === notification.id && request.ownerId === user.id);
+      const horseId = ({ 41: 14, 42: 14, 43: 22 } as Record<number, number>)[notification.id];
+      return horseId ? ids.has(horseId) : notification.id === 44 || state.horseClubRequests.some(request => request.id === notification.id && request.ownerId === user.id);
     }),
     healthRecords: state.healthRecords.filter(record => ids.has(record.horseId)),
     trainingPlans: state.trainingPlans.filter(plan => ids.has(plan.horseId)),
@@ -35,7 +35,7 @@ export function addOwnerHorse(state: AppState, horse: import('../data').Horse): 
   return { ...state, horses: [...state.horses, { ...horse, name: horse.name.trim(), clubId: null, ownerName: state.user.name, approvalStatus: 'pending', vetClearance: false }], selectedHorseId: horse.id, trainerSelectHorseId: horse.id };
 }
 
-export function assignOwnerTrainer(state: AppState, horseId: string, trainerId: string): AppState {
+export function assignOwnerTrainer(state: AppState, horseId: number, trainerId: number): AppState {
   const horse = state.horses.find(item => item.id === horseId);
   const trainer = state.users.find(item => item.id === trainerId);
   if (state.user?.role !== 'owner' || horse?.ownerId !== state.user.id) throw new Error('Không tìm thấy ngựa của bạn.');
@@ -43,7 +43,7 @@ export function assignOwnerTrainer(state: AppState, horseId: string, trainerId: 
   return { ...state, horses: state.horses.map(item => item.id === horseId ? { ...item, headTrainerId: trainer.id, headTrainerName: trainer.name } : item), trainerSelectHorseId: null };
 }
 
-export function submitOwnerHorse(state: AppState, horseId: string, at = new Date()): AppState {
+export function submitOwnerHorse(state: AppState, horseId: number, at = new Date()): AppState {
   const user = state.user;
   const horse = state.horses.find(item => item.id === horseId);
   if (user?.role !== 'owner' || horse?.ownerId !== user.id) throw new Error('Không tìm thấy ngựa của bạn.');
@@ -52,7 +52,7 @@ export function submitOwnerHorse(state: AppState, horseId: string, at = new Date
   if (state.horseClubRequests.some(request => request.horseId === horseId && request.status === 'pending')) throw new Error('Ngựa đang có yêu cầu chờ duyệt.');
   const expires = new Date(at); expires.setDate(expires.getDate() + 7);
   const request: import('../data').HorseClubRequest = {
-    id: crypto.randomUUID(), horseId, horseName: horse.name, horseBreed: horse.breed,
+    id: Date.now() + Math.floor(Math.random() * 1000), horseId, horseName: horse.name, horseBreed: horse.breed,
     horseImageUrl: horse.imageUrl, ownerId: user.id, ownerName: user.name, clubId: user.clubId,
     submittedAt: at.toLocaleDateString('vi-VN'), expiresAt: expires.toLocaleDateString('vi-VN'),
     status: 'pending', reviewNote: '',
@@ -76,7 +76,7 @@ export function validDisplayDate(value: string): boolean {
   return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 }
 
-export function addOwnerAchievement(state: AppState, horseId: string, achievement: import('../data').Achievement): AppState {
+export function addOwnerAchievement(state: AppState, horseId: number, achievement: import('../data').Achievement): AppState {
   const horse = state.horses.find(item => item.id === horseId);
   if (state.user?.role !== 'owner' || horse?.ownerId !== state.user.id) throw new Error('Bạn chỉ được thêm thành tích cho ngựa của mình.');
   if (!achievement.title.trim() || !validDisplayDate(achievement.date)) throw new Error('Nhập tên thành tích và ngày hợp lệ dạng DD/MM/YYYY.');
@@ -84,7 +84,7 @@ export function addOwnerAchievement(state: AppState, horseId: string, achievemen
   return { ...state, horses: state.horses.map(item => item.id === horseId ? { ...item, achievements: [...item.achievements, { ...achievement, title: achievement.title.trim() }] } : item) };
 }
 
-export function markOwnerNotification(state: AppState, id: string): AppState {
+export function markOwnerNotification(state: AppState, id: number): AppState {
   const permitted = new Set(ownerView(state).notifications.map(item => item.id));
   if (!permitted.has(id)) return state;
   return { ...state, notifications: state.notifications.map(item => item.id === id ? { ...item, read: true } : item) };

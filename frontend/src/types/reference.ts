@@ -23,11 +23,11 @@ export interface AppState {
   trainingSessions: TrainingSession[];
   tasks: typeof GROOM_TASKS;
   notifications: typeof NOTIFICATIONS;
-  selectedHorseId: string;
-  trainerSelectHorseId: string | null;
-  viewTrainerId: string | null;
+  selectedHorseId: number;
+  trainerSelectHorseId: number | null;
+  viewTrainerId: number | null;
   showSuccess: string | null;
-  userPermissions: Record<string, Page[]>;
+  userPermissions: Record<number, Page[]>;
 }
 
 export const ROLE_LABELS: Record<Role, string> = {

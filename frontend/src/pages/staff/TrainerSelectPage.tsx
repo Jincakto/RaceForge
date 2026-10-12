@@ -5,11 +5,11 @@ import { Card } from '../../components/common/Card';
 import { Btn } from '../../components/common/Button';
 
 export function TrainerSelectPage({ user, state, navigate, onSelectTrainer }:
-  { user: AppUser; state: AppState; navigate: (p: Page) => void; onSelectTrainer: (horseId: string, trainerId: string) => void }) {
+  { user: AppUser; state: AppState; navigate: (p: Page) => void; onSelectTrainer: (horseId: number, trainerId: number) => void }) {
   const horseId = state.trainerSelectHorseId;
   const horse = horseId ? state.horses.find(h => h.id === horseId) : null;
   const trainers = state.users.filter(u => !!user.clubId && u.role === 'head_trainer' && u.clubId === user.clubId && u.status === 'active' && u.verified);
-  const [selected, setSelected] = useState('');
+  const [selected, setSelected] = useState<number | null>(null);
   return (
     <div className="space-y-5 max-w-2xl">
       <div><h2 className="text-xl font-serif font-bold">Chọn Head Trainer cho {horse?.name}</h2><p className="text-sm text-gray-500">Chọn huấn luyện viên sẽ phụ trách ngựa của bạn</p></div>

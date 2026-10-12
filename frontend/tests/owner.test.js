@@ -24,7 +24,7 @@ test('owner prototype workflows and views', async context => {
   }
   function draft(state = fixture()) {
     return { ...state.horses[0], id: 'new-horse', name: ' Silver Arrow ', ownerId: state.user.id, clubId: null, color: 'Bay', age: 3,
-      weight: 500, height: 160, headTrainerId: '', headTrainerName: '', healthStatus: 'Pending Vet', trainingStatus: 'Pending Approval',
+      weight: 500, height: 160, headTrainerId: 0, headTrainerName: '', healthStatus: 'Pending Vet', trainingStatus: 'Pending Approval',
       approvalStatus: 'pending', vetClearance: false, approvedAt: null, achievements: [], raceHistory: [], wins: 0, totalRaces: 0 }
   }
   await context.test('owner scope excludes another owner and linked records', () => {
@@ -33,7 +33,7 @@ test('owner prototype workflows and views', async context => {
     const view = actions.ownerView(state)
     assert.ok(view.horses.every(horse => horse.ownerId === owner.id))
     assert.ok(!view.healthRecords.some(record => record.id === 'foreign-record'))
-    assert.ok(!view.notifications.some(notification => notification.id === 'n5'))
+    assert.ok(!view.notifications.some(notification => notification.id === 45))
     assert.equal(actions.ownerView({ ...state, user: null }).horses.length, 0)
   })
   await context.test('new horse draft is added once and selects the correct horse for the trainer step', () => {
@@ -115,7 +115,7 @@ test('owner prototype workflows and views', async context => {
     const notification = actions.ownerView(state).notifications.find(item => !item.read)
     const read = actions.markOwnerNotification(state, notification.id)
     assert.equal(read.notifications.find(item => item.id === notification.id).read, true)
-    assert.equal(actions.markOwnerNotification(state, 'n5'), state)
+    assert.equal(actions.markOwnerNotification(state, 45), state)
     const updated = actions.updateOwnerProfile(state, ' Nguyễn Minh Long ')
     assert.equal(updated.user.name, 'Nguyễn Minh Long')
     assert.equal(updated.user.avatar, 'ML')

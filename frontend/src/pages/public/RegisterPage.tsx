@@ -21,7 +21,7 @@ export function RegisterPage({ navigate, onRegister }: { navigate: (p: Page) => 
 
   const handleVerified = () => {
     const initials = form.name.trim().split(' ').map(w => w[0]).slice(-2).join('').toUpperCase();
-    onRegister({ id: `u${Date.now()}`, name: form.name, email: form.email, password: form.password, avatar: initials, role: null, clubId: null, status: 'active', phone: form.phone, verified: true });
+    onRegister({ id: Date.now(), name: form.name, email: form.email, password: form.password, avatar: initials, role: null, clubId: null, status: 'active', phone: form.phone, verified: true });
   };
 
   return (

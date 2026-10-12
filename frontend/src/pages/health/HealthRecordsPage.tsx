@@ -1,3 +1,5 @@
+import { MedicalSummary } from '../../components/training/MedicalSummary';
+import type { MedicalDto } from '../../types/api';
 import { type AppState, type Page } from '../../types/reference';
 import { useState } from 'react';
 import { sortHealthRecords } from '../../utils/trainingAlgorithm';
@@ -7,9 +9,9 @@ import { Badge } from '../../components/common/Badge';
 import { TrainingEligibilityCard } from '../../components/training/TrainingEligibilityCard';
 import { Btn } from '../../components/common/Button';
 
-export function HealthRecordsPage({ state, navigate }: { state: AppState; navigate: (p: Page) => void }) {
+export function HealthRecordsPage({ state, navigate, medicalByHorse = {} }: { state: AppState; navigate: (p: Page) => void; medicalByHorse?: Record<number, MedicalDto[]> }) {
   const horses = state.horses.filter(h => h.ownerId === state.user!.id);
-  const [sel, setSel] = useState(horses.some(horse => horse.id === state.selectedHorseId) ? state.selectedHorseId : horses[0]?.id || '');
+  const [sel, setSel] = useState(horses.some(horse => horse.id === state.selectedHorseId) ? state.selectedHorseId : horses[0]?.id || 0);
   const [tab, setTab] = useState<'all' | 'history'>('all');
   const isVet = state.user?.role === 'veterinarian';
   // Sorted newest exam first, ties broken by createdAt DESC
@@ -85,7 +87,7 @@ export function HealthRecordsPage({ state, navigate }: { state: AppState; naviga
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5"><MedicalSummary records={medicalByHorse[sel] || []}/>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div><h2 className="text-xl font-serif font-bold">Hồ sơ y tế</h2></div>
         {isVet && <Btn variant="gold" onClick={() => navigate('vet-health-form')}>+ Nhập khám mới</Btn>}

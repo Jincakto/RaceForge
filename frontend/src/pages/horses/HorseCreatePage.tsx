@@ -1,3 +1,4 @@
+import { demoId } from '../../utils/demoId';
 import { validateHorseFields, validDisplayDate } from '../../utils/ownerActions';
 import { type AppUser, type Horse, type RaceHistoryEntry } from '../../data';
 import { type AppState, type Page } from '../../types/reference';
@@ -22,7 +23,7 @@ export function HorseCreatePage({ user, state, navigate, onCreateHorse }:
     if (!newRace.raceName.trim() || !validDisplayDate(newRace.date)) { setError('Nhập tên giải và ngày đua dạng DD/MM/YYYY.'); return; }
     if (Number(newRace.position) > Number(newRace.totalHorses)) { setError('Thứ hạng không thể lớn hơn số ngựa tham gia.'); return; }
     setError('');
-    setRaceHistory(r => [...r, { id: Date.now() + Math.floor(Math.random() * 1000), ...newRace, raceName: newRace.raceName.trim(), position: Number(newRace.position), totalHorses: Number(newRace.totalHorses) }]);
+    setRaceHistory(r => [...r, { id: demoId(), ...newRace, raceName: newRace.raceName.trim(), position: Number(newRace.position), totalHorses: Number(newRace.totalHorses) }]);
     setNewRace({ date: '', raceName: '', distance: '1200m', position: '1', totalHorses: '10', time: '', venue: '', jockey: '', prize: '' });
     setShowRaceForm(false);
   };
@@ -30,7 +31,7 @@ export function HorseCreatePage({ user, state, navigate, onCreateHorse }:
   const handle = () => {
     const invalid = validateHorseFields({ name: form.name, color: form.color, age: Number(form.age), weight: Number(form.weight), height: Number(form.height) });
     if (invalid) { setError(invalid); return; }
-    const id = Date.now();
+    const id = demoId();
     onCreateHorse({
       id, name: form.name, breed: form.breed, age: Number(form.age), color: form.color, gender: form.gender,
       weight: Number(form.weight), height: Number(form.height), stable: '', stall: '', clubId: null,

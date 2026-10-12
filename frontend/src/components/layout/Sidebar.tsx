@@ -1,3 +1,4 @@
+import { liveApi } from '../../services/api';
 import { type AppUser } from '../../data';
 import { type Page, NAV_ITEMS, GRANTABLE_PAGES, ROLE_LABELS } from '../../types/reference';
 
@@ -8,7 +9,7 @@ export function Sidebar({ user, page, navigate, memberReqCount, horseReqCount, g
   const extraItems = GRANTABLE_PAGES
     .filter(g => grantedPages.includes(g.page) && !rolePages.has(g.page))
     .map(g => ({ icon: g.icon, label: g.label, page: g.page }));
-  const items = [...roleItems, ...extraItems];
+  const items = liveApi ? [...roleItems, ...extraItems].filter(i => ['dashboard','training-hub','vet-health-form','center-requests'].includes(i.page)) : [...roleItems, ...extraItems];
   return (
     <div className="w-60 min-h-screen bg-[#0f1729] flex flex-col flex-shrink-0">
       <div className="p-5 border-b border-white/10">

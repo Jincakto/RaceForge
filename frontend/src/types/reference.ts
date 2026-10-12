@@ -46,6 +46,7 @@ export const DEMO_ACCOUNTS = [
 
 export const NAV_ITEMS: Partial<Record<Role, { icon: string; label: string; page: Page; badge?: string }[]>> = {
   manager: [
+    { icon: '🩺', label: 'Medical & Training', page: 'training-hub' },
     { icon: '⊞', label: 'Dashboard', page: 'dashboard' },
     { icon: '🐎', label: 'Ngựa trong trung tâm', page: 'horse-list' },
     { icon: '📋', label: 'Duyệt đăng ký ngựa', page: 'center-requests', badge: 'horseReqs' },
@@ -75,6 +76,7 @@ export const NAV_ITEMS: Partial<Record<Role, { icon: string; label: string; page
     { icon: '🔔', label: 'Thông báo', page: 'notifications' },
   ],
   owner: [
+    { icon: '🏇', label: 'Medical & Training Package', page: 'training-hub' },
     { icon: '⊞', label: 'Dashboard', page: 'dashboard' },
     { icon: '🐎', label: 'Ngựa của tôi', page: 'my-horses' },
     { icon: '➕', label: 'Đăng ký ngựa mới', page: 'horse-create' },

@@ -1,3 +1,4 @@
+import { demoId } from './demoId';
 import { type AppState } from '../types/reference';
 
 export function ownerView(state: AppState): AppState {
@@ -52,7 +53,7 @@ export function submitOwnerHorse(state: AppState, horseId: number, at = new Date
   if (state.horseClubRequests.some(request => request.horseId === horseId && request.status === 'pending')) throw new Error('Ngựa đang có yêu cầu chờ duyệt.');
   const expires = new Date(at); expires.setDate(expires.getDate() + 7);
   const request: import('../data').HorseClubRequest = {
-    id: Date.now() + Math.floor(Math.random() * 1000), horseId, horseName: horse.name, horseBreed: horse.breed,
+    id: demoId(), horseId, horseName: horse.name, horseBreed: horse.breed,
     horseImageUrl: horse.imageUrl, ownerId: user.id, ownerName: user.name, clubId: user.clubId,
     submittedAt: at.toLocaleDateString('vi-VN'), expiresAt: expires.toLocaleDateString('vi-VN'),
     status: 'pending', reviewNote: '',

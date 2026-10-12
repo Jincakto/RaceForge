@@ -1,3 +1,6 @@
+import { demoId } from '../../utils/demoId';
+import { MedicalSummary } from '../../components/training/MedicalSummary';
+import type { MedicalDto, HorseDto } from '../../types/api';
 import { validDisplayDate } from '../../utils/ownerActions';
 import { type AppState, type Page } from '../../types/reference';
 import { type Horse, type Achievement, computeTrainingSuggestion } from '../../data';
@@ -35,7 +38,7 @@ function HorseDetailContent({ state, navigate, onUpdateHorse, onShowSuccess, onA
   const addAchievement = () => {
     if (!newAch.title.trim() || !validDisplayDate(newAch.date)) { setError('Nhập tên thành tích và ngày hợp lệ dạng DD/MM/YYYY.'); return; }
     setError('');
-    onAddAchievement(horse.id, { id: Date.now() + Math.floor(Math.random() * 1000), title: newAch.title.trim(), date: newAch.date, description: newAch.description, prize: newAch.prize, position: Number(newAch.position) });
+    onAddAchievement(horse.id, { id: demoId(), title: newAch.title.trim(), date: newAch.date, description: newAch.description, prize: newAch.prize, position: Number(newAch.position) });
     setShowAchForm(false); setNewAch({ title: '', date: '', description: '', prize: '', position: '1' }); onShowSuccess('Đã thêm thành tích!');
   };
 
@@ -254,8 +257,8 @@ function HorseDetailContent({ state, navigate, onUpdateHorse, onShowSuccess, onA
   );
 }
 
-export function HorseDetailPage(props: Parameters<typeof HorseDetailContent>[0]) {
+export function HorseDetailPage(props: Parameters<typeof HorseDetailContent>[0] & {medicalRecords?: MedicalDto[]; currentMedicalHorse?: HorseDto}) {
   const horse = props.state.horses.find(item => item.id === props.state.selectedHorseId && item.ownerId === props.state.user?.id);
   if (!horse) return <Card className="p-10 text-center"><p>Không tìm thấy ngựa của bạn.</p><Btn variant="gold" onClick={() => props.navigate('my-horses')}>Về Ngựa của tôi</Btn></Card>;
-  return <HorseDetailContent key={horse.id} {...props} />;
+  return <div className="space-y-4">{props.currentMedicalHorse && <div className="bg-white rounded-xl border p-4">Health: {props.currentMedicalHorse.healthStatus || 'Chưa khám'} · Training: {props.currentMedicalHorse.trainingLocked ? 'LOCKED' : 'UNLOCKED'}</div>}{props.medicalRecords && <MedicalSummary records={props.medicalRecords}/>}<HorseDetailContent key={horse.id} {...props} /></div>;
 }

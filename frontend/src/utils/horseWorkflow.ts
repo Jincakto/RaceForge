@@ -13,5 +13,5 @@ export function reconcileResume(packages: HorsePackageDto[], recoveryId: number,
 }
 export function canResume(horse: HorseDto, recovery: HorsePackageDto, packages: HorsePackageDto[]) {
   const original = packages.find(p => p.horsePackageId === recovery.replacedHorsePackageId);
-  return !horse.trainingLocked && horse.healthStatus === 'READY' && recovery.packageType === 'RECOVERY' && recovery.status === 'ACTIVE' && recovery.paymentStatus === 'PAID' && original?.status === 'PAUSED' && original.paymentStatus === 'PAID' && (original.remainingDays || 0) > 0;
+  return !horse.trainingLocked && horse.healthStatus === 'READY' && recovery.packageType === 'RECOVERY' && recovery.status === 'ACTIVE' && recovery.paymentStatus === 'PAID' && original?.horseId === horse.horseId && recovery.horseId === horse.horseId && original.packageType !== 'RECOVERY' && !packages.some(p=>p.status === 'ACTIVE' && p.horsePackageId !== recovery.horsePackageId) && original.status === 'PAUSED' && original.paymentStatus === 'PAID' && (original.remainingDays || 0) > 0;
 }

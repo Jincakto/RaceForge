@@ -1,13 +1,16 @@
+import { demoId } from '../../utils/demoId';
+import { liveApi } from '../../services/api';
+import { LiveRegisterPage } from './LiveRegisterPage';
 import { type Page } from '../../types/reference';
 import { type AppUser } from '../../data';
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { OTPModal } from '../../components/common/OTPModal';
 
-export function RegisterPage({ navigate, onRegister }: { navigate: (p: Page) => void; onRegister: (u: AppUser) => void }) {
+function DemoRegisterPage({ navigate, onRegister }: { navigate: (p: Page) => void; onRegister: (u: AppUser) => void }) {
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirm: '' });
   const [error, setError] = useState('');
   const [showOtp, setShowOtp] = useState(false);
-  const otpCode = useRef('');
+  const [otpCode,setOtpCode] = useState('');
   const set = (k: string) => (v: string) => setForm(f => ({ ...f, [k]: v }));
   const di = 'w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]';
 
@@ -15,18 +18,18 @@ export function RegisterPage({ navigate, onRegister }: { navigate: (p: Page) => 
     if (!form.name || !form.email || !form.password) { setError('Vui lòng điền đầy đủ thông tin'); return; }
     if (form.password !== form.confirm) { setError('Mật khẩu xác nhận không khớp'); return; }
     if (form.password.length < 6) { setError('Mật khẩu tối thiểu 6 ký tự'); return; }
-    otpCode.current = String(Math.floor(100000 + Math.random() * 900000));
+    setOtpCode(String(Math.floor(100000 + Math.random() * 900000)));
     setError(''); setShowOtp(true);
   };
 
   const handleVerified = () => {
     const initials = form.name.trim().split(' ').map(w => w[0]).slice(-2).join('').toUpperCase();
-    onRegister({ id: Date.now(), name: form.name, email: form.email, password: form.password, avatar: initials, role: null, clubId: null, status: 'active', phone: form.phone, verified: true });
+    onRegister({ id: demoId(), name: form.name, email: form.email, password: form.password, avatar: initials, role: null, clubId: null, status: 'active', phone: form.phone, verified: true });
   };
 
   return (
     <>
-      {showOtp && <OTPModal email={form.email} code={otpCode.current} onVerify={handleVerified} onClose={() => setShowOtp(false)} />}
+      {showOtp && <OTPModal email={form.email} code={otpCode} onVerify={handleVerified} onClose={() => setShowOtp(false)} />}
       <div className="min-h-screen bg-[#0f1729] flex">
         <div className="flex-1 flex flex-col items-center justify-center px-10">
           <div className="w-full max-w-sm">
@@ -57,3 +60,5 @@ export function RegisterPage({ navigate, onRegister }: { navigate: (p: Page) => 
     </>
   );
 }
+
+export function RegisterPage(props: Parameters<typeof DemoRegisterPage>[0]) { return liveApi ? <LiveRegisterPage navigate={props.navigate}/> : <DemoRegisterPage {...props}/>; }

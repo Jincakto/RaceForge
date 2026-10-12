@@ -1,3 +1,5 @@
+import { liveApi } from '../../services/api';
+import { authService } from '../../services/authService';
 import { type Page, DEMO_ACCOUNTS } from '../../types/reference';
 import { type AppUser } from '../../data';
 import { useState } from 'react';
@@ -9,9 +11,10 @@ export function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) =>
   const [loading, setLoading] = useState(false);
   const di = 'w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]';
 
-  const handle = () => {
+  const handle = async () => {
     if (!email || !password) { setError('Vui lòng nhập email và mật khẩu'); return; }
     setLoading(true);
+    if (liveApi) { try { onLogin(await authService.login(email,password)); } catch(e) { setError(e instanceof Error ? e.message : 'Đăng nhập thất bại.'); } finally { setLoading(false); } return; }
     setTimeout(() => {
       const u = users.find(u => u.email === email && u.password === password);
       if (u) { if (!u.verified) { setError('Tài khoản chưa được xác thực email. Vui lòng kiểm tra hộp thư.'); setLoading(false); } else onLogin(u); }
@@ -39,7 +42,7 @@ export function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) =>
           <p className="text-center text-gray-500 text-sm mt-5">Chưa có tài khoản? <button onClick={() => navigate('register')} className="text-[#c9973b] hover:underline font-medium">Đăng ký</button></p>
 
           {/* Quick Login Demo */}
-          <div className="mt-7 border-t border-white/10 pt-6">
+          {!liveApi && <div className="mt-7 border-t border-white/10 pt-6">
             <p className="text-gray-500 text-xs text-center mb-3 uppercase tracking-wider font-medium">Đăng nhập nhanh (demo)</p>
             <div className="grid grid-cols-2 gap-2">
               {DEMO_ACCOUNTS.map(acc => (
@@ -50,7 +53,7 @@ export function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) =>
                 </button>
               ))}
             </div>
-          </div>
+          </div>}
         </div>
       </div>
       <div className="w-[42%] relative hidden lg:block">

@@ -24,12 +24,12 @@ export function HorseCreatePage({ user, state, navigate, onCreateHorse }) {
 
   const handle = () => {
     if (!form.name || !form.color || !form.weight || !form.height) { setError('Vui lòng điền đủ thông tin bắt buộc'); return; }
-    const id = `RH-${String(Date.now()).slice(-3).padStart(3, '0')}`;
-    onCreateHorse({
+    const id = demoId();
+    const failure=onCreateHorse({
       id, name: form.name, breed: form.breed, age: parseInt(form.age), color: form.color, gender: form.gender,
       weight: parseInt(form.weight), height: parseInt(form.height), stable: '', stall: '', clubId: null,
-      ownerId: user.id, ownerName: user.name, headTrainerId: '', headTrainerName: '',
-      vetId: '', vetName: '', groomId: '', groomName: '',
+      ownerId: user.id, ownerName: user.name, headTrainerId: null, headTrainerName: '',
+      vetId: null, vetName: '', groomId: null, groomName: '',
       healthStatus: 'Pending Vet', trainingStatus: 'Pending Approval', approvalStatus: 'pending',
       registrationDate: '25/09/2026', approvedAt: null, totalRaces: raceHistory.length,
       wins: raceHistory.filter(r => r.position === 1).length,

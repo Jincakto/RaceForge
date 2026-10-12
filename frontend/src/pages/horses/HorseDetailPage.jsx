@@ -1,3 +1,4 @@
+import { MedicalNotes } from '../../components/health/MedicalNotes.jsx';
 import { demoId } from '../../utils/demoId.ts';
 import { useState } from 'react';
 import { LifecycleBadge } from '../../components/horse/LifecycleBadge.jsx';
@@ -15,9 +16,9 @@ import { Textarea } from '../../components/ui/Textarea.jsx';
 import { sortHealthRecords } from '../../utils/health.js';
 import { computeTrainingSuggestion } from '../../utils/trainingPlan.js';
 
-export function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess }) {
+function HorseDetailContent({ state, navigate, onUpdateHorse, onShowSuccess }) {
   const user = state.user;
-  const horse = state.horses.find(h => h.id === state.selectedHorseId) || state.horses[0];
+  const horse = state.horses.find(h => h.id === state.selectedHorseId);
   const [tab, setTab] = useState('overview');
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState({ name: horse.name, biography: horse.biography, weight: String(horse.weight), height: String(horse.height), stable: horse.stable, stall: horse.stall, imageUrl: horse.imageUrl });
@@ -26,14 +27,15 @@ export function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess 
   const isOwner = user.role === 'owner' && horse.ownerId === user.id;
 
   const saveEdit = () => {
-    onUpdateHorse({ ...horse, name: editForm.name, biography: editForm.biography, weight: Number(editForm.weight), height: Number(editForm.height), stable: editForm.stable, stall: editForm.stall, imageUrl: editForm.imageUrl });
+    const failure=onUpdateHorse({ ...horse, name: editForm.name, biography: editForm.biography, weight: Number(editForm.weight), height: Number(editForm.height), stable: editForm.stable, stall: editForm.stall, imageUrl: editForm.imageUrl });
+    if(failure){onShowSuccess(failure);return;}
     setEditMode(false); onShowSuccess('Đã cập nhật hồ sơ ngựa!');
   };
 
   const addAchievement = () => {
     if (!newAch.title) return;
     const updated = { ...horse, achievements: [...horse.achievements, { id: demoId(), title: newAch.title, date: newAch.date, description: newAch.description, prize: newAch.prize, position: Number(newAch.position) }] };
-    onUpdateHorse(updated); setShowAchForm(false); setNewAch({ title: '', date: '', description: '', prize: '', position: '1' }); onShowSuccess('Đã thêm thành tích!');
+    const failure=onUpdateHorse(updated);if(failure){onShowSuccess(failure);return;}setShowAchForm(false); setNewAch({ title: '', date: '', description: '', prize: '', position: '1' }); onShowSuccess('Đã thêm thành tích!');
   };
 
   const horseHealthRecords = sortHealthRecords(state.healthRecords.filter(r => r.horseId === horse.id));
@@ -263,3 +265,5 @@ export function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess 
     </div>
   );
 }
+
+export function HorseDetailPage(props){const horse=props.state.horses.find(h=>h.id===props.state.selectedHorseId && (props.state.user?.role==='owner'?h.ownerId===props.state.user.id:h.clubId===props.state.user?.clubId));if(!horse)return <Card className="p-8">Không tìm thấy ngựa bạn có quyền xem.</Card>;return <div className="space-y-4"><div className="bg-white border rounded-xl p-4 text-sm">Health: {horse.backendHealthStatus || 'Chưa xác định'} · Training Lock: {horse.trainingLocked || horse.lock?'LOCKED':'UNLOCKED'}</div><MedicalNotes records={props.state.healthRecords.filter(r=>r.horseId===horse.id)}/><HorseDetailContent key={horse.id} {...props}/></div>;}

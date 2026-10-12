@@ -1,3 +1,4 @@
+import { EnrollmentPanel } from '../../components/training/EnrollmentPanel.jsx';
 import { useState } from 'react';
 import { LifecycleBadge } from '../../components/horse/LifecycleBadge.jsx';
 import { Badge } from '../../components/ui/Badge.jsx';
@@ -5,14 +6,14 @@ import { Btn } from '../../components/ui/Button.jsx';
 import { Card } from '../../components/ui/Card.jsx';
 import { REHAB_PACKAGES } from '../../data/constants.js';
 
-export function RehabCenterPage({ state, onActivate }) {
+export function RehabCenterPage({ state, onActivate, onResume }) {
   const horses = state.horses.filter(h => h.clubId === state.user.clubId);
   const waiting = horses.filter(h => h.lock && !h.rehab);
   const active = horses.filter(h => h.lock && h.rehab);
   const [choice, setChoice] = useState({});
   const [errors, setErrors] = useState({});
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6 max-w-4xl"><EnrollmentPanel state={state} onResume={onResume}/>
       <div><h2 className="text-xl font-serif font-bold text-[#0f1729]">Gói phục hồi chức năng</h2><p className="text-sm text-gray-500">Kích hoạt gói phục hồi cho ngựa bị khóa huấn luyện · Gói huấn luyện gốc giữ trạng thái "Tạm dừng"</p></div>
       <section className="space-y-3">
         <h3 className="font-semibold flex items-center gap-2">Chờ kích hoạt <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">{waiting.length}</span></h3>
@@ -34,7 +35,7 @@ export function RehabCenterPage({ state, onActivate }) {
                 ))}
               </div>
               {errors[h.id] && <div className="text-sm text-red-600 mt-2">{errors[h.id]}</div>}
-              <Btn variant="gold" className="mt-3" disabled={!choice[h.id]} onClick={() => setErrors(e => ({ ...e, [h.id]: onActivate(h.id, choice[h.id]) || '' }))}>Kích hoạt gói phục hồi →</Btn>
+              <Btn variant="gold" className="mt-3" disabled={!choice[h.id]} onClick={() => setErrors(e => ({ ...e, [h.id]: onActivate(h.id, choice[h.id]) || '' }))}>Duyệt Recovery — chờ thanh toán →</Btn>
             </Card>
           );
         })}
@@ -42,7 +43,7 @@ export function RehabCenterPage({ state, onActivate }) {
       {active.length > 0 && (
         <section className="space-y-3">
           <h3 className="font-semibold">Đang phục hồi</h3>
-          {active.map(h => <Card key={h.id} className="p-4 flex items-center gap-3"><img src={h.imageUrl} className="w-11 h-11 rounded-lg object-cover bg-gray-200" /><div className="flex-1"><div className="font-semibold">{h.name}</div><div className="text-xs text-gray-500">{h.rehab.name} · {h.rehab.durationWeeks} tuần · từ {h.rehab.activatedAt}</div></div><LifecycleBadge horse={h} /><span className="text-xs text-gray-400">Chờ Thú y gỡ khóa</span></Card>)}
+          {active.map(h => <Card key={h.id} className="p-4 flex items-center gap-3"><img src={h.imageUrl} className="w-11 h-11 rounded-lg object-cover bg-gray-200" /><div className="flex-1"><div className="font-semibold">{h.name}</div><div className="text-xs text-gray-500">{h.rehab.name} · {h.rehab.durationWeeks} tuần · từ {h.rehab.activatedAt}</div></div><LifecycleBadge horse={h} /><span className="text-xs text-gray-400">Chờ thanh toán / Thú y Unlock / CM Resume</span></Card>)}
         </section>
       )}
     </div>

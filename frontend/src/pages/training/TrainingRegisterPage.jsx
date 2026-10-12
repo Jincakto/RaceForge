@@ -1,3 +1,4 @@
+import { EnrollmentPanel } from '../../components/training/EnrollmentPanel.jsx';
 import { useState } from 'react';
 import { LifecycleBadge } from '../../components/horse/LifecycleBadge.jsx';
 import { Badge } from '../../components/ui/Badge.jsx';
@@ -6,14 +7,14 @@ import { Card } from '../../components/ui/Card.jsx';
 import { TRAINING_PACKAGES } from '../../data/constants.js';
 import { getLifecycle } from '../../utils/horse.js';
 
-export function TrainingRegisterPage({ state, navigate, onEnroll }) {
+export function TrainingRegisterPage({ state, navigate, onEnroll, onPay }) {
   const user = state.user;
   const myHorses = state.horses.filter(h => h.ownerId === user.id && h.clubId === user.clubId);
   const [horseId, setHorseId] = useState(myHorses.find(h => getLifecycle(h) === 'ready')?.id || myHorses[0]?.id || '');
   const [pkgId, setPkgId] = useState('');
   const [error, setError] = useState('');
   const horse = myHorses.find(h => h.id === horseId);
-  const enrollment = horse ? state.enrollments.find(e => e.horseId === horse.id && e.status !== 'completed') : undefined;
+  const enrollment = horse ? state.enrollments.find(e => e.horseId === horse.id && ['pending','active','paused'].includes(e.status)) : undefined;
   const lc = horse ? getLifecycle(horse) : 'pending';
 
   const blockedReason = {
@@ -23,7 +24,7 @@ export function TrainingRegisterPage({ state, navigate, onEnroll }) {
   };
 
   return (
-    <div className="space-y-5 max-w-5xl">
+    <div className="space-y-5 max-w-5xl"><EnrollmentPanel state={state} onPay={onPay}/>
       <div><h2 className="text-xl font-serif font-bold text-[#0f1729]">Đăng ký huấn luyện</h2><p className="text-sm text-gray-500">Chỉ ngựa "Sẵn sàng huấn luyện" mới đăng ký được · Mỗi ngựa chọn đúng một gói</p></div>
       {myHorses.length === 0 ? (
         <Card className="p-10 text-center"><div className="text-4xl mb-3">🐎</div><div className="font-semibold text-gray-600 mb-3">Bạn chưa có ngựa nào trong trung tâm</div><Btn variant="gold" onClick={() => navigate('horse-create')}>+ Đăng ký ngựa mới</Btn></Card>
@@ -43,7 +44,7 @@ export function TrainingRegisterPage({ state, navigate, onEnroll }) {
           <div className="col-span-2 space-y-4">
             {horse && enrollment && (
               <Card className="p-5">
-                <div className="flex items-center gap-2 mb-1"><h3 className="font-semibold">{horse.name} · Gói {enrollment.packageName}</h3><Badge status={enrollment.status === 'paused' ? 'Paused' : 'Active'} /></div>
+                <div className="flex items-center gap-2 mb-1"><h3 className="font-semibold">{horse.name} · Gói {enrollment.packageName}</h3><Badge status={enrollment.status === 'paused' ? 'Paused' : enrollment.status === 'pending' ? 'Pending' : 'Active'} /></div>
                 <div className="text-sm text-gray-500">Head Trainer phụ trách (tự động phân công): <strong className="text-[#0f1729]">{enrollment.trainerName}</strong></div>
                 <div className="mt-3"><div className="flex justify-between text-xs text-gray-500 mb-1"><span>Đã tập {enrollment.sessionsDone}/{enrollment.sessionsTotal} buổi</span><span>Còn {enrollment.sessionsTotal - enrollment.sessionsDone} buổi</span></div><div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-[#c9973b] h-2 rounded-full" style={{ width: `${Math.round(enrollment.sessionsDone / enrollment.sessionsTotal * 100)}%` }} /></div></div>
                 {enrollment.status === 'paused' && horse.lock && <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">🔒 Gói huấn luyện đang tạm dừng (không hủy, giữ nguyên tiến độ). Tình trạng: {horse.lock.reason}{horse.rehab ? ` · Đang phục hồi: ${horse.rehab.name}` : ''}</div>}

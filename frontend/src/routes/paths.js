@@ -3,6 +3,7 @@
 
 export const PAGE_PATHS = {
   home: '/',
+  'api-workflow': '/api-workflow',
   login: '/login',
   register: '/register',
   onboarding: '/onboarding',

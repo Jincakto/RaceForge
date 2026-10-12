@@ -1,6 +1,6 @@
 import { tokenStore } from './tokenStore.ts';
 import type { ApiResponse } from '../types/api.ts';
-export const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+export const apiBase = (import.meta.env.VITE_API_BASE_URL || (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '') || '').replace(/\/$/, '');
 export const liveApi = Boolean(apiBase);
 export class ApiError extends Error {
   constructor(public status: number, message: string, public validationErrors?: Record<string, string>) { super(message); }

@@ -9,10 +9,14 @@ import { Textarea } from '../../components/ui/Textarea.jsx';
 import { deriveTrainingEligibility } from '../../utils/eligibility.js';
 import { getLifecycle } from '../../utils/horse.js';
 
-export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, postSession, onPostSubmit, onBack }) {
+export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, onSaveDraft, onConfirmRecord, postSession, onPostSubmit, onBack }) {
   const horses = state.horses.filter(h => postSession ? h.id === postSession.horseId : h.clubId === state.user.clubId);
   const [selectedHorse, setSelectedHorse] = useState(horses[0]?.id || '');
-  const [examType, setExamType] = useState(postSession ? 'Kiểm tra sau tập' : 'Kiểm tra định kỳ');
+  const [examType, setExamType] = useState(postSession ? 'FOLLOW_UP' : horses[0]?.lifecycle==='awaiting_vet' ? 'INITIAL' : 'PERIODIC');
+  const [healthStatus,setHealthStatus]=useState('');
+  const [draftId,setDraftId]=useState(null);
+  const [savedSnapshot,setSavedSnapshot]=useState('');
+  const [formError,setFormError]=useState('');
   const [isPostTraining, setIsPostTraining] = useState(!!postSession);
 
   // Numeric vitals
@@ -57,18 +61,17 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, postS
     const n = parseFloat(val.replace(',', '.'));
     if (isNaN(n)) return 'invalid';
     if (n >= lo && n <= hi) return 'normal';
-    if (n >= lo - lo * 0.1 && n <= hi + hi * 0.1) return 'watch';
-    return 'fail';
+    return n>0?'watch':'invalid';
   };
 
-  const tempSt = evalNum(temperature, 37.2, 38.3);
-  const hrSt   = evalNum(heartRate, 28, 44);
-  const rrSt   = evalNum(respRate, 8, 16);
+  const tempSt = Number(temperature.replace(',','.'))>=39?'fail':evalNum(temperature, 37.5, 38.5);
+  const hrSt   = Number(heartRate)>60?'fail':evalNum(heartRate, 28, 44);
+  const rrSt   = evalNum(respRate, 10, 20);
 
   const numericFields = [
-    { key: 'temp',  label: 'Nhiệt độ cơ thể',   icon: '🌡️', val: temperature, setVal: setTemperature, unit: '°C',        range: '37,2–38,3°C',       st: tempSt },
+    { key: 'temp',  label: 'Nhiệt độ cơ thể',   icon: '🌡️', val: temperature, setVal: setTemperature, unit: '°C',        range: '37,5–38,5°C',       st: tempSt },
     { key: 'hr',    label: 'Nhịp tim lúc nghỉ',  icon: '❤️',  val: heartRate,   setVal: setHeartRate,   unit: 'lần/phút',  range: '28–44 lần/phút',    st: hrSt   },
-    { key: 'rr',    label: 'Nhịp thở lúc nghỉ',  icon: '🫁',  val: respRate,    setVal: setRespRate,    unit: 'lần/phút',  range: '8–16 lần/phút',     st: rrSt   },
+    { key: 'rr',    label: 'Nhịp thở lúc nghỉ',  icon: '🫁',  val: respRate,    setVal: setRespRate,    unit: 'lần/phút',  range: '10–20 lần/phút',     st: rrSt   },
   ];
 
   const clinicalDefs = [
@@ -95,9 +98,9 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, postS
 
   // Collect abnormal items
   const abnItems = [];
-  if (tempSt === 'watch' || tempSt === 'fail') abnItems.push({ label: 'Nhiệt độ', value: temperature + '°C', normal: '37,2–38,3°C', level: tempSt });
+  if (tempSt === 'watch' || tempSt === 'fail') abnItems.push({ label: 'Nhiệt độ', value: temperature + '°C', normal: '37,5–38,5°C', level: tempSt });
   if (hrSt === 'watch'   || hrSt === 'fail')   abnItems.push({ label: 'Nhịp tim', value: heartRate + ' lần/phút', normal: '28–44 lần/phút', level: hrSt });
-  if (rrSt === 'watch'   || rrSt === 'fail')   abnItems.push({ label: 'Nhịp thở', value: respRate + ' lần/phút', normal: '8–16 lần/phút', level: rrSt });
+  if (rrSt === 'watch'   || rrSt === 'fail')   abnItems.push({ label: 'Nhịp thở', value: respRate + ' lần/phút', normal: '10–20 lần/phút', level: rrSt });
   clinicalDefs.forEach(d => {
     if (clinical[d.key] === 'abnormal') {
       const detail = injuryDetails[d.key];
@@ -126,13 +129,16 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, postS
   const hasIncompleteInjury = Object.entries(clinical).some(([key, value]) => value === 'abnormal' && !injuryDetails[key]?.issue);
   const canSave = hasMinVitals && !hasIncompleteInjury;
 
+  const snapshot=JSON.stringify([selectedHorse,examType,healthStatus,temperature,heartRate,respRate,clinical,injuryDetails,diagnosis,medications,recommendations,notes]);
   const handleReset = () => {
+    setDraftId(null);setSavedSnapshot('');setHealthStatus('');setFormError('');
     setTemperature(''); setHeartRate(''); setRespRate('');
     setClinical({ eyes: '', nose: '', mouth: '', movement: '', eating: '', waste: '', skin: '', behavior: '' });
     setInjuryDetails({});
     setDiagnosis(''); setMedications(''); setRecommendations(''); setNotes(''); setSubmitted(false); setLockApplied(false);
   };
 
+  const loadDraft=id=>{if(!id){handleReset();return;}const record=state.healthRecords.find(r=>r.id===id && r.status==='DRAFT' && r.veterinarianId===state.user.id);if(!record)return;const values={temperature:record.vitals?.temperature||'',heartRate:record.vitals?.heartRate||'',respRate:record.vitals?.respRate||'',clinical:record.clinical||clinical,injury:record.injuryDetails||{},diagnosis:record.diagnosis||'',medications:record.medications==='None'?'':record.medications||'',recommendations:record.recommendations||'',notes:record.notes||''};setSelectedHorse(record.horseId);setExamType(record.examType);setHealthStatus(record.healthStatus||'');setTemperature(values.temperature);setHeartRate(values.heartRate);setRespRate(values.respRate);setClinical(values.clinical);setInjuryDetails(values.injury);setDiagnosis(values.diagnosis);setMedications(values.medications);setRecommendations(values.recommendations);setNotes(values.notes);setDraftId(record.id);setSubmitted(false);setSavedSnapshot(JSON.stringify([record.horseId,record.examType,record.healthStatus||'',values.temperature,values.heartRate,values.respRate,values.clinical,values.injury,values.diagnosis,values.medications,values.recommendations,values.notes]));};
   const cancel = () => (postSession && onBack ? onBack() : navigate('health-records'));
 
   const handleSubmit = () => {
@@ -145,8 +151,8 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, postS
     };
     const now = Date.now();
     const rec = {
-      id: demoId(), horseId: selectedHorse, date: new Date().toLocaleDateString('vi-VN'),
-      createdAt: now,
+      id: draftId || demoId(), horseId: selectedHorse, date: new Date().toLocaleDateString('vi-VN'),
+      createdAt: now, status: 'DRAFT', examType, healthStatus: healthStatus || null, sessionId:postSession?.id || state.healthRecords.find(r=>r.id===draftId)?.sessionId, systemNote:autoNote || 'DEMO: đánh giá theo dữ liệu đã nhập.',
       type: examType, vet: state.user.name, notes,
       result: resultMap[trainingResult.status],
       medications: medications || 'None', isPostTraining,
@@ -162,18 +168,10 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, postS
       trainingNote: trainingResult.trainingNote,
       nutritionSuggestions: trainingResult.nutritionSuggestions,
     };
-    setLockApplied(willAutoLock);
-    if (postSession && onPostSubmit) {
-      const err = onPostSubmit(postSession.id, { ...rec, type: 'Khám sau buổi tập', isPostTraining: true });
-      if (err) { onSave(`⚠️ ${err}`); return; }
-      setSubmitted(true);
-      return;
-    }
-    onSaveRecord(rec); setSubmitted(true);
-    const statusMsg = trainingResult.status === 'eligible' ? '🟢 Đủ điều kiện huấn luyện!'
-      : trainingResult.status === 'conditional' ? '🟡 Được huấn luyện có điều kiện'
-      : '🔴 Không đủ điều kiện huấn luyện';
-    onSave(`Đã lưu hồ sơ khám — ${statusMsg}`);
+    if(!horse){setFormError('Chọn ngựa trước khi lưu.');return;}
+    const failure=onSaveDraft(rec);
+    if(failure){setFormError(failure);return;}
+    setDraftId(rec.id);setSavedSnapshot(snapshot);setFormError('');onSave('Đã Save Draft. Chưa cập nhật trạng thái ngựa.');
   };
 
   // Styling helpers
@@ -228,7 +226,7 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, postS
             </div>
           </div>
           <TrainingEligibilityCard result={trainingResult} compact={false} />
-          {lockApplied && <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{horse?.name} đã bị KHÓA HUẤN LUYỆN: gói tạm dừng, các buổi nặng đã xếp bị đánh dấu "Không thực hiện", đã báo Chủ ngựa, Head Trainer và Quản lý.</div>}
+          {lockApplied && <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{horse?.name} đã bị KHÓA HUẤN LUYỆN: các buổi đã xếp không được chạy. CM duyệt Recovery riêng để tạm dừng gói thường.</div>}
           {postSession
             ? <Btn variant="secondary" className="mt-4" onClick={cancel}>← Về danh sách khám sau tập</Btn>
             : <Btn variant="secondary" className="mt-4" onClick={handleReset}>+ Nhập khám tiếp</Btn>}
@@ -241,10 +239,10 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, postS
           <h3 className="font-semibold mb-4 flex items-center gap-2"><SectionNum n={1} /> Thông tin khám</h3>
           {postSession && <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">🏇 Buổi tập: <strong>{postSession.type} {postSession.distance}</strong> · {postSession.date} {postSession.time} · HLV {postSession.trainerName}. Áp dụng cùng tiêu chuẩn khám định kỳ — kết quả "Không đủ điều kiện" sẽ tự động kích hoạt KHÓA HUẤN LUYỆN.</div>}
           <div className="grid grid-cols-2 gap-4">
-            <Select label="Ngựa được khám" value={selectedHorse} onChange={setSelectedHorse}
+            <Select label="Ngựa được khám" value={selectedHorse} onChange={id=>{setSelectedHorse(id);setDraftId(null);setSavedSnapshot('');setHealthStatus('');setExamType(horses.find(h=>h.id===id)?.lifecycle==='awaiting_vet'?'INITIAL':postSession?'FOLLOW_UP':'PERIODIC');}}
               options={horses.map(h => ({ value: h.id, label: `${h.name} (${h.healthStatus})` }))} />
-            <Select label="Loại khám" value={examType} onChange={setExamType}
-              options={(postSession ? ['Kiểm tra sau tập'] : ['Kiểm tra định kỳ', 'Kiểm tra sau tập', 'Kiểm tra trước đua', 'Tiêm phòng', 'Khám chấn thương', 'Khám đột xuất']).map(v => ({ value: v, label: v }))} />
+            <Select label="Bản nháp đã lưu" value={draftId||0} onChange={loadDraft} options={[{value:0,label:'Tạo bản nháp mới'},...state.healthRecords.filter(r=>r.horseId===selectedHorse && r.status==='DRAFT' && r.veterinarianId===state.user.id).map(r=>({value:r.id,label:'#'+r.id+' · '+r.examType}))]}/><Select label="Loại khám" value={examType} onChange={setExamType}
+              options={(postSession ? ['FOLLOW_UP'] : ['INITIAL','PERIODIC','FOLLOW_UP']).map(v => ({ value: v, label: v }))} />
             {!postSession && <div className="col-span-2">
               <label className="flex items-center gap-3 cursor-pointer">
                 <div className={`w-10 h-6 rounded-full transition-all relative ${isPostTraining ? 'bg-[#c9973b]' : 'bg-gray-300'}`} onClick={() => setIsPostTraining(p => !p)}>
@@ -598,10 +596,10 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, postS
           <TrainingEligibilityCard result={trainingResult} />
         </Card>
 
-        {/* ── Bottom action buttons ── */}
+        {formError && <p role="alert" className="text-red-700">{formError}</p>}{draftId && savedSnapshot!==snapshot && <p className="text-amber-700 text-sm">Lưu lại thay đổi trước khi Confirm.</p>}{/* ── Bottom action buttons ── */}
         <div className="flex justify-end gap-2 pb-6">
           <Btn variant="secondary" onClick={cancel}>Huỷ</Btn>
-          <Btn variant={postSession && trainingResult.status === 'not-eligible' ? 'danger' : 'gold'} onClick={handleSubmit} disabled={!canSave}>{postSession && trainingResult.status === 'not-eligible' ? '🔒 Lưu & KHÓA HUẤN LUYỆN' : '💾 Xác nhận & Lưu'}</Btn>
+          <><Select label="Health status" value={healthStatus} onChange={setHealthStatus} options={[{value:'',label:'Chọn kết luận thú y'},...['READY','INJURED','QUARANTINED'].map(value=>({value,label:value}))]}/><Btn variant="secondary" disabled={!horse || hasInvalid} onClick={handleSubmit}>Save Draft</Btn><Btn variant="gold" disabled={!canSave || overallEval==='incomplete' || !healthStatus || !draftId || savedSnapshot!==snapshot} onClick={()=>{const failure=onConfirmRecord(draftId);if(failure){setFormError(failure);return;}setLockApplied(healthStatus!=='READY');setSubmitted(true);onSave('Đã Confirm hồ sơ khám.');}}>Confirm</Btn></>
         </div>
       </>}
     </div>

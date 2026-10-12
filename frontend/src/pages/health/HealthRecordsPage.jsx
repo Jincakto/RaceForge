@@ -1,3 +1,4 @@
+import { MedicalNotes } from '../../components/health/MedicalNotes.jsx';
 import { useState } from 'react';
 import { TrainingEligibilityCard } from '../../components/health/TrainingEligibilityCard.jsx';
 import { Badge } from '../../components/ui/Badge.jsx';
@@ -6,7 +7,7 @@ import { Card } from '../../components/ui/Card.jsx';
 import { sortHealthRecords } from '../../utils/health.js';
 
 export function HealthRecordsPage({ state, navigate }) {
-  const horses = state.horses.filter(h => h.clubId === state.user.clubId);
+  const horses = state.horses.filter(h => state.user.role==='owner'?h.ownerId===state.user.id:h.clubId===state.user.clubId);
   const [sel, setSel] = useState(horses[0]?.id || '');
   const [tab, setTab] = useState('all');
   const isVet = state.user?.role === 'veterinarian';
@@ -83,7 +84,7 @@ export function HealthRecordsPage({ state, navigate }) {
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5"><MedicalNotes records={state.healthRecords.filter(r=>r.horseId===sel)}/>
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div><h2 className="text-xl font-serif font-bold">Hồ sơ y tế</h2></div>
         {isVet && <Btn variant="gold" onClick={() => navigate('vet-health-form')}>+ Nhập khám mới</Btn>}

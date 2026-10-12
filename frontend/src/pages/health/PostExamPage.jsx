@@ -7,7 +7,7 @@ import { Textarea } from '../../components/ui/Textarea.jsx';
 import { VetHealthFormPage } from './VetHealthFormPage.jsx';
 import { getLifecycle } from '../../utils/horse.js';
 
-export function PostExamPage({ state, navigate, onSave, onPostExam, onUnlock, onManualLock }) {
+export function PostExamPage({ state, navigate, onSave, onPostExam, onUnlock, onManualLock, onSaveDraft, onConfirmRecord }) {
   const horses = state.horses.filter(h => h.clubId === state.user.clubId);
   const awaiting = horses.filter(h => getLifecycle(h) === 'awaiting_vet' && h.approvalStatus === 'approved');
   const pending = state.trainingSessions.filter(s => s.status === 'Completed' && !s.postExamDone && horses.some(h => h.id === s.horseId));
@@ -22,7 +22,7 @@ export function PostExamPage({ state, navigate, onSave, onPostExam, onUnlock, on
   const activeSession = state.trainingSessions.find(x => x.id === activeId);
 
   if (activeSession) {
-    return <VetHealthFormPage key={activeSession.id} state={state} navigate={navigate} onSave={onSave} onSaveRecord={() => {}} postSession={activeSession} onPostSubmit={onPostExam} onBack={() => setActiveId(null)} />;
+    return <VetHealthFormPage key={activeSession.id} state={state} navigate={navigate} onSave={onSave} onSaveRecord={() => {}} postSession={activeSession} onSaveDraft={onSaveDraft} onConfirmRecord={onConfirmRecord} onPostSubmit={onPostExam} onBack={() => setActiveId(null)} />;
   }
 
   return (
@@ -88,10 +88,10 @@ export function PostExamPage({ state, navigate, onSave, onPostExam, onUnlock, on
             <div className="flex items-center gap-3 mb-3"><img src={h.imageUrl} className="w-11 h-11 rounded-lg object-cover bg-gray-200" /><div className="flex-1"><div className="font-semibold">{h.name}</div><div className="text-xs text-gray-500">Khóa {h.lock.lockedAt} · {h.lock.lockedByName}</div></div><LifecycleBadge horse={h} /></div>
             <div className="text-sm text-gray-700 mb-1"><strong>Chẩn đoán:</strong> {h.lock.reason}</div>
             {h.lock.notes && <div className="text-sm text-gray-500 mb-1">{h.lock.notes}</div>}
-            <div className="text-xs text-gray-500 mb-3">{h.rehab ? `Gói phục hồi: ${h.rehab.name} (${h.rehab.durationWeeks} tuần)` : 'Chờ Quản lý kích hoạt gói phục hồi'}</div>
+            <div className="text-xs text-gray-500 mb-3">{h.rehab ? `Gói phục hồi: ${h.rehab.name} (${h.rehab.durationWeeks} tuần)` : 'Chờ Quản lý duyệt gói phục hồi'}</div>
             <Textarea label="Cập nhật sức khỏe khi ngựa đủ điều kiện" value={unlockNotes[h.id] || ''} onChange={v => setUnlockNotes(n => ({ ...n, [h.id]: v }))} rows={2} placeholder="VD: Hết sưng, siêu âm gân bình thường, nhịp tim nghỉ 34 bpm — đủ điều kiện quay lại tập" />
             {errors[h.id] && <div className="text-sm text-red-600 mt-2">{errors[h.id]}</div>}
-            <Btn variant="primary" className="mt-3" onClick={() => setErrors(e => ({ ...e, [h.id]: onUnlock(h.id, unlockNotes[h.id] || '') || '' }))}>🔓 Cập nhật sức khỏe & Gỡ khóa</Btn>
+            <Btn variant="primary" className="mt-3" onClick={() => setErrors(e => ({ ...e, [h.id]: onUnlock(h.id, unlockNotes[h.id] || '') || '' }))} disabled={h.backendHealthStatus!=='READY'}>🔓 Unlock riêng — gói vẫn chờ CM Resume</Btn>
           </Card>
         ))}
       </section>

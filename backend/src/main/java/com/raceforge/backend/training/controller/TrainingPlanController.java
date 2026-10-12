@@ -1,0 +1,33 @@
+package com.raceforge.backend.training.controller;
+
+import com.raceforge.backend.common.response.ApiResponse;
+import com.raceforge.backend.security.AuthenticatedUser;
+import com.raceforge.backend.training.dto.TrainingPlanCreateRequest;
+import com.raceforge.backend.training.dto.TrainingPlanResponse;
+import com.raceforge.backend.training.service.TrainingPlanService;
+import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/horses/{horseId}/training-plans")
+public class TrainingPlanController {
+
+  @Autowired
+  private TrainingPlanService trainingPlanService;
+
+  @PostMapping
+  @PreAuthorize("hasAuthority('HEAD_TRAINER')")
+  public ResponseEntity<ApiResponse<TrainingPlanResponse>> create(
+          @PathVariable Integer horseId,
+          @Valid @RequestBody TrainingPlanCreateRequest request,
+          @AuthenticationPrincipal AuthenticatedUser currentUser) {
+
+      request.setTrainerId(currentUser.userId());
+      TrainingPlanResponse response = trainingPlanService.createPlan(horseId, request);
+      return ResponseEntity.ok(ApiResponse.success("Training plan created", response));
+  }
+}

@@ -1,11 +1,10 @@
-/**
- * Horse repositories. Repository code is limited to persistence and lookup behavior.
- */
 package com.raceforge.backend.horse.repository;
 
 import com.raceforge.backend.horse.entity.Horse;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.stereotype.Repository;
 
-public interface HorseRepository extends JpaRepository<Horse, Integer>{
-
+@Repository
+public interface HorseRepository extends JpaRepository<Horse, Integer> {
 }

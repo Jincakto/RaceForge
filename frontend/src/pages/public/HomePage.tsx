@@ -1,4 +1,4 @@
-import { type Page } from '../../types/reference';
+import { type Page } from '../../types/reference.ts';
 
 export function HomePage({ navigate }: { navigate: (p: Page) => void }) {
   return (

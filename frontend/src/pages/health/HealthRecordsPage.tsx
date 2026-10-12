@@ -1,13 +1,13 @@
-import { MedicalSummary } from '../../components/training/MedicalSummary';
-import type { MedicalDto } from '../../types/api';
-import { type AppState, type Page } from '../../types/reference';
+import { MedicalSummary } from '../../components/training/MedicalSummary.tsx';
+import type { MedicalDto } from '../../types/api.ts';
+import { type AppState, type Page } from '../../types/reference.ts';
 import { useState } from 'react';
-import { sortHealthRecords } from '../../utils/trainingAlgorithm';
-import { type HealthRecord } from '../../data';
-import { Card } from '../../components/common/Card';
-import { Badge } from '../../components/common/Badge';
-import { TrainingEligibilityCard } from '../../components/training/TrainingEligibilityCard';
-import { Btn } from '../../components/common/Button';
+import { sortHealthRecords } from '../../utils/trainingAlgorithm.ts';
+import { type HealthRecord } from '../../data.ts';
+import { Card } from '../../components/common/Card.tsx';
+import { Badge } from '../../components/common/Badge.tsx';
+import { TrainingEligibilityCard } from '../../components/training/TrainingEligibilityCard.tsx';
+import { Btn } from '../../components/common/Button.tsx';
 
 export function HealthRecordsPage({ state, navigate, medicalByHorse = {} }: { state: AppState; navigate: (p: Page) => void; medicalByHorse?: Record<number, MedicalDto[]> }) {
   const horses = state.horses.filter(h => h.ownerId === state.user!.id);

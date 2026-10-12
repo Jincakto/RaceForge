@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { TrainingPackageDto, HorsePackageDto } from '../../types/api';
+import type { TrainingPackageDto, HorsePackageDto } from '../../types/api.ts';
 export function PackagePanel({ catalog, packages, eligible, busy, owner, onRegister, onPay }: { catalog: TrainingPackageDto[]; packages: HorsePackageDto[]; eligible: boolean; busy: boolean; owner: boolean; onRegister: (id: number) => Promise<void>; onPay: (p: HorsePackageDto, success: boolean) => Promise<void> }) {
   const [error,setError]=useState('');
   async function run(action: () => Promise<void>) { try { setError(''); await action(); } catch(e) { setError(e instanceof Error ? e.message : 'Không thể thực hiện.'); } }

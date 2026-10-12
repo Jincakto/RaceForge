@@ -1,7 +1,7 @@
-import { demoId } from './demoId';
-export { demoId } from './demoId';
-import type { Horse } from '../data';
-import type { HorseDto, MedicalDto, HorsePackageDto, TrainingLockDto, TrainingPackageDto } from '../types/api';
+import { demoId } from './demoId.ts';
+export { demoId } from './demoId.ts';
+import type { Horse } from '../data.ts';
+import type { HorseDto, MedicalDto, HorsePackageDto, TrainingLockDto, TrainingPackageDto } from '../types/api.ts';
 export interface HorseWorkflowData { records: MedicalDto[]; packages: HorsePackageDto[]; locks: TrainingLockDto[] }
 export interface WorkflowStore { horses: HorseDto[]; byHorse: Record<number, HorseWorkflowData>; catalog: TrainingPackageDto[] }
 export const emptyHorseData = (): HorseWorkflowData => ({ records: [], packages: [], locks: [] });

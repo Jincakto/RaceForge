@@ -1,5 +1,5 @@
-import { demoId } from './demoId';
-import { type AppState } from '../types/reference';
+import { demoId } from './demoId.ts';
+import { type AppState } from '../types/reference.ts';
 
 export function ownerView(state: AppState): AppState {
   const user = state.user;

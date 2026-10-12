@@ -1,14 +1,14 @@
-import { demoId } from '../../utils/demoId';
-import { validateHorseFields, validDisplayDate } from '../../utils/ownerActions';
-import { type AppUser, type Horse, type RaceHistoryEntry } from '../../data';
-import { type AppState, type Page } from '../../types/reference';
+import { demoId } from '../../utils/demoId.ts';
+import { validateHorseFields, validDisplayDate } from '../../utils/ownerActions.ts';
+import { type AppUser, type Horse, type RaceHistoryEntry } from '../../data.ts';
+import { type AppState, type Page } from '../../types/reference.ts';
 import { useState } from 'react';
-import { Btn } from '../../components/common/Button';
-import { Card } from '../../components/common/Card';
-import { Input } from '../../components/common/Input';
-import { Select } from '../../components/common/Select';
-import { Textarea } from '../../components/common/Textarea';
-import { ImageUpload } from '../../components/common/ImageUpload';
+import { Btn } from '../../components/common/Button.tsx';
+import { Card } from '../../components/common/Card.tsx';
+import { Input } from '../../components/common/Input.tsx';
+import { Select } from '../../components/common/Select.tsx';
+import { Textarea } from '../../components/common/Textarea.tsx';
+import { ImageUpload } from '../../components/common/ImageUpload.tsx';
 
 export function HorseCreatePage({ user, state, navigate, onCreateHorse }:
   { user: AppUser; state: AppState; navigate: (p: Page) => void; onCreateHorse: (h: Horse) => void }) {

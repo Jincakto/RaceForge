@@ -1,33 +1,33 @@
-import { liveApi } from './services/api';
-import { authService } from './services/authService';
-import { tokenStore } from './services/tokenStore';
-import { WorkflowWorkspace } from './pages/training/WorkflowWorkspace';
-import { CenterRequestsPage } from './pages/staff/CenterRequestsPage';
-import { demoCatalog, legacyHorse, type WorkflowStore } from './utils/workflowStore';
+import { liveApi } from './services/api.ts';
+import { authService } from './services/authService.ts';
+import { tokenStore } from './services/tokenStore.ts';
+import { WorkflowWorkspace } from './pages/training/WorkflowWorkspace.tsx';
+import { CenterRequestsPage } from './pages/staff/CenterRequestsPage.tsx';
+import { demoCatalog, legacyHorse, type WorkflowStore } from './utils/workflowStore.ts';
 import { useCallback, useEffect, useState } from 'react';
-import { type AppState, type Page } from './types/reference';
+import { type AppState, type Page } from './types/reference.ts';
 import {
   SEED_USERS, SEED_CLUBS, SEED_REQUESTS, HORSES, SEED_HORSE_CLUB_REQUESTS,
   MEDICAL_RECORDS, TRAINING_PLANS, TRAINING_SESSIONS, GROOM_TASKS, NOTIFICATIONS,
   type AppUser, type Horse, type Achievement,
-} from './data';
-import { HomePage } from './pages/public/HomePage';
-import { LoginPage } from './pages/public/LoginPage';
-import { RegisterPage } from './pages/public/RegisterPage';
-import { ProfilePage } from './pages/profile/ProfilePage';
-import { NotificationsPage } from './pages/notifications/NotificationsPage';
-import { RaceResultsPage } from './pages/performance/RaceResultsPage';
-import { PerformancePage } from './pages/performance/PerformancePage';
-import { HealthRecordsPage } from './pages/health/HealthRecordsPage';
-import { HorseDetailPage } from './pages/horses/HorseDetailPage';
-import { TrainerSelectPage } from './pages/staff/TrainerSelectPage';
-import { HorseCreatePage } from './pages/horses/HorseCreatePage';
-import { ownerView, addOwnerHorse, assignOwnerTrainer, submitOwnerHorse, updateOwnerHorse, addOwnerAchievement, markOwnerNotification, updateOwnerProfile } from './utils/ownerActions';
-import { MyHorsesPage } from './pages/horses/MyHorsesPage';
-import { OwnerDashboard } from './pages/dashboard/OwnerDashboard';
-import { ManagerDashboard } from './pages/dashboard/ManagerDashboard';
-import { AppLayout } from './components/layout/AppLayout';
-import { SuccessToast } from './components/common/SuccessToast';
+} from './data.ts';
+import { HomePage } from './pages/public/HomePage.tsx';
+import { LoginPage } from './pages/public/LoginPage.tsx';
+import { RegisterPage } from './pages/public/RegisterPage.tsx';
+import { ProfilePage } from './pages/profile/ProfilePage.tsx';
+import { NotificationsPage } from './pages/notifications/NotificationsPage.tsx';
+import { RaceResultsPage } from './pages/performance/RaceResultsPage.tsx';
+import { PerformancePage } from './pages/performance/PerformancePage.tsx';
+import { HealthRecordsPage } from './pages/health/HealthRecordsPage.tsx';
+import { HorseDetailPage } from './pages/horses/HorseDetailPage.tsx';
+import { TrainerSelectPage } from './pages/staff/TrainerSelectPage.tsx';
+import { HorseCreatePage } from './pages/horses/HorseCreatePage.tsx';
+import { ownerView, addOwnerHorse, assignOwnerTrainer, submitOwnerHorse, updateOwnerHorse, addOwnerAchievement, markOwnerNotification, updateOwnerProfile } from './utils/ownerActions.ts';
+import { MyHorsesPage } from './pages/horses/MyHorsesPage.tsx';
+import { OwnerDashboard } from './pages/dashboard/OwnerDashboard.tsx';
+import { ManagerDashboard } from './pages/dashboard/ManagerDashboard.tsx';
+import { AppLayout } from './components/layout/AppLayout.tsx';
+import { SuccessToast } from './components/common/SuccessToast.tsx';
 
 const ownerPages = new Set<Page>(['my-horses', 'horse-create', 'trainer-select', 'horse-detail', 'health-records', 'performance', 'race-results', 'notifications', 'profile']);
 const ownerTitles: Partial<Record<Page, string>> = { dashboard: 'Dashboard — Chủ ngựa', 'my-horses': 'Ngựa của tôi', 'horse-create': 'Đăng ký ngựa mới', 'horse-detail': 'Chi tiết ngựa', 'trainer-select': 'Chọn Head Trainer', 'health-records': 'Hồ sơ y tế', performance: 'Hiệu suất', 'race-results': 'Kết quả đua', notifications: 'Thông báo', profile: 'Hồ sơ cá nhân' };

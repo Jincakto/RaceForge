@@ -1,4 +1,4 @@
-import type { HorseDto, MedicalDto, HorsePackageDto } from '../types/api';
+import type { HorseDto, MedicalDto, HorsePackageDto } from '../types/api.ts';
 export function applyConfirmedMedical(horse: HorseDto, record: MedicalDto): HorseDto {
   if (record.status !== 'CONFIRMED') return horse;
   return { ...horse, healthStatus: record.healthStatus, trainingLocked: horse.trainingLocked || record.healthStatus !== 'READY' };

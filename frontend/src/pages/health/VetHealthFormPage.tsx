@@ -1,6 +1,6 @@
-import { liveApi } from '../../services/api';
+import { liveApi } from '../../services/api.ts';
 import { useState } from 'react';
-import type { MedicalCreateDto, MedicalDto, MedicalUpdateDto } from '../../types/api';
+import type { MedicalCreateDto, MedicalDto, MedicalUpdateDto } from '../../types/api.ts';
 export const blankMedical = (): MedicalCreateDto => ({ profileId: 0, examType: 'INITIAL', examinedAt: new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0, 16), healthStatus: null, diagnosis: '', treatment: '', medication: '', careRecommendation: '', notes: '', vitalSign: { bodyTemperature: null, restingHeartRate: null, restingRespiratoryRate: null }, clinicalExams: ['LEGS','EYES','RESPIRATORY','SKIN','MOVEMENT','GENERAL_CONDITION'].map(examinationArea => ({ examinationArea, conditionStatus: '' })) });
 export function VetHealthFormPage({ record, busy, initialAllowed, onSave, onConfirm }: { record?: MedicalDto; busy: boolean; initialAllowed: boolean; onSave: (body: MedicalCreateDto | MedicalUpdateDto) => Promise<void>; onConfirm: (id: number) => Promise<void> }) {
   const [form, setForm] = useState<MedicalCreateDto>(() => record ? { ...blankMedical(), ...record, correctionOfId: record.correctionOfId ?? undefined, diagnosis:record.diagnosis || '',treatment:record.treatment || '',medication:record.medication || '',careRecommendation:record.careRecommendation || '',notes:record.notes || '',vitalSign: {...blankMedical().vitalSign,...record.vitalSign},clinicalExams:[...blankMedical().clinicalExams.map(exam=>record.clinicalExams?.find(x=>x.examinationArea===exam.examinationArea)||exam),...(record.clinicalExams || []).filter(x=>!blankMedical().clinicalExams.some(e=>e.examinationArea===x.examinationArea))] } : blankMedical());

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { horseService } from '../../services/horseService';
-import type { HorseDto, HorseWriteDto } from '../../types/api';
+import { horseService } from '../../services/horseService.ts';
+import type { HorseDto, HorseWriteDto } from '../../types/api.ts';
 export function ApiHorseRegistration({ ownerId, onCreated }: {ownerId:number;onCreated:(horse:HorseDto)=>void}) {
   const [latestBirthDate]=useState(()=>{const date=new Date();date.setDate(date.getDate()-1);return date.toISOString().slice(0,10);});
   const [form,setForm]=useState<HorseWriteDto>({horseName:'',dateOfBirth:'',gender:'STALLION',breed:'',coatColor:'',weight:0,height:0,background:'',declaredMedicalHistory:'',imageUrl:''});

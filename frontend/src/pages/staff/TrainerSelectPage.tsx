@@ -1,8 +1,8 @@
-import { type AppUser } from '../../data';
-import { type AppState, type Page } from '../../types/reference';
+import { type AppUser } from '../../data.ts';
+import { type AppState, type Page } from '../../types/reference.ts';
 import { useState } from 'react';
-import { Card } from '../../components/common/Card';
-import { Btn } from '../../components/common/Button';
+import { Card } from '../../components/common/Card.tsx';
+import { Btn } from '../../components/common/Button.tsx';
 
 export function TrainerSelectPage({ user, state, navigate, onSelectTrainer }:
   { user: AppUser; state: AppState; navigate: (p: Page) => void; onSelectTrainer: (horseId: number, trainerId: number) => void }) {

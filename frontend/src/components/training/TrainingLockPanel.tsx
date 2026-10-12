@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { HorseDto, TrainingLockDto } from '../../types/api';
+import type { HorseDto, TrainingLockDto } from '../../types/api.ts';
 export function TrainingLockPanel({ horse, history, veterinarian, busy, onUnlock }: { horse: HorseDto; history: TrainingLockDto[]; veterinarian: boolean; busy: boolean; onUnlock: (reason: string) => Promise<void> }) {
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');

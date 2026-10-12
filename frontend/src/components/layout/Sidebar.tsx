@@ -1,6 +1,6 @@
-import { liveApi } from '../../services/api';
-import { type AppUser } from '../../data';
-import { type Page, NAV_ITEMS, GRANTABLE_PAGES, ROLE_LABELS } from '../../types/reference';
+import { liveApi } from '../../services/api.ts';
+import { type AppUser } from '../../data.ts';
+import { type Page, NAV_ITEMS, GRANTABLE_PAGES, ROLE_LABELS } from '../../types/reference.ts';
 
 export function Sidebar({ user, page, navigate, memberReqCount, horseReqCount, grantedPages }:
   { user: AppUser; page: Page; navigate: (p: Page) => void; memberReqCount: number; horseReqCount: number; grantedPages: Page[] }) {

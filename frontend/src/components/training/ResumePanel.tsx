@@ -1,7 +1,7 @@
-import { liveApi } from '../../services/api';
+import { liveApi } from '../../services/api.ts';
 import { useState } from 'react';
-import type { HorseDto, HorsePackageDto } from '../../types/api';
-import { canResume } from '../../utils/horseWorkflow';
+import type { HorseDto, HorsePackageDto } from '../../types/api.ts';
+import { canResume } from '../../utils/horseWorkflow.ts';
 export function ResumePanel({ horse, packages, busy, onResume }: { horse: HorseDto; packages: HorsePackageDto[]; busy: boolean; onResume: (id: number, reason: string) => Promise<void> }) {
   const [manualId,setManualId]=useState(0);
   const [reason,setReason]=useState(''); const [error,setError]=useState('');

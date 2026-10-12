@@ -1,5 +1,5 @@
-import { request, json } from './api';
-import { numericId, type TrainingPackageDto, type HorsePackageDto } from '../types/api';
+import { request, json } from './api.ts';
+import { numericId, type TrainingPackageDto, type HorsePackageDto } from '../types/api.ts';
 export const trainingService = {
   catalog: () => request<TrainingPackageDto[]>('/api/training-packages'),
   history: (horseId: number) => request<HorsePackageDto[]>(`/api/horse-packages/horse/${numericId(horseId)}`),

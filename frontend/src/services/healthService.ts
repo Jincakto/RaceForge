@@ -1,5 +1,5 @@
-import { request, json } from './api';
-import { numericId, type MedicalCreateDto, type MedicalUpdateDto, type MedicalDto, type TrainingLockDto } from '../types/api';
+import { request, json } from './api.ts';
+import { numericId, type MedicalCreateDto, type MedicalUpdateDto, type MedicalDto, type TrainingLockDto } from '../types/api.ts';
 export const healthService = {
   list: (horseId: number) => request<MedicalDto[]>(`/api/medical/horses/${numericId(horseId)}/records`),
   previous: (horseId: number) => request<MedicalDto | undefined>(`/api/medical/horses/${numericId(horseId)}/previous-examination`),

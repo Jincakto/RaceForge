@@ -1,5 +1,5 @@
-import { tokenStore } from './tokenStore';
-import type { ApiResponse } from '../types/api';
+import { tokenStore } from './tokenStore.ts';
+import type { ApiResponse } from '../types/api.ts';
 export const apiBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 export const liveApi = Boolean(apiBase);
 export class ApiError extends Error {

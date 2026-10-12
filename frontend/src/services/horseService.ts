@@ -1,5 +1,5 @@
-import { request, json } from './api';
-import { numericId, type HorseDto, type HorseWriteDto } from '../types/api';
+import { request, json } from './api.ts';
+import { numericId, type HorseDto, type HorseWriteDto } from '../types/api.ts';
 export const horseService = {
   list: () => request<HorseDto[]>('/api/horses'),
   get: (horseId: number) => request<HorseDto>(`/api/horses/${numericId(horseId)}`),

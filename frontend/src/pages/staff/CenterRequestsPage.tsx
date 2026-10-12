@@ -1,5 +1,5 @@
-import type { AppState } from '../../types/reference';
-import { liveApi } from '../../services/api';
+import type { AppState } from '../../types/reference.ts';
+import { liveApi } from '../../services/api.ts';
 export function CenterRequestsPage({ state, onChange }: { state: AppState; onChange: (state: AppState) => void }) {
   const requests = state.horseClubRequests.filter(r => r.clubId === state.user?.clubId);
   function review(id: number, approve: boolean) {

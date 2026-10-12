@@ -1,10 +1,10 @@
-import { type AppState, type Page } from '../../types/reference';
-import { Card } from '../../components/common/Card';
-import { StatCard } from '../../components/common/StatCard';
-import { Btn } from '../../components/common/Button';
-import { Badge } from '../../components/common/Badge';
+import { type AppState, type Page } from '../../types/reference.ts';
+import { Card } from '../../components/common/Card.tsx';
+import { StatCard } from '../../components/common/StatCard.tsx';
+import { Btn } from '../../components/common/Button.tsx';
+import { Badge } from '../../components/common/Badge.tsx';
 import { ResponsiveContainer, LineChart, CartesianGrid, XAxis, YAxis, Tooltip, Line } from 'recharts';
-import { PERFORMANCE_DATA } from '../../data';
+import { PERFORMANCE_DATA } from '../../data.ts';
 
 export function ManagerDashboard({ state, navigate }: { state: AppState; navigate: (p: Page) => void }) {
   const myClub = state.clubs.find(c => c.managerId === state.user!.id);

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { authService } from '../../services/authService';
-import type { Page } from '../../types/reference';
+import { authService } from '../../services/authService.ts';
+import type { Page } from '../../types/reference.ts';
 export function LiveRegisterPage({ navigate }: {navigate:(page:Page)=>void}) {
   const [form,setForm]=useState({fullName:'',email:'',password:'',phone:'',requestedRoleId:null as number|null});
   const [stage,setStage]=useState<'register'|'verify'>('register');const [otp,setOtp]=useState('');const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('');

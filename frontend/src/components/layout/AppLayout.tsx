@@ -1,7 +1,7 @@
 import type * as React from 'react';
-import { type AppUser } from '../../data';
-import { type Page, type AppState } from '../../types/reference';
-import { Sidebar } from './Sidebar';
+import { type AppUser } from '../../data.ts';
+import { type Page, type AppState } from '../../types/reference.ts';
+import { Sidebar } from './Sidebar.tsx';
 
 export function AppLayout({ user, page, title, navigate, children, state }:
   { user: AppUser; page: Page; title: string; navigate: (p: Page) => void; children: React.ReactNode; state: AppState }) {

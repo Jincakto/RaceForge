@@ -1,7 +1,7 @@
-import { liveApi } from '../../services/api';
-import { authService } from '../../services/authService';
-import { type Page, DEMO_ACCOUNTS } from '../../types/reference';
-import { type AppUser } from '../../data';
+import { liveApi } from '../../services/api.ts';
+import { authService } from '../../services/authService.ts';
+import { type Page, DEMO_ACCOUNTS } from '../../types/reference.ts';
+import { type AppUser } from '../../data.ts';
 import { useState } from 'react';
 
 export function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) => void; users: AppUser[]; onLogin: (u: AppUser) => void }) {

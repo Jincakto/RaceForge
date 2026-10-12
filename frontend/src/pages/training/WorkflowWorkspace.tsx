@@ -1,19 +1,19 @@
-import { ApiHorseRegistration } from '../horses/ApiHorseRegistration';
+import { ApiHorseRegistration } from '../horses/ApiHorseRegistration.tsx';
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
-import type { AppUser, Horse } from '../../data';
-import type { HorseDto, MedicalCreateDto, MedicalDto, MedicalUpdateDto, HorsePackageDto } from '../../types/api';
-import { liveApi } from '../../services/api';
-import { horseService } from '../../services/horseService';
-import { healthService } from '../../services/healthService';
-import { trainingService } from '../../services/trainingService';
-import { applyConfirmedMedical, canRegisterPackage, canResume, reconcileResume } from '../../utils/horseWorkflow';
-import { emptyHorseData, demoId, demoPackage, withPayment, remainingDays, type WorkflowStore } from '../../utils/workflowStore';
-import { VetHealthFormPage } from '../health/VetHealthFormPage';
-import { MedicalSummary } from '../../components/training/MedicalSummary';
-import { TrainingLockPanel } from '../../components/training/TrainingLockPanel';
-import { RecoveryPanel } from '../../components/training/RecoveryPanel';
-import { PackagePanel } from '../../components/training/PackagePanel';
-import { ResumePanel } from '../../components/training/ResumePanel';
+import type { AppUser, Horse } from '../../data.ts';
+import type { HorseDto, MedicalCreateDto, MedicalDto, MedicalUpdateDto, HorsePackageDto } from '../../types/api.ts';
+import { liveApi } from '../../services/api.ts';
+import { horseService } from '../../services/horseService.ts';
+import { healthService } from '../../services/healthService.ts';
+import { trainingService } from '../../services/trainingService.ts';
+import { applyConfirmedMedical, canRegisterPackage, canResume, reconcileResume } from '../../utils/horseWorkflow.ts';
+import { emptyHorseData, demoId, demoPackage, withPayment, remainingDays, type WorkflowStore } from '../../utils/workflowStore.ts';
+import { VetHealthFormPage } from '../health/VetHealthFormPage.tsx';
+import { MedicalSummary } from '../../components/training/MedicalSummary.tsx';
+import { TrainingLockPanel } from '../../components/training/TrainingLockPanel.tsx';
+import { RecoveryPanel } from '../../components/training/RecoveryPanel.tsx';
+import { PackagePanel } from '../../components/training/PackagePanel.tsx';
+import { ResumePanel } from '../../components/training/ResumePanel.tsx';
 
 export function WorkflowWorkspace({ user, legacyHorses, store, setStore }: { user: AppUser; legacyHorses: Horse[]; store: WorkflowStore; setStore: Dispatch<SetStateAction<WorkflowStore>> }) {
   const horses = store.horses.filter(h => user.role !== 'owner' || h.ownerId === user.id);

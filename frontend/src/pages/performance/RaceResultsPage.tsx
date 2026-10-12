@@ -1,7 +1,7 @@
-import { parseDDMMYYYY } from '../../utils/trainingAlgorithm';
-import { type Horse } from '../../data';
-import { StatCard } from '../../components/common/StatCard';
-import { Card } from '../../components/common/Card';
+import { parseDDMMYYYY } from '../../utils/trainingAlgorithm.ts';
+import { type Horse } from '../../data.ts';
+import { StatCard } from '../../components/common/StatCard.tsx';
+import { Card } from '../../components/common/Card.tsx';
 
 export function RaceResultsPage({ horses }: { horses: Horse[] }) {
   const allRaces = horses.flatMap(h => h.raceHistory.map(r => ({ ...r, horseName: h.name })));

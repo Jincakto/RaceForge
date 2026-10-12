@@ -1,10 +1,10 @@
-import { demoId } from '../../utils/demoId';
-import { liveApi } from '../../services/api';
-import { LiveRegisterPage } from './LiveRegisterPage';
-import { type Page } from '../../types/reference';
-import { type AppUser } from '../../data';
+import { demoId } from '../../utils/demoId.ts';
+import { liveApi } from '../../services/api.ts';
+import { LiveRegisterPage } from './LiveRegisterPage.tsx';
+import { type Page } from '../../types/reference.ts';
+import { type AppUser } from '../../data.ts';
 import { useState } from 'react';
-import { OTPModal } from '../../components/common/OTPModal';
+import { OTPModal } from '../../components/common/OTPModal.tsx';
 
 function DemoRegisterPage({ navigate, onRegister }: { navigate: (p: Page) => void; onRegister: (u: AppUser) => void }) {
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirm: '' });

@@ -1,19 +1,19 @@
-import { demoId } from '../../utils/demoId';
-import { MedicalSummary } from '../../components/training/MedicalSummary';
-import type { MedicalDto, HorseDto } from '../../types/api';
-import { validDisplayDate } from '../../utils/ownerActions';
-import { type AppState, type Page } from '../../types/reference';
-import { type Horse, type Achievement, computeTrainingSuggestion } from '../../data';
+import { demoId } from '../../utils/demoId.ts';
+import { MedicalSummary } from '../../components/training/MedicalSummary.tsx';
+import type { MedicalDto, HorseDto } from '../../types/api.ts';
+import { validDisplayDate } from '../../utils/ownerActions.ts';
+import { type AppState, type Page } from '../../types/reference.ts';
+import { type Horse, type Achievement, computeTrainingSuggestion } from '../../data.ts';
 import { useState } from 'react';
-import { sortHealthRecords } from '../../utils/trainingAlgorithm';
-import { Badge } from '../../components/common/Badge';
-import { Btn } from '../../components/common/Button';
-import { Card } from '../../components/common/Card';
-import { Input } from '../../components/common/Input';
-import { Textarea } from '../../components/common/Textarea';
-import { ImageUpload } from '../../components/common/ImageUpload';
-import { Select } from '../../components/common/Select';
-import { TrainingAlgorithmTab } from '../../components/training/TrainingAlgorithmTab';
+import { sortHealthRecords } from '../../utils/trainingAlgorithm.ts';
+import { Badge } from '../../components/common/Badge.tsx';
+import { Btn } from '../../components/common/Button.tsx';
+import { Card } from '../../components/common/Card.tsx';
+import { Input } from '../../components/common/Input.tsx';
+import { Textarea } from '../../components/common/Textarea.tsx';
+import { ImageUpload } from '../../components/common/ImageUpload.tsx';
+import { Select } from '../../components/common/Select.tsx';
+import { TrainingAlgorithmTab } from '../../components/training/TrainingAlgorithmTab.tsx';
 
 function HorseDetailContent({ state, navigate, onUpdateHorse, onShowSuccess, onAddAchievement }:
   { state: AppState; navigate: (p: Page) => void; onUpdateHorse: (h: Horse) => void; onShowSuccess: (m: string) => void; onAddAchievement: (horseId: number, achievement: Achievement) => void }) {

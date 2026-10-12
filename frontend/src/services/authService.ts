@@ -1,7 +1,7 @@
-import { request, json } from './api';
-import { tokenStore } from './tokenStore';
-import { numericId, type AuthDto, type UserDto } from '../types/api';
-import type { AppUser, Role } from '../data';
+import { request, json } from './api.ts';
+import { tokenStore } from './tokenStore.ts';
+import { numericId, type AuthDto, type UserDto } from '../types/api.ts';
+import type { AppUser, Role } from '../data.ts';
 const roles: Record<string, Role> = { CLUB_MANAGER: 'manager', HORSE_OWNER: 'owner', VETERINARIAN: 'veterinarian', HEAD_TRAINER: 'head_trainer', GROOM: 'groom' };
 export function toAppUser(user: UserDto): AppUser {
   numericId(user.userId);

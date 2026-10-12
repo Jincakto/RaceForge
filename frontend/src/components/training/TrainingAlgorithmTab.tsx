@@ -1,5 +1,5 @@
-import { type Horse, type TrainingSuggestion, type HealthRecord } from '../../data';
-import { Card } from '../common/Card';
+import { type Horse, type TrainingSuggestion, type HealthRecord } from '../../data.ts';
+import { Card } from '../common/Card.tsx';
 
 export function TrainingAlgorithmTab({ horse, suggestion, latestHealth }: { horse: Horse; suggestion: TrainingSuggestion; latestHealth?: HealthRecord }) {
   const phaseColors: Record<string, string> = { 'Competition Prep': 'bg-orange-100 text-orange-800', 'Base Building': 'bg-blue-100 text-blue-800', Foundation: 'bg-teal-100 text-teal-800', Recovery: 'bg-gray-100 text-gray-700' };

@@ -1,4 +1,4 @@
-import { type AppUser, type Club, type MemberRequest, type Horse, type HorseClubRequest, type HealthRecord, type TrainingPlan, type TrainingSession, GROOM_TASKS, NOTIFICATIONS, type Role } from '../data';
+import { type AppUser, type Club, type MemberRequest, type Horse, type HorseClubRequest, type HealthRecord, type TrainingPlan, type TrainingSession, GROOM_TASKS, NOTIFICATIONS, type Role } from '../data.ts';
 
 export type Page =
   | 'home' | 'login' | 'register' | 'onboarding' | 'create-center' | 'join-center' | 'pending'

@@ -1,6 +1,6 @@
-import { NOTIFICATIONS } from '../../data';
-import { Btn } from '../../components/common/Button';
-import { Card } from '../../components/common/Card';
+import { NOTIFICATIONS } from '../../data.ts';
+import { Btn } from '../../components/common/Button.tsx';
+import { Card } from '../../components/common/Card.tsx';
 
 export function NotificationsPage({ notifications, onMarkRead }: { notifications: typeof NOTIFICATIONS; onMarkRead: (id: number) => void }) {
   const icons: Record<string, string> = { health: '🏥', training: '🏇', race: '🏆', system: '⚙️' };

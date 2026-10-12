@@ -1,5 +1,5 @@
-import { type TrainingEligResult, type NutritionSuggestion } from '../types/reference';
-import { type HealthRecord } from '../data';
+import { type TrainingEligResult, type NutritionSuggestion } from '../types/reference.ts';
+import { type HealthRecord } from '../data.ts';
 
 export function deriveTrainingEligibility(params: {
   hasMinVitals: boolean;

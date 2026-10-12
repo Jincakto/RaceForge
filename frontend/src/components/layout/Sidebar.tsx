@@ -1,14 +1,15 @@
-import { type AppUser } from '../../data';
-import { type Page, NAV_ITEMS, GRANTABLE_PAGES, ROLE_LABELS } from '../../types/reference';
+import { liveApi } from '../../services/api.ts';
+import { type AppUser } from '../../data.ts';
+import { type Page, NAV_ITEMS, GRANTABLE_PAGES, ROLE_LABELS } from '../../types/reference.ts';
 
 export function Sidebar({ user, page, navigate, memberReqCount, horseReqCount, grantedPages }:
   { user: AppUser; page: Page; navigate: (p: Page) => void; memberReqCount: number; horseReqCount: number; grantedPages: Page[] }) {
   const roleItems = NAV_ITEMS[user.role!] || [];
   const rolePages = new Set(roleItems.map(i => i.page));
   const extraItems = GRANTABLE_PAGES
-    .filter(g => user.role !== 'user' && grantedPages.includes(g.page) && !rolePages.has(g.page))
+    .filter(g => grantedPages.includes(g.page) && !rolePages.has(g.page))
     .map(g => ({ icon: g.icon, label: g.label, page: g.page }));
-  const items = [...roleItems, ...extraItems];
+  const items = liveApi ? [...roleItems, ...extraItems].filter(i => ['dashboard','training-hub','vet-health-form','center-requests'].includes(i.page)) : [...roleItems, ...extraItems];
   return (
     <div className="w-60 min-h-screen bg-[#0f1729] flex flex-col flex-shrink-0">
       <div className="p-5 border-b border-white/10">

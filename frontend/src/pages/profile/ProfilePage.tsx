@@ -1,9 +1,9 @@
-import { type AppUser } from '../../data';
-import { type AppState, type Page, ROLE_LABELS } from '../../types/reference';
+import { type AppUser } from '../../data.ts';
+import { type AppState, type Page, ROLE_LABELS } from '../../types/reference.ts';
 import { useState } from 'react';
-import { Card } from '../../components/common/Card';
-import { Input } from '../../components/common/Input';
-import { Btn } from '../../components/common/Button';
+import { Card } from '../../components/common/Card.tsx';
+import { Input } from '../../components/common/Input.tsx';
+import { Btn } from '../../components/common/Button.tsx';
 
 export function ProfilePage({ user, state, navigate, onLogout, onSave, onUpdateName }:
   { user: AppUser; state: AppState; navigate: (p: Page) => void; onLogout: () => void; onSave: (msg: string) => void; onUpdateName: (name: string) => void }) {

@@ -1,5 +1,5 @@
-import { type AppState } from '../types/reference';
-import { newDemoId } from './demoId';
+import { demoId } from './demoId.ts';
+import { type AppState } from '../types/reference.ts';
 
 export function ownerView(state: AppState): AppState {
   const user = state.user;
@@ -9,8 +9,8 @@ export function ownerView(state: AppState): AppState {
   return {
     ...state, horses,
     notifications: state.notifications.filter(notification => {
-      const horseId = ({ 40: 1, 41: 1, 42: 22 } as Record<number, number>)[notification.id];
-      return horseId ? ids.has(horseId) : notification.id === 43 || state.horseClubRequests.some(request => request.id === notification.id && request.ownerId === user.id);
+      const horseId = ({ 41: 14, 42: 14, 43: 22 } as Record<number, number>)[notification.id];
+      return horseId ? ids.has(horseId) : notification.id === 44 || state.horseClubRequests.some(request => request.id === notification.id && request.ownerId === user.id);
     }),
     healthRecords: state.healthRecords.filter(record => ids.has(record.horseId)),
     trainingPlans: state.trainingPlans.filter(plan => ids.has(plan.horseId)),
@@ -53,7 +53,7 @@ export function submitOwnerHorse(state: AppState, horseId: number, at = new Date
   if (state.horseClubRequests.some(request => request.horseId === horseId && request.status === 'pending')) throw new Error('Ngựa đang có yêu cầu chờ duyệt.');
   const expires = new Date(at); expires.setDate(expires.getDate() + 7);
   const request: import('../data').HorseClubRequest = {
-    id: newDemoId(), horseId, horseName: horse.name, horseBreed: horse.breed,
+    id: demoId(), horseId, horseName: horse.name, horseBreed: horse.breed,
     horseImageUrl: horse.imageUrl, ownerId: user.id, ownerName: user.name, clubId: user.clubId,
     submittedAt: at.toLocaleDateString('vi-VN'), expiresAt: expires.toLocaleDateString('vi-VN'),
     status: 'pending', reviewNote: '',
@@ -92,7 +92,7 @@ export function markOwnerNotification(state: AppState, id: number): AppState {
 }
 
 export function updateOwnerProfile(state: AppState, name: string): AppState {
-  if (state.user?.role !== 'owner' && state.user?.role !== 'user') throw new Error('Bạn không có quyền sửa hồ sơ này.');
+  if (state.user?.role !== 'owner') throw new Error('Trang này dành cho Chủ ngựa.');
   if (!name.trim()) throw new Error('Vui lòng nhập họ tên.');
   const trimmed = name.trim();
   const user = { ...state.user, name: trimmed, avatar: trimmed.split(/\s+/).slice(-2).map(word => word[0]).join('').toUpperCase() };

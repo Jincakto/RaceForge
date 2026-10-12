@@ -1,0 +1,58 @@
+export const NAV_ITEMS = {
+  manager: [
+    { icon: '⊞', label: 'Dashboard', page: 'dashboard' },
+    { icon: '🐎', label: 'Ngựa trong trung tâm', page: 'horse-list' },
+    { icon: '📋', label: 'Duyệt đăng ký ngựa', page: 'center-requests', badge: 'horseReqs' },
+    { icon: '🩹', label: 'Gói phục hồi', page: 'rehab-center', badge: 'rehabReqs' },
+    { icon: '👥', label: 'Nhân sự', page: 'staff' },
+    { icon: '📨', label: 'Yêu cầu tham gia', page: 'member-requests', badge: 'memberReqs' },
+    { icon: '🏆', label: 'Kết quả đua', page: 'race-results' },
+    { icon: '📊', label: 'Báo cáo', page: 'reports' },
+    { icon: '🔔', label: 'Thông báo', page: 'notifications' },
+  ],
+  head_trainer: [
+    { icon: '⊞', label: 'Dashboard', page: 'dashboard' },
+    { icon: '🐎', label: 'Ngựa', page: 'horse-list' },
+    { icon: '📋', label: 'Huấn luyện & Giáo án', page: 'training-hub' },
+    { icon: '📈', label: 'Hiệu suất', page: 'performance' },
+    { icon: '🔔', label: 'Thông báo', page: 'notifications' },
+  ],
+  veterinarian: [
+    { icon: '⊞', label: 'Dashboard', page: 'dashboard' },
+    { icon: '🐎', label: 'Ngựa', page: 'horse-list' },
+    { icon: '🏥', label: 'Hồ sơ y tế', page: 'health-records' },
+    { icon: '📝', label: 'Nhập liệu sức khỏe', page: 'vet-health-form' },
+    { icon: '🩺', label: 'Khám sau tập & Khóa', page: 'post-exam', badge: 'vetTodo' },
+    { icon: '🔔', label: 'Thông báo', page: 'notifications' },
+  ],
+  groom: [
+    { icon: '⊞', label: 'Dashboard', page: 'dashboard' },
+    { icon: '🌿', label: 'Chăm sóc & Cho ăn', page: 'care-hub' },
+    { icon: '📦', label: 'Kho của tôi', page: 'inventory' },
+    { icon: '📜', label: 'Lịch sử kho', page: 'inventory-log' },
+    { icon: '🔔', label: 'Thông báo', page: 'notifications' },
+  ],
+  owner: [
+    { icon: '⊞', label: 'Dashboard', page: 'dashboard' },
+    { icon: '🐎', label: 'Ngựa của tôi', page: 'my-horses' },
+    { icon: '➕', label: 'Đăng ký ngựa mới', page: 'horse-create' },
+    { icon: '🎯', label: 'Đăng ký huấn luyện', page: 'training-register' },
+    { icon: '📈', label: 'Hiệu suất', page: 'performance' },
+    { icon: '🏆', label: 'Kết quả đua', page: 'race-results' },
+    { icon: '🔔', label: 'Thông báo', page: 'notifications' },
+  ],
+};
+
+export const GRANTABLE_PAGES = [
+  { page: 'horse-list', label: 'Danh sách ngựa', icon: '🐎' },
+  { page: 'health-records', label: 'Hồ sơ y tế', icon: '🏥' },
+  { page: 'vet-health-form', label: 'Nhập liệu sức khỏe', icon: '📝' },
+  { page: 'training-hub', label: 'Huấn luyện & Giáo án', icon: '🏇' },
+  { page: 'care-hub', label: 'Chăm sóc & Cho ăn', icon: '🌿' },
+  { page: 'performance', label: 'Hiệu suất', icon: '📈' },
+  { page: 'race-results', label: 'Kết quả đua', icon: '🏆' },
+  { page: 'reports', label: 'Báo cáo', icon: '📊' },
+  { page: 'center-requests', label: 'Duyệt đăng ký ngựa', icon: '📋' },
+  { page: 'member-requests', label: 'Yêu cầu tham gia', icon: '📨' },
+  { page: 'staff', label: 'Nhân sự', icon: '👥' },
+];

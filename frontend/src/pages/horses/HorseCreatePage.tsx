@@ -1,13 +1,14 @@
-import { validateHorseFields, validDisplayDate } from '../../utils/ownerActions';
-import { type AppUser, type Horse, type RaceHistoryEntry } from '../../data';
-import { type AppState, type Page } from '../../types/reference';
+import { demoId } from '../../utils/demoId.ts';
+import { validateHorseFields, validDisplayDate } from '../../utils/ownerActions.ts';
+import { type AppUser, type Horse, type RaceHistoryEntry } from '../../data.ts';
+import { type AppState, type Page } from '../../types/reference.ts';
 import { useState } from 'react';
-import { Btn } from '../../components/common/Button';
-import { Card } from '../../components/common/Card';
-import { Input } from '../../components/common/Input';
-import { Select } from '../../components/common/Select';
-import { Textarea } from '../../components/common/Textarea';
-import { ImageUpload } from '../../components/common/ImageUpload';
+import { Btn } from '../../components/common/Button.tsx';
+import { Card } from '../../components/common/Card.tsx';
+import { Input } from '../../components/common/Input.tsx';
+import { Select } from '../../components/common/Select.tsx';
+import { Textarea } from '../../components/common/Textarea.tsx';
+import { ImageUpload } from '../../components/common/ImageUpload.tsx';
 
 export function HorseCreatePage({ user, state, navigate, onCreateHorse }:
   { user: AppUser; state: AppState; navigate: (p: Page) => void; onCreateHorse: (h: Horse) => void }) {
@@ -22,7 +23,7 @@ export function HorseCreatePage({ user, state, navigate, onCreateHorse }:
     if (!newRace.raceName.trim() || !validDisplayDate(newRace.date)) { setError('Nhập tên giải và ngày đua dạng DD/MM/YYYY.'); return; }
     if (Number(newRace.position) > Number(newRace.totalHorses)) { setError('Thứ hạng không thể lớn hơn số ngựa tham gia.'); return; }
     setError('');
-    setRaceHistory(r => [...r, { id: newDemoId(), ...newRace, raceName: newRace.raceName.trim(), position: Number(newRace.position), totalHorses: Number(newRace.totalHorses) }]);
+    setRaceHistory(r => [...r, { id: demoId(), ...newRace, raceName: newRace.raceName.trim(), position: Number(newRace.position), totalHorses: Number(newRace.totalHorses) }]);
     setNewRace({ date: '', raceName: '', distance: '1200m', position: '1', totalHorses: '10', time: '', venue: '', jockey: '', prize: '' });
     setShowRaceForm(false);
   };
@@ -30,12 +31,12 @@ export function HorseCreatePage({ user, state, navigate, onCreateHorse }:
   const handle = () => {
     const invalid = validateHorseFields({ name: form.name, color: form.color, age: Number(form.age), weight: Number(form.weight), height: Number(form.height) });
     if (invalid) { setError(invalid); return; }
-    const id = newDemoId();
+    const id = demoId();
     onCreateHorse({
       id, name: form.name, breed: form.breed, age: Number(form.age), color: form.color, gender: form.gender,
       weight: Number(form.weight), height: Number(form.height), stable: '', stall: '', clubId: null,
-      ownerId: user.id, ownerName: user.name, headTrainerId: null, headTrainerName: '',
-      vetId: null, vetName: '', groomId: null, groomName: '',
+      ownerId: user.id, ownerName: user.name, headTrainerId: 0, headTrainerName: '',
+      vetId: 0, vetName: '', groomId: 0, groomName: '',
       healthStatus: 'Pending Vet', trainingStatus: 'Pending Approval', approvalStatus: 'pending',
       registrationDate: new Date().toLocaleDateString('vi-VN'), approvedAt: null, totalRaces: raceHistory.length,
       wins: raceHistory.filter(r => r.position === 1).length,
@@ -99,4 +100,3 @@ export function HorseCreatePage({ user, state, navigate, onCreateHorse }:
     </div>
   );
 }
-import { newDemoId } from '../../utils/demoId';

@@ -1,8 +1,8 @@
-import { type AppUser } from '../../data';
-import { type AppState, type Page } from '../../types/reference';
-import { Btn } from '../../components/common/Button';
-import { Card } from '../../components/common/Card';
-import { Badge } from '../../components/common/Badge';
+import { type AppUser } from '../../data.ts';
+import { type AppState, type Page } from '../../types/reference.ts';
+import { Btn } from '../../components/common/Button.tsx';
+import { Card } from '../../components/common/Card.tsx';
+import { Badge } from '../../components/common/Badge.tsx';
 
 export function MyHorsesPage({ user, state, navigate, onSubmitToCenter, onSelectHorse }:
   { user: AppUser; state: AppState; navigate: (p: Page) => void; onSubmitToCenter: (horseId: number) => void; onSelectHorse: (id: number) => void }) {

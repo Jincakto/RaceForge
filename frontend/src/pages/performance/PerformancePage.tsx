@@ -1,9 +1,9 @@
-import { type Horse } from '../../data';
+import { type Horse } from '../../data.ts';
 import { useState } from 'react';
-import { StatCard } from '../../components/common/StatCard';
-import { Card } from '../../components/common/Card';
+import { StatCard } from '../../components/common/StatCard.tsx';
+import { Card } from '../../components/common/Card.tsx';
 import { ResponsiveContainer, LineChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, Line, RadarChart, PolarGrid, PolarAngleAxis, Radar } from 'recharts';
-import { PERFORMANCE_DATA } from '../../data';
+import { PERFORMANCE_DATA } from '../../data.ts';
 
 export function PerformancePage({ horses }: { horses: Horse[] }) {
   const [selected, setSelected] = useState(horses[0]?.id || '');

@@ -27,12 +27,12 @@
     {
       "name": "AppState",
       "file": "src/types/reference.ts",
-      "sha256": "2b8e19bcac93b701276d12fd3d620306c7ac864427bc862beb152853a3c32328"
+      "sha256": "af28c67b547fabd4f53c3d893632f7df15da08fe52ccd804e70f9842787b4d1c"
     },
     {
       "name": "ROLE_LABELS",
       "file": "src/types/reference.ts",
-      "sha256": "533111f32d7f701eed9c6e9e8e0acd3074960ddc992573568e95b507e07f847f"
+      "sha256": "8a6f0e68de4acd2086603ca7d95752923189eb23b3837d54101c055f569680be"
     },
     {
       "name": "DEMO_ACCOUNTS",
@@ -42,7 +42,7 @@
     {
       "name": "NAV_ITEMS",
       "file": "src/types/reference.ts",
-      "sha256": "1b13a333c431091312c87e755c8df086787cd4866477d9a33c79198c7409cd93"
+      "sha256": "b81d4893d89750bc61b0f9a1a044545369060f28ef27b54cc595186ae3cf635f"
     },
     {
       "name": "GRANTABLE_PAGES",
@@ -82,7 +82,7 @@
     {
       "name": "HomePage",
       "file": "src/pages/public/HomePage.tsx",
-      "sha256": "32afef8bd28fc9248e4b4345e86bda5a2df0f6a59dc97036176b464b29fead66"
+      "sha256": "59baf275430e0930b604266975492f5b4b09e3f8dcbb600e8c907c568b5b89ca"
     },
     {
       "name": "LoginPage",
@@ -92,17 +92,17 @@
     {
       "name": "RegisterPage",
       "file": "src/pages/public/RegisterPage.tsx",
-      "sha256": "a8fe7a154b631ce9803b8d071024c571719cf9162dfc991483d2b84d0bf86444"
+      "sha256": "06ea9f7be8765e6673c077a170393c2833903b3c4a897eedfab2c58216ac7232"
     },
     {
       "name": "Sidebar",
       "file": "src/components/layout/Sidebar.tsx",
-      "sha256": "3ce43e773b8eec7219a19d7909ceef123c1f233dd10c1a62c1d350777bbca17e"
+      "sha256": "00a89c23ba7c610264286a0f0a4a488cd6485d2763901d6a29dc26c52b1653d2"
     },
     {
       "name": "AppLayout",
       "file": "src/components/layout/AppLayout.tsx",
-      "sha256": "a147f0244835c252a3820607d93dbb89b99eb7ce021986999359d73ab0b4af8b"
+      "sha256": "eb7efbf0b1f7fe98171253293e1a68d85d504b9887173bba9c5cd7234cf0fd77"
     },
     {
       "name": "ManagerDashboard",
@@ -113,7 +113,7 @@
   "files": [
     {
       "file": "src/data.ts",
-      "sha256": "c41311143c10d1da5672ca49d30f067e763d751c9d300ba17b56b9eb515e38db"
+      "sha256": "342430b9de71d5886b406e92d1c05ed0b362eb79d83d45b37b44adf2ad78ca92"
     },
     {
       "file": "src/index.css",

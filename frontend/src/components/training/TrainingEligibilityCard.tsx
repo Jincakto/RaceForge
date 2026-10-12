@@ -1,4 +1,4 @@
-import { type TrainingEligResult } from '../../types/reference';
+import { type TrainingEligResult } from '../../types/reference.ts';
 
 export function TrainingEligibilityCard({ result, recordId, compact = false }: { result: TrainingEligResult; recordId?: number; compact?: boolean }) {
   if (result.status === 'incomplete') {

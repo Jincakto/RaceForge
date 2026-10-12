@@ -1,8 +1,8 @@
-import { type AppState, type Page } from '../../types/reference';
-import { StatCard } from '../../components/common/StatCard';
-import { Card } from '../../components/common/Card';
-import { Btn } from '../../components/common/Button';
-import { Badge } from '../../components/common/Badge';
+import { type AppState, type Page } from '../../types/reference.ts';
+import { StatCard } from '../../components/common/StatCard.tsx';
+import { Card } from '../../components/common/Card.tsx';
+import { Btn } from '../../components/common/Button.tsx';
+import { Badge } from '../../components/common/Badge.tsx';
 
 export function OwnerDashboard({ state, navigate, onSelectHorse }: { state: AppState; navigate: (p: Page) => void; onSelectHorse: (id: number) => void }) {
   const myHorses = state.horses.filter(h => h.ownerId === state.user!.id && !!h.clubId && h.clubId === state.user!.clubId);

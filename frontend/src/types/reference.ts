@@ -1,4 +1,4 @@
-import { type AppUser, type Club, type MemberRequest, type Horse, type HorseClubRequest, type HealthRecord, type TrainingPlan, type TrainingSession, GROOM_TASKS, NOTIFICATIONS, type Role } from '../data';
+import { type AppUser, type Club, type MemberRequest, type Horse, type HorseClubRequest, type HealthRecord, type TrainingPlan, type TrainingSession, GROOM_TASKS, NOTIFICATIONS, type Role } from '../data.ts';
 
 export type Page =
   | 'home' | 'login' | 'register' | 'onboarding' | 'create-center' | 'join-center' | 'pending'
@@ -31,7 +31,6 @@ export interface AppState {
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
-  user: 'USER',
   manager: 'Quản lý trung tâm', head_trainer: 'Head Trainer',
   veterinarian: 'Thú y', groom: 'Groom', owner: 'Chủ ngựa',
 };
@@ -46,11 +45,8 @@ export const DEMO_ACCOUNTS = [
 ];
 
 export const NAV_ITEMS: Partial<Record<Role, { icon: string; label: string; page: Page; badge?: string }[]>> = {
-  user: [
-    { icon: '⌂', label: 'Trang chủ', page: 'home' },
-    { icon: '👤', label: 'Hồ sơ cá nhân', page: 'profile' },
-  ],
   manager: [
+    { icon: '🩺', label: 'Medical & Training', page: 'training-hub' },
     { icon: '⊞', label: 'Dashboard', page: 'dashboard' },
     { icon: '🐎', label: 'Ngựa trong trung tâm', page: 'horse-list' },
     { icon: '📋', label: 'Duyệt đăng ký ngựa', page: 'center-requests', badge: 'horseReqs' },
@@ -80,6 +76,7 @@ export const NAV_ITEMS: Partial<Record<Role, { icon: string; label: string; page
     { icon: '🔔', label: 'Thông báo', page: 'notifications' },
   ],
   owner: [
+    { icon: '🏇', label: 'Medical & Training Package', page: 'training-hub' },
     { icon: '⊞', label: 'Dashboard', page: 'dashboard' },
     { icon: '🐎', label: 'Ngựa của tôi', page: 'my-horses' },
     { icon: '➕', label: 'Đăng ký ngựa mới', page: 'horse-create' },

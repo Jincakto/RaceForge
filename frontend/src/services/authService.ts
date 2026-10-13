@@ -5,7 +5,7 @@ import type { AppUser, Role } from '../data.ts';
 const roles: Record<string, Role> = { CLUB_MANAGER: 'manager', HORSE_OWNER: 'owner', VETERINARIAN: 'veterinarian', HEAD_TRAINER: 'head_trainer', GROOM: 'groom' };
 export function toAppUser(user: UserDto): AppUser {
   numericId(user.userId);
-  return { id: user.userId, name: user.fullName, email: user.email, password: '', phone: user.phone, avatar: user.fullName.slice(0, 2).toUpperCase(), role: roles[user.role?.roleName || ''] || null, clubId: null, status: user.status === 'ACTIVE' ? 'active' : 'pending', verified: user.emailVerified };
+  return { id: user.userId, name: user.fullName, email: user.email, password: '', phone: user.phone, avatarUrl: user.avatarUrl, avatar: user.fullName.slice(0, 2).toUpperCase(), role: roles[user.role?.roleName || ''] || null, clubId: null, status: user.status === 'ACTIVE' ? 'active' : 'pending', verified: user.emailVerified };
 }
 async function authenticate(path: string, body?: unknown) {
   const result = await request<AuthDto>(path, json('POST', body));

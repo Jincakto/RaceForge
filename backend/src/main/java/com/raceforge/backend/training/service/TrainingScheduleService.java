@@ -57,16 +57,21 @@ public class TrainingScheduleService {
   @Autowired
   private TrainingPlanHorseResolver horseResolver;
 
+  @Autowired
+  private TrainingSessionRules rules;
+
+  @Autowired
+  private TrainingSessionService sessionService;
+
   // All-or-nothing: if any generated slot clashes with an existing session, nothing is saved.
   @Transactional
   public List<TrainingSessionResponse> createRecurringSchedule(ScheduleRecurringRequest request) {
       TrainingPlan plan = planRepository.findById(request.getPlanId())
               .orElseThrow(() -> new ResourceNotFoundException("Training plan not found: " + request.getPlanId()));
 
-      Horse horse = horseResolver.resolve(plan.getPlanId(), request.getHorseId());
-      if (Boolean.TRUE.equals(horse.getTrainingLocked())) {
-          throw new BusinessRuleException("Horse is training-locked, cannot schedule sessions.");
-      }
+      Horse linked = horseResolver.resolve(plan.getPlanId(), request.getHorseId());
+      Horse horse = rules.lockHorse(linked.getHorseId());
+      rules.requireUnlocked(horse);
 
       int weeks = (request.getDurationWeeks() != null && request.getDurationWeeks() > 0)
               ? request.getDurationWeeks() : 1;
@@ -92,6 +97,7 @@ public class TrainingScheduleService {
 
       List<TrainingSession> toSave = new ArrayList<>();
       for (LocalDate date : dates) {
+          horseResolver.validateSchedule(plan, horse.getHorseId(), date);
           LocalDateTime when = LocalDateTime.of(date, time);
           // BR-C03: checked up front so the caller gets a clear 409 instead of a raw DB error.
           if (sessionRepository.existsByHorse_HorseIdAndScheduledStart(horse.getHorseId(), when)) {
@@ -111,23 +117,20 @@ public class TrainingScheduleService {
               .collect(Collectors.toList());
   }
 
-  // The schema has no columns for heart rate / speed / absence reason, so the speed-drop warning
-  // can no longer be computed or stored. What is persisted: status, actual_start/actual_end and
-  // the absence reason/note (written into notes).
   @Transactional
-  public AttendanceResponse submitAttendance(Integer sessionId, AttendSessionRequest request) {
-      TrainingSession session = sessionRepository.findById(sessionId)
-              .orElseThrow(() -> new ResourceNotFoundException("Training session not found: " + sessionId));
-
+  public AttendanceResponse submitAttendance(Integer sessionId, AttendSessionRequest request, Integer actorId) {
       String status = request.getStatus().trim().toUpperCase(Locale.ROOT);
       if (!STATUS_COMPLETED.equals(status) && !STATUS_MISSED.equals(status)) {
           throw new BusinessRuleException("status must be COMPLETED or MISSED.");
       }
-
-      // BR-C01/BR-C02: re-check the lock right now and hold the horse row until this transaction
-      // ends, so a Vet lock cannot slip in between the check and the write below.
-      Horse horse = horseRepository.findByIdForUpdate(session.getHorse().getHorseId())
-              .orElseThrow(() -> new ResourceNotFoundException("Horse not found"));
+      if (STATUS_COMPLETED.equals(status)) {
+          // No performance threshold has been defined; persist measurements without inventing one.
+          return new AttendanceResponse(sessionService.completeSession(sessionId, request, actorId), false, null);
+      }
+      TrainingSession session = sessionRepository.findByIdForUpdate(sessionId)
+              .orElseThrow(() -> new ResourceNotFoundException("Training session not found: " + sessionId));
+      Horse horse = rules.lockHorse(session.getHorse().getHorseId());
+      rules.requireOpen(session);
       boolean locked = Boolean.TRUE.equals(horse.getTrainingLocked());
 
       if (STATUS_MISSED.equals(status)) {
@@ -138,26 +141,23 @@ public class TrainingScheduleService {
               }
               reason = REASON_TRAINING_LOCK; // horse is locked: that is the reason by definition
           }
+          reason = reason.trim().toUpperCase(Locale.ROOT);
+          if (!Set.of("TRAINING_LOCK", "HEALTH_ISSUE", "INJURY", "BAD_WEATHER", "OTHER").contains(reason)) {
+              throw new BusinessRuleException("Unsupported absenceReason.");
+          }
 
           session.setStatus(STATUS_MISSED);
           String note = "MISSED: " + reason.trim().toUpperCase(Locale.ROOT);
           if (request.getAbsenceNote() != null && !request.getAbsenceNote().isBlank()) {
               note += " - " + request.getAbsenceNote().trim();
           }
-          session.setNotes(note);
+          session.setNotes((session.getNotes() == null ? "" : session.getNotes() + "\n") + note);
+          if (session.getNotes().length() > 1000) {
+              throw new BusinessRuleException("Combined activity and absence notes must not exceed 1000 characters.");
+          }
+          session.setRecordedBy(actorId);
           session.setActualStart(null);
           session.setActualEnd(null);
-      } else {
-          if (locked) {
-              throw new BusinessRuleException(
-                      "Horse is training-locked, this session cannot be recorded as COMPLETED. Mark it MISSED instead.");
-          }
-          LocalDateTime now = LocalDateTime.now();
-          session.setStatus(STATUS_COMPLETED);
-          if (session.getActualStart() == null) {
-              session.setActualStart(now);
-          }
-          session.setActualEnd(now);
       }
 
       TrainingSession saved = sessionRepository.save(session);

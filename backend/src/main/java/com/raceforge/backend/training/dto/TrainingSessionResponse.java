@@ -17,6 +17,19 @@ public class TrainingSessionResponse {
   private LocalDateTime actualEnd;
   private String evaluation;
   private String notes;
+  private Integer heartRate;
+  private Double avgSpeed;
+  private Double maxSpeed;
+  private Integer recordedBy;
+
+  public Integer getHeartRate() { return heartRate; }
+  public void setHeartRate(Integer value) { heartRate = value; }
+  public Double getAvgSpeed() { return avgSpeed; }
+  public void setAvgSpeed(Double value) { avgSpeed = value; }
+  public Double getMaxSpeed() { return maxSpeed; }
+  public void setMaxSpeed(Double value) { maxSpeed = value; }
+  public Integer getRecordedBy() { return recordedBy; }
+  public void setRecordedBy(Integer value) { recordedBy = value; }
 
   public TrainingSessionResponse() {
   }

@@ -37,6 +37,7 @@ public class PermissionDataSeeder implements CommandLineRunner {
   private RolePermissionRepository rolePermissionRepository;
 
   @Override
+  @org.springframework.transaction.annotation.Transactional
   public void run(String... args) {
       for (String roleName : ROLE_NAMES) {
           if (roleRepository.findByRoleName(roleName).isEmpty()) {
@@ -56,6 +57,23 @@ public class PermissionDataSeeder implements CommandLineRunner {
           grant.setId(id);
           grant.setRole(clubManager);
           grant.setPermission(managePermission);
+          rolePermissionRepository.save(grant);
+      }
+      seedNewPermission("MANAGE_TRAINING", "Create schedules and record training results.", List.of("HEAD_TRAINER"));
+      seedNewPermission("VIEW_TRAINING", "Read training schedules and results.",
+              List.of("HEAD_TRAINER", "CLUB_MANAGER", "HORSE_OWNER", "VETERINARIAN"));
+  }
+
+  private void seedNewPermission(String code, String description, List<String> defaults) {
+      // Never restore revoked grants on application restart.
+      if (permissionRepository.findByPermissionName(code).isPresent()) return;
+      Permission permission = permissionRepository.save(new Permission(code, description));
+      for (String name : defaults) {
+          Role role = roleRepository.findByRoleName(name).orElseThrow();
+          RolePermission grant = new RolePermission();
+          grant.setId(new RolePermissionId(role.getRoleId(), permission.getPermissionId()));
+          grant.setRole(role);
+          grant.setPermission(permission);
           rolePermissionRepository.save(grant);
       }
   }

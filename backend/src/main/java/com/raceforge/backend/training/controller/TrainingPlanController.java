@@ -8,9 +8,13 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.raceforge.backend.security.AuthenticatedUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping("/api/horses/{horseId}/training-plans")
+@PreAuthorize("hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")
 public class TrainingPlanController {
 
   @Autowired
@@ -19,9 +23,10 @@ public class TrainingPlanController {
   @PostMapping
   public ResponseEntity<ApiResponse<TrainingPlanResponse>> create(
           @PathVariable Integer horseId,
-          @Valid @RequestBody TrainingPlanCreateRequest request) {
+          @Valid @RequestBody TrainingPlanCreateRequest request,
+          @AuthenticationPrincipal AuthenticatedUser user) {
 
-      TrainingPlanResponse response = trainingPlanService.createPlan(horseId, request);
+      TrainingPlanResponse response = trainingPlanService.createPlan(horseId, request, user.userId());
       return ResponseEntity.ok(ApiResponse.success("Training plan created", response));
   }
 }

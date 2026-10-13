@@ -9,9 +9,13 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.raceforge.backend.security.AuthenticatedUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping("/api/training-sessions")
+@PreAuthorize("hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")
 public class TrainingSessionController {
 
   @Autowired
@@ -34,9 +38,10 @@ public class TrainingSessionController {
   @PatchMapping("/{sessionId}/complete")
   public ResponseEntity<ApiResponse<TrainingSessionResponse>> complete(
           @PathVariable Integer sessionId,
-          @RequestBody CompleteSessionRequest request) {
+          @Valid @RequestBody CompleteSessionRequest request,
+          @AuthenticationPrincipal AuthenticatedUser user) {
 
-      TrainingSessionResponse response = trainingSessionService.completeSession(sessionId, request);
+      TrainingSessionResponse response = trainingSessionService.completeSession(sessionId, request, user.userId());
       return ResponseEntity.ok(ApiResponse.success("Session completed", response));
   }
 }

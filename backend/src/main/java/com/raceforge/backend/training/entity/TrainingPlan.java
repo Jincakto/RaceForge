@@ -12,7 +12,7 @@ public class TrainingPlan {
   @Column(name = "plan_id")
   private Integer planId;
 
-  // [User](user_id) of the creator; raw id, no User entity yet.
+  // [User](user_id) of the authenticated creator; persisted as an integer FK.
   @Column(name = "created_by", nullable = false)
   private Integer createdBy;
 

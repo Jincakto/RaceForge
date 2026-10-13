@@ -8,8 +8,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 // Maps to table Role: role_id INT IDENTITY, role_name VARCHAR(50) UNIQUE.
-@Entity
-@Table(name = "role")
+@Entity(name = "PermissionRole")
+@Table(name = "[Role]")
 public class Role {
 
   @Id

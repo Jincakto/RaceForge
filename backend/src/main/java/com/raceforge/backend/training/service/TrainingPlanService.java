@@ -30,15 +30,17 @@ public class TrainingPlanService {
   @Autowired
   private TrainingPlanMapper trainingPlanMapper;
 
-  // Note: creating/editing a plan is Head Trainer only (BR-B06/BR-B07). Role enforcement is left
-  // as a TODO until JWT auth + the permission module are wired in.
   @Transactional
-  public TrainingPlanResponse createPlan(Integer horseId, TrainingPlanCreateRequest request) {
+  public TrainingPlanResponse createPlan(Integer horseId, TrainingPlanCreateRequest request, Integer actorId) {
+      if (request.getStartDate() != null && request.getEndDate() != null
+              && request.getEndDate().isBefore(request.getStartDate())) {
+          throw new com.raceforge.backend.common.exception.BusinessRuleException("endDate must not precede startDate.");
+      }
       Horse horse = horseRepository.findById(horseId)
               .orElseThrow(() -> new ResourceNotFoundException("Horse not found: " + horseId));
 
       TrainingPlan plan = new TrainingPlan();
-      plan.setCreatedBy(request.getTrainerId());
+      plan.setCreatedBy(actorId);
       plan.setPlanName(request.getPlanName());
       plan.setGoal(request.getGoal());
       plan.setDuration(request.getDuration());

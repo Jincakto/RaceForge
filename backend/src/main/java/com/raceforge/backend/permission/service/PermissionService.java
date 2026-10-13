@@ -17,6 +17,7 @@ import com.raceforge.backend.permission.repository.RoleRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.Locale;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -53,11 +54,11 @@ public class PermissionService {
   private PermissionAuditLogMapper auditLogMapper;
 
   @Transactional
-  public void grant(GrantPermissionRequest request) {
-      String roleName = request.getRoleName();
-      String permissionCode = request.getPermissionCode();
+  public void grant(GrantPermissionRequest request, Integer performedBy) {
+      String roleName = request.getRoleName().trim().toUpperCase(Locale.ROOT);
+      String permissionCode = request.getPermissionCode().trim().toUpperCase(Locale.ROOT);
 
-      Role role = roleRepository.findByRoleName(roleName)
+      Role role = roleRepository.findByRoleNameForUpdate(roleName)
               .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleName));
       Permission permission = permissionRepository.findByPermissionName(permissionCode)
               .orElseThrow(() -> new ResourceNotFoundException("Permission not found: " + permissionCode));
@@ -78,20 +79,22 @@ public class PermissionService {
       rp.setPermission(permission);
       rolePermissionRepository.save(rp);
 
-      writeAuditLog("GRANT", role, permission, request.getPerformedBy());
+      writeAuditLog("GRANT", role, permission, performedBy);
   }
 
   @Transactional
   public void revoke(String roleName, String permissionCode, Integer performedBy) {
+      roleName = roleName.trim().toUpperCase(Locale.ROOT);
+      permissionCode = permissionCode.trim().toUpperCase(Locale.ROOT);
       if (MANAGE_PERMISSION_CODE.equals(permissionCode) && CLUB_MANAGER_ROLE.equals(roleName)) {
           throw new BusinessRuleException(
                   "Cannot revoke MANAGE_PERMISSION from CLUB_MANAGER — would leave nobody able to configure permissions.");
       }
 
-      Role role = roleRepository.findByRoleName(roleName)
-              .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleName));
+      Role role = roleRepository.findByRoleNameForUpdate(roleName)
+              .orElseThrow(() -> new ResourceNotFoundException("Role not found"));
       Permission permission = permissionRepository.findByPermissionName(permissionCode)
-              .orElseThrow(() -> new ResourceNotFoundException("Permission not found: " + permissionCode));
+              .orElseThrow(() -> new ResourceNotFoundException("Permission not found"));
 
       RolePermissionId id = new RolePermissionId(role.getRoleId(), permission.getPermissionId());
       if (!rolePermissionRepository.existsById(id)) {
@@ -102,6 +105,7 @@ public class PermissionService {
       writeAuditLog("REVOKE", role, permission, performedBy);
   }
 
+  @Transactional(readOnly = true)
   public Set<String> getPermissionsForRole(String roleName) {
       Role role = roleRepository.findByRoleName(roleName)
               .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleName));
@@ -110,6 +114,7 @@ public class PermissionService {
               .collect(Collectors.toSet());
   }
 
+  @Transactional(readOnly = true)
   public boolean hasPermission(String roleName, String permissionCode) {
       return roleRepository.findByRoleName(roleName)
               .flatMap(role -> permissionRepository.findByPermissionName(permissionCode)
@@ -118,6 +123,7 @@ public class PermissionService {
               .orElse(false);
   }
 
+  @Transactional(readOnly = true)
   public List<PermissionAuditLogResponse> getAuditLog(String roleName) {
       Role role = roleRepository.findByRoleName(roleName)
               .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleName));

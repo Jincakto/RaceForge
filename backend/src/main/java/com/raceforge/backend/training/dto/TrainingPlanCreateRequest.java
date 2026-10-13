@@ -1,21 +1,26 @@
 package com.raceforge.backend.training.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.Positive;
 import java.time.LocalDate;
 
 public class TrainingPlanCreateRequest {
 
   // User id (INT) of the trainer creating the plan -> Training_Plan.created_by
-  @NotNull
+  // Legacy trainerId is ignored; creator is the authenticated principal.
   private Integer trainerId;
 
   // Training_Plan.plan_name (NOT NULL)
   @NotBlank
+  @Size(max = 150)
   private String planName;
 
+  @Size(max = 500)
   private String goal;
+  @Positive
   private Integer duration;
+  @Size(max = 1000)
   private String notes;
 
   // Horse_Plan.start_date / end_date for the horse this plan is created for

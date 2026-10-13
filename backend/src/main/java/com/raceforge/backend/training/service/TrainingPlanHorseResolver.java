@@ -7,6 +7,8 @@ import com.raceforge.backend.training.entity.HorsePlan;
 import com.raceforge.backend.training.entity.HorsePlanId;
 import com.raceforge.backend.training.repository.HorsePlanRepository;
 import java.util.List;
+import java.time.LocalDate;
+import com.raceforge.backend.training.entity.TrainingPlan;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -19,6 +21,18 @@ public class TrainingPlanHorseResolver {
 
   @Autowired
   private HorsePlanRepository horsePlanRepository;
+
+  public void validateSchedule(TrainingPlan plan, Integer horseId, LocalDate date) {
+      HorsePlan link = horsePlanRepository.findById(new HorsePlanId(plan.getPlanId(), horseId))
+              .orElseThrow(() -> new ResourceNotFoundException("Horse is not part of training plan"));
+      if (!"ACTIVE".equals(plan.getStatus()) || !"ACTIVE".equals(link.getStatus())) {
+          throw new BusinessRuleException("The training plan and horse-plan link must be ACTIVE.");
+      }
+      if ((link.getStartDate() != null && date.isBefore(link.getStartDate()))
+              || (link.getEndDate() != null && date.isAfter(link.getEndDate()))) {
+          throw new BusinessRuleException("Session date is outside the horse-plan date range.");
+      }
+  }
 
   public Horse resolve(Integer planId, Integer horseId) {
       if (horseId != null) {

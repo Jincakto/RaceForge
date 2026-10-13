@@ -5,25 +5,27 @@ import com.raceforge.backend.permission.dto.GrantPermissionRequest;
 import com.raceforge.backend.permission.dto.PermissionAuditLogResponse;
 import com.raceforge.backend.permission.service.PermissionService;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import com.raceforge.backend.security.AuthenticatedUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-// TODO: once JWT auth + login exist, restrict this whole controller to CLUB_MANAGER and read
-// performedBy from the authenticated principal instead of a request field/param.
 @RestController
 @RequestMapping("/api/admin/permissions")
+@PreAuthorize("hasAuthority('CLUB_MANAGER') and @permissionAccess.has(authentication, 'MANAGE_PERMISSION')")
 public class PermissionController {
 
   @Autowired
   private PermissionService permissionService;
 
   @PostMapping("/grant")
-  public ResponseEntity<ApiResponse<Void>> grant(@Valid @RequestBody GrantPermissionRequest request) {
-      permissionService.grant(request);
+  public ResponseEntity<ApiResponse<Void>> grant(@Valid @RequestBody GrantPermissionRequest request,
+          @AuthenticationPrincipal AuthenticatedUser user) {
+      permissionService.grant(request, user.userId());
       return ResponseEntity.ok(ApiResponse.success("Permission granted", null));
   }
 
@@ -31,8 +33,8 @@ public class PermissionController {
   public ResponseEntity<ApiResponse<Void>> revoke(
           @RequestParam String roleName,
           @RequestParam String permissionCode,
-          @RequestParam @NotNull Integer performedBy) {
-      permissionService.revoke(roleName, permissionCode, performedBy);
+          @AuthenticationPrincipal AuthenticatedUser user) {
+      permissionService.revoke(roleName, permissionCode, user.userId());
       return ResponseEntity.ok(ApiResponse.success("Permission revoked", null));
   }
 

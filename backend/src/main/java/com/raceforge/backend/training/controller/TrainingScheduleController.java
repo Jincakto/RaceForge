@@ -11,11 +11,12 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.raceforge.backend.security.AuthenticatedUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 // Shares the /api/training-sessions base path with TrainingSessionController but uses different
 // sub-paths (/recurring, /{id}/attendance, /horse/{id}), so the mappings do not collide.
-// TODO: once auth exists, restrict POST /recurring to HEAD_TRAINER (Trainer must not create
-// schedules) and read performedBy from the authenticated principal instead of the request body.
 @RestController
 @RequestMapping("/api/training-sessions")
 public class TrainingScheduleController {
@@ -24,6 +25,7 @@ public class TrainingScheduleController {
   private TrainingScheduleService trainingScheduleService;
 
   @PostMapping("/recurring")
+  @PreAuthorize("hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")
   public ResponseEntity<ApiResponse<List<TrainingSessionResponse>>> createRecurring(
           @Valid @RequestBody ScheduleRecurringRequest request) {
       List<TrainingSessionResponse> created = trainingScheduleService.createRecurringSchedule(request);
@@ -31,10 +33,12 @@ public class TrainingScheduleController {
   }
 
   @PutMapping("/{sessionId}/attendance")
+  @PreAuthorize("hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")
   public ResponseEntity<ApiResponse<AttendanceResponse>> submitAttendance(
           @PathVariable Integer sessionId,
-          @Valid @RequestBody AttendSessionRequest request) {
-      AttendanceResponse response = trainingScheduleService.submitAttendance(sessionId, request);
+          @Valid @RequestBody AttendSessionRequest request,
+          @AuthenticationPrincipal AuthenticatedUser user) {
+      AttendanceResponse response = trainingScheduleService.submitAttendance(sessionId, request, user.userId());
       String message = response.isWarningTriggered()
               ? "Attendance recorded, performance warning triggered"
               : "Attendance recorded";
@@ -42,6 +46,7 @@ public class TrainingScheduleController {
   }
 
   @GetMapping("/horse/{horseId}")
+  @PreAuthorize("@permissionAccess.canReadHorse(authentication, #p0)")
   public ResponseEntity<ApiResponse<List<TrainingSessionResponse>>> getByHorse(@PathVariable Integer horseId) {
       return ResponseEntity.ok(ApiResponse.success(
               "Training schedule retrieved", trainingScheduleService.getScheduleByHorseId(horseId)));

@@ -1,24 +1,21 @@
 package com.raceforge.backend.training.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
-public class AttendSessionRequest {
+public class AttendSessionRequest extends CompleteSessionRequest {
 
   // "COMPLETED" or "MISSED"
   @NotBlank
   private String status;
 
   // MISSED only: TRAINING_LOCK, HEALTH_ISSUE, INJURY, BAD_WEATHER or OTHER
+  @Size(max = 100)
   private String absenceReason;
+  @Size(max = 1000)
   private String absenceNote;
 
-  // COMPLETED only. avgSpeed is required for COMPLETED (needed for the speed-drop warning).
-  private Integer heartRate;
-  private Double avgSpeed;
-  private Double maxSpeed;
-
-  @NotNull
+  // Compatibility only. Actor identity is taken from the authenticated principal.
   private Integer performedBy;
 
   public AttendSessionRequest() {
@@ -46,30 +43,6 @@ public class AttendSessionRequest {
 
   public void setAbsenceNote(String absenceNote) {
       this.absenceNote = absenceNote;
-  }
-
-  public Integer getHeartRate() {
-      return heartRate;
-  }
-
-  public void setHeartRate(Integer heartRate) {
-      this.heartRate = heartRate;
-  }
-
-  public Double getAvgSpeed() {
-      return avgSpeed;
-  }
-
-  public void setAvgSpeed(Double avgSpeed) {
-      this.avgSpeed = avgSpeed;
-  }
-
-  public Double getMaxSpeed() {
-      return maxSpeed;
-  }
-
-  public void setMaxSpeed(Double maxSpeed) {
-      this.maxSpeed = maxSpeed;
   }
 
   public Integer getPerformedBy() {

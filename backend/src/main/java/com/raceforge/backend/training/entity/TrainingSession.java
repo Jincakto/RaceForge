@@ -3,11 +3,11 @@ package com.raceforge.backend.training.entity;
 import com.raceforge.backend.horse.entity.Horse;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 // Maps to table Training_Session. (plan_id, horse_id) is a composite FK to Horse_Plan in the DB,
 // so a session can only be created for a horse that has been attached to the plan.
-// BR-C03 (no two sessions for a horse at the same scheduled_start) is checked in the service,
-// because the DB has no unique constraint for it.
+// BR-C03 is checked by the service and the unique index UX_TrainingSession_HorseStart.
 @Entity
 @Table(name = "training_session")
 public class TrainingSession {
@@ -31,8 +31,26 @@ public class TrainingSession {
   @Column(name = "scheduled_end")
   private LocalDateTime scheduledEnd;
 
-  @Column(name = "distance")
-  private Double distance;
+  @Column(name = "distance", precision = 8, scale = 2)
+  private BigDecimal distance;
+
+  @Column(name = "heart_rate")
+  private Integer heartRate;
+  @Column(name = "avg_speed")
+  private Double avgSpeed;
+  @Column(name = "max_speed")
+  private Double maxSpeed;
+  @Column(name = "recorded_by")
+  private Integer recordedBy;
+
+  public Integer getHeartRate() { return heartRate; }
+  public void setHeartRate(Integer value) { heartRate = value; }
+  public Double getAvgSpeed() { return avgSpeed; }
+  public void setAvgSpeed(Double value) { avgSpeed = value; }
+  public Double getMaxSpeed() { return maxSpeed; }
+  public void setMaxSpeed(Double value) { maxSpeed = value; }
+  public Integer getRecordedBy() { return recordedBy; }
+  public void setRecordedBy(Integer value) { recordedBy = value; }
 
   @Column(name = "intensity", length = 30)
   private String intensity;
@@ -99,11 +117,11 @@ public class TrainingSession {
       this.scheduledEnd = scheduledEnd;
   }
 
-  public Double getDistance() {
+  public BigDecimal getDistance() {
       return distance;
   }
 
-  public void setDistance(Double distance) {
+  public void setDistance(BigDecimal distance) {
       this.distance = distance;
   }
 

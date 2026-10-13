@@ -1,8 +1,138 @@
-import {useEffect,useState} from 'react';
-import {membershipService} from '../../services/membershipService.ts';
-export function LiveMemberReviews(){
- const [data,setData]=useState(null),[page,setPage]=useState(0),[status,setStatus]=useState('PENDING'),[search,setSearch]=useState(''),[query,setQuery]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[notes,setNotes]=useState({}),[revision,setRevision]=useState(0);
- useEffect(()=>{let active=true;setBusy(true);setData(null);setError('');membershipService.list(page,status,query).then(d=>active&&setData(d)).catch(e=>active&&setError(e.message)).finally(()=>active&&setBusy(false));return()=>{active=false;};},[page,status,query,revision]);
- async function review(r,approve){setBusy(true);setError('');try{const note=(notes[r.requestId]||'').trim();if(!approve&&!note)throw new Error('Nhập lý do từ chối.');if(approve)await membershipService.approve(r.requestId,note);else await membershipService.reject(r.requestId,note);setRevision(v=>v+1);}catch(e){setError(e.message);}finally{setBusy(false);}}
- return <div className="space-y-4"><h1 className="text-2xl font-bold">Duyệt thành viên</h1><form className="flex gap-3" onSubmit={e=>{e.preventDefault();setPage(0);setQuery(search);}}><input aria-label="Tìm thành viên" className="border rounded p-2" value={search} onChange={e=>setSearch(e.target.value)}/><button disabled={busy}>Tìm</button><select aria-label="Trạng thái" value={status} onChange={e=>{setPage(0);setStatus(e.target.value);}}>{['PENDING','APPROVED','REJECTED',''].map(s=><option key={s} value={s}>{s||'Tất cả'}</option>)}</select></form>{error&&<p role="alert" className="text-red-700">{error}</p>}{busy&&<p role="status">Đang xử lý...</p>}{data?.content.map(r=><article key={r.requestId} className="bg-white border rounded p-4 space-y-2"><h2 className="font-bold">{r.user.fullName} · {r.user.email}</h2><p>{r.requestedRole.roleName} · {r.status}</p>{r.reviewNote&&<p>{r.reviewNote}</p>}{r.status==='PENDING'&&<><input aria-label={'Ghi chú yêu cầu '+r.requestId} maxLength={500} className="border rounded p-2 w-full" value={notes[r.requestId]||''} onChange={e=>setNotes({...notes,[r.requestId]:e.target.value})} placeholder="Ghi chú duyệt / lý do từ chối"/><div className="flex gap-4"><button disabled={busy} onClick={()=>review(r,true)}>Duyệt vai trò đã yêu cầu</button><button disabled={busy} onClick={()=>review(r,false)} className="text-red-700">Từ chối</button></div></>}</article>)}{data&&!data.content.length&&<p>Không có yêu cầu.</p>}<div className="flex gap-4"><button disabled={busy||page===0} onClick={()=>setPage(page-1)}>Trước</button><span>Trang {page+1} / {Math.max(1,data?.totalPages||0)}</span><button disabled={busy||!data||page+1>=data.totalPages} onClick={()=>setPage(page+1)}>Sau</button></div></div>;
+import { useEffect, useState } from "react";
+import { membershipService } from "../../services/membershipService.ts";
+export function LiveMemberReviews() {
+  const [data, setData] = useState(null),
+    [page, setPage] = useState(0),
+    [status, setStatus] = useState("PENDING"),
+    [search, setSearch] = useState(""),
+    [query, setQuery] = useState(""),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false),
+    [notes, setNotes] = useState({}),
+    [revision, setRevision] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setBusy(true);
+    setData(null);
+    setError("");
+    membershipService
+      .list(page, status, query)
+      .then((d) => active && setData(d))
+      .catch((e) => active && setError(e.message))
+      .finally(() => active && setBusy(false));
+    return () => {
+      active = false;
+    };
+  }, [page, status, query, revision]);
+  async function review(r, approve) {
+    setBusy(true);
+    setError("");
+    try {
+      const note = (notes[r.requestId] || "").trim();
+      if (!approve && !note) throw new Error("Nhập lý do từ chối.");
+      if (approve) await membershipService.approve(r.requestId, note);
+      else await membershipService.reject(r.requestId, note);
+      setRevision((v) => v + 1);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="space-y-4">
+      <h1 className="text-2xl font-bold">Duyệt thành viên</h1>
+      <form
+        className="flex gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setPage(0);
+          setQuery(search);
+        }}
+      >
+        <input
+          aria-label="Tìm thành viên"
+          className="border rounded p-2"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <button disabled={busy}>Tìm</button>
+        <select
+          aria-label="Trạng thái"
+          value={status}
+          onChange={(e) => {
+            setPage(0);
+            setStatus(e.target.value);
+          }}
+        >
+          {["PENDING", "APPROVED", "REJECTED", ""].map((s) => (
+            <option key={s} value={s}>
+              {s || "Tất cả"}
+            </option>
+          ))}
+        </select>
+      </form>
+      {error && (
+        <p role="alert" className="text-red-700">
+          {error}
+        </p>
+      )}
+      {busy && <p role="status">Đang xử lý...</p>}
+      {data?.content.map((r) => (
+        <article
+          key={r.requestId}
+          className="bg-white border rounded p-4 space-y-2"
+        >
+          <h2 className="font-bold">
+            {r.user.fullName} · {r.user.email}
+          </h2>
+          <p>
+            {r.requestedRole.roleName} · {r.status}
+          </p>
+          {r.reviewNote && <p>{r.reviewNote}</p>}
+          {r.status === "PENDING" && (
+            <>
+              <input
+                aria-label={"Ghi chú yêu cầu " + r.requestId}
+                maxLength={500}
+                className="border rounded p-2 w-full"
+                value={notes[r.requestId] || ""}
+                onChange={(e) =>
+                  setNotes({ ...notes, [r.requestId]: e.target.value })
+                }
+                placeholder="Ghi chú duyệt / lý do từ chối"
+              />
+              <div className="flex gap-4">
+                <button disabled={busy} onClick={() => review(r, true)}>
+                  Duyệt vai trò đã yêu cầu
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => review(r, false)}
+                  className="text-red-700"
+                >
+                  Từ chối
+                </button>
+              </div>
+            </>
+          )}
+        </article>
+      ))}
+      {data && !data.content.length && <p>Không có yêu cầu.</p>}
+      <div className="flex gap-4">
+        <button disabled={busy || page === 0} onClick={() => setPage(page - 1)}>
+          Trước
+        </button>
+        <span>
+          Trang {page + 1} / {Math.max(1, data?.totalPages || 0)}
+        </span>
+        <button
+          disabled={busy || !data || page + 1 >= data.totalPages}
+          onClick={() => setPage(page + 1)}
+        >
+          Sau
+        </button>
+      </div>
+    </div>
+  );
 }

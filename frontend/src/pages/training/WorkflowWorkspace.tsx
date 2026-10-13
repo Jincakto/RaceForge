@@ -55,6 +55,7 @@ export function WorkflowWorkspace({ user, legacyHorses, store, setStore }: { use
     setLoaded(false); setError(''); setRecordId(0); setProfileId(0);
     Promise.all([horseService.get(selected), healthService.list(selected), healthService.lockHistory(selected), trainingService.catalog(), owner ? trainingService.history(selected) : Promise.resolve(undefined), veterinarian ? horseService.profile(selected).catch(e=>{if(e.status===404)return 0;throw e;}) : Promise.resolve(0)]).then(([nextHorse, records, locks, catalog, packages, nextProfileId]) => {
       if (!active) return;
+      setProfileId(nextProfileId);
       setStore(s => ({ ...s, horses: s.horses.map(h => h.horseId === selected ? nextHorse : h), catalog, byHorse: { ...s.byHorse, [selected]: { ...(s.byHorse[selected] || emptyHorseData()), records, locks, packages: packages || [] } } })); setLoaded(true);
     }).catch(e => active && setError(e.message));
     return () => { active = false; };

@@ -2,6 +2,14 @@
 export interface ApiResponse<T> { success: boolean; message: string; data: T; timestamp: string }
 export interface UserDto { userId: number; fullName: string; email: string; phone: string; status: string; emailVerified: boolean; avatarUrl: string | null; role: {roleId: number; roleName: string} | null }
 export interface AuthDto { accessToken: string; tokenType: string; expiresInSeconds: number; user: UserDto }
+export interface GoogleAuthDto {
+  passwordSetupRequired: boolean;
+  passwordSetupToken: string | null;
+  accessToken: string | null;
+  tokenType: string | null;
+  expiresInSeconds: number;
+  user: UserDto;
+}
 export type HealthStatusDto = 'READY' | 'INJURED' | 'QUARANTINED';
 export interface HorseWriteDto { horseName: string; dateOfBirth: string; gender: string; breed: string; coatColor: string; sire?: string; dam?: string; damSire?: string; weight: number; height: number; background?: string; declaredMedicalHistory?: string; imageUrl?: string }
 export interface HorseDto extends HorseWriteDto { horseId: number; ownerId: number; headTrainerId: number | null; healthStatus: HealthStatusDto | null; trainingLocked: boolean; status: string }

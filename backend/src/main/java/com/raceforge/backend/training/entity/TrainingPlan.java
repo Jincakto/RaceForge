@@ -8,8 +8,7 @@ import jakarta.persistence.*;
 public class TrainingPlan {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "training_plan_id_seq")
-  @SequenceGenerator(name = "training_plan_id_seq", sequenceName = "seq_Training_Plan", allocationSize = 1)
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
   @Column(name = "plan_id")
   private Integer planId;
 

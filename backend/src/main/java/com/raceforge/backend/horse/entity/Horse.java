@@ -11,8 +11,7 @@ import java.time.LocalDate;
 public class Horse {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "horse_id_seq")
-    @SequenceGenerator(name = "horse_id_seq", sequenceName = "seq_Horse", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "horse_id", length = 20)
     private Integer horseId;
 

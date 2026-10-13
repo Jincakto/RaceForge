@@ -9,8 +9,7 @@ import java.time.LocalDateTime;
 public class HealthProfile {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "health_profile_id_seq")
-    @SequenceGenerator(name = "health_profile_id_seq", sequenceName = "seq_Health_Profile", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "profile_id", length = 20)
     private Integer profileId;
 

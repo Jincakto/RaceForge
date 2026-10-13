@@ -13,8 +13,7 @@ import java.time.LocalDateTime;
 public class TrainingSession {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "training_session_id_seq")
-  @SequenceGenerator(name = "training_session_id_seq", sequenceName = "seq_Training_Session", allocationSize = 1)
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
   @Column(name = "session_id")
   private Integer sessionId;
 

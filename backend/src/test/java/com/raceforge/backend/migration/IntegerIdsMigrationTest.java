@@ -62,7 +62,7 @@ class IntegerIdsMigrationTest {
             try (Statement statement = connection.createStatement(); ResultSet rows = statement.executeQuery("SELECT user_id,password FROM dbo.[User] WHERE password IS NOT NULL")) {
                 while (rows.next()) oldPasswords.put(rows.getString(1), rows.getString(2));
             }
-            assertEquals(3, flyway.migrate().migrationsExecuted);
+            assertEquals(6, flyway.migrate().migrationsExecuted);
             Map<String, Long> after = counts(connection);
             for (Map.Entry<String, Long> entry : counts.entrySet()) {
                 if (!entry.getKey().equals("Email_Verification_OTP") && !entry.getKey().equals("User_External_Login"))

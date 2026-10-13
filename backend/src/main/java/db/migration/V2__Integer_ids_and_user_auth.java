@@ -37,7 +37,7 @@ public class V2__Integer_ids_and_user_auth extends BaseJavaMigration {
         mergeGoogleAndRemoveOtpTables(connection);
         execute(connection, """
                 IF NOT EXISTS (SELECT 1 FROM dbo.[Role] WHERE role_name='USER')
-                    INSERT dbo.[Role](role_id,role_name) VALUES ('ROL006','USER');
+                    INSERT dbo.[Role](role_id,role_name) VALUES ('USER');
                 """);
 
         List<Column> roots = singlePrimaryKeys(connection);

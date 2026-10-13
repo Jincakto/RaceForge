@@ -1,7 +1,8 @@
 import {refreshSession as recoverSession} from './session.ts';
 import { tokenStore } from './tokenStore.ts';
 import type { ApiResponse } from '../types/api.ts';
-export const apiBase = (import.meta.env.VITE_API_BASE_URL || (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '') || '').replace(/\/$/, '');
+const configuredBase = import.meta.env.VITE_API_BASE_URL ?? import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:8080' : '');
+export const apiBase = configuredBase.replace(/\/api\/?$/, '').replace(/\/$/, '');
 export const liveApi = Boolean(apiBase);
 export class ApiError extends Error {
   constructor(public status: number, message: string, public validationErrors?: Record<string, string>) { super(message); }

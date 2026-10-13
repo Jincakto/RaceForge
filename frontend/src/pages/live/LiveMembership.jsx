@@ -57,43 +57,8 @@ export function LiveMembership() {
           {record.reviewNote && <p>{record.reviewNote}</p>}
         </div>
       )}
-      {record?.status !== "PENDING" && (
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setBusy(true);
-            setError("");
-            try {
-              setRecord(await membershipService.submit(role));
-            } catch (e) {
-              setError(e.message);
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          <label>
-            Vai trò mong muốn
-            <select
-              className="block border rounded p-2 my-3"
-              value={role}
-              onChange={(e) => setRole(Number(e.target.value))}
-            >
-              {businessRoles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            disabled={busy}
-            className="bg-amber-600 rounded text-white px-4 py-2"
-          >
-            Gửi yêu cầu
-          </button>
-        </form>
-      )}
+
+      {!record && !busy && <p>Chưa có yêu cầu vai trò. Hãy chọn vai trò khi đăng ký hoặc liên hệ quản lý.</p>}
       <button
         disabled={busy}
         onClick={load}

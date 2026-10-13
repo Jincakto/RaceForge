@@ -2,13 +2,12 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { horseService } from "../../services/horseService.ts";
 import { useApp } from "../../hooks/useApp.js";
-export function LiveHorses({ review = false }) {
+export function LiveHorses() {
   const { state } = useApp(),
     navigate = useNavigate();
   const [horses, setHorses] = useState([]),
     [busy, setBusy] = useState(true),
     [error, setError] = useState(""),
-    [notes, setNotes] = useState({}),
     [search, setSearch] = useState(""),
     [revision, setRevision] = useState(0);
   const owner = state.user.role === "owner";
@@ -25,34 +24,16 @@ export function LiveHorses({ review = false }) {
       active = false;
     };
   }, [revision]);
-  async function mutate(h, approved) {
-    setBusy(true);
-    setError("");
-    try {
-      if (owner) await horseService.submit(h.horseId);
-      else {
-        const note = (notes[h.horseId] || "").trim();
-        if (!approved && !note) throw new Error("Nhập lý do từ chối.");
-        await horseService.review(h.horseId, approved, note);
-      }
-      setRevision((v) => v + 1);
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
   const visible = horses.filter(
     (h) =>
-      (!review || h.admissionStatus === "PENDING") &&
+      (!owner || h.ownerId === state.user.id) &&
+      (state.user.role !== "head_trainer" || h.headTrainerId === state.user.id) &&
       h.horseName.toLowerCase().includes(search.toLowerCase()),
   );
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-bold">
-        {review
-          ? "Duyệt ngựa vào trung tâm"
-          : owner
+        {owner
             ? "Ngựa của tôi"
             : "Danh sách ngựa"}
       </h1>
@@ -92,43 +73,11 @@ export function LiveHorses({ review = false }) {
             {h.breed} · {h.gender} · {h.status}
           </p>
           <p>
-            Tiếp nhận: {h.admissionStatus} · Sức khỏe:{" "}
+            Sức khỏe:{" "}
             {h.healthStatus || "Chưa khám"} · Trainer:{" "}
             {h.headTrainerId || "Chưa chọn"}
           </p>
-          {h.admissionNote && <p>{h.admissionNote}</p>}
-          {owner &&
-            ["NOT_SUBMITTED", "REJECTED"].includes(h.admissionStatus) && (
-              <button disabled={busy} onClick={() => mutate(h)}>
-                Gửi vào trung tâm
-              </button>
-            )}
-          {review && h.admissionStatus === "PENDING" && (
-            <>
-              <input
-                aria-label={"Ghi chú ngựa " + h.horseId}
-                maxLength={500}
-                className="border rounded p-2 w-full"
-                value={notes[h.horseId] || ""}
-                onChange={(e) =>
-                  setNotes({ ...notes, [h.horseId]: e.target.value })
-                }
-                placeholder="Ghi chú duyệt / lý do từ chối"
-              />
-              <div className="flex gap-4">
-                <button disabled={busy} onClick={() => mutate(h, true)}>
-                  Duyệt & tạo hồ sơ sức khỏe
-                </button>
-                <button
-                  disabled={busy}
-                  onClick={() => mutate(h, false)}
-                  className="text-red-700"
-                >
-                  Từ chối
-                </button>
-              </div>
-            </>
-          )}
+          {state.user.role === "manager" && <button disabled={busy} onClick={async () => {setBusy(true);setError("");try {await (h.status === "ACTIVE" ? horseService.deactivate(h.horseId) : horseService.activate(h.horseId));setRevision(v => v + 1);} catch(e) {setError(e.message);} finally {setBusy(false);}}}>{h.status === "ACTIVE" ? "Ngừng hoạt động" : "Kích hoạt ngựa"}</button>}
         </article>
       ))}
       {!busy && !error && !visible.length && <p>Không có ngựa phù hợp.</p>}

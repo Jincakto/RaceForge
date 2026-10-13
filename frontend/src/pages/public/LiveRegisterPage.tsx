@@ -21,7 +21,9 @@ export function LiveRegisterPage({ navigate }: {
         setBusy(false);
     } }
     return <main className="min-h-screen bg-[#0f1729] text-white flex items-center justify-center p-6"><form className="w-full max-w-md space-y-4" onSubmit={e => { e.preventDefault(); run(async () => { if (stage === 'register') {
-        await authService.register({ ...form, email: form.email.trim(), fullName: form.fullName.trim() });
+        const email = form.email.trim();
+        await authService.register({ ...form, email, fullName: form.fullName.trim() });
+        setForm(f => ({ ...f, email }));
         setStage('verify');
         setNotice('Kiểm tra email để nhận OTP.');
     }

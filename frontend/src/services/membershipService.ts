@@ -17,11 +17,6 @@ export interface RegistrationDto {
 }
 export const membershipService = {
   mine: () => request<RegistrationDto>("/api/users/me/registration-request"),
-  submit: (requestedRoleId: number) =>
-    request<RegistrationDto>(
-      "/api/users/me/registration-request",
-      json("POST", { requestedRoleId: numericId(requestedRoleId) }),
-    ),
   list: (page = 0, status = "PENDING", search = "") =>
     request<PageDto<RegistrationDto>>(
       "/api/registration-requests?" +

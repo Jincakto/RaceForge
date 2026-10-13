@@ -1,6 +1,6 @@
 import { request, json } from './api.ts';
 import { numericId, type TrainingPackageDto, type HorsePackageDto } from '../types/api.ts';
-import { query } from "./query.ts";
+
 
 export const trainingService = {
   catalog: () => request<TrainingPackageDto[]>('/api/training-packages'),
@@ -11,17 +11,11 @@ export const trainingService = {
   resume: (recoveryId: number, reason: string) => { if (!reason.trim()) throw new Error('Nhập lý do Resume.'); return request<HorsePackageDto>(`/api/horse-packages/${numericId(recoveryId)}/resume-original`, json('POST', { reason: reason.trim() })); },
 
   // Gói tập: tạo, sửa, bật/tắt
-  getPackages: (params?: any) => request("/api/training-packages" + (params ? `?${query(params)}` : "")),
+  getPackages: (all = false) => request<TrainingPackageDto[]>(all ? "/api/training-packages/all" : "/api/training-packages"),
   createPackage: (data: any) => request("/api/training-packages", json("POST", data)),
   updatePackage: (id: string | number, data: any) =>
     request(`/api/training-packages/${id}`, json("PUT", data)),
-  togglePackageStatus: (id: string | number, isActive: boolean) =>
-    request(`/api/training-packages/${id}/status`, json("PATCH", { isActive })),
+  togglePackageStatus: (id: string | number, status: "ACTIVE" | "INACTIVE") =>
+    request(`/api/training-packages/${id}/status`, json("PATCH", { status })),
 
-  // Lịch tập: đơn và định kỳ
-  getSchedules: (params?: any) => request("/api/training-schedules" + (params ? `?${query(params)}` : "")),
-  createSingleSchedule: (data: any) =>
-    request("/api/training-schedules/single", json("POST", data)),
-  createRecurringSchedule: (data: any) =>
-    request("/api/training-schedules/recurring", json("POST", data)),
 };

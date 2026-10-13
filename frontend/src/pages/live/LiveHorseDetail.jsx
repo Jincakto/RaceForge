@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useMatch } from "react-router-dom";
 import { horseService } from "../../services/horseService.ts";
 import { useApp } from "../../hooks/useApp.js";
-import { LiveTrainers } from "./LiveTrainers.jsx";
+
 export function LiveHorseDetail() {
   const horseId = useMatch("/horses/:horseId")?.params.horseId,
     navigate = useNavigate(),
@@ -26,17 +26,6 @@ export function LiveHorseDetail() {
   }, [horseId]);
   const own =
     horse && state.user.role === "owner" && horse.ownerId === state.user.id;
-  async function submit() {
-    setBusy(true);
-    setError("");
-    try {
-      setHorse(await horseService.submit(horse.horseId));
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setBusy(false);
-    }
-  }
   return (
     <div className="space-y-5">
       {error && (
@@ -61,8 +50,6 @@ export function LiveHorseDetail() {
               ["Ngựa cha", horse.sire],
               ["Ngựa mẹ", horse.dam],
               ["Ông ngoại", horse.damSire],
-              ["Tiếp nhận", horse.admissionStatus],
-              ["Ghi chú tiếp nhận", horse.admissionNote],
               ["Sức khỏe", horse.healthStatus || "Chưa khám"],
               ["Trainer ID", horse.headTrainerId],
               ["Tiền sử y tế", horse.declaredMedicalHistory],
@@ -82,18 +69,10 @@ export function LiveHorseDetail() {
               >
                 Sửa hồ sơ
               </button>
-              {["NOT_SUBMITTED", "REJECTED"].includes(
-                horse.admissionStatus,
-              ) && (
-                <button disabled={busy} onClick={submit}>
-                  Gửi vào trung tâm
-                </button>
-              )}
+
             </div>
           )}
-          {own && (
-            <LiveTrainers horseId={horse.horseId} onAssigned={setHorse} />
-          )}
+
         </>
       )}
     </div>

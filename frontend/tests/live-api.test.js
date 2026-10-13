@@ -40,28 +40,22 @@ test("live API clients and session recovery", async (t) => {
     calls.push({ url, options });
     return Response.json({ success: true, data: {} });
   };
-  await membershipService.submit(5);
+  await membershipService.mine();
   assert.equal(calls.at(-1).url, "/api/users/me/registration-request");
-  assert.deepEqual(JSON.parse(calls.at(-1).options.body), {
-    requestedRoleId: 5,
-  });
   await membershipService.reject(8, "Missing information");
   assert.equal(calls.at(-1).url, "/api/registration-requests/8/reject");
   await staffService.list(2, "A&B", "", "2");
   assert.match(calls.at(-1).url, /search=A%26B/);
   await staffService.revoke("HEAD_TRAINER", "VIEW_TRAINING");
   assert.equal(calls.at(-1).options.method, "DELETE");
-  await horseService.submit(14);
-  assert.equal(calls.at(-1).url, "/api/horses/14/admission");
-  await horseService.review(14, true, "OK");
-  assert.equal(calls.at(-1).url, "/api/horses/14/admission/approve");
-  await horseService.assign(14, 2);
-  assert.deepEqual(JSON.parse(calls.at(-1).options.body), { trainerId: 2 });
-  await horseService.profile(14);
-  assert.equal(calls.at(-1).url, "/api/horses/14/health-profile");
+  await horseService.activate(14);
+  assert.equal(calls.at(-1).url, "/api/horses/14/activate");
+  assert.equal(calls.at(-1).options.method, "PATCH");
+  await horseService.deactivate(14);
+  assert.equal(calls.at(-1).url, "/api/horses/14/deactivate");
   await userService.update({ fullName: "Owner", phone: "", avatarUrl: "" });
   assert.equal(calls.at(-1).options.method, "PUT");
-  assert.throws(() => horseService.assign(14, 0), /ID/);
+  assert.throws(() => horseService.activate(0), /ID/);
   await t.test(
     "concurrent requests share refresh and retry with the new bearer",
     async () => {

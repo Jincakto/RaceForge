@@ -32,8 +32,4 @@ export const staffService = {
         new URLSearchParams({ roleName, permissionCode }),
       json("DELETE"),
     ),
-  catalog: () =>
-    request<{ permissionName: string; description: string }[]>(
-      "/api/admin/permissions/catalog",
-    ),
 };

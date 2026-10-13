@@ -1,10 +1,5 @@
-import { request, json } from "./api.ts";
-import { query } from "./query.ts";
-
+import { request, json } from './api.ts';
+import { numericId, type TrainingPlanCreateDto, type TrainingPlanDto } from '../types/api.ts';
 export const plansService = {
-  getPlans: (params?: any) => request("/api/training-plans" + (params ? `?${query(params)}` : "")),
-  getPlanById: (id: string | number) => request(`/api/training-plans/${id}`),
-  createPlan: (data: any) => request("/api/training-plans", json("POST", data)),
-  updatePlan: (id: string | number, data: any) =>
-    request(`/api/training-plans/${id}`, json("PUT", data)),
+  createPlan: (horseId: number, body: TrainingPlanCreateDto) => request<TrainingPlanDto>('/api/horses/' + numericId(horseId) + '/training-plans', json('POST', body)),
 };

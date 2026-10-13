@@ -1,8 +1,33 @@
+import { useEffect, useState } from 'react';
+import { liveApi } from '../../services/api.ts';
+import { horseService } from '../../services/horseService.ts';
+import { raceService } from '../../services/raceService.ts';
 import { Card } from '../../components/ui/Card.jsx';
 import { StatCard } from '../../components/ui/StatCard.jsx';
 
+const vnd = n => `${new Intl.NumberFormat('vi-VN').format(n)} VND`;
+
+function useLiveRaces() {
+  const [races, setRaces] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    if (!liveApi) return;
+    horseService.list()
+      .then(horses => Promise.all(horses.map(h => raceService.byHorse(h.horseId).then(list => list.map(r => ({
+        id: r.raceHistoryId, raceName: r.raceName, venue: r.racecourse || '', horseName: h.horseName, date: r.raceDate || '',
+        distance: r.distance ? `${r.distance}m` : '—', time: r.completionTime || '—', position: r.finishPosition ?? 99, prizeValue: Number(r.prize || 0),
+        prize: vnd(Number(r.prize || 0)),
+      }))))))
+      .then(groups => setRaces(groups.flat()))
+      .catch(e => setError(e instanceof Error ? e.message : 'Không tải được kết quả đua.'));
+  }, []);
+  return { races, error };
+}
+
 export function RaceResultsPage({ horses }) {
-  const allRaces = horses.flatMap(h => h.raceHistory.map(r => ({ ...r, horseName: h.name })));
+  const live = useLiveRaces();
+  const allRaces = liveApi ? (live.races || []) : horses.flatMap(h => h.raceHistory.map(r => ({ ...r, horseName: h.name })));
+  const totalPrize = liveApi ? allRaces.reduce((s, r) => s + r.prizeValue, 0) : null;
   allRaces.sort((a, b) => b.date.localeCompare(a.date));
   return (
     <div className="space-y-5">
@@ -11,8 +36,9 @@ export function RaceResultsPage({ horses }) {
         <StatCard label="Tổng lần đua" value={allRaces.length} color="navy" />
         <StatCard label="Hạng 1" value={allRaces.filter(r => r.position === 1).length} color="gold" />
         <StatCard label="Top 3" value={allRaces.filter(r => r.position <= 3).length} color="green" />
-        <StatCard label="Giải thưởng" value="185M VND" color="navy" />
+        <StatCard label="Giải thưởng" value={totalPrize === null ? "185M VND" : vnd(totalPrize)} color="navy" />
       </div>
+      {live.error && <div className="text-sm text-red-600">{live.error}</div>}
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
           <thead><tr className="bg-gray-50 border-b border-gray-200">{['Hạng', 'Tên giải', 'Ngựa', 'Ngày', 'Cự ly', 'Thời gian', 'Giải thưởng'].map(h => <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase">{h}</th>)}</tr></thead>

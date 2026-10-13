@@ -75,6 +75,8 @@ public class HorseMapper {
         response.setHealthStatus(horse.getHealthStatus());
         response.setTrainingLocked(horse.getTrainingLocked());
         response.setStatus(horse.getStatus());
+        response.setAdmissionStatus(horse.getAdmissionStatus());
+        response.setAdmissionNote(horse.getAdmissionNote());
 
         return response;
     }

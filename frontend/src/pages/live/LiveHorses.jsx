@@ -1,0 +1,137 @@
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { horseService } from "../../services/horseService.ts";
+import { useApp } from "../../hooks/useApp.js";
+export function LiveHorses({ review = false }) {
+  const { state } = useApp(),
+    navigate = useNavigate();
+  const [horses, setHorses] = useState([]),
+    [busy, setBusy] = useState(true),
+    [error, setError] = useState(""),
+    [notes, setNotes] = useState({}),
+    [search, setSearch] = useState(""),
+    [revision, setRevision] = useState(0);
+  const owner = state.user.role === "owner";
+  useEffect(() => {
+    let active = true;
+    setBusy(true);
+    setError("");
+    horseService
+      .list()
+      .then((d) => active && setHorses(d))
+      .catch((e) => active && setError(e.message))
+      .finally(() => active && setBusy(false));
+    return () => {
+      active = false;
+    };
+  }, [revision]);
+  async function mutate(h, approved) {
+    setBusy(true);
+    setError("");
+    try {
+      if (owner) await horseService.submit(h.horseId);
+      else {
+        const note = (notes[h.horseId] || "").trim();
+        if (!approved && !note) throw new Error("Nhập lý do từ chối.");
+        await horseService.review(h.horseId, approved, note);
+      }
+      setRevision((v) => v + 1);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const visible = horses.filter(
+    (h) =>
+      (!review || h.admissionStatus === "PENDING") &&
+      h.horseName.toLowerCase().includes(search.toLowerCase()),
+  );
+  return (
+    <div className="space-y-4">
+      <h1 className="text-2xl font-bold">
+        {review
+          ? "Duyệt ngựa vào trung tâm"
+          : owner
+            ? "Ngựa của tôi"
+            : "Danh sách ngựa"}
+      </h1>
+      <div className="flex gap-4">
+        <input
+          aria-label="Tìm ngựa"
+          className="border rounded p-2"
+          placeholder="Tên ngựa"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {owner && (
+          <button onClick={() => navigate("/horses/new")}>Đăng ký ngựa</button>
+        )}
+        <button disabled={busy} onClick={() => setRevision((v) => v + 1)}>
+          Tải lại
+        </button>
+      </div>
+      {error && (
+        <p role="alert" className="text-red-700">
+          {error}
+        </p>
+      )}
+      {busy && <p role="status">Đang xử lý...</p>}
+      {visible.map((h) => (
+        <article
+          className="border bg-white rounded p-4 space-y-2"
+          key={h.horseId}
+        >
+          <button
+            className="font-bold text-lg"
+            onClick={() => navigate("/horses/" + h.horseId)}
+          >
+            {h.horseName} · #{h.horseId}
+          </button>
+          <p>
+            {h.breed} · {h.gender} · {h.status}
+          </p>
+          <p>
+            Tiếp nhận: {h.admissionStatus} · Sức khỏe:{" "}
+            {h.healthStatus || "Chưa khám"} · Trainer:{" "}
+            {h.headTrainerId || "Chưa chọn"}
+          </p>
+          {h.admissionNote && <p>{h.admissionNote}</p>}
+          {owner &&
+            ["NOT_SUBMITTED", "REJECTED"].includes(h.admissionStatus) && (
+              <button disabled={busy} onClick={() => mutate(h)}>
+                Gửi vào trung tâm
+              </button>
+            )}
+          {review && h.admissionStatus === "PENDING" && (
+            <>
+              <input
+                aria-label={"Ghi chú ngựa " + h.horseId}
+                maxLength={500}
+                className="border rounded p-2 w-full"
+                value={notes[h.horseId] || ""}
+                onChange={(e) =>
+                  setNotes({ ...notes, [h.horseId]: e.target.value })
+                }
+                placeholder="Ghi chú duyệt / lý do từ chối"
+              />
+              <div className="flex gap-4">
+                <button disabled={busy} onClick={() => mutate(h, true)}>
+                  Duyệt & tạo hồ sơ sức khỏe
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => mutate(h, false)}
+                  className="text-red-700"
+                >
+                  Từ chối
+                </button>
+              </div>
+            </>
+          )}
+        </article>
+      ))}
+      {!busy && !error && !visible.length && <p>Không có ngựa phù hợp.</p>}
+    </div>
+  );
+}

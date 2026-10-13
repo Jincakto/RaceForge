@@ -1,11 +1,13 @@
-import { request, json } from './api.ts';
+import { refreshSession, cancelSession } from './session.ts';
+import { apiBase } from './api.ts';
+import { request, json, setSessionRefresh } from './api.ts';
 import { tokenStore } from './tokenStore.ts';
 import { numericId, type AuthDto, type GoogleAuthDto, type UserDto } from '../types/api.ts';
 import type { AppUser, Role } from '../data.ts';
 const roles: Record<string, Role> = { CLUB_MANAGER: 'manager', HORSE_OWNER: 'owner', VETERINARIAN: 'veterinarian', HEAD_TRAINER: 'head_trainer', GROOM: 'groom' };
 export function toAppUser(user: UserDto): AppUser {
   numericId(user.userId);
-  return { id: user.userId, name: user.fullName, email: user.email, password: '', phone: user.phone, avatar: user.fullName.slice(0, 2).toUpperCase(), role: roles[user.role?.roleName || ''] || null, clubId: null, status: user.status === 'ACTIVE' ? 'active' : 'pending', verified: user.emailVerified };
+  return { id: user.userId, name: user.fullName, email: user.email, password: '', phone: user.phone, avatarUrl: user.avatarUrl, avatar: user.fullName.slice(0, 2).toUpperCase(), role: roles[user.role?.roleName || ''] || null, clubId: null, status: user.status === 'ACTIVE' ? 'active' : 'pending', verified: user.emailVerified };
 }
 async function authenticate(path: string, body?: unknown) {
   const result = await request<AuthDto>(path, json('POST', body));
@@ -23,8 +25,10 @@ function acceptSession(result: AuthDto) {
   return user;
 }
 export const authService = {
+  forgotPassword: (email: string) => request('/api/auth/forgot-password', json('POST', {email})),
+  resetPassword: (token: string, newPassword: string) => request('/api/auth/reset-password', json('POST', {token, newPassword})),
   login: (email: string, password: string) => authenticate('/api/auth/login', { email, password }),
-  refresh: () => authenticate('/api/auth/refresh'),
+  refresh: () => refreshOnce(),
   register: (body: { fullName: string; email: string; password: string; phone: string; requestedRoleId: number | null }) => request<unknown>('/api/auth/register', json('POST', body)),
   verify: (email: string, otp: string) => request<unknown>('/api/auth/verify-email', json('POST', { email, otp })),
   resend: (email: string) => request<unknown>('/api/auth/resend-otp', json('POST', { email })),
@@ -38,5 +42,12 @@ export const authService = {
   },
   googleSetPassword: (passwordSetupToken: string, newPassword: string) =>
     authenticate('/api/auth/google/set-password', { passwordSetupToken, newPassword }),
-  async logout() { try { await request<unknown>('/api/auth/logout', json('POST')); } finally { tokenStore.clear(); } },
+  async logout() { try { if (!tokenStore.get()) await authService.refresh(); await request<unknown>('/api/auth/logout', json('POST')); } finally { cancelSession(); } },
 };
+
+let sessionPromise: Promise<AppUser> | undefined;
+function refreshOnce() {
+  sessionPromise ??= refreshSession(apiBase).then(acceptSession).finally(() => { sessionPromise = undefined; });
+  return sessionPromise;
+}
+setSessionRefresh(() => authService.refresh());

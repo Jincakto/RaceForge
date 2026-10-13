@@ -1,3 +1,6 @@
+import {PasswordRecoveryPage} from '../pages/api/PasswordRecoveryPage.jsx';
+import { LiveContent } from '../pages/live/LiveContent.jsx';
+import { LiveMembership } from '../pages/live/LiveMembership.jsx';
 import { useState, lazy, Suspense } from 'react';
 import { liveApi } from '../services/api.ts';
 import { WorkflowWorkspace } from '../pages/training/WorkflowWorkspace.tsx';
@@ -70,6 +73,7 @@ function HomeRoute() {
   const { navigate } = useRouteApp();
   return <><PublicToast /><HomePage navigate={navigate} /></>;
 }
+function PasswordRecoveryRoute({reset=false}) { const {navigate}=useRouteApp();return <PasswordRecoveryPage reset={reset} navigate={navigate}/>; }
 function LoginRoute() {
   const { state, navigate, handleLogin } = useRouteApp();
   return <><PublicToast /><LoginPage navigate={navigate} users={state.users} onLogin={handleLogin} /></>;
@@ -80,14 +84,17 @@ function RegisterRoute() {
 }
 function OnboardingRoute() {
   const { state, navigate, handleLogout } = useRouteApp();
+  if(liveApi)return <LiveMembership/>;
   return <><PublicToast /><OnboardingPage user={state.user} navigate={navigate} onLogout={handleLogout} /></>;
 }
 function JoinCenterRoute() {
   const { state, navigate, handleJoinRequest, handleLogout } = useRouteApp();
+  if(liveApi)return <LiveMembership/>;
   return <JoinCenterPage user={state.user} clubs={state.clubs} navigate={navigate} onJoinRequest={handleJoinRequest} onLogout={handleLogout} />;
 }
 function PendingRoute() {
   const { state, navigate, handleLogout } = useRouteApp();
+  if(liveApi)return <LiveMembership/>;
   return <PendingPage user={state.user} clubs={state.clubs} navigate={navigate} memberRequests={state.memberRequests} onLogout={handleLogout} />;
 }
 
@@ -96,7 +103,7 @@ function AppShell() {
   const { state, navigate } = useRouteApp();
   const { pathname } = useLocation();
   const page = pathToPage(pathname);
-  if(liveApi && !['api-workflow','profile'].includes(page))return <Navigate to={PAGE_PATHS['api-workflow']} replace/>;
+  if(liveApi)return <AppLayout user={state.user} page={page} title="RaceForge" navigate={navigate} state={state}><LiveContent key={pathname} page={page} user={state.user} workflow={<ApiWorkflowRoute/>}/></AppLayout>;
   return (
     <>
       {state.showSuccess && <SuccessToast message={state.showSuccess} />}
@@ -242,6 +249,8 @@ export default function AppRoutes() {
     <Suspense fallback={<div role="status" className="p-6 text-gray-500">Đang tải trang...</div>}><Routes>
       {/* Public */}
       <Route path={P.home} element={<HomeRoute />} />
+      <Route path={P['forgot-password']} element={<PasswordRecoveryRoute/>}/>
+      <Route path={P['reset-password']} element={<PasswordRecoveryRoute reset/>}/>
       <Route path={P.login} element={<LoginRoute />} />
       <Route path={P.register} element={<RegisterRoute />} />
 
@@ -255,6 +264,8 @@ export default function AppRoutes() {
         <Route element={<RequireRole />}>
           <Route element={<AppShell />}>
             <Route path={P['api-workflow']} element={<ApiWorkflowRoute/>} />
+            <Route path="/permissions" element={null} />
+            <Route path="/horses/:horseId/edit" element={null} />
             <Route path={P.dashboard} element={<DashboardRoute />} />
 
             <Route path={P['horse-list']} element={<HorseListRoute />} />

@@ -1,6 +1,7 @@
 import { request, json } from './api.ts';
 import { numericId, type MedicalCreateDto, type MedicalUpdateDto, type MedicalDto, type TrainingLockDto } from '../types/api.ts';
 export const healthService = {
+  get: (id: number) => request<MedicalDto>(`/api/medical/records/${numericId(id)}`),
   list: (horseId: number) => request<MedicalDto[]>(`/api/medical/horses/${numericId(horseId)}/records`),
   previous: (horseId: number) => request<MedicalDto | undefined>(`/api/medical/horses/${numericId(horseId)}/previous-examination`),
   createDraft: (body: MedicalCreateDto) => { numericId(body.profileId); return request<MedicalDto>('/api/medical/records', json('POST', body)); },

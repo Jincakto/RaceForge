@@ -1,0 +1,79 @@
+/* Shared visual language from the landing page: navy, gold and deep green. */
+@layer base {
+  :where(#root) button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    min-height: 2.5rem;
+    padding: .55rem 1rem;
+    border: 1px solid color-mix(in srgb, currentColor 30%, #c9973b);
+    border-radius: .65rem;
+    background-color: color-mix(in srgb, currentColor 6%, transparent);
+    color: inherit;
+    font-weight: 600;
+    line-height: 1.4;
+    cursor: pointer;
+    transition: background-color .16s ease, border-color .16s ease, box-shadow .16s ease;
+  }
+  :where(#root) button:hover:not(:disabled) {
+    background-color: color-mix(in srgb, currentColor 11%, transparent);
+    border-color: #c9973b;
+    box-shadow: 0 2px 8px #0f172910;
+  }
+  :where(#root) button:active:not(:disabled) { box-shadow: inset 0 1px 3px #0f172920; }
+  :where(#root) button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+  :where(#root) :is(button, input, select, textarea, a):focus-visible {
+    outline: 3px solid #c9973b;
+    outline-offset: 3px;
+  }
+  :where(#root) :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]), select, textarea) {
+    min-height: 2.6rem;
+    padding: .6rem .8rem;
+    border: 1px solid #c6cfdd;
+    border-radius: .6rem;
+    color: inherit;
+    background-color: color-mix(in srgb, currentColor 3%, transparent);
+  }
+  :where(#root) :is(input, select, textarea):disabled { opacity: .6; cursor: not-allowed; }
+  :where(#root) select option { color: #0f1729; background-color: #ffffff; }
+  :where(#root) input:is([type=checkbox], [type=radio]) { accent-color: #1a4a3a; }
+}
+
+.rf-shell { background: linear-gradient(140deg, #edf1f7 0%, #f7f5ef 100%); }
+.rf-topbar {
+  background: linear-gradient(110deg, #0f1729, #1a2844);
+  border-bottom: 2px solid #c9973b;
+  color: #f8fafc;
+  box-shadow: 0 3px 12px #0f17291a;
+}
+.rf-topbar h1 { color: #fff; font-family: 'Playfair Display', serif; letter-spacing: .02em; }
+.rf-topbar [role=status] { color: #dbe4f2; }
+.rf-topbar button { border-color: #c9973b80; }
+.rf-topbar button:hover { background-color: #ffffff1a; }
+.rf-page-content { color: #1a2844; }
+.rf-page-content h1 {
+  font-family: 'Playfair Display', serif;
+  color: #0f1729;
+  padding-left: .9rem;
+  border-left: 4px solid #c9973b;
+  line-height: 1.4;
+}
+.rf-page-content :is(article, section, form):where([class*="border"]) {
+  border-color: #dcd6c8;
+  box-shadow: 0 3px 14px #0f172907;
+}
+.rf-page-content :is(article, section):where([class*="bg-white"]) { border-top: 3px solid #c9973b80; }
+.rf-page-content :is(input, select, textarea):not(:disabled):hover { border-color: #a8b5c9; }
+.rf-page-content button[data-tone=gold] { background: #c9973b; border-color: #a57524; color: #0f1729; }
+.rf-page-content button[data-tone=gold]:hover:not(:disabled) { background: #e8b85a; }
+.rf-page-content button[data-tone=success] { background: #1a4a3a; border-color: #236b54; color: #fff; }
+.rf-page-content button[data-tone=success]:hover:not(:disabled) { background: #236b54; }
+.rf-page-content button[data-tone=danger] { background: #fff3f2; border-color: #d69b95; color: #9c3128; }
+.rf-page-content button[data-tone=danger]:hover:not(:disabled) { background: #fce4e1; }
+.rf-page-content button[data-tone=primary] { background: #1a2844; border-color: #c9973b; color: #fff; }
+.rf-page-content button[data-tone=primary]:hover:not(:disabled) { background: #243558; }
+
+@media (prefers-reduced-motion: reduce) {
+  :where(#root) button { transition: none; }
+}

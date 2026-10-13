@@ -1,6 +1,7 @@
 export type Role = 'manager' | 'head_trainer' | 'veterinarian' | 'groom' | 'owner';
 
 export interface AppUser {
+  avatarUrl?: string | null;
   id: number;
   name: string;
   email: string;

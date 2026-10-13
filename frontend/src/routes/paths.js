@@ -3,6 +3,9 @@
 
 export const PAGE_PATHS = {
   home: '/',
+  permissions: '/permissions',
+  'forgot-password': '/forgot-password',
+  'reset-password': '/reset-password',
   'api-workflow': '/api-workflow',
   login: '/login',
   register: '/register',
@@ -49,6 +52,7 @@ const PATH_TO_PAGE = Object.fromEntries(Object.entries(PAGE_PATHS).map(([page, p
 export function pathToPage(pathname) {
   const clean = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
   if (PATH_TO_PAGE[clean]) return PATH_TO_PAGE[clean];
+  if (/^\/horses\/[^/]+\/edit$/.test(clean)) return 'horse-edit';
   if (/^\/horses\/[^/]+$/.test(clean)) return 'horse-detail';
   return null;
 }

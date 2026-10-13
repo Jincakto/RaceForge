@@ -142,19 +142,29 @@ public class MedicalRecordController {
     }
 
     private Integer currentUserId(Authentication authentication) {
-        if (authentication == null
-                || !authentication.isAuthenticated()
-                || authentication.getName() == null
-                || authentication.getName().isBlank()
-                || "anonymousUser".equals(authentication.getName())) {
-
+        if (authentication == null || !authentication.isAuthenticated()
+                || !(authentication.getPrincipal() instanceof com.raceforge.backend.security.AuthenticatedUser user)
+                || user.userId() == null || user.userId() <= 0) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication is required");
         }
-
-        try {
-            return Integer.valueOf(authentication.getName());
-        } catch (NumberFormatException ex) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication user ID must be numeric");
-        }
+        return user.userId();
     }
+    // Legacy: Authentication.getName() is not the numeric ID for the JWT principal.
+    //     private Integer currentUserId(Authentication authentication) {
+    //         if (authentication == null
+    //                 || !authentication.isAuthenticated()
+    //                 || authentication.getName() == null
+    //                 || authentication.getName().isBlank()
+    //                 || "anonymousUser".equals(authentication.getName())) {
+    // 
+    //             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication is required");
+    //         }
+    // 
+    //         try {
+    //             return Integer.valueOf(authentication.getName());
+    //         } catch (NumberFormatException ex) {
+    //             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication user ID must be numeric");
+    //         }
+    //     }
+    // 
 }

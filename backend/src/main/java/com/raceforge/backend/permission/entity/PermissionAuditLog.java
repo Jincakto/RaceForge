@@ -12,7 +12,8 @@ import java.time.LocalDateTime;
 //   action = "GRANT" | "REVOKE", entity_type = "ROLE_PERMISSION",
 //   entity_id = role_id, reason = permission_name, user_id = who did it.
 @Entity
-@Table(name = "audit_log")
+// Legacy mapping: @Table(name = "audit_log")
+@Table(name = "Audit_Log")
 public class PermissionAuditLog {
 
   public static final String ENTITY_TYPE = "ROLE_PERMISSION";

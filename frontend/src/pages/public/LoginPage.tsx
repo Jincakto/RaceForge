@@ -1,6 +1,6 @@
 import { liveApi } from '../../services/api.ts';
 import { authService } from '../../services/authService.ts';
-import { type Page, DEMO_ACCOUNTS } from '../../types/reference.ts';
+import { type Page } from '../../types/reference.ts';
 import { type AppUser } from '../../data.ts';
 import { useState } from 'react';
 
@@ -41,19 +41,7 @@ export function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) =>
           </div>
           <p className="text-center text-gray-500 text-sm mt-5">Chưa có tài khoản? <button onClick={() => navigate('register')} className="text-[#c9973b] hover:underline font-medium">Đăng ký</button></p>
 
-          {/* Quick Login Demo */}
-          {!liveApi && <div className="mt-7 border-t border-white/10 pt-6">
-            <p className="text-gray-500 text-xs text-center mb-3 uppercase tracking-wider font-medium">Đăng nhập nhanh (demo)</p>
-            <div className="grid grid-cols-2 gap-2">
-              {DEMO_ACCOUNTS.map(acc => (
-                <button key={acc.email} onClick={() => { setEmail(acc.email); setPassword(acc.password); setTimeout(() => { const u = users.find(u => u.email === acc.email); if (u) onLogin(u); }, 100); }}
-                  className="flex items-center gap-2 p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all text-left">
-                  <span className={`w-7 h-7 rounded-lg ${acc.color} flex items-center justify-center text-white text-sm flex-shrink-0`}>{acc.icon}</span>
-                  <div className="min-w-0"><div className="text-white text-xs font-medium truncate">{acc.role}</div></div>
-                </button>
-              ))}
-            </div>
-          </div>}
+
         </div>
       </div>
       <div className="w-[42%] relative hidden lg:block">

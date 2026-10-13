@@ -1,9 +1,10 @@
-import api from "./api";
+import { request, json } from "./api.ts";
+import { query } from "./query.ts";
 
 export const plansService = {
-  getPlans: (params?: any) => api.get("/training-plans", { params }),
-  getPlanById: (id: string | number) => api.get(`/training-plans/${id}`),
-  createPlan: (data: any) => api.post("/training-plans", data),
+  getPlans: (params?: any) => request("/api/training-plans" + (params ? `?${query(params)}` : "")),
+  getPlanById: (id: string | number) => request(`/api/training-plans/${id}`),
+  createPlan: (data: any) => request("/api/training-plans", json("POST", data)),
   updatePlan: (id: string | number, data: any) =>
-    api.put(`/training-plans/${id}`, data),
+    request(`/api/training-plans/${id}`, json("PUT", data)),
 };

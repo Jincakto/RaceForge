@@ -1,7 +1,8 @@
-import api from "./api";
+import { request } from "./api.ts";
+import { query } from "./query.ts";
 
 export const reportService = {
-  getDashboardStats: () => api.get("/reports/dashboard-overview"),
+  getDashboardStats: () => request("/api/reports/dashboard-overview"),
   getTrainingStats: (period?: string) =>
-    api.get("/reports/training-stats", { params: { period } }),
+    request("/api/reports/training-stats?" + query({ period })),
 };

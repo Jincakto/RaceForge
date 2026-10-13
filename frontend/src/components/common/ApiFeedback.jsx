@@ -1,0 +1,1 @@
+export function ApiFeedback({ loading, error, notice }) { return <>{loading && <p role="status">Đang tải...</p>}{error && <p role="alert" className="text-red-700">{error}</p>}{notice && <p role="status" className="text-green-700">{notice}</p>}</>; }

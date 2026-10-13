@@ -1,0 +1,191 @@
+package com.raceforge.backend.horse.dto;
+
+import java.time.LocalDate;
+import java.math.BigDecimal;
+
+public class HorseResponse {
+
+    private Integer horseId;
+
+    private Integer ownerId;
+    private Integer headTrainerId;
+
+    private String horseName;
+    private LocalDate dateOfBirth;
+    private String gender;
+    private String breed;
+    private String coatColor;
+
+    private String sire;
+    private String dam;
+    private String damSire;
+
+    private BigDecimal weight;
+    private BigDecimal height;
+
+    private String background;
+    private String declaredMedicalHistory;
+    private String imageUrl;
+
+    private String healthStatus;
+    private Boolean trainingLocked;
+    private String status;
+    private String admissionStatus;
+    private String admissionNote;
+    public String getAdmissionStatus() { return admissionStatus; }
+    public void setAdmissionStatus(String value) { admissionStatus = value; }
+    public String getAdmissionNote() { return admissionNote; }
+    public void setAdmissionNote(String value) { admissionNote = value; }
+
+    public Integer getHorseId() {
+    return horseId;
+    }
+    
+    public void setHorseId(Integer horseId) {
+        this.horseId = horseId;
+    }
+    
+    public Integer getOwnerId() {
+        return ownerId;
+    }
+    
+    public void setOwnerId(Integer ownerId) {
+        this.ownerId = ownerId;
+    }
+    
+    public Integer getHeadTrainerId() {
+        return headTrainerId;
+    }
+    
+    public void setHeadTrainerId(Integer headTrainerId) {
+        this.headTrainerId = headTrainerId;
+    }
+    
+    public String getHorseName() {
+        return horseName;
+    }
+    
+    public void setHorseName(String horseName) {
+        this.horseName = horseName;
+    }
+    
+    public LocalDate getDateOfBirth() {
+        return dateOfBirth;
+    }
+    
+    public void setDateOfBirth(LocalDate dateOfBirth) {
+        this.dateOfBirth = dateOfBirth;
+    }
+    
+    public String getGender() {
+        return gender;
+    }
+    
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
+    
+    public String getBreed() {
+        return breed;
+    }
+    
+    public void setBreed(String breed) {
+        this.breed = breed;
+    }
+    
+    public String getCoatColor() {
+        return coatColor;
+    }
+    
+    public void setCoatColor(String coatColor) {
+        this.coatColor = coatColor;
+    }
+    
+    public String getSire() {
+        return sire;
+    }
+    
+    public void setSire(String sire) {
+        this.sire = sire;
+    }
+    
+    public String getDam() {
+        return dam;
+    }
+    
+    public void setDam(String dam) {
+        this.dam = dam;
+    }
+    
+    public String getDamSire() {
+        return damSire;
+    }
+    
+    public void setDamSire(String damSire) {
+        this.damSire = damSire;
+    }
+    
+    public BigDecimal getWeight() {
+        return weight;
+    }
+    
+    public void setWeight(BigDecimal weight) {
+        this.weight = weight;
+    }
+    
+    public BigDecimal getHeight() {
+        return height;
+    }
+    
+    public void setHeight(BigDecimal height) {
+        this.height = height;
+    }
+    
+    public String getBackground() {
+        return background;
+    }
+    
+    public void setBackground(String background) {
+        this.background = background;
+    }
+    
+    public String getDeclaredMedicalHistory() {
+        return declaredMedicalHistory;
+    }
+    
+    public void setDeclaredMedicalHistory(String declaredMedicalHistory) {
+        this.declaredMedicalHistory = declaredMedicalHistory;
+    }
+    
+    public String getImageUrl() {
+        return imageUrl;
+    }
+    
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+    
+    public String getHealthStatus() {
+        return healthStatus;
+    }
+    
+    public void setHealthStatus(String healthStatus) {
+        this.healthStatus = healthStatus;
+    }
+    
+    public Boolean getTrainingLocked() {
+        return trainingLocked;
+    }
+    
+    public void setTrainingLocked(Boolean trainingLocked) {
+        this.trainingLocked = trainingLocked;
+    }
+    
+    public String getStatus() {
+        return status;
+    }
+    
+    public void setStatus(String status) {
+        this.status = status;
+    }
+}

@@ -1,0 +1,4 @@
+import type { MedicalDto } from '../../types/api.ts';
+export function MedicalSummary({ records }: { records: MedicalDto[] }) {
+  return <div className="space-y-3">{records.length === 0 && <p>Chưa có hồ sơ y tế.</p>}{records.map(record => <article key={record.medicalRecordId} className="border rounded-xl p-4 bg-white"><h3 className="font-semibold">#{record.medicalRecordId} · {record.examType} · {record.status}</h3><dl className="grid gap-2 text-sm mt-2"><div><dt className="font-medium">Health status</dt><dd>{record.healthStatus || 'Chưa xác định'}</dd></div><div><dt className="font-medium">System note</dt><dd className="whitespace-pre-wrap">{record.systemNote || '—'}</dd></div><div><dt className="font-medium">Training note</dt><dd className="whitespace-pre-wrap">{record.trainingNote || '—'}</dd></div></dl></article>)}</div>;
+}

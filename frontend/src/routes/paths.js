@@ -3,6 +3,9 @@
 
 export const PAGE_PATHS = {
   home: '/',
+  permissions: '/permissions',
+  'forgot-password': '/forgot-password',
+  'reset-password': '/reset-password',
   'api-workflow': '/api-workflow',
   login: '/login',
   register: '/register',

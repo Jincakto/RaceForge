@@ -1,7 +1,6 @@
 import { liveApi } from '../../services/api.ts';
 import { authService } from '../../services/authService.ts';
 import { useCallback, useState } from 'react';
-import { DEMO_ACCOUNTS } from '../../data/constants.js';
 import { GoogleLoginButton } from '../../components/auth/GoogleLoginButton.tsx';
 
 export function LoginPage({ navigate, users, onLogin }) {
@@ -14,6 +13,8 @@ export function LoginPage({ navigate, users, onLogin }) {
   const di = 'w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]';
 
   const handle = async () => {
+    if (loading) return;
+    setError('');
     if (!email || !password) { setError('Vui lòng nhập email và mật khẩu'); return; }
     setLoading(true);
     if(liveApi){try{onLogin(await authService.login(email,password));}catch(e){setError(e instanceof Error?e.message:'Đăng nhập thất bại.');}finally{setLoading(false);}return;}
@@ -58,25 +59,14 @@ export function LoginPage({ navigate, users, onLogin }) {
             {error && <div className="p-3 bg-red-900/30 border border-red-700/40 rounded-lg text-red-400 text-sm">{error}</div>}
             <button onClick={handle} disabled={loading} className="w-full py-3 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all text-sm disabled:opacity-60">{loading ? 'Đang đăng nhập...' : 'Đăng nhập →'}</button>
           </div>
+          {liveApi && <button onClick={() => navigate('forgot-password')} className="mt-4 text-[#c9973b]">Quên mật khẩu?</button>}
           {liveApi && <div className="mt-5">
             <div className="mb-4 flex items-center gap-3"><span className="h-px flex-1 bg-white/10"/><span className="text-xs text-gray-500">hoặc</span><span className="h-px flex-1 bg-white/10"/></div>
             <GoogleLoginButton onCredential={handleGoogle} onError={googleError} disabled={loading} />
           </div>}
           <p className="text-center text-gray-500 text-sm mt-5">Chưa có tài khoản? <button onClick={() => navigate('register')} className="text-[#c9973b] hover:underline font-medium">Đăng ký</button></p>
 
-          {/* Quick Login Demo */}
-          {!liveApi && <div className="mt-7 border-t border-white/10 pt-6">
-            <p className="text-gray-500 text-xs text-center mb-3 uppercase tracking-wider font-medium">Đăng nhập nhanh (demo)</p>
-            <div className="grid grid-cols-2 gap-2">
-              {DEMO_ACCOUNTS.map(acc => (
-                <button key={acc.email} onClick={() => { setEmail(acc.email); setPassword(acc.password); setTimeout(() => { const u = users.find(u => u.email === acc.email); if (u) onLogin(u); }, 100); }}
-                  className="flex items-center gap-2 p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all text-left">
-                  <span className={`w-7 h-7 rounded-lg ${acc.color} flex items-center justify-center text-white text-sm flex-shrink-0`}>{acc.icon}</span>
-                  <div className="min-w-0"><div className="text-white text-xs font-medium truncate">{acc.role}</div></div>
-                </button>
-              ))}
-            </div>
-          </div>}
+
         </div>
       </div>
       <div className="w-[42%] relative hidden lg:block">

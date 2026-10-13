@@ -1,0 +1,1 @@
+export function ApiPager({ page, totalPages, busy, onPage }) { return <div className="flex gap-4 mt-4"><button disabled={busy || page === 0} onClick={() => onPage(page - 1)}>← Trước</button><span>Trang {page + 1} / {Math.max(1, totalPages)}</span><button disabled={busy || page + 1 >= totalPages} onClick={() => onPage(page + 1)}>Sau →</button></div>; }

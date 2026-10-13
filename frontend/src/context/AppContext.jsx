@@ -1,6 +1,7 @@
 import { createInitialState } from '../utils/initialState.js';
 import * as flow from '../utils/phucWorkflow.js';
 import { liveApi } from '../services/api.ts';
+import { notificationService, toNotification } from '../services/notificationService.ts';
 import { authService } from '../services/authService.ts';
 import { tokenStore } from '../services/tokenStore.ts';
 import { demoId } from '../utils/demoId.ts';
@@ -430,7 +431,19 @@ export function AppProvider({ children }) {
   }, [reject, showSuccess]);
   const markNotificationRead = useCallback((id) => {
     setState(s => ({ ...s, notifications: s.notifications.map(n => n.id === id ? { ...n, read: true } : n) }));
-  }, []);
+    if (liveApi) notificationService.markRead(id).catch(e => showError(e instanceof Error ? e.message : 'Không đánh dấu được đã đọc.'));
+  }, [showError]);
+
+  // Live mode: load the signed-in user's notifications from BE and refresh every 60s.
+  const liveUserId = state.user?.id;
+  useEffect(() => {
+    if (!liveApi || !liveUserId) return undefined;
+    let stop = false;
+    const load = () => notificationService.list().then(list => { if (!stop) setState(s => ({ ...s, notifications: list.map(toNotification) })); }).catch(() => {});
+    load();
+    const timer = setInterval(load, 60000);
+    return () => { stop = true; clearInterval(timer); };
+  }, [liveUserId]);
 
   const openNotification = useCallback((n) => {
     if (!n.action) return;

@@ -5,7 +5,7 @@ export const liveApi = Boolean(apiBase);
 export class ApiError extends Error {
   constructor(public status: number, message: string, public validationErrors?: Record<string, string>) { super(message); }
 }
-export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function request<T>(path: string, options: RequestInit = {}, opts: { plain?: boolean } = {}): Promise<T> {
   const headers = new Headers(options.headers);
   if (options.body !== undefined) headers.set('Content-Type', 'application/json');
   const token = tokenStore.get();
@@ -17,8 +17,10 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   }
   if (response.status === 204) return undefined as T;
   const body = await response.json().catch(() => null) as (ApiResponse<T> & { validationErrors?: Record<string, string> }) | null;
+  if (opts.plain && response.ok && body !== null && !('success' in (body as object))) return body as unknown as T;
   if (!response.ok || body?.success === false) throw new ApiError(response.status, body?.message || (response.status === 403 ? 'Bạn không có quyền thực hiện thao tác này.' : `Yêu cầu thất bại (${response.status}).`), body?.validationErrors);
   if (!body || !('data' in body)) throw new ApiError(response.status, 'Response không đúng ApiResponse DTO.');
   return body.data;
 }
+export const requestPlain = <T>(path: string, options: RequestInit = {}) => request<T>(path, options, { plain: true });
 export const json = (method: string, body?: unknown): RequestInit => ({ method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });

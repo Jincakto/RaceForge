@@ -24,6 +24,17 @@ public class PermissionController {
   @Autowired
   private PermissionService permissionService;
 
+  public record PermissionOption(String permissionName, String description) {}
+
+  @Autowired
+  private com.raceforge.backend.permission.repository.PermissionRepository permissionRepository;
+
+  @GetMapping("/catalog")
+  public ApiResponse<List<PermissionOption>> catalog() {
+      return ApiResponse.success("Permission catalog", permissionRepository.findAll().stream()
+          .map(p -> new PermissionOption(p.getPermissionName(), p.getDescription())).toList());
+  }
+
   @PostMapping("/grant")
   public ResponseEntity<ApiResponse<Void>> grant(@Valid @RequestBody GrantPermissionRequest request,
           @AuthenticationPrincipal AuthenticatedUser user) {

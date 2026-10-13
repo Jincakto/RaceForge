@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {createServer} from 'vite';import {fileURLToPath} from 'node:url';
 const root=fileURLToPath(new URL('../',import.meta.url));
 test('Phuc and minh frontend integration',async context=>{
-  const server=await createServer({root,define:{'import.meta.env.VITE_API_BASE_URL':'""'},server:{middlewareMode:true,hmr:false},optimizeDeps:{noDiscovery:true,include:[]},ssr:{optimizeDeps:{include:['react','react-dom','react-dom/server','react/jsx-runtime','react/jsx-dev-runtime','react-router','react-router-dom','recharts','use-sync-external-store','use-sync-external-store/shim','use-sync-external-store/shim/with-selector']}},appType:'custom'});context.after(()=>server.close());
+  const server=await createServer({root,define:{'import.meta.env.VITE_API_BASE_URL':'""'},server:{middlewareMode:true,hmr:false},optimizeDeps:{noDiscovery:true,include:[]},ssr:{external:['react','react-dom','react-router-dom','recharts']},appType:'custom'});context.after(()=>server.close());
   const {React,renderToStaticMarkup}=await server.ssrLoadModule('/tests/react-ssr-bridge.js');
   const flow=await server.ssrLoadModule('/src/utils/phucWorkflow.js');
   const {createInitialState}=await server.ssrLoadModule('/src/utils/initialState.js');const {scopeState}=await server.ssrLoadModule('/src/utils/routeScope.js');const {TRAINING_PACKAGES,REHAB_PACKAGES}=await server.ssrLoadModule('/src/data/constants.js');
@@ -44,7 +44,7 @@ test('Phuc and minh frontend integration',async context=>{
     const s=as(initial,owner);s.horses.push({...input,id:90009,ownerId:999});assert.ok(!scopeState(s).horses.some(h=>h.id===90009));assert.throws(()=>flow.updateOwnerHorse(s,{...input,id:90009}),/của mình/);const original=s.horses[0];const changed=flow.updateOwnerHorse(s,{...original,name:'New name',lock:{reason:'forged'},backendHealthStatus:'QUARANTINED',ownerId:999});assert.equal(changed.horses[0].ownerId,original.ownerId);assert.equal(changed.horses[0].backendHealthStatus,original.backendHealthStatus);
   });
   await context.test('primary router and provider expose the new handlers and render login',async()=>{
-    const {default:router}=await server.ssrLoadModule('react-router-dom');const {MemoryRouter}=router;const {AppProvider}=await server.ssrLoadModule('/src/context/AppContext.jsx');const {useApp}=await server.ssrLoadModule('/src/hooks/useApp.js');const {default:App}=await server.ssrLoadModule('/src/App.jsx');let captured;
+    const {MemoryRouter}=await import('react-router-dom');const {AppProvider}=await server.ssrLoadModule('/src/context/AppContext.jsx');const {useApp}=await server.ssrLoadModule('/src/hooks/useApp.js');const {default:App}=await server.ssrLoadModule('/src/App.jsx');let captured;
     function Probe(){captured=useApp();return React.createElement(App);}
     const html=renderToStaticMarkup(React.createElement(MemoryRouter,{initialEntries:['/login']},React.createElement(AppProvider,null,React.createElement(Probe))));assert.ok(html.includes('Đăng nhập nhanh'));for(const action of ['handleSaveDraft','handleConfirmMedical','handlePayPackage','handleResumePackage'])assert.equal(typeof captured[action],'function',action);
   });

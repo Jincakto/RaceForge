@@ -30,6 +30,12 @@ public class HorseResponse {
     private String healthStatus;
     private Boolean trainingLocked;
     private String status;
+    private String admissionStatus;
+    private String admissionNote;
+    public String getAdmissionStatus() { return admissionStatus; }
+    public void setAdmissionStatus(String value) { admissionStatus = value; }
+    public String getAdmissionNote() { return admissionNote; }
+    public void setAdmissionNote(String value) { admissionNote = value; }
 
     public Integer getHorseId() {
     return horseId;

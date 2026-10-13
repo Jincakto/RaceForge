@@ -1,3 +1,5 @@
+import { LiveContent } from '../pages/live/LiveContent.jsx';
+import { LiveMembership } from '../pages/live/LiveMembership.jsx';
 import { useState, lazy, Suspense } from 'react';
 import { liveApi } from '../services/api.ts';
 import { WorkflowWorkspace } from '../pages/training/WorkflowWorkspace.tsx';
@@ -80,14 +82,17 @@ function RegisterRoute() {
 }
 function OnboardingRoute() {
   const { state, navigate, handleLogout } = useRouteApp();
+  if(liveApi)return <LiveMembership/>;
   return <><PublicToast /><OnboardingPage user={state.user} navigate={navigate} onLogout={handleLogout} /></>;
 }
 function JoinCenterRoute() {
   const { state, navigate, handleJoinRequest, handleLogout } = useRouteApp();
+  if(liveApi)return <LiveMembership/>;
   return <JoinCenterPage user={state.user} clubs={state.clubs} navigate={navigate} onJoinRequest={handleJoinRequest} onLogout={handleLogout} />;
 }
 function PendingRoute() {
   const { state, navigate, handleLogout } = useRouteApp();
+  if(liveApi)return <LiveMembership/>;
   return <PendingPage user={state.user} clubs={state.clubs} navigate={navigate} memberRequests={state.memberRequests} onLogout={handleLogout} />;
 }
 
@@ -96,7 +101,7 @@ function AppShell() {
   const { state, navigate } = useRouteApp();
   const { pathname } = useLocation();
   const page = pathToPage(pathname);
-  if(liveApi && !['api-workflow','profile'].includes(page))return <Navigate to={PAGE_PATHS['api-workflow']} replace/>;
+  if(liveApi)return <AppLayout user={state.user} page={page} title="RaceForge" navigate={navigate} state={state}><LiveContent key={pathname} page={page} user={state.user} workflow={<ApiWorkflowRoute/>}/></AppLayout>;
   return (
     <>
       {state.showSuccess && <SuccessToast message={state.showSuccess} />}
@@ -255,6 +260,8 @@ export default function AppRoutes() {
         <Route element={<RequireRole />}>
           <Route element={<AppShell />}>
             <Route path={P['api-workflow']} element={<ApiWorkflowRoute/>} />
+            <Route path="/permissions" element={null} />
+            <Route path="/horses/:horseId/edit" element={null} />
             <Route path={P.dashboard} element={<DashboardRoute />} />
 
             <Route path={P['horse-list']} element={<HorseListRoute />} />

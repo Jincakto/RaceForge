@@ -1,8 +1,9 @@
 import { createInitialState } from '../utils/initialState.js';
 import * as flow from '../utils/phucWorkflow.js';
+import { cancelSession } from '../services/session.ts';
 import { liveApi } from '../services/api.ts';
+import { notificationService, toNotification } from '../services/notificationService.ts';
 import { authService } from '../services/authService.ts';
-import { tokenStore } from '../services/tokenStore.ts';
 import { demoId } from '../utils/demoId.ts';
 import { createContext, useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -22,8 +23,15 @@ export const AppContext = createContext(null);
 export function AppProvider({ children }) {
   const [state, setState] = useState(()=>createInitialState(liveApi));
 
-  const [sessionLoading,setSessionLoading] = useState(liveApi);
-  useEffect(()=>{if(!liveApi)return;let active=true;authService.refresh().then(user=>{if(active)setState(s=>({...s,user}));}).catch(()=>{if(active)tokenStore.clear();}).finally(()=>{if(active)setSessionLoading(false);});return()=>{active=false;};},[]);
+  const [sessionLoading, setSessionLoading] = useState(liveApi);
+  useEffect(() => {
+    if (!liveApi) return;
+    let active = true;
+    authService.refresh().then(user => { if (active) setState(s => ({...s,user})); })
+      .catch(() => { /* A missing refresh cookie is a normal signed-out state. */ })
+      .finally(() => { if (active) setSessionLoading(false); });
+    return () => { active = false; };
+  }, []);
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -61,7 +69,7 @@ export function AppProvider({ children }) {
   useEffect(()=>{const expired=()=>{setState(s=>({...s,user:null,errorMsg:'Phiên đăng nhập hết hạn.'}));navigate('login');};window.addEventListener('raceforge:unauthorized',expired);return()=>window.removeEventListener('raceforge:unauthorized',expired);},[navigate]);
   const handleLogin = useCallback((user) => {
     setState(s => ({ ...s, user }));
-    navigate(liveApi && ['owner','manager','veterinarian'].includes(user.role) ? 'api-workflow' : liveApi ? 'profile' : user.role ? 'dashboard' : 'onboarding');
+    navigate(liveApi ? (user.role ? user.role==='owner'?'my-horses':'profile' : 'onboarding') : user.role ? 'dashboard' : 'onboarding');
   }, [navigate]);
 
   const handleRegister = useCallback((user) => {
@@ -127,10 +135,10 @@ export function AppProvider({ children }) {
   const handleRejectHorse = useCallback((id,note)=>transition(flow.rejectHorse,id,note),[transition]);
 
   const handleLogout = useCallback(async () => {
-    if(liveApi){try{await authService.logout();}catch(e){showError(e.message);}finally{tokenStore.clear();}}
+    if(liveApi){try{await authService.logout();}catch{}finally{cancelSession();}}
     setState(s => ({ ...s, user: null }));
     navigate('home');
-  }, [navigate,showError]);
+  }, [navigate]);
 
   const handleUpdatePermissions = useCallback((userId, pages) => {
     setState(s => ({ ...s, userPermissions: { ...s.userPermissions, [userId]: pages } }));
@@ -432,7 +440,19 @@ export function AppProvider({ children }) {
   }, [reject, showSuccess]);
   const markNotificationRead = useCallback((id) => {
     setState(s => ({ ...s, notifications: s.notifications.map(n => n.id === id ? { ...n, read: true } : n) }));
-  }, []);
+    if (liveApi) notificationService.markRead(id).catch(e => showError(e instanceof Error ? e.message : 'Không đánh dấu được đã đọc.'));
+  }, [showError]);
+
+  // Live mode: load the signed-in user's notifications from BE and refresh every 60s.
+  const liveUserId = state.user?.id;
+  useEffect(() => {
+    if (!liveApi || !liveUserId) return undefined;
+    let stop = false;
+    const load = () => notificationService.list().then(list => { if (!stop) setState(s => ({ ...s, notifications: list.map(toNotification) })); }).catch(() => {});
+    load();
+    const timer = setInterval(load, 60000);
+    return () => { stop = true; clearInterval(timer); };
+  }, [liveUserId]);
 
   const openNotification = useCallback((n) => {
     if (!n.action) return;
@@ -443,8 +463,8 @@ export function AppProvider({ children }) {
   const value = useMemo(() => ({
     handleSaveDraft, handleConfirmMedical, handlePayPackage, handleResumePackage,
     state,
-    sessionLoading,
     setState,
+    sessionLoading,
     navigate,
     showError,
     showSuccess,
@@ -484,7 +504,7 @@ export function AppProvider({ children }) {
     selectHorse,
     markNotificationRead,
     openNotification,
-  }), [handleSaveDraft, handleConfirmMedical, handlePayPackage, handleResumePackage,state, sessionLoading, showError, showSuccess, handleLogin, handleRegister, handleJoinRequest, handleApproveRequest, handleRejectRequest, handleCreateHorse, handleUpdateHorse, handleSelectTrainer, handleSubmitToCenter, handleApproveHorse, handleRejectHorse, handleLogout, handleUpdatePermissions, handleViewTrainer, handleSaveHealthRecord, handleEnroll, invAddItem, invReceive, invEdit, invAdjust, invDelete, completeCare, undoCare, reportIncident, handleCreatePlan, handleCreateSession, handleStartSession, handleCompleteSession, handlePostExam, handleManualLock, handleActivateRehab, handleUnlock, handleConfirmSchedule, selectHorse, navigate, markNotificationRead, openNotification]);
+  }), [handleSaveDraft, handleConfirmMedical, handlePayPackage, handleResumePackage,sessionLoading,state, showError, showSuccess, handleLogin, handleRegister, handleJoinRequest, handleApproveRequest, handleRejectRequest, handleCreateHorse, handleUpdateHorse, handleSelectTrainer, handleSubmitToCenter, handleApproveHorse, handleRejectHorse, handleLogout, handleUpdatePermissions, handleViewTrainer, handleSaveHealthRecord, handleEnroll, invAddItem, invReceive, invEdit, invAdjust, invDelete, completeCare, undoCare, reportIncident, handleCreatePlan, handleCreateSession, handleStartSession, handleCompleteSession, handlePostExam, handleManualLock, handleActivateRehab, handleUnlock, handleConfirmSchedule, selectHorse, navigate, markNotificationRead, openNotification]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

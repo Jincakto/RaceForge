@@ -1,3 +1,4 @@
+import {refreshSession as recoverSession} from './session.ts';
 import { tokenStore } from './tokenStore.ts';
 import type { ApiResponse } from '../types/api.ts';
 export const apiBase = (import.meta.env.VITE_API_BASE_URL || (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '') || '').replace(/\/$/, '');
@@ -5,7 +6,7 @@ export const liveApi = Boolean(apiBase);
 export class ApiError extends Error {
   constructor(public status: number, message: string, public validationErrors?: Record<string, string>) { super(message); }
 }
-let refreshSession: (() => Promise<unknown>) | undefined;
+let refreshSession: (() => Promise<unknown>) | undefined = () => recoverSession(apiBase);
 let refreshing: Promise<unknown> | undefined;
 export function setSessionRefresh(handler: () => Promise<unknown>) { refreshSession = handler; }
 export async function request<T>(path: string, options: RequestInit = {}, policy: {raw?: boolean; retry?: boolean} = {}): Promise<T> {
@@ -35,3 +36,5 @@ export async function request<T>(path: string, options: RequestInit = {}, policy
   return body.data;
 }
 export const json = (method: string, body?: unknown): RequestInit => ({ method, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+
+export const requestPlain = <T>(path: string, options: RequestInit = {}) => request<T>(path, options, {raw: true});

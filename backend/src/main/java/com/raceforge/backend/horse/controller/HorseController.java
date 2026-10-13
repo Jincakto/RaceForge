@@ -20,6 +20,8 @@ import java.util.List;
 @Tag(name = "Horses")
 public class HorseController {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.raceforge.backend.horse.service.HorseAccess access;
     private final HorseService horseService;
 
     public HorseController(HorseService horseService) {
@@ -45,10 +47,10 @@ public class HorseController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<HorseResponse>>> getAllHorses() {
+    public ResponseEntity<ApiResponse<List<HorseResponse>>> getAllHorses(org.springframework.security.core.Authentication authentication) {
 
         List<HorseResponse> horses =
-                horseService.getAllHorses();
+                horseService.getAllHorses().stream().filter(h -> access.read(authentication, h.getHorseId())).toList();
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -58,6 +60,7 @@ public class HorseController {
         );
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("@horseAccess.read(authentication, #horseId)")
     @GetMapping("/{horseId}")
     public ResponseEntity<ApiResponse<HorseResponse>> getHorseById(
             @PathVariable Integer horseId) {
@@ -73,6 +76,7 @@ public class HorseController {
         );
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("@horseAccess.owns(authentication, #horseId)")
     @PutMapping("/{horseId}")
     public ResponseEntity<ApiResponse<HorseResponse>> updateHorse(
             @PathVariable Integer horseId,
@@ -89,6 +93,7 @@ public class HorseController {
         );
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('CLUB_MANAGER')")
     @PatchMapping("/{horseId}/activate")
     public ResponseEntity<ApiResponse<HorseResponse>> activateHorse(
             @PathVariable Integer horseId) {

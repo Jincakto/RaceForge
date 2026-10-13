@@ -1,3 +1,4 @@
+import { liveNavigation } from '../../pages/live/LiveContent.jsx';
 import { liveApi } from '../../services/api.ts';
 import { ROLE_LABELS } from '../../data/constants.js';
 import { GRANTABLE_PAGES, NAV_ITEMS } from '../../data/navigation.js';
@@ -8,7 +9,7 @@ export function Sidebar({ user, page, navigate, memberReqCount, horseReqCount, v
   const extraItems = GRANTABLE_PAGES
     .filter(g => grantedPages.includes(g.page) && !rolePages.has(g.page))
     .map(g => ({ icon: g.icon, label: g.label, page: g.page }));
-  const items = liveApi ? [...(['owner','manager','veterinarian'].includes(user.role)?[{icon:'🩺',label:'Medical & Training API',page:'api-workflow'}]:[]),{icon:'🔔',label:'Thông báo',page:'notifications'},...(user.role==='manager'?[{icon:'👥',label:'Tài khoản & nhân sự',page:'staff'},{icon:'📋',label:'Duyệt đăng ký',page:'member-requests'},{icon:'🔐',label:'Phân quyền',page:'permissions'}]:[]),{icon:'👤',label:'Hồ sơ & Đăng xuất',page:'profile'}] : [...roleItems,...extraItems];
+  const items = liveApi ? liveNavigation(user.role) : [...roleItems,...extraItems];
   return (
     <div className="w-60 min-h-screen bg-[#0f1729] flex flex-col flex-shrink-0">
       <div className="p-5 border-b border-white/10">

@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local API and OAuth configuration
+.env
+.env.*
+!.env.example
+
+# Safe development defaults, with no credentials
+!.env.development

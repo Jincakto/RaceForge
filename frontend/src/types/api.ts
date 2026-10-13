@@ -12,7 +12,7 @@ export interface GoogleAuthDto {
 }
 export type HealthStatusDto = 'READY' | 'INJURED' | 'QUARANTINED';
 export interface HorseWriteDto { horseName: string; dateOfBirth: string; gender: string; breed: string; coatColor: string; sire?: string; dam?: string; damSire?: string; weight: number; height: number; background?: string; declaredMedicalHistory?: string; imageUrl?: string }
-export interface HorseDto extends HorseWriteDto { horseId: number; ownerId: number; headTrainerId: number | null; healthStatus: HealthStatusDto | null; trainingLocked: boolean; status: string }
+export interface HorseDto extends HorseWriteDto { admissionStatus: string; admissionNote: string | null; horseId: number; ownerId: number; headTrainerId: number | null; healthStatus: HealthStatusDto | null; trainingLocked: boolean; status: string }
 export interface VitalSignDto { bodyTemperature: number | null; restingHeartRate: number | null; restingRespiratoryRate: number | null }
 export interface ClinicalExamDto { examinationArea: string; conditionStatus: string; abnormalityType?: string; severity?: string; notes?: string }
 export interface MedicalUpdateDto { examinedAt: string; healthStatus: HealthStatusDto | null; diagnosis: string; treatment: string; medication: string; careRecommendation: string; notes: string; vitalSign: VitalSignDto; clinicalExams: ClinicalExamDto[] }
@@ -22,3 +22,16 @@ export interface TrainingLockDto { lockId: number; horseId: number; medicalRecor
 export interface TrainingPackageDto { packageId: number; packageName: string; packageType: string; description: string; durationDays: number; price: number; status: string; createdAt: string; updatedAt: string }
 export interface HorsePackageDto { horsePackageId: number; horseId: number; packageId: number; packageName: string; packageType: string; status: string; paymentStatus: string; totalPrice: number; registeredAt: string; paidAt: string | null; startDate: string | null; endDate: string | null; remainingDays: number | null; replacedHorsePackageId: number | null }
 export function numericId(id: number): number { if (!Number.isSafeInteger(id) || id <= 0) throw new Error('ID phải là số nguyên dương.'); return id; }
+
+// ---- Training plan / session / race / notification DTOs (mirror Java DTOs) ----
+export interface TrainingPlanCreateDto { planName: string; goal?: string; duration?: number; notes?: string; startDate?: string; endDate?: string }
+export interface TrainingPlanDto { planId: number; horseId: number; createdBy: number; planName: string; goal: string | null; duration: number | null; status: string; notes: string | null }
+export interface ScheduleSessionDto { planId: number; horseId?: number; scheduledTime: string }
+export interface ScheduleRecurringDto { planId: number; horseId?: number; activityName: string; startDate: string; daysOfWeek?: string[]; durationWeeks?: number; sessionTime?: string }
+export interface SessionResultDto { performanceNotes?: string; heartRate?: number; avgSpeed?: number; maxSpeed?: number }
+export interface AttendanceDto extends SessionResultDto { status: 'COMPLETED' | 'MISSED'; absenceReason?: string; absenceNote?: string }
+export interface TrainingSessionDto { sessionId: number; planId: number; horseId: number; scheduledStart: string | null; scheduledEnd: string | null; distance: number | null; intensity: string | null; surface: string | null; status: string; actualStart: string | null; actualEnd: string | null; evaluation: string | null; notes: string | null; heartRate: number | null; avgSpeed: number | null; maxSpeed: number | null; recordedBy: number | null }
+export interface AttendanceResultDto { session: TrainingSessionDto; warningTriggered: boolean; warningMessage: string | null }
+export interface RaceWriteDto { raceName: string; raceDate?: string; distance?: number; finishPosition?: number; completionTime?: string; racecourse?: string; jockeyName?: string; prize?: number }
+export interface RaceHistoryDto extends RaceWriteDto { raceHistoryId: number; horseId: number; createdAt: string; updatedAt: string }
+export interface NotificationDto { notificationId: number; notificationType: string; title: string | null; message: string; read: boolean; createdAt: string }

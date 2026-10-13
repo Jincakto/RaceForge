@@ -71,6 +71,15 @@ public class Horse {
     @Column(name = "status", nullable = false)
     private String status;
 
+    @Column(name = "admission_status", nullable = false, length = 20)
+    private String admissionStatus = "NOT_SUBMITTED";
+    @Column(name = "admission_note", length = 500)
+    private String admissionNote;
+    public String getAdmissionStatus() { return admissionStatus; }
+    public void setAdmissionStatus(String value) { admissionStatus = value; }
+    public String getAdmissionNote() { return admissionNote; }
+    public void setAdmissionNote(String value) { admissionNote = value; }
+
 
     public Integer getHorseId() {
         return horseId;

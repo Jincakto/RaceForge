@@ -1,10 +1,6 @@
-import {ApiProfilePage} from '../pages/api/ApiProfilePage.jsx';
-import {ApiStaffPage} from '../pages/api/ApiStaffPage.jsx';
-import {ApiRequestsPage} from '../pages/api/ApiRequestsPage.jsx';
-import {ApiNotificationsPage} from '../pages/api/ApiNotificationsPage.jsx';
-import {ApiPermissionsPage} from '../pages/api/ApiPermissionsPage.jsx';
-import {ApiAccountStatusPage} from '../pages/api/ApiAccountStatusPage.jsx';
 import {PasswordRecoveryPage} from '../pages/api/PasswordRecoveryPage.jsx';
+import { LiveContent } from '../pages/live/LiveContent.jsx';
+import { LiveMembership } from '../pages/live/LiveMembership.jsx';
 import { useState, lazy, Suspense } from 'react';
 import { liveApi } from '../services/api.ts';
 import { WorkflowWorkspace } from '../pages/training/WorkflowWorkspace.tsx';
@@ -88,15 +84,17 @@ function RegisterRoute() {
 }
 function OnboardingRoute() {
   const { state, navigate, handleLogout } = useRouteApp();
-  if(liveApi)return <ApiAccountStatusPage/>;
+  if(liveApi)return <LiveMembership/>;
   return <><PublicToast /><OnboardingPage user={state.user} navigate={navigate} onLogout={handleLogout} /></>;
 }
 function JoinCenterRoute() {
   const { state, navigate, handleJoinRequest, handleLogout } = useRouteApp();
+  if(liveApi)return <LiveMembership/>;
   return <JoinCenterPage user={state.user} clubs={state.clubs} navigate={navigate} onJoinRequest={handleJoinRequest} onLogout={handleLogout} />;
 }
 function PendingRoute() {
   const { state, navigate, handleLogout } = useRouteApp();
+  if(liveApi)return <LiveMembership/>;
   return <PendingPage user={state.user} clubs={state.clubs} navigate={navigate} memberRequests={state.memberRequests} onLogout={handleLogout} />;
 }
 
@@ -105,7 +103,7 @@ function AppShell() {
   const { state, navigate } = useRouteApp();
   const { pathname } = useLocation();
   const page = pathToPage(pathname);
-  if(liveApi && !['api-workflow','profile','staff','member-requests','notifications','permissions'].includes(page))return <Navigate to={PAGE_PATHS['api-workflow']} replace/>;
+  if(liveApi)return <AppLayout user={state.user} page={page} title="RaceForge" navigate={navigate} state={state}><LiveContent key={pathname} page={page} user={state.user} workflow={<ApiWorkflowRoute/>}/></AppLayout>;
   return (
     <>
       {state.showSuccess && <SuccessToast message={state.showSuccess} />}
@@ -164,7 +162,6 @@ function CenterRequestsRoute() {
 }
 function MemberRequestsRoute() {
   const { state, navigate, handleApproveRequest, handleRejectRequest, handleViewTrainer } = useRouteApp();
-  if(liveApi)return <RoleGate roles={['manager']}><ApiRequestsPage/></RoleGate>;
   return <MemberRequestsPage state={state} navigate={navigate} onApprove={handleApproveRequest} onReject={handleRejectRequest} onViewTrainer={handleViewTrainer} />;
 }
 function HealthRecordsRoute() {
@@ -233,17 +230,14 @@ function RaceResultsRoute() {
 }
 function StaffRoute() {
   const { state, navigate, handleUpdatePermissions } = useRouteApp();
-  if(liveApi)return <RoleGate roles={['manager']}><ApiStaffPage/></RoleGate>;
   return <StaffPage state={state} navigate={navigate} onUpdatePermissions={handleUpdatePermissions} />;
 }
 function NotificationsRoute() {
   const { state, markNotificationRead, openNotification } = useRouteApp();
-  if(liveApi)return <ApiNotificationsPage/>;
   return <NotificationsPage notifications={visibleNotifications(state.notifications, state.user)} onMarkRead={markNotificationRead} onOpen={openNotification} />;
 }
 function ProfileRoute() {
   const { state, navigate, handleLogout, showSuccess } = useRouteApp();
-  if(liveApi)return <ApiProfilePage/>;
   return <ProfilePage user={state.user} state={state} navigate={navigate} onLogout={handleLogout} onSave={showSuccess} />;
 }
 
@@ -267,10 +261,11 @@ export default function AppRoutes() {
         <Route path={P.pending} element={<PendingRoute />} />
 
         {/* Logged in + role assigned: full application shell */}
-        {liveApi && <Route path={P.profile} element={<AppShell/>}><Route index element={<ProfileRoute/>}/></Route>}
         <Route element={<RequireRole />}>
           <Route element={<AppShell />}>
             <Route path={P['api-workflow']} element={<ApiWorkflowRoute/>} />
+            <Route path="/permissions" element={null} />
+            <Route path="/horses/:horseId/edit" element={null} />
             <Route path={P.dashboard} element={<DashboardRoute />} />
 
             <Route path={P['horse-list']} element={<HorseListRoute />} />
@@ -298,11 +293,9 @@ export default function AppRoutes() {
             <Route path={P['race-results']} element={<RaceResultsRoute />} />
             <Route path={P.reports} element={<ReportsPage />} />
 
-            {!liveApi && <Route path={P.profile} element={<ProfileRoute/>}/>}
-            <Route path={P.permissions} element={<RoleGate roles={['manager']}><ApiPermissionsPage/></RoleGate>}/>
             <Route path={P.staff} element={<StaffRoute />} />
             <Route path={P.notifications} element={<NotificationsRoute />} />
-
+            <Route path={P.profile} element={<ProfileRoute />} />
           </Route>
         </Route>
       </Route>

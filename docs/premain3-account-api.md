@@ -28,3 +28,8 @@ Backend cần SQL Server, SMTP và CORS/cookie đúng origin. Cấu hình SPRING
 8. Đánh dấu thông báo rồi reload để kiểm tra dữ liệu lưu backend.
 
 Build/typecheck và test mock transport không thay thế kiểm thử SMTP/database thật. Không có tài khoản SMTP hay dữ liệu đăng nhập được bổ sung vào repository.
+
+## Hợp nhất PreMain2
+PreMain3 đã kế thừa luồng API ngựa, admission, Health Profile, trainer và các màn hình Live của PreMain2. Development mặc định gọi http://localhost:8080 qua .env.development được lưu trên Git; có thể đổi URL bằng .env.local. Production vẫn phải cấu hình VITE_API_BASE_URL khi build.
+
+Migration admission được chuyển sang V8 vì V7 đã dùng cho chuyển sequence sang identity. Database từng chạy V7 admission trên nhánh cũ cần đối chiếu flyway_schema_history trước khi nâng cấp, không tự sửa lịch sử migration của database đang dùng.

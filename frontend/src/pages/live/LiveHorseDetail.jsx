@@ -1,10 +1,10 @@
 import {useEffect,useState} from 'react';
-import {useNavigate,useParams} from 'react-router-dom';
+import {useNavigate,useMatch} from 'react-router-dom';
 import {horseService} from '../../services/horseService.ts';
 import {useApp} from '../../hooks/useApp.js';
 import {LiveTrainers} from './LiveTrainers.jsx';
 export function LiveHorseDetail(){
- const {horseId}=useParams(),navigate=useNavigate(),{state}=useApp();const [horse,setHorse]=useState(null),[busy,setBusy]=useState(true),[error,setError]=useState('');
+ const horseId=useMatch('/horses/:horseId')?.params.horseId,navigate=useNavigate(),{state}=useApp();const [horse,setHorse]=useState(null),[busy,setBusy]=useState(true),[error,setError]=useState('');
  useEffect(()=>{let active=true;setBusy(true);setHorse(null);setError('');horseService.get(Number(horseId)).then(h=>active&&setHorse(h)).catch(e=>active&&setError(e.message)).finally(()=>active&&setBusy(false));return()=>{active=false;};},[horseId]);
  const own=horse&&state.user.role==='owner'&&horse.ownerId===state.user.id;
  async function submit(){setBusy(true);setError('');try{setHorse(await horseService.submit(horse.horseId));}catch(e){setError(e.message);}finally{setBusy(false);}}

@@ -22,6 +22,8 @@ export const AppContext = createContext(null);
 export function AppProvider({ children }) {
   const [state, setState] = useState(()=>createInitialState(liveApi));
 
+  const [sessionLoading,setSessionLoading] = useState(liveApi);
+  useEffect(()=>{if(!liveApi)return;let active=true;authService.refresh().then(user=>{if(active)setState(s=>({...s,user}));}).catch(()=>{if(active)tokenStore.clear();}).finally(()=>{if(active)setSessionLoading(false);});return()=>{active=false;};},[]);
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -59,7 +61,7 @@ export function AppProvider({ children }) {
   useEffect(()=>{const expired=()=>{setState(s=>({...s,user:null,errorMsg:'Phiên đăng nhập hết hạn.'}));navigate('login');};window.addEventListener('raceforge:unauthorized',expired);return()=>window.removeEventListener('raceforge:unauthorized',expired);},[navigate]);
   const handleLogin = useCallback((user) => {
     setState(s => ({ ...s, user }));
-    navigate(liveApi && ['owner','manager','veterinarian'].includes(user.role) ? 'api-workflow' : user.role ? 'dashboard' : 'onboarding');
+    navigate(liveApi && ['owner','manager','veterinarian'].includes(user.role) ? 'api-workflow' : liveApi ? 'profile' : user.role ? 'dashboard' : 'onboarding');
   }, [navigate]);
 
   const handleRegister = useCallback((user) => {
@@ -124,11 +126,11 @@ export function AppProvider({ children }) {
 
   const handleRejectHorse = useCallback((id,note)=>transition(flow.rejectHorse,id,note),[transition]);
 
-  const handleLogout = useCallback(() => {
-    if(liveApi){void authService.logout().catch(()=>{});tokenStore.clear();}
+  const handleLogout = useCallback(async () => {
+    if(liveApi){try{await authService.logout();}catch(e){showError(e.message);}finally{tokenStore.clear();}}
     setState(s => ({ ...s, user: null }));
     navigate('home');
-  }, [navigate]);
+  }, [navigate,showError]);
 
   const handleUpdatePermissions = useCallback((userId, pages) => {
     setState(s => ({ ...s, userPermissions: { ...s.userPermissions, [userId]: pages } }));
@@ -441,6 +443,7 @@ export function AppProvider({ children }) {
   const value = useMemo(() => ({
     handleSaveDraft, handleConfirmMedical, handlePayPackage, handleResumePackage,
     state,
+    sessionLoading,
     setState,
     navigate,
     showError,
@@ -481,7 +484,7 @@ export function AppProvider({ children }) {
     selectHorse,
     markNotificationRead,
     openNotification,
-  }), [handleSaveDraft, handleConfirmMedical, handlePayPackage, handleResumePackage,state, showError, showSuccess, handleLogin, handleRegister, handleJoinRequest, handleApproveRequest, handleRejectRequest, handleCreateHorse, handleUpdateHorse, handleSelectTrainer, handleSubmitToCenter, handleApproveHorse, handleRejectHorse, handleLogout, handleUpdatePermissions, handleViewTrainer, handleSaveHealthRecord, handleEnroll, invAddItem, invReceive, invEdit, invAdjust, invDelete, completeCare, undoCare, reportIncident, handleCreatePlan, handleCreateSession, handleStartSession, handleCompleteSession, handlePostExam, handleManualLock, handleActivateRehab, handleUnlock, handleConfirmSchedule, selectHorse, navigate, markNotificationRead, openNotification]);
+  }), [handleSaveDraft, handleConfirmMedical, handlePayPackage, handleResumePackage,state, sessionLoading, showError, showSuccess, handleLogin, handleRegister, handleJoinRequest, handleApproveRequest, handleRejectRequest, handleCreateHorse, handleUpdateHorse, handleSelectTrainer, handleSubmitToCenter, handleApproveHorse, handleRejectHorse, handleLogout, handleUpdatePermissions, handleViewTrainer, handleSaveHealthRecord, handleEnroll, invAddItem, invReceive, invEdit, invAdjust, invDelete, completeCare, undoCare, reportIncident, handleCreatePlan, handleCreateSession, handleStartSession, handleCompleteSession, handlePostExam, handleManualLock, handleActivateRehab, handleUnlock, handleConfirmSchedule, selectHorse, navigate, markNotificationRead, openNotification]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

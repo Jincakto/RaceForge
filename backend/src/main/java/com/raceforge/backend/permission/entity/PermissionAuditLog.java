@@ -5,7 +5,6 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
 
@@ -13,14 +12,13 @@ import java.time.LocalDateTime;
 //   action = "GRANT" | "REVOKE", entity_type = "ROLE_PERMISSION",
 //   entity_id = role_id, reason = permission_name, user_id = who did it.
 @Entity
-@Table(name = "Audit_Log")
+@Table(name = "audit_log")
 public class PermissionAuditLog {
 
   public static final String ENTITY_TYPE = "ROLE_PERMISSION";
 
   @Id
-  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "permission_audit_log_id_seq")
-  @SequenceGenerator(name = "permission_audit_log_id_seq", sequenceName = "seq_Audit_Log", allocationSize = 1)
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
   @Column(name = "audit_id")
   private Integer auditId;
 

@@ -8,7 +8,8 @@ import java.math.BigDecimal;
 public class MedicalVitalSign {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "medical_vital_sign_id_seq")
+    @SequenceGenerator(name = "medical_vital_sign_id_seq", sequenceName = "seq_Medical_Vital_Sign", allocationSize = 1)
     @Column(name = "vital_sign_id", length = 20)
     private Integer vitalSignId;
 

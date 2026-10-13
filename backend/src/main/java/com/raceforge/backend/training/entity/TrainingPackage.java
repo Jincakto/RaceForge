@@ -10,7 +10,8 @@ import java.time.LocalDateTime;
 public class TrainingPackage {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "training_package_id_seq")
+    @SequenceGenerator(name = "training_package_id_seq", sequenceName = "seq_TRAINING_PACKAGE", allocationSize = 1)
     @Column(name = "package_id", nullable = false, length = 20)
     private Integer packageId;
 

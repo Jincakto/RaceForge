@@ -6,7 +6,7 @@ import java.time.LocalDate;
 
 // Maps to table Horse_Plan: PK (plan_id, horse_id). Training_Session references this pair.
 @Entity
-@Table(name = "horse_plan")
+@Table(name = "Horse_Plan")
 public class HorsePlan {
 
   @EmbeddedId

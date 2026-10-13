@@ -2,18 +2,19 @@ package com.raceforge.backend.training.entity;
 
 import com.raceforge.backend.horse.entity.Horse;
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 // Maps to table Training_Session. (plan_id, horse_id) is a composite FK to Horse_Plan in the DB,
 // so a session can only be created for a horse that has been attached to the plan.
 // BR-C03 is checked by the service and the unique index UX_TrainingSession_HorseStart.
 @Entity
-@Table(name = "training_session")
+@Table(name = "Training_Session")
 public class TrainingSession {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "training_session_id_seq")
+  @SequenceGenerator(name = "training_session_id_seq", sequenceName = "seq_Training_Session", allocationSize = 1)
   @Column(name = "session_id")
   private Integer sessionId;
 

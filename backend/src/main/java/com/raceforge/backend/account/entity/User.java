@@ -10,7 +10,6 @@ import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import java.time.Instant;
 
 @Entity
 @Table(name = "[User]")
@@ -50,37 +49,6 @@ public class User {
 
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
-
-    @Column(name = "google_subject", length = 255)
-    private String googleSubject;
-
-    @Column(name = "google_linked_at")
-    private Instant googleLinkedAt;
-
-    @Column(name = "otp_hash", length = 64)
-    private String otpHash;
-
-    @Column(name = "otp_expires_at")
-    private Instant otpExpiresAt;
-
-    @Column(name = "otp_sent_at")
-    private Instant otpSentAt;
-
-    @Column(name = "otp_attempt_count", nullable = false)
-    private int otpAttemptCount;
-
-    public String getGoogleSubject() { return googleSubject; }
-    public void setGoogleSubject(String googleSubject) { this.googleSubject = googleSubject; }
-    public Instant getGoogleLinkedAt() { return googleLinkedAt; }
-    public void setGoogleLinkedAt(Instant googleLinkedAt) { this.googleLinkedAt = googleLinkedAt; }
-    public String getOtpHash() { return otpHash; }
-    public void setOtpHash(String otpHash) { this.otpHash = otpHash; }
-    public Instant getOtpExpiresAt() { return otpExpiresAt; }
-    public void setOtpExpiresAt(Instant otpExpiresAt) { this.otpExpiresAt = otpExpiresAt; }
-    public Instant getOtpSentAt() { return otpSentAt; }
-    public void setOtpSentAt(Instant otpSentAt) { this.otpSentAt = otpSentAt; }
-    public int getOtpAttemptCount() { return otpAttemptCount; }
-    public void setOtpAttemptCount(int otpAttemptCount) { this.otpAttemptCount = otpAttemptCount; }
 
     public Integer getUserId() {
         return userId;

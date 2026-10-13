@@ -3,6 +3,7 @@ package com.raceforge.backend.horse.entity;
 import com.raceforge.backend.account.entity.User;
 import jakarta.persistence.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
@@ -10,7 +11,8 @@ import java.time.LocalDate;
 public class Horse {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "horse_id_seq")
+    @SequenceGenerator(name = "horse_id_seq", sequenceName = "seq_Horse", allocationSize = 1)
     @Column(name = "horse_id", length = 20)
     private Integer horseId;
 
@@ -47,10 +49,10 @@ public class Horse {
     private String damSire;
 
     @Column(name = "weight")
-    private Double weight;
+    private BigDecimal weight;
 
     @Column(name = "height")
-    private Double height;
+    private BigDecimal height;
 
     @Column(name = "background")
     private String background;
@@ -159,19 +161,19 @@ public class Horse {
         this.damSire = damSire;
     }
 
-    public Double getWeight() {
+    public BigDecimal getWeight() {
         return weight;
     }
 
-    public void setWeight(Double weight) {
+    public void setWeight(BigDecimal weight) {
         this.weight = weight;
     }
 
-    public Double getHeight() {
+    public BigDecimal getHeight() {
         return height;
     }
 
-    public void setHeight(Double height) {
+    public void setHeight(BigDecimal height) {
         this.height = height;
     }
 

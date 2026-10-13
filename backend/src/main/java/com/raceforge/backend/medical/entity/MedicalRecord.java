@@ -9,7 +9,8 @@ import com.raceforge.backend.account.entity.User;
 public class MedicalRecord {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "medical_record_id_seq")
+    @SequenceGenerator(name = "medical_record_id_seq", sequenceName = "seq_Medical_Record", allocationSize = 1)
     @Column(name = "medical_record_id", length = 20)
     private Integer medicalRecordId;
 

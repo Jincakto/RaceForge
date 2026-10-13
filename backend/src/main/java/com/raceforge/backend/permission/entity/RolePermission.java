@@ -9,7 +9,7 @@ import jakarta.persistence.Table;
 
 // Maps to table Role_Permission (role_id, permission_id). Who granted/revoked goes to Audit_Log.
 @Entity
-@Table(name = "role_permission")
+@Table(name = "Role_Permission")
 public class RolePermission {
 
   @EmbeddedId

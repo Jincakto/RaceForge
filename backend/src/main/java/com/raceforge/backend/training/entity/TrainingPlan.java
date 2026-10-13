@@ -4,11 +4,12 @@ import jakarta.persistence.*;
 
 // Maps to table Training_Plan. The horses a plan applies to are in Horse_Plan (see HorsePlan).
 @Entity
-@Table(name = "training_plan")
+@Table(name = "Training_Plan")
 public class TrainingPlan {
 
   @Id
-  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "training_plan_id_seq")
+  @SequenceGenerator(name = "training_plan_id_seq", sequenceName = "seq_Training_Plan", allocationSize = 1)
   @Column(name = "plan_id")
   private Integer planId;
 

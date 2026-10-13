@@ -1,6 +1,7 @@
 package com.raceforge.backend.horse.dto;
 
 import java.time.LocalDate;
+import java.math.BigDecimal;
 
 public class HorseResponse {
 
@@ -19,8 +20,8 @@ public class HorseResponse {
     private String dam;
     private String damSire;
 
-    private Double weight;
-    private Double height;
+    private BigDecimal weight;
+    private BigDecimal height;
 
     private String background;
     private String declaredMedicalHistory;
@@ -118,19 +119,19 @@ public class HorseResponse {
         this.damSire = damSire;
     }
     
-    public Double getWeight() {
+    public BigDecimal getWeight() {
         return weight;
     }
     
-    public void setWeight(Double weight) {
+    public void setWeight(BigDecimal weight) {
         this.weight = weight;
     }
     
-    public Double getHeight() {
+    public BigDecimal getHeight() {
         return height;
     }
     
-    public void setHeight(Double height) {
+    public void setHeight(BigDecimal height) {
         this.height = height;
     }
     

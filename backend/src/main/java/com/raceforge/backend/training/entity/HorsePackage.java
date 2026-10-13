@@ -11,7 +11,8 @@ import com.raceforge.backend.horse.entity.Horse;
 public class HorsePackage {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "horse_package_id_seq")
+    @SequenceGenerator(name = "horse_package_id_seq", sequenceName = "seq_HORSE_PACKAGE", allocationSize = 1)
     @Column(name = "horse_package_id", nullable = false, length = 20)
     private Integer horsePackageId;
 

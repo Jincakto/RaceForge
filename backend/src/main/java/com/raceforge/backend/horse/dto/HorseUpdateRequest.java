@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public class HorseUpdateRequest {
@@ -38,11 +39,11 @@ public class HorseUpdateRequest {
 
     @NotNull(message = "Weight is required")
     @Positive(message = "Weight must be greater than 0")
-    private Double weight;
+    private BigDecimal weight;
 
     @NotNull(message = "Height is required")
     @Positive(message = "Height must be greater than 0")
-    private Double height;
+    private BigDecimal height;
 
     @Size(max = 1000)
     private String background;
@@ -117,19 +118,19 @@ public class HorseUpdateRequest {
         this.damSire = damSire;
     }
 
-    public Double getWeight() {
+    public BigDecimal getWeight() {
         return weight;
     }
 
-    public void setWeight(Double weight) {
+    public void setWeight(BigDecimal weight) {
         this.weight = weight;
     }
 
-    public Double getHeight() {
+    public BigDecimal getHeight() {
         return height;
     }
 
-    public void setHeight(Double height) {
+    public void setHeight(BigDecimal height) {
         this.height = height;
     }
 

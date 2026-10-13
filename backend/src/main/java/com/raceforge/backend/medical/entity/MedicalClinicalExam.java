@@ -7,7 +7,8 @@ import jakarta.persistence.*;
 public class MedicalClinicalExam {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "medical_clinical_exam_id_seq")
+    @SequenceGenerator(name = "medical_clinical_exam_id_seq", sequenceName = "seq_Medical_Clinical_Exam", allocationSize = 1)
     @Column(name = "clinical_exam_id", length = 20)
     private Integer clinicalExamId;
 

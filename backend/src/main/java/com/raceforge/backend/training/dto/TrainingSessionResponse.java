@@ -1,5 +1,6 @@
 package com.raceforge.backend.training.dto;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public class TrainingSessionResponse {
@@ -9,7 +10,7 @@ public class TrainingSessionResponse {
   private Integer horseId;
   private LocalDateTime scheduledStart;
   private LocalDateTime scheduledEnd;
-  private Double distance;
+  private BigDecimal distance;
   private String intensity;
   private String surface;
   private String status;
@@ -74,11 +75,11 @@ public class TrainingSessionResponse {
       this.scheduledEnd = scheduledEnd;
   }
 
-  public Double getDistance() {
+  public BigDecimal getDistance() {
       return distance;
   }
 
-  public void setDistance(Double distance) {
+  public void setDistance(BigDecimal distance) {
       this.distance = distance;
   }
 

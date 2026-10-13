@@ -15,7 +15,7 @@ public class TrainingSessionMapper {
       response.setHorseId(session.getHorse().getHorseId());
       response.setScheduledStart(session.getScheduledStart());
       response.setScheduledEnd(session.getScheduledEnd());
-      response.setDistance(session.getDistance() == null ? null : session.getDistance().doubleValue());
+      response.setDistance(session.getDistance());
       response.setHeartRate(session.getHeartRate());
       response.setAvgSpeed(session.getAvgSpeed());
       response.setMaxSpeed(session.getMaxSpeed());

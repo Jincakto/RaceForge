@@ -9,7 +9,8 @@ import java.time.LocalDateTime;
 @Table(name = "Training_Lock")
 public class TrainingLock {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "training_lock_id_seq")
+    @SequenceGenerator(name = "training_lock_id_seq", sequenceName = "seq_Training_Lock", allocationSize = 1)
     @Column(name = "lock_id", length = 20)
     private Integer lockId;
 

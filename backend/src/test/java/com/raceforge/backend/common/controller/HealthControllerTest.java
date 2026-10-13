@@ -40,6 +40,36 @@ class HealthControllerTest {
     @Test
     void otherApiEndpointsRequireAuthentication() throws Exception {
         mockMvc.perform(get("/api/protected"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.data.code").value("AUTHENTICATION_REQUIRED"));
+    }
+
+    @Test
+    void authenticatedUserWithoutRequiredRoleReceives403() throws Exception {
+        mockMvc.perform(get("/api/users").with(
+                org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("tester")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.data.code").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    void invalidTokenReceives401() throws Exception {
+        org.mockito.Mockito.when(jwtService.parse("invalid"))
+                .thenThrow(new io.jsonwebtoken.MalformedJwtException("Invalid token"));
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer invalid"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.data.code").value("AUTHENTICATION_REQUIRED"));
+    }
+
+    @Test
+    void databaseFailureDuringAuthenticationIsNotReportedAsInvalidToken() throws Exception {
+        org.mockito.Mockito.when(jwtService.parse("valid"))
+                .thenReturn(new com.raceforge.backend.security.AuthenticatedUser(1, "test@example.com", "ACTIVE", 1, "CLUB_MANAGER"));
+        org.mockito.Mockito.when(userRepository.findDetailedById(1))
+                .thenThrow(new org.springframework.dao.DataAccessResourceFailureException("Database unavailable"));
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer valid"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.data.code").value("DATABASE_UNAVAILABLE"))
+                .andExpect(jsonPath("$.data.errorId").isNotEmpty());
     }
 }

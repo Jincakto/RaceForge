@@ -62,7 +62,7 @@ class IntegerIdsMigrationTest {
             try (Statement statement = connection.createStatement(); ResultSet rows = statement.executeQuery("SELECT user_id,password FROM dbo.[User] WHERE password IS NOT NULL")) {
                 while (rows.next()) oldPasswords.put(rows.getString(1), rows.getString(2));
             }
-            assertEquals(1, flyway.migrate().migrationsExecuted);
+            assertEquals(3, flyway.migrate().migrationsExecuted);
             Map<String, Long> after = counts(connection);
             for (Map.Entry<String, Long> entry : counts.entrySet()) {
                 if (!entry.getKey().equals("Email_Verification_OTP") && !entry.getKey().equals("User_External_Login"))
@@ -74,8 +74,13 @@ class IntegerIdsMigrationTest {
                     WHERE SCHEMA_NAME(t.schema_id)='dbo' AND t.name NOT IN ('sysdiagrams','flyway_schema_history')
                     AND c.name LIKE '%[_]id' AND ty.name<>'int'
                     """));
-            assertEquals(0, scalar(connection, "SELECT COUNT(*) FROM sys.tables WHERE name IN ('Email_Verification_OTP','User_External_Login')"));
-            assertEquals(1, scalar(connection, "SELECT COUNT(*) FROM dbo.[User] WHERE google_subject='google-subject-kept-as-string'"));
+            assertEquals(1, scalar(connection, "SELECT COUNT(*) FROM sys.tables WHERE name='Email_Verification_OTP'"));
+            assertEquals(0, scalar(connection, "SELECT COUNT(*) FROM sys.tables WHERE name='User_External_Login'"));
+            assertEquals(0, scalar(connection, """
+                    SELECT COUNT(*) FROM sys.columns
+                    WHERE object_id=OBJECT_ID('dbo.[User]')
+                      AND name IN ('google_subject','google_linked_at','otp_hash','otp_expires_at','otp_sent_at','otp_attempt_count')
+                    """));
             assertEquals(6, scalar(connection, "SELECT role_id FROM dbo.Role WHERE role_name='USER'"));
             assertEquals(1, scalar(connection, """
                     SELECT COUNT(*) FROM dbo.Care_Task c JOIN dbo.Horse h ON h.horse_id=c.horse_id

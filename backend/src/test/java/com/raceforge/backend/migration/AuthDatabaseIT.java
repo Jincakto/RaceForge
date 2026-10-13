@@ -7,12 +7,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.raceforge.backend.account.entity.User;
+import com.raceforge.backend.account.entity.EmailVerificationOtp;
+import com.raceforge.backend.account.repository.EmailVerificationOtpRepository;
 import com.raceforge.backend.account.repository.UserRepository;
 import com.raceforge.backend.account.service.EmailService;
 import com.raceforge.backend.account.service.GoogleIdentity;
 import com.raceforge.backend.account.service.GoogleTokenVerifier;
 import com.raceforge.backend.security.JwtService;
 import java.util.UUID;
+import java.util.Map;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,8 +43,10 @@ class AuthDatabaseIT {
 
     @Autowired MockMvc mvc;
     @Autowired UserRepository users;
+    @Autowired EmailVerificationOtpRepository emailOtps;
     @Autowired PasswordEncoder passwords;
     @Autowired JwtService jwt;
+    @Autowired ObjectMapper objectMapper;
     @MockitoBean EmailService emailService;
     @MockitoBean GoogleTokenVerifier google;
 
@@ -58,15 +64,16 @@ class AuthDatabaseIT {
         assertNotEquals("StrongPass123!", user.getPassword());
         ArgumentCaptor<String> otp = ArgumentCaptor.forClass(String.class);
         verify(emailService).sendOtp(eq(email), otp.capture());
-        assertNotEquals(otp.getValue(), user.getOtpHash());
+        EmailVerificationOtp verification = emailOtps.findById(user.getUserId()).orElseThrow();
+        assertNotEquals(otp.getValue(), verification.getOtpHash());
         String wrong = otp.getValue().equals("000000") ? "111111" : "000000";
         verifyOtp(email, wrong, 400);
-        assertEquals(1, users.findByEmail(email).orElseThrow().getOtpAttemptCount());
+        assertEquals(1, emailOtps.findById(user.getUserId()).orElseThrow().getAttemptCount());
         verifyOtp(email, otp.getValue(), 200);
         user = users.findByEmail(email).orElseThrow();
         assertTrue(user.isEmailVerified());
         assertEquals("ACTIVE", user.getStatus());
-        assertNull(user.getOtpHash());
+        assertTrue(emailOtps.findById(user.getUserId()).isEmpty());
         mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content("""
                 {"email":"%s","password":"StrongPass123!"}
                 """.formatted(email))).andExpect(status().isOk())
@@ -87,19 +94,31 @@ class AuthDatabaseIT {
     }
 
     @Test
-    void googleAccountIsStoredOnUserWithDefaultRole() throws Exception {
+    void googleAccountUsesEmailAndRequiresPasswordSetup() throws Exception {
         String subject = "google-it-" + UUID.randomUUID();
         String email = subject + "@example.com";
         when(google.verify("verified-google-token"))
                 .thenReturn(new GoogleIdentity(subject, email, true, "Google Test", null));
-        mvc.perform(post("/api/auth/google").contentType(MediaType.APPLICATION_JSON)
+        String body = mvc.perform(post("/api/auth/google").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"idToken\":\"verified-google-token\"}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.user.role.roleId").value(6));
-        User user = users.findByGoogleSubject(subject).orElseThrow();
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.passwordSetupRequired").value(true))
+                .andExpect(jsonPath("$.data.accessToken").isEmpty())
+                .andExpect(jsonPath("$.data.user.role.roleId").value(6))
+                .andReturn().getResponse().getContentAsString();
+        String setupToken = objectMapper.readTree(body).get("data").get("passwordSetupToken").asText();
+        User user = users.findByEmail(email).orElseThrow();
         assertEquals(email, user.getEmail());
         assertNull(user.getPassword());
-        assertNotNull(user.getGoogleLinkedAt());
         assertTrue(user.isEmailVerified());
+        mvc.perform(post("/api/auth/google/set-password").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                        "passwordSetupToken", setupToken,
+                        "newPassword", "GooglePassword123!"
+                ))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.accessToken").isNotEmpty());
+        assertTrue(passwords.matches("GooglePassword123!", users.findByEmail(email).orElseThrow().getPassword()));
     }
 
     private void verifyOtp(String email, String code, int status) throws Exception {

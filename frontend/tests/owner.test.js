@@ -1,14 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
-import React from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { createServer } from 'vite'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 test('owner prototype workflows and views', async context => {
-  const server = await createServer({ root, server: { middlewareMode: true, hmr: false }, optimizeDeps: { noDiscovery: true, include: [] }, appType: 'custom' })
+  const server = await createServer({ root, define: { 'import.meta.env.VITE_API_BASE_URL': '""' }, server: { middlewareMode: true, hmr: false }, optimizeDeps: { noDiscovery: true, include: [] }, ssr: { optimizeDeps: { include: ['react', 'react-dom', 'react-dom/server', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-router', 'react-router-dom', 'recharts', 'use-sync-external-store', 'use-sync-external-store/shim', 'use-sync-external-store/shim/with-selector'] } }, appType: 'custom' })
   context.after(() => server.close())
+  const { React, renderToStaticMarkup } = await server.ssrLoadModule('/tests/react-ssr-bridge.js')
   const data = await server.ssrLoadModule('/src/data.ts')
   const actions = await server.ssrLoadModule('/src/utils/ownerActions.ts')
   const owner = data.SEED_USERS.find(user => user.email === 'owner@raceforce.vn')

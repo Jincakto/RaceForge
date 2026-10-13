@@ -1,14 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
-import React from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
 const root = fileURLToPath(new URL('../',import.meta.url));
 test('backend contract and medical training regressions', async context => {
-  const server=await createServer({root,server:{middlewareMode:true,hmr:false},optimizeDeps:{noDiscovery:true,include:[]},appType:'custom'});
+  const server=await createServer({root,define:{'import.meta.env.VITE_API_BASE_URL':'""','import.meta.env.VITE_GOOGLE_CLIENT_ID':'"test-client-id"'},server:{middlewareMode:true,hmr:false},optimizeDeps:{noDiscovery:true,include:[]},ssr:{optimizeDeps:{include:['react','react-dom','react-dom/server','react/jsx-runtime','react/jsx-dev-runtime','react-router','react-router-dom','recharts','use-sync-external-store','use-sync-external-store/shim','use-sync-external-store/shim/with-selector']}},appType:'custom'});
   const previousFetch=globalThis.fetch;
   context.after(()=>{globalThis.fetch=previousFetch;return server.close();});
+  const {React,renderToStaticMarkup}=await server.ssrLoadModule('/tests/react-ssr-bridge.js');
   const api=await server.ssrLoadModule('/src/services/api.ts');
   const {tokenStore}=await server.ssrLoadModule('/src/services/tokenStore.ts');
   const {healthService}=await server.ssrLoadModule('/src/services/healthService.ts');
@@ -51,6 +50,22 @@ test('backend contract and medical training regressions', async context => {
     responseData={accessToken:'jwt',tokenType:'Bearer',expiresInSeconds:60,user:{userId:7,fullName:'Owner',email:'a@b.test',phone:'123',status:'ACTIVE',emailVerified:true,avatarUrl:null,role:{roleId:5,roleName:'HORSE_OWNER'}}};
     const user=await authService.login('a@b.test','password');assert.equal(last().url,'/api/auth/login');assert.equal(user.id,7);assert.equal(user.role,'owner');assert.equal(user.clubId,null);assert.equal(tokenStore.get(),'jwt');
     assert.equal(toAppUser({...responseData.user,role:{roleId:88,roleName:'UNKNOWN'}}).role,null);responseData={};
+  });
+  await context.test('Google login accepts a session or requires password setup before storing JWT',async()=>{
+    const googleUser={userId:8,fullName:'Google User',email:'google@example.com',phone:'',status:'ACTIVE',emailVerified:true,avatarUrl:null,role:{roleId:6,roleName:'USER'}};
+    responseData={passwordSetupRequired:true,passwordSetupToken:'setup-token',accessToken:null,tokenType:null,expiresInSeconds:0,user:googleUser};
+    tokenStore.clear();
+    const setup=await authService.googleLogin('google-id-token');
+    assert.equal(last().url,'/api/auth/google');assert.deepEqual(body(),{idToken:'google-id-token',requestedRoleId:null});
+    assert.equal(setup.passwordSetupRequired,true);assert.equal(setup.passwordSetupToken,'setup-token');assert.equal(tokenStore.get(),null);
+    responseData={accessToken:'google-jwt',tokenType:'Bearer',expiresInSeconds:60,user:googleUser};
+    const user=await authService.googleSetPassword('setup-token','Password123');
+    assert.equal(last().url,'/api/auth/google/set-password');assert.deepEqual(body(),{passwordSetupToken:'setup-token',newPassword:'Password123'});
+    assert.equal(user.id,8);assert.equal(tokenStore.get(),'google-jwt');
+    responseData={passwordSetupRequired:false,passwordSetupToken:null,...responseData};
+    const existing=await authService.googleLogin('returning-token');
+    assert.equal(existing.passwordSetupRequired,false);assert.equal(existing.user.id,8);assert.equal(tokenStore.get(),'google-jwt');
+    responseData={};
   });
   const horse={horseId:14,ownerId:7,healthStatus:'INJURED',trainingLocked:true};
   const record={...blankMedical(),medicalRecordId:8,profileId:99,veterinarianId:5,correctionOfId:null,status:'CONFIRMED',healthStatus:'READY',systemNote:'BE system note',trainingNote:'FOLLOW_UP_NORMAL_REVIEW_REQUIRED',createdAt:'',updatedAt:'',confirmedAt:''};

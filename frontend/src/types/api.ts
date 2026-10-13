@@ -12,7 +12,7 @@ export interface GoogleAuthDto {
 }
 export type HealthStatusDto = 'READY' | 'INJURED' | 'QUARANTINED';
 export interface HorseWriteDto { horseName: string; dateOfBirth: string; gender: string; breed: string; coatColor: string; sire?: string; dam?: string; damSire?: string; weight: number; height: number; background?: string; declaredMedicalHistory?: string; imageUrl?: string }
-export interface HorseDto extends HorseWriteDto { horseId: number; ownerId: number; headTrainerId: number | null; healthStatus: HealthStatusDto | null; trainingLocked: boolean; status: string }
+export interface HorseDto extends HorseWriteDto { admissionStatus: string; admissionNote: string | null; horseId: number; ownerId: number; headTrainerId: number | null; healthStatus: HealthStatusDto | null; trainingLocked: boolean; status: string }
 export interface VitalSignDto { bodyTemperature: number | null; restingHeartRate: number | null; restingRespiratoryRate: number | null }
 export interface ClinicalExamDto { examinationArea: string; conditionStatus: string; abnormalityType?: string; severity?: string; notes?: string }
 export interface MedicalUpdateDto { examinedAt: string; healthStatus: HealthStatusDto | null; diagnosis: string; treatment: string; medication: string; careRecommendation: string; notes: string; vitalSign: VitalSignDto; clinicalExams: ClinicalExamDto[] }

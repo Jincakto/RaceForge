@@ -176,6 +176,7 @@ public class AuthProperties {
 
     public static class Google {
         private String clientId;
+        private long passwordSetupMinutes;
 
         public String getClientId() {
             return clientId;
@@ -183,6 +184,14 @@ public class AuthProperties {
 
         public void setClientId(String clientId) {
             this.clientId = clientId;
+        }
+
+        public long getPasswordSetupMinutes() {
+            return passwordSetupMinutes;
+        }
+
+        public void setPasswordSetupMinutes(long passwordSetupMinutes) {
+            this.passwordSetupMinutes = passwordSetupMinutes;
         }
     }
 

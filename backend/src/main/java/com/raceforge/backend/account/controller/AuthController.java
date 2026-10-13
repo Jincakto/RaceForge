@@ -3,6 +3,8 @@ package com.raceforge.backend.account.controller;
 import com.raceforge.backend.account.dto.AuthDtos.AuthResponse;
 import com.raceforge.backend.account.dto.AuthDtos.ForgotPasswordRequest;
 import com.raceforge.backend.account.dto.AuthDtos.GoogleAuthRequest;
+import com.raceforge.backend.account.dto.AuthDtos.GoogleAuthResponse;
+import com.raceforge.backend.account.dto.AuthDtos.GooglePasswordSetupRequest;
 import com.raceforge.backend.account.dto.AuthDtos.LoginRequest;
 import com.raceforge.backend.account.dto.AuthDtos.MessageResponse;
 import com.raceforge.backend.account.dto.AuthDtos.RefreshRequest;
@@ -12,6 +14,7 @@ import com.raceforge.backend.account.dto.AuthDtos.ResendOtpRequest;
 import com.raceforge.backend.account.dto.AuthDtos.VerifyEmailRequest;
 import com.raceforge.backend.account.service.AuthService;
 import com.raceforge.backend.account.service.AuthService.AuthSession;
+import com.raceforge.backend.account.service.AuthService.GoogleLoginResult;
 import com.raceforge.backend.common.response.ApiResponse;
 import com.raceforge.backend.config.AuthProperties;
 import com.raceforge.backend.security.AuthenticatedUser;
@@ -64,10 +67,23 @@ public class AuthController {
     }
 
     @PostMapping("/google")
-    public ApiResponse<AuthResponse> google(@Valid @RequestBody GoogleAuthRequest request, HttpServletResponse response) {
-        AuthSession session = authService.googleLogin(request);
+    public ApiResponse<GoogleAuthResponse> google(@Valid @RequestBody GoogleAuthRequest request, HttpServletResponse response) {
+        GoogleLoginResult result = authService.googleLogin(request);
+        if (result.session() != null) {
+            setRefreshCookie(response, result.session().refreshToken());
+        }
+        String message = result.session() == null ? "Password setup required" : "Logged in";
+        return ApiResponse.success(message, authService.toGoogleAuthResponse(result));
+    }
+
+    @PostMapping("/google/set-password")
+    public ApiResponse<AuthResponse> setGooglePassword(
+            @Valid @RequestBody GooglePasswordSetupRequest request,
+            HttpServletResponse response
+    ) {
+        AuthSession session = authService.setGooglePassword(request);
         setRefreshCookie(response, session.refreshToken());
-        return ApiResponse.success("Logged in", authService.toAuthResponse(session));
+        return ApiResponse.success("Password set", authService.toAuthResponse(session));
     }
 
     @PostMapping("/refresh")

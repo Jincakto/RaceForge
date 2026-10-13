@@ -21,10 +21,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserRepository userRepository;
+    private final org.springframework.web.servlet.HandlerExceptionResolver exceptionResolver;
 
-    public JwtAuthenticationFilter(JwtService jwtService, UserRepository userRepository) {
+    public JwtAuthenticationFilter(JwtService jwtService, UserRepository userRepository,
+            @org.springframework.beans.factory.annotation.Qualifier("handlerExceptionResolver")
+            org.springframework.web.servlet.HandlerExceptionResolver exceptionResolver) {
         this.jwtService = jwtService;
         this.userRepository = userRepository;
+        this.exceptionResolver = exceptionResolver;
     }
 
     @Override
@@ -39,8 +43,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
+        AuthenticatedUser tokenUser;
         try {
-            AuthenticatedUser tokenUser = jwtService.parse(header.substring(7));
+            tokenUser = jwtService.parse(header.substring(7));
+        } catch (io.jsonwebtoken.JwtException | IllegalArgumentException exception) {
+            SecurityContextHolder.clearContext();
+            filterChain.doFilter(request, response);
+            return;
+        }
+        try {
             User user = userRepository.findDetailedById(tokenUser.userId()).orElse(null);
             if (user != null && isSessionAllowed(user)) {
                 List<SimpleGrantedAuthority> authorities = authoritiesFor(user);
@@ -55,8 +66,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         new UsernamePasswordAuthenticationToken(principal, null, authorities)
                 );
             }
-        } catch (Exception ignored) {
+        } catch (Exception exception) {
             SecurityContextHolder.clearContext();
+            if (exceptionResolver.resolveException(request, response, null, exception) == null) {
+                throw new ServletException(exception);
+            }
+            return;
         }
 
         filterChain.doFilter(request, response);

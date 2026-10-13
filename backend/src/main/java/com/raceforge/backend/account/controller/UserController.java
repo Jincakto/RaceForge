@@ -4,7 +4,6 @@ import com.raceforge.backend.account.dto.AuthDtos.MessageResponse;
 import com.raceforge.backend.account.dto.AuthDtos.PageResponse;
 import com.raceforge.backend.account.dto.AuthDtos.RegistrationRequestResponse;
 import com.raceforge.backend.account.dto.AuthDtos.UserResponse;
-import com.raceforge.backend.account.dto.GoogleLinkRequest;
 import com.raceforge.backend.account.dto.UserDtos.ChangePasswordRequest;
 import com.raceforge.backend.account.dto.UserDtos.UpdateMeRequest;
 import com.raceforge.backend.account.dto.UserDtos.UpdateStatusRequest;
@@ -17,7 +16,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -62,15 +60,6 @@ public class UserController {
             @AuthenticationPrincipal AuthenticatedUser currentUser
     ) {
         return ApiResponse.success("Registration request", userService.myRegistrationRequest(currentUser.userId()));
-    }
-
-    @PostMapping("/me/external-logins/google")
-    public ApiResponse<MessageResponse> linkGoogle(
-            @AuthenticationPrincipal AuthenticatedUser currentUser,
-            @Valid @RequestBody GoogleLinkRequest request
-    ) {
-        userService.linkGoogle(currentUser.userId(), request.idToken());
-        return ApiResponse.success("Google linked", new MessageResponse("Google login linked."));
     }
 
     @GetMapping

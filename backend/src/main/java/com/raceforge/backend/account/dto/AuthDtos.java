@@ -42,6 +42,12 @@ public final class AuthDtos {
     ) {
     }
 
+    public record GooglePasswordSetupRequest(
+            @NotBlank String passwordSetupToken,
+            @NotBlank @Size(min = 8, max = 100) String newPassword
+    ) {
+    }
+
     public record RefreshRequest(String refreshToken) {
     }
 
@@ -55,6 +61,16 @@ public final class AuthDtos {
     }
 
     public record AuthResponse(
+            String accessToken,
+            String tokenType,
+            long expiresInSeconds,
+            UserResponse user
+    ) {
+    }
+
+    public record GoogleAuthResponse(
+            boolean passwordSetupRequired,
+            String passwordSetupToken,
             String accessToken,
             String tokenType,
             long expiresInSeconds,

@@ -18,7 +18,6 @@ import com.raceforge.backend.account.repository.UserRepository;
 import com.raceforge.backend.audit.service.AuditService;
 import com.raceforge.backend.common.exception.ApiException;
 import com.raceforge.backend.common.exception.ResourceNotFoundException;
-import com.raceforge.backend.common.util.EmailNormalizer;
 import com.raceforge.backend.notification.service.NotificationService;
 import java.time.Instant;
 import org.springframework.data.domain.PageRequest;
@@ -36,7 +35,6 @@ public class UserService {
     private final RegistrationRequestRepository registrationRequestRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
-    private final GoogleTokenVerifier googleTokenVerifier;
     private final AccountMapper mapper;
     private final AuditService auditService;
     private final NotificationService notificationService;
@@ -46,7 +44,6 @@ public class UserService {
             RegistrationRequestRepository registrationRequestRepository,
             RefreshTokenRepository refreshTokenRepository,
             PasswordEncoder passwordEncoder,
-            GoogleTokenVerifier googleTokenVerifier,
             AccountMapper mapper,
             AuditService auditService,
             NotificationService notificationService
@@ -55,7 +52,6 @@ public class UserService {
         this.registrationRequestRepository = registrationRequestRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
-        this.googleTokenVerifier = googleTokenVerifier;
         this.mapper = mapper;
         this.auditService = auditService;
         this.notificationService = notificationService;
@@ -91,25 +87,6 @@ public class UserService {
         return registrationRequestRepository.findFirstByUserUserIdOrderByCreatedAtDesc(userId)
                 .map(mapper::toRegistrationRequestResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("Registration request not found"));
-    }
-
-    @Transactional
-    public void linkGoogle(Integer userId, String idToken) {
-        User user = userRepository.findByIdForUpdate(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-        GoogleIdentity identity = googleTokenVerifier.verify(idToken);
-        if (!identity.emailVerified() || !EmailNormalizer.normalize(identity.email()).equals(user.getEmail())) {
-            throw new ApiException(HttpStatus.CONFLICT, "GOOGLE_EMAIL_MISMATCH", "Google account email must match your RaceForge email");
-        }
-        if (userRepository.existsByGoogleSubject(identity.subject())) {
-            throw new ApiException(HttpStatus.CONFLICT, "GOOGLE_ALREADY_LINKED", "Google account is already linked");
-        }
-        if (user.getGoogleSubject() != null) {
-            throw new ApiException(HttpStatus.CONFLICT, "USER_ALREADY_HAS_GOOGLE", "User already has a Google login");
-        }
-        user.setGoogleSubject(identity.subject());
-        user.setGoogleLinkedAt(Instant.now());
-        auditService.record(userId, "GOOGLE_LINKED", "User", userId, "SUCCESS", null);
     }
 
     @Transactional(readOnly = true)

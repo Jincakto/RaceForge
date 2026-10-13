@@ -17,6 +17,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class JwtService {
 
+    private static final String GOOGLE_PASSWORD_SETUP_AUDIENCE_SUFFIX = ":google-password-setup";
+    private static final String GOOGLE_PASSWORD_SETUP_PURPOSE = "GOOGLE_PASSWORD_SETUP";
+
     private final AuthProperties properties;
     private final SecretKey key;
 
@@ -40,6 +43,35 @@ public class JwtService {
                 .claim("role_name", role == null ? null : role.getRoleName())
                 .signWith(key, Jwts.SIG.HS256)
                 .compact();
+    }
+
+    public String createGooglePasswordSetupToken(User user) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject(user.getUserId().toString())
+                .issuer(properties.getJwt().getIssuer())
+                .audience().add(googlePasswordSetupAudience()).and()
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plus(Duration.ofMinutes(properties.getGoogle().getPasswordSetupMinutes()))))
+                .claim("email", user.getEmail())
+                .claim("purpose", GOOGLE_PASSWORD_SETUP_PURPOSE)
+                .signWith(key, Jwts.SIG.HS256)
+                .compact();
+    }
+
+    public GooglePasswordSetupIdentity parseGooglePasswordSetupToken(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(key)
+                .requireIssuer(properties.getJwt().getIssuer())
+                .requireAudience(googlePasswordSetupAudience())
+                .require("purpose", GOOGLE_PASSWORD_SETUP_PURPOSE)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        return new GooglePasswordSetupIdentity(
+                Integer.valueOf(claims.getSubject()),
+                claims.get("email", String.class)
+        );
     }
 
     public AuthenticatedUser parse(String token) {
@@ -67,5 +99,12 @@ public class JwtService {
     public boolean hasBusinessAuthority(User user) {
         return AccountConstants.STATUS_ACTIVE.equals(user.getStatus()) && user.getRole() != null
                 && AccountConstants.BUSINESS_ROLES.contains(user.getRole().getRoleId());
+    }
+
+    private String googlePasswordSetupAudience() {
+        return properties.getJwt().getAudience() + GOOGLE_PASSWORD_SETUP_AUDIENCE_SUFFIX;
+    }
+
+    public record GooglePasswordSetupIdentity(Integer userId, String email) {
     }
 }

@@ -28,11 +28,29 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, tools.jackson.databind.ObjectMapper mapper) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
                 .cors(withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(errors -> errors
+                        .authenticationEntryPoint((request, response, exception) -> {
+                            response.setStatus(401);
+                            response.setHeader("WWW-Authenticate", "Bearer");
+                            response.setContentType("application/json");
+                            String message = "Authentication is required. Provide a valid, unexpired Bearer access token.";
+                            mapper.writeValue(response.getOutputStream(), com.raceforge.backend.common.response.ApiResponse.failure(
+                                    message, com.raceforge.backend.common.response.ErrorResponse.of(
+                                            "AUTHENTICATION_REQUIRED", message, 401, request.getRequestURI())));
+                        })
+                        .accessDeniedHandler((request, response, exception) -> {
+                            response.setStatus(403);
+                            response.setContentType("application/json");
+                            String message = "Your account does not have the role or active status required for this action.";
+                            mapper.writeValue(response.getOutputStream(), com.raceforge.backend.common.response.ApiResponse.failure(
+                                    message, com.raceforge.backend.common.response.ErrorResponse.of(
+                                            "ACCESS_DENIED", message, 403, request.getRequestURI())));
+                        }))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.GET,
                                 "/swagger-ui.html", "/swagger-ui/**",
@@ -46,6 +64,7 @@ public class SecurityConfig {
                                 "/api/auth/resend-otp",
                                 "/api/auth/login",
                                 "/api/auth/google",
+                                "/api/auth/google/set-password",
                                 "/api/auth/refresh",
                                 "/api/auth/forgot-password",
                                 "/api/auth/reset-password"

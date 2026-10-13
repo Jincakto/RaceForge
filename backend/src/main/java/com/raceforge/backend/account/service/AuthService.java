@@ -13,6 +13,8 @@ import static com.raceforge.backend.account.AccountConstants.STATUS_UNVERIFIED;
 import com.raceforge.backend.account.dto.AuthDtos.AuthResponse;
 import com.raceforge.backend.account.dto.AuthDtos.ForgotPasswordRequest;
 import com.raceforge.backend.account.dto.AuthDtos.GoogleAuthRequest;
+import com.raceforge.backend.account.dto.AuthDtos.GoogleAuthResponse;
+import com.raceforge.backend.account.dto.AuthDtos.GooglePasswordSetupRequest;
 import com.raceforge.backend.account.dto.AuthDtos.LoginRequest;
 import com.raceforge.backend.account.dto.AuthDtos.MessageResponse;
 import com.raceforge.backend.account.dto.AuthDtos.RefreshRequest;
@@ -26,8 +28,10 @@ import com.raceforge.backend.account.entity.RefreshToken;
 import com.raceforge.backend.account.entity.RegistrationRequest;
 import com.raceforge.backend.account.entity.Role;
 import com.raceforge.backend.account.entity.User;
+import com.raceforge.backend.account.entity.EmailVerificationOtp;
 import com.raceforge.backend.account.mapper.AccountMapper;
 import com.raceforge.backend.account.repository.PasswordResetTokenRepository;
+import com.raceforge.backend.account.repository.EmailVerificationOtpRepository;
 import com.raceforge.backend.account.repository.RefreshTokenRepository;
 import com.raceforge.backend.account.repository.RegistrationRequestRepository;
 import com.raceforge.backend.account.repository.RoleRepository;
@@ -41,6 +45,7 @@ import com.raceforge.backend.common.util.SecureTokenUtil;
 import com.raceforge.backend.config.AuthProperties;
 import com.raceforge.backend.notification.service.NotificationService;
 import com.raceforge.backend.security.JwtService;
+import com.raceforge.backend.security.JwtService.GooglePasswordSetupIdentity;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -57,6 +62,7 @@ public class AuthService {
     private final RegistrationRequestRepository registrationRequestRepository;
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
+    private final EmailVerificationOtpRepository emailVerificationOtpRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final EmailService emailService;
@@ -72,6 +78,7 @@ public class AuthService {
             RegistrationRequestRepository registrationRequestRepository,
             RefreshTokenRepository refreshTokenRepository,
             PasswordResetTokenRepository passwordResetTokenRepository,
+            EmailVerificationOtpRepository emailVerificationOtpRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             EmailService emailService,
@@ -86,6 +93,7 @@ public class AuthService {
         this.registrationRequestRepository = registrationRequestRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
+        this.emailVerificationOtpRepository = emailVerificationOtpRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.emailService = emailService;
@@ -128,21 +136,22 @@ public class AuthService {
             return new MessageResponse("Email is already verified.");
         }
 
+        EmailVerificationOtp verification = emailVerificationOtpRepository
+                .findByUserIdForUpdate(user.getUserId())
+                .orElseThrow(InvalidOtpException::new);
         Instant now = Instant.now();
-        if (user.getOtpHash() == null || user.getOtpExpiresAt() == null
-                || !user.getOtpExpiresAt().isAfter(now)
-                || user.getOtpAttemptCount() >= properties.getOtp().getMaxAttempts()) {
+        if (!verification.getExpiresAt().isAfter(now)
+                || verification.getAttemptCount() >= properties.getOtp().getMaxAttempts()) {
             throw new InvalidOtpException();
         }
 
         String expectedHash = SecureTokenUtil.hmacSha256Hex(properties.getOtp().getSecret(), user.getUserId() + ":" + request.otp());
-        if (!SecureTokenUtil.constantTimeEquals(user.getOtpHash(), expectedHash)) {
-            user.setOtpAttemptCount(user.getOtpAttemptCount() + 1);
+        if (!SecureTokenUtil.constantTimeEquals(verification.getOtpHash(), expectedHash)) {
+            verification.setAttemptCount(verification.getAttemptCount() + 1);
             throw new InvalidOtpException();
         }
 
-        user.setOtpHash(null);
-        user.setOtpExpiresAt(null);
+        emailVerificationOtpRepository.delete(verification);
         user.setEmailVerified(true);
         user.setStatus(user.getRequestedRole() == null ? STATUS_ACTIVE : STATUS_PENDING);
 
@@ -164,11 +173,14 @@ public class AuthService {
         if (!STATUS_UNVERIFIED.equals(user.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "EMAIL_ALREADY_VERIFIED", "Email is already verified");
         }
-        if (user.getOtpSentAt() != null
-                && user.getOtpSentAt().plusSeconds(properties.getOtp().getResendSeconds()).isAfter(Instant.now())) {
+        EmailVerificationOtp verification = emailVerificationOtpRepository
+                .findByUserIdForUpdate(user.getUserId())
+                .orElse(null);
+        if (verification != null
+                && verification.getSentAt().plusSeconds(properties.getOtp().getResendSeconds()).isAfter(Instant.now())) {
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, "OTP_RESEND_LIMIT", "Please wait before requesting another OTP");
         }
-        createAndSendOtp(user);
+        createAndSendOtp(user, verification);
         return new MessageResponse("A new OTP has been sent.");
     }
 
@@ -185,18 +197,44 @@ public class AuthService {
     }
 
     @Transactional
-    public AuthSession googleLogin(GoogleAuthRequest request) {
+    public GoogleLoginResult googleLogin(GoogleAuthRequest request) {
         GoogleIdentity identity = googleTokenVerifier.verify(request.idToken());
         if (!identity.emailVerified()) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "GOOGLE_EMAIL_NOT_VERIFIED", "Google email is not verified");
         }
         String email = EmailNormalizer.normalize(identity.email());
-        return userRepository.findByGoogleSubject(identity.subject())
-                .map(user -> {
-                    ensureLoginAllowed(user);
-                    return createSession(user);
-                })
+        User user = userRepository.findByEmailForUpdate(email)
                 .orElseGet(() -> createGoogleRegistration(request, identity, email));
+        if (STATUS_UNVERIFIED.equals(user.getStatus())) {
+            completeEmailVerification(user);
+        }
+        ensureLoginAllowed(user);
+        if (user.getPassword() == null) {
+            return new GoogleLoginResult(null, jwtService.createGooglePasswordSetupToken(user), user);
+        }
+        return new GoogleLoginResult(createSession(user), null, user);
+    }
+
+    @Transactional
+    public AuthSession setGooglePassword(GooglePasswordSetupRequest request) {
+        GooglePasswordSetupIdentity identity;
+        try {
+            identity = jwtService.parseGooglePasswordSetupToken(request.passwordSetupToken());
+        } catch (Exception exception) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_PASSWORD_SETUP_TOKEN", "Invalid or expired password setup token");
+        }
+        User user = userRepository.findByIdForUpdate(identity.userId())
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_PASSWORD_SETUP_TOKEN", "Invalid or expired password setup token"));
+        if (!EmailNormalizer.normalize(identity.email()).equals(user.getEmail())) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "INVALID_PASSWORD_SETUP_TOKEN", "Invalid or expired password setup token");
+        }
+        if (user.getPassword() != null) {
+            throw new ApiException(HttpStatus.CONFLICT, "PASSWORD_ALREADY_SET", "Password has already been set");
+        }
+        ensureLoginAllowed(user);
+        user.setPassword(passwordEncoder.encode(request.newPassword()));
+        auditService.record(user.getUserId(), "GOOGLE_PASSWORD_SET", "User", user.getUserId(), "SUCCESS", null);
+        return createSession(user);
     }
 
     @Transactional
@@ -279,10 +317,19 @@ public class AuthService {
         return new AuthResponse(session.accessToken(), "Bearer", jwtService.accessTokenDuration().toSeconds(), user);
     }
 
-    private AuthSession createGoogleRegistration(GoogleAuthRequest request, GoogleIdentity identity, String email) {
-        if (userRepository.existsByEmail(email)) {
-            throw new ApiException(HttpStatus.CONFLICT, "GOOGLE_EMAIL_NOT_LINKED", "Please log in and link Google from your profile");
-        }
+    public GoogleAuthResponse toGoogleAuthResponse(GoogleLoginResult result) {
+        AuthSession session = result.session();
+        return new GoogleAuthResponse(
+                session == null,
+                result.passwordSetupToken(),
+                session == null ? null : session.accessToken(),
+                session == null ? null : "Bearer",
+                session == null ? 0 : jwtService.accessTokenDuration().toSeconds(),
+                mapper.toUserResponse(result.user())
+        );
+    }
+
+    private User createGoogleRegistration(GoogleAuthRequest request, GoogleIdentity identity, String email) {
         Role requestedRole = selfRegistrationRole(request.requestedRoleId());
         User user = new User();
         user.setRole(defaultRole());
@@ -292,8 +339,6 @@ public class AuthService {
         user.setEmailVerified(true);
         user.setStatus(requestedRole == null ? STATUS_ACTIVE : STATUS_PENDING);
         user.setRequestedRole(requestedRole);
-        user.setGoogleSubject(identity.subject());
-        user.setGoogleLinkedAt(Instant.now());
         userRepository.save(user);
 
         if (requestedRole != null) {
@@ -301,17 +346,36 @@ public class AuthService {
             notifyManagersForRegistration(user);
         }
         auditService.record(user.getUserId(), "GOOGLE_REGISTER", "User", user.getUserId(), "SUCCESS", null);
-        return createSession(user);
+        return user;
     }
 
     private void createAndSendOtp(User user) {
+        createAndSendOtp(user, null);
+    }
+
+    private void createAndSendOtp(User user, EmailVerificationOtp verification) {
         String otp = SecureTokenUtil.randomOtp();
         Instant now = Instant.now();
-        user.setOtpHash(SecureTokenUtil.hmacSha256Hex(properties.getOtp().getSecret(), user.getUserId() + ":" + otp));
-        user.setOtpExpiresAt(now.plusSeconds(properties.getOtp().getMinutes() * 60));
-        user.setOtpSentAt(now);
-        user.setOtpAttemptCount(0);
+        EmailVerificationOtp target = verification == null ? new EmailVerificationOtp() : verification;
+        target.setUser(user);
+        target.setOtpHash(SecureTokenUtil.hmacSha256Hex(properties.getOtp().getSecret(), user.getUserId() + ":" + otp));
+        target.setExpiresAt(now.plusSeconds(properties.getOtp().getMinutes() * 60));
+        target.setSentAt(now);
+        target.setAttemptCount(0);
+        emailVerificationOtpRepository.save(target);
         emailService.sendOtp(user.getEmail(), otp);
+    }
+
+    private void completeEmailVerification(User user) {
+        emailVerificationOtpRepository.findByUserIdForUpdate(user.getUserId())
+                .ifPresent(emailVerificationOtpRepository::delete);
+        user.setEmailVerified(true);
+        user.setStatus(user.getRequestedRole() == null ? STATUS_ACTIVE : STATUS_PENDING);
+        if (user.getRequestedRole() != null
+                && !registrationRequestRepository.existsByUserUserIdAndStatus(user.getUserId(), REQUEST_PENDING)) {
+            createRegistrationRequest(user, user.getRequestedRole());
+            notifyManagersForRegistration(user);
+        }
     }
 
     private RegistrationRequest createRegistrationRequest(User user, Role requestedRole) {
@@ -376,5 +440,8 @@ public class AuthService {
     }
 
     public record AuthSession(String accessToken, String refreshToken, User user) {
+    }
+
+    public record GoogleLoginResult(AuthSession session, String passwordSetupToken, User user) {
     }
 }

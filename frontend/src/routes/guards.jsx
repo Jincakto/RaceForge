@@ -4,7 +4,8 @@ import { NoAccess } from '../components/ui/NoAccess.jsx';
 
 /** Requires a logged-in user, otherwise sends them back to the landing page. */
 export function RequireAuth() {
-  const { state } = useApp();
+  const { state, sessionLoading } = useApp();
+  if (sessionLoading) return <p role="status">Đang khôi phục phiên đăng nhập...</p>;
   if (!state.user) return <Navigate to="/" replace />;
   return <Outlet />;
 }

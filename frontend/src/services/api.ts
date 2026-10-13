@@ -1,3 +1,4 @@
+import { refreshSession, cancelSession } from './session.ts';
 import { tokenStore } from './tokenStore.ts';
 import type { ApiResponse } from '../types/api.ts';
 export const apiBase = (import.meta.env.VITE_API_BASE_URL || (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '') || '').replace(/\/$/, '');
@@ -10,9 +11,16 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
   if (options.body !== undefined) headers.set('Content-Type', 'application/json');
   const token = tokenStore.get();
   if (token) headers.set('Authorization', `Bearer ${token}`);
-  const response = await fetch(`${apiBase}${path}`, { ...options, headers, credentials: 'include' });
-  if (response.status === 401) {
-    tokenStore.clear();
+  let response = await fetch(`${apiBase}${path}`, { ...options, headers, credentials: 'include' });
+  if (response.status === 401 && !path.startsWith('/api/auth/')) {
+    try {
+      await refreshSession(apiBase);
+      headers.set('Authorization', 'Bearer ' + tokenStore.get());
+      response = await fetch(apiBase + path, { ...options, headers, credentials: 'include' });
+    } catch { /* Original 401 is handled below. */ }
+  }
+  if (response.status === 401 && !path.startsWith('/api/auth/')) {
+    cancelSession();
     if (typeof window !== 'undefined') window.dispatchEvent(new Event('raceforge:unauthorized'));
   }
   if (response.status === 204) return undefined as T;

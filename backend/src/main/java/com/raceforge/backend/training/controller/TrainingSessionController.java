@@ -5,6 +5,7 @@ import com.raceforge.backend.training.dto.CompleteSessionRequest;
 import com.raceforge.backend.training.dto.ScheduleSessionRequest;
 import com.raceforge.backend.training.dto.TrainingSessionResponse;
 import com.raceforge.backend.training.service.TrainingSessionService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 @RestController
 @RequestMapping("/api/training-sessions")
 @PreAuthorize("hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")
+@Tag(name = "Training Sessions")
 public class TrainingSessionController {
 
   @Autowired

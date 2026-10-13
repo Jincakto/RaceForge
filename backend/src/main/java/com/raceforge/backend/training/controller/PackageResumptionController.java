@@ -4,6 +4,7 @@ import com.raceforge.backend.common.response.ApiResponse;
 import com.raceforge.backend.training.dto.HorsePackageResponse;
 import com.raceforge.backend.training.dto.ResumeOriginalPackageRequest;
 import com.raceforge.backend.training.service.PackageResumptionService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/horse-packages")
+@Tag(name = "Package Resumption")
 public class PackageResumptionController {
 
     private final PackageResumptionService service;

@@ -4,6 +4,7 @@ import com.raceforge.backend.common.response.ApiResponse;
 import com.raceforge.backend.permission.dto.GrantPermissionRequest;
 import com.raceforge.backend.permission.dto.PermissionAuditLogResponse;
 import com.raceforge.backend.permission.service.PermissionService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Set;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/admin/permissions")
 @PreAuthorize("hasAuthority('CLUB_MANAGER') and @permissionAccess.has(authentication, 'MANAGE_PERMISSION')")
+@Tag(name = "Permissions")
 public class PermissionController {
 
   @Autowired

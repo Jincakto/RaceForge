@@ -3,6 +3,7 @@ package com.raceforge.backend.training.controller;
 import com.raceforge.backend.common.response.ApiResponse;
 import com.raceforge.backend.training.dto.*;
 import com.raceforge.backend.training.service.TrainingPackageService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -12,6 +13,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/training-packages")
+@Tag(name = "Training Packages")
 public class TrainingPackageController {
 
     private final TrainingPackageService service;

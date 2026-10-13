@@ -5,6 +5,7 @@ import com.raceforge.backend.horse.dto.HorseCreateRequest;
 import com.raceforge.backend.horse.dto.HorseResponse;
 import com.raceforge.backend.horse.dto.HorseUpdateRequest;
 import com.raceforge.backend.horse.service.HorseService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
 
@@ -16,6 +17,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/horses")
+@Tag(name = "Horses")
 public class HorseController {
 
     private final HorseService horseService;

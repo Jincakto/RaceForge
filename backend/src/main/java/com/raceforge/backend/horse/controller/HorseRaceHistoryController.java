@@ -5,6 +5,7 @@ import com.raceforge.backend.horse.dto.HorseRaceHistoryCreateRequest;
 import com.raceforge.backend.horse.dto.HorseRaceHistoryResponse;
 import com.raceforge.backend.horse.dto.HorseRaceHistoryUpdateRequest;
 import com.raceforge.backend.horse.service.HorseRaceHistoryService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
 
@@ -16,6 +17,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/horses")
+@Tag(name = "Horse Race History")
 public class HorseRaceHistoryController {
 
     private final HorseRaceHistoryService raceHistoryService;

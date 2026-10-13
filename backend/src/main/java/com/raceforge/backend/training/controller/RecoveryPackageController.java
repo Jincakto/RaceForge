@@ -6,6 +6,7 @@ import com.raceforge.backend.training.dto.HorsePackagePaymentRequest;
 import com.raceforge.backend.training.dto.HorsePackageResponse;
 import com.raceforge.backend.training.dto.RecoveryApprovalRequest;
 import com.raceforge.backend.training.service.RecoveryPackageService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/horse-packages")
+@Tag(name = "Recovery Packages")
 public class RecoveryPackageController {
 
     private final RecoveryPackageService service;

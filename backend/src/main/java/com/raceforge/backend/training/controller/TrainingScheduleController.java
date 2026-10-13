@@ -6,6 +6,7 @@ import com.raceforge.backend.training.dto.AttendanceResponse;
 import com.raceforge.backend.training.dto.ScheduleRecurringRequest;
 import com.raceforge.backend.training.dto.TrainingSessionResponse;
 import com.raceforge.backend.training.service.TrainingScheduleService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +20,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 // sub-paths (/recurring, /{id}/attendance, /horse/{id}), so the mappings do not collide.
 @RestController
 @RequestMapping("/api/training-sessions")
+@Tag(name = "Training Schedule")
 public class TrainingScheduleController {
 
   @Autowired

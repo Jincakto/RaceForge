@@ -5,6 +5,7 @@ import com.raceforge.backend.training.dto.HorsePackagePaymentRequest;
 import com.raceforge.backend.training.dto.HorsePackageRegisterRequest;
 import com.raceforge.backend.training.dto.HorsePackageResponse;
 import com.raceforge.backend.training.service.HorsePackageService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +17,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/horse-packages")
+@Tag(name = "Horse Packages")
 public class HorsePackageController {
 
     private final HorsePackageService service;

@@ -6,6 +6,7 @@ import com.raceforge.backend.notification.dto.NotificationResponse;
 import com.raceforge.backend.notification.entity.Notification;
 import com.raceforge.backend.notification.repository.NotificationRepository;
 import com.raceforge.backend.security.AuthenticatedUser;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +17,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/notifications")
+@Tag(name = "Notifications")
 public class NotificationController {
 
     private final NotificationRepository repository;

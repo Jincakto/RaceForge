@@ -8,6 +8,7 @@ import com.raceforge.backend.medical.dto.TrainingLockResponse;
 import com.raceforge.backend.medical.dto.TrainingUnlockRequest;
 import com.raceforge.backend.medical.service.MedicalRecordService;
 import com.raceforge.backend.medical.service.TrainingLockService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/medical")
+@Tag(name = "Medical Records")
 public class MedicalRecordController {
 
     private final MedicalRecordService medicalRecordService;

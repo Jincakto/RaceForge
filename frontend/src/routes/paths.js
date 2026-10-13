@@ -28,6 +28,7 @@ export const PAGE_PATHS = {
   'member-requests': '/member-requests',
   notifications: '/notifications',
   profile: '/profile',
+  permissions: '/permissions',
   'training-register': '/training-register',
   'post-exam': '/post-exam',
   'rehab-center': '/rehab',
@@ -49,6 +50,7 @@ const PATH_TO_PAGE = Object.fromEntries(Object.entries(PAGE_PATHS).map(([page, p
 export function pathToPage(pathname) {
   const clean = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
   if (PATH_TO_PAGE[clean]) return PATH_TO_PAGE[clean];
+  if (/^\/horses\/[^/]+\/edit$/.test(clean)) return 'horse-edit';
   if (/^\/horses\/[^/]+$/.test(clean)) return 'horse-detail';
   return null;
 }

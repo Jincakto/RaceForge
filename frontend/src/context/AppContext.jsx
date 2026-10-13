@@ -71,7 +71,7 @@ export function AppProvider({ children }) {
   useEffect(()=>{const expired=()=>{setState(s=>({...s,user:null,errorMsg:'Phiên đăng nhập hết hạn.'}));navigate('login');};window.addEventListener('raceforge:unauthorized',expired);return()=>window.removeEventListener('raceforge:unauthorized',expired);},[navigate]);
   const handleLogin = useCallback((user) => {
     setState(s => ({ ...s, user }));
-    navigate(liveApi && ['owner','manager','veterinarian'].includes(user.role) ? 'api-workflow' : user.role ? 'dashboard' : 'onboarding');
+    navigate(liveApi ? (user.role ? user.role==='owner'?'my-horses':'profile' : 'onboarding') : user.role ? 'dashboard' : 'onboarding');
   }, [navigate]);
 
   const handleRegister = useCallback((user) => {

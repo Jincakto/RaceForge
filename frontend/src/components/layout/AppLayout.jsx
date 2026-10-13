@@ -1,3 +1,4 @@
+import { liveApi } from '../../services/api.ts';
 import { Sidebar } from './Sidebar.jsx';
 import { getLifecycle } from '../../utils/horse.js';
 import { visibleNotifications } from '../../utils/notifications.js';
@@ -21,7 +22,7 @@ export function AppLayout({ user, page, title, navigate, children, state }) {
         <div className="h-14 bg-white border-b border-gray-200 flex items-center px-6 gap-4 flex-shrink-0">
           <div className="flex-1"><h1 className="text-base font-semibold text-[#0f1729]">{title}</h1></div>
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('notifications')} className="relative w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+            <button disabled={liveApi} title={liveApi?'Thông báo chưa nối API':undefined} onClick={() => navigate('notifications')} className="relative w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
               🔔{unread > 0 && <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">{unread}</span>}
             </button>
             <button onClick={() => navigate('profile')} className="w-8 h-8 rounded-full bg-[#1a2844] flex items-center justify-center text-white text-xs font-bold">{user.avatar}</button>

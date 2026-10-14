@@ -1,6 +1,7 @@
 import { request, json } from './api.ts';
-import { numericId, type TrainingPlanCreateDto, type TrainingPlanDto } from '../types/api.ts';
+import { numericId, type TrainingPlanOptionDto, type TrainingPlanCreateDto, type TrainingPlanDto } from '../types/api.ts';
 export const plansService = {
+  byHorse: (horseId: number) => request<TrainingPlanOptionDto[]>(`/api/horses/${numericId(horseId)}/training-plans`),
   createPlan: (horseId: number, body: TrainingPlanCreateDto) => request<TrainingPlanDto>(`/api/horses/${numericId(horseId)}/training-plans`, json('POST', body)),
 };
 

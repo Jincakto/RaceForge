@@ -4,6 +4,9 @@ import com.raceforge.backend.common.exception.BusinessRuleException;
 import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.repository.HorseRepository;
+import com.raceforge.backend.training.dto.SchedulingPackageResponse;
+import com.raceforge.backend.training.entity.HorsePackage;
+import com.raceforge.backend.training.repository.HorsePackageRepository;
 import com.raceforge.backend.training.dto.AttendSessionRequest;
 import com.raceforge.backend.training.dto.AttendanceResponse;
 import com.raceforge.backend.training.dto.ScheduleRecurringRequest;
@@ -17,9 +20,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -63,6 +64,27 @@ public class TrainingScheduleService {
   @Autowired
   private TrainingSessionService sessionService;
 
+  @Autowired
+  private HorsePackageRepository horsePackageRepository;
+
+  private boolean usablePackage(HorsePackage pack) {
+      return "ACTIVE".equals(pack.getStatus()) && "PAID".equals(pack.getPaymentStatus())
+              && pack.getStartDate() != null && pack.getEndDate() != null
+              && !pack.getEndDate().isBefore(pack.getStartDate());
+  }
+
+  @Transactional(readOnly = true)
+  public List<SchedulingPackageResponse> getSchedulingPackages(Integer horseId) {
+      if (!horseRepository.existsById(horseId)) {
+          throw new ResourceNotFoundException("Training horse not found: " + horseId);
+      }
+      return horsePackageRepository.findByHorse_HorseIdAndStatus(horseId, "ACTIVE").stream()
+              .filter(this::usablePackage)
+              .map(pack -> new SchedulingPackageResponse(pack.getHorsePackageId(),
+                      pack.getTrainingPackage().getPackageName(), pack.getStartDate(), pack.getEndDate()))
+              .toList();
+  }
+
   // All-or-nothing: if any generated slot clashes with an existing session, nothing is saved.
   @Transactional
   public List<TrainingSessionResponse> createRecurringSchedule(ScheduleRecurringRequest request) {
@@ -73,31 +95,60 @@ public class TrainingScheduleService {
       Horse horse = rules.lockHorse(linked.getHorseId());
       rules.requireUnlocked(horse);
 
-      int weeks = (request.getDurationWeeks() != null && request.getDurationWeeks() > 0)
-              ? request.getDurationWeeks() : 1;
-      LocalTime time = request.getSessionTime() != null ? request.getSessionTime() : DEFAULT_SESSION_TIME;
-
-      List<LocalDate> dates = new ArrayList<>();
-      Set<DayOfWeek> days = request.getDaysOfWeek();
-      if (days != null && !days.isEmpty()) {
-          // Weekday mode: first matching weekday on/after startDate, then repeat weekly.
-          for (DayOfWeek day : days) {
-              LocalDate first = request.getStartDate().with(TemporalAdjusters.nextOrSame(day));
-              for (int w = 0; w < weeks; w++) {
-                  dates.add(first.plusWeeks(w));
-              }
-          }
-      } else {
-          // Specific-date mode: startDate itself, repeated weekly when durationWeeks > 1.
-          for (int w = 0; w < weeks; w++) {
-              dates.add(request.getStartDate().plusWeeks(w));
-          }
+      HorsePackage pack = horsePackageRepository.findById(request.getHorsePackageId())
+              .orElseThrow(() -> new ResourceNotFoundException("Registered horse package not found."));
+      if (!horse.getHorseId().equals(pack.getHorse().getHorseId())) {
+          throw new BusinessRuleException("Selected package belongs to another horse.");
       }
-      dates.sort(Comparator.naturalOrder());
-
+      if (!usablePackage(pack)) {
+          throw new BusinessRuleException("Select an ACTIVE, PAID horse package with a valid date range.");
+      }
+      Set<DayOfWeek> days = request.getDaysOfWeek();
+      if (days == null || days.isEmpty() || days.stream().anyMatch(java.util.Objects::isNull)) {
+          throw new BusinessRuleException("Select at least one weekday.");
+      }
+      LocalTime time = request.getSessionTime() != null ? request.getSessionTime() : DEFAULT_SESSION_TIME;
+      List<LocalDate> dates = new ArrayList<>();
+      // Inclusive registered dates, including a partial final week. No rounding up to full weeks.
+      for (LocalDate date = pack.getStartDate(); !date.isAfter(pack.getEndDate()); date = date.plusDays(1)) {
+          if (days.contains(date.getDayOfWeek())) dates.add(date);
+      }
+      if (dates.isEmpty()) {
+          throw new BusinessRuleException("No selected weekday occurs within the package date range.");
+      }
+      // Retained previous implementation: client-selected startDate/durationWeeks.
+      //       int weeks = (request.getDurationWeeks() != null && request.getDurationWeeks() > 0)
+      //               ? request.getDurationWeeks() : 1;
+      //       LocalTime time = request.getSessionTime() != null ? request.getSessionTime() : DEFAULT_SESSION_TIME;
+      // 
+      //       List<LocalDate> dates = new ArrayList<>();
+      //       Set<DayOfWeek> days = request.getDaysOfWeek();
+      //       if (days != null && !days.isEmpty()) {
+      //           // Weekday mode: first matching weekday on/after startDate, then repeat weekly.
+      //           for (DayOfWeek day : days) {
+      //               LocalDate first = request.getStartDate().with(TemporalAdjusters.nextOrSame(day));
+      //               for (int w = 0; w < weeks; w++) {
+      //                   dates.add(first.plusWeeks(w));
+      //               }
+      //           }
+      //       } else {
+      //           // Specific-date mode: startDate itself, repeated weekly when durationWeeks > 1.
+      //           for (int w = 0; w < weeks; w++) {
+      //               dates.add(request.getStartDate().plusWeeks(w));
+      //           }
+      //       }
+      //       dates.sort(Comparator.naturalOrder());
+      // 
+      // 
       List<TrainingSession> toSave = new ArrayList<>();
       for (LocalDate date : dates) {
-          horseResolver.validateSchedule(plan, horse.getHorseId(), date);
+          try {
+              horseResolver.validateSchedule(plan, horse.getHorseId(), date);
+          } catch (BusinessRuleException ex) {
+              throw new BusinessRuleException("Cannot schedule package '" + pack.getTrainingPackage().getPackageName()
+                      + "' (" + pack.getStartDate() + " to " + pack.getEndDate() + "): "
+                      + ex.getMessage() + " Invalid date: " + date + ". No sessions were created.");
+          }
           LocalDateTime when = LocalDateTime.of(date, time);
           // BR-C03: checked up front so the caller gets a clear 409 instead of a raw DB error.
           if (sessionRepository.existsByHorse_HorseIdAndScheduledStart(horse.getHorseId(), when)) {

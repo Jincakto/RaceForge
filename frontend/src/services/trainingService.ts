@@ -1,5 +1,5 @@
 import { request, json } from './api.ts';
-import { numericId, type TrainingPackageDto, type HorsePackageDto, type ScheduleSessionDto, type ScheduleRecurringDto, type TrainingSessionDto } from '../types/api.ts';
+import { numericId, type SchedulingPackageDto, type TrainingPackageDto, type HorsePackageDto, type ScheduleSessionDto, type ScheduleRecurringDto, type TrainingSessionDto } from '../types/api.ts';
 const id = (value: string | number) => numericId(Number(value));
 const catalog = () => request<TrainingPackageDto[]>('/api/training-packages');
 export const trainingService = {
@@ -16,6 +16,7 @@ export const trainingService = {
   resume: (recoveryId: number, reason: string) => { if (!reason.trim()) throw new Error('Nhập lý do tiếp tục gói tập.'); return request<HorsePackageDto>(`/api/horse-packages/${id(recoveryId)}/resume-original`, json('POST', { reason: reason.trim() })); },
   getSchedules: (params: { horseId: number }) => request<TrainingSessionDto[]>(`/api/training-sessions/horse/${id(params.horseId)}`),
   createSingleSchedule: (body: ScheduleSessionDto) => request<TrainingSessionDto>('/api/training-sessions', json('POST', body)),
+  schedulingPackages: (horseId: number) => request<SchedulingPackageDto[]>(`/api/training-sessions/horse/${id(horseId)}/scheduling-packages`),
   createRecurringSchedule: (body: ScheduleRecurringDto) => request<TrainingSessionDto[]>('/api/training-sessions/recurring', json('POST', body)),
 };
 // Previous implementation retained for reference.

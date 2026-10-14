@@ -1,6 +1,7 @@
 package com.raceforge.backend.training.controller;
 
 import com.raceforge.backend.common.response.ApiResponse;
+import com.raceforge.backend.training.dto.SchedulingPackageResponse;
 import com.raceforge.backend.training.dto.AttendSessionRequest;
 import com.raceforge.backend.training.dto.AttendanceResponse;
 import com.raceforge.backend.training.dto.ScheduleRecurringRequest;
@@ -32,6 +33,14 @@ public class TrainingScheduleController {
           @Valid @RequestBody ScheduleRecurringRequest request) {
       List<TrainingSessionResponse> created = trainingScheduleService.createRecurringSchedule(request);
       return ResponseEntity.ok(ApiResponse.success("Training schedule created", created));
+  }
+
+  @GetMapping("/horse/{horseId}/scheduling-packages")
+  @PreAuthorize("hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")
+  public ResponseEntity<ApiResponse<List<SchedulingPackageResponse>>> schedulingPackages(
+          @PathVariable Integer horseId) {
+      return ResponseEntity.ok(ApiResponse.success("Scheduling packages retrieved",
+              trainingScheduleService.getSchedulingPackages(horseId)));
   }
 
   @PutMapping("/{sessionId}/attendance")

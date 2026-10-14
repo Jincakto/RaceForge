@@ -27,7 +27,8 @@ export function numericId(id: number): number { if (!Number.isSafeInteger(id) ||
 export interface TrainingPlanCreateDto { planName: string; goal?: string; duration?: number; notes?: string; startDate?: string; endDate?: string }
 export interface TrainingPlanDto { planId: number; horseId: number; createdBy: number; planName: string; goal: string | null; duration: number | null; status: string; notes: string | null }
 export interface ScheduleSessionDto { planId: number; horseId?: number; scheduledTime: string }
-export interface ScheduleRecurringDto { planId: number; horseId?: number; activityName: string; startDate: string; daysOfWeek?: string[]; durationWeeks?: number; sessionTime?: string }
+export interface SchedulingPackageDto { horsePackageId: number; packageName: string; startDate: string; endDate: string }
+export interface ScheduleRecurringDto { planId: number; horseId?: number; horsePackageId: number; activityName: string; daysOfWeek: string[]; sessionTime?: string }
 export interface SessionResultDto { performanceNotes?: string; heartRate?: number; avgSpeed?: number; maxSpeed?: number }
 export interface AttendanceDto extends SessionResultDto { status: 'COMPLETED' | 'MISSED'; absenceReason?: string; absenceNote?: string }
 export interface TrainingSessionDto { sessionId: number; planId: number; horseId: number; scheduledStart: string | null; scheduledEnd: string | null; distance: number | null; intensity: string | null; surface: string | null; status: string; actualStart: string | null; actualEnd: string | null; evaluation: string | null; notes: string | null; heartRate: number | null; avgSpeed: number | null; maxSpeed: number | null; recordedBy: number | null }
@@ -35,3 +36,5 @@ export interface AttendanceResultDto { session: TrainingSessionDto; warningTrigg
 export interface RaceWriteDto { raceName: string; raceDate?: string; distance?: number; finishPosition?: number; completionTime?: string; racecourse?: string; jockeyName?: string; prize?: number }
 export interface RaceHistoryDto extends RaceWriteDto { raceHistoryId: number; horseId: number; createdAt: string; updatedAt: string }
 export interface NotificationDto { notificationId: number; notificationType: string; title: string | null; message: string; read: boolean; createdAt: string }
+
+export interface TrainingPlanOptionDto { planId: number; horseId: number; planName: string; status: string; horsePlanStatus: string; startDate: string | null; endDate: string | null }

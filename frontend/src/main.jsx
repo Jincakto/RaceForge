@@ -5,6 +5,7 @@ import App from './App.jsx';
 import { AppProvider } from './context/AppContext.jsx';
 import './index.css';
 import './raceforge-theme.css';
+import './calendar-details.css';
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

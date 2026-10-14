@@ -3,6 +3,8 @@ package com.raceforge.backend.training.service;
 import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.repository.HorseRepository;
+import com.raceforge.backend.training.dto.TrainingPlanOptionResponse;
+import java.util.List;
 import com.raceforge.backend.training.dto.TrainingPlanCreateRequest;
 import com.raceforge.backend.training.dto.TrainingPlanResponse;
 import com.raceforge.backend.training.entity.HorsePlan;
@@ -29,6 +31,18 @@ public class TrainingPlanService {
 
   @Autowired
   private TrainingPlanMapper trainingPlanMapper;
+
+  @Transactional(readOnly = true)
+  public List<TrainingPlanOptionResponse> getPlansForHorse(Integer horseId) {
+      if (!horseRepository.existsById(horseId)) {
+          throw new ResourceNotFoundException("Horse not found: " + horseId);
+      }
+      return horsePlanRepository.findById_HorseIdOrderById_PlanIdDesc(horseId).stream()
+              .map(link -> new TrainingPlanOptionResponse(
+                      link.getPlan().getPlanId(), horseId, link.getPlan().getPlanName(),
+                      link.getPlan().getStatus(), link.getStatus(), link.getStartDate(), link.getEndDate()))
+              .toList();
+  }
 
   @Transactional
   public TrainingPlanResponse createPlan(Integer horseId, TrainingPlanCreateRequest request, Integer actorId) {

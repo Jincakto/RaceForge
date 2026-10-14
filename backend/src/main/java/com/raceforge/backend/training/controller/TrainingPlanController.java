@@ -1,6 +1,8 @@
 package com.raceforge.backend.training.controller;
 
 import com.raceforge.backend.common.response.ApiResponse;
+import com.raceforge.backend.training.dto.TrainingPlanOptionResponse;
+import java.util.List;
 import com.raceforge.backend.training.dto.TrainingPlanCreateRequest;
 import com.raceforge.backend.training.dto.TrainingPlanResponse;
 import com.raceforge.backend.training.service.TrainingPlanService;
@@ -21,6 +23,13 @@ public class TrainingPlanController {
 
   @Autowired
   private TrainingPlanService trainingPlanService;
+
+  @GetMapping
+  public ResponseEntity<ApiResponse<List<TrainingPlanOptionResponse>>> list(
+          @PathVariable Integer horseId) {
+      return ResponseEntity.ok(ApiResponse.success("Horse training plans retrieved",
+              trainingPlanService.getPlansForHorse(horseId)));
+  }
 
   @PostMapping
   public ResponseEntity<ApiResponse<TrainingPlanResponse>> create(

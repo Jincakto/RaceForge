@@ -49,8 +49,11 @@ public class HorseService {
                 )
         );
 
-        Horse horse = horseMapper.toEntity(request);
+        String ueln = UelnValidator.normalizeAndValidate(request.getRegistrationNumber());
+        requireUniqueUeln(ueln, null);
 
+        Horse horse = horseMapper.toEntity(request);
+        horse.setRegistrationNumber(ueln);
         horse.setOwner(owner);
         horse.setHorseId(nextHorseId());
         horse.setAdmissionStatus("NOT_SUBMITTED"); // Cascade persists Horse_Admission
@@ -106,7 +109,14 @@ public class HorseService {
         if ("APPROVED".equals(horse.getAdmissionStatus())) {
             throw new BusinessRuleException("Approved horse registration details cannot be modified");
         }
+        // PUT may omit registrationNumber: retain the existing UELN instead of clearing it.
+        String candidate = request.getRegistrationNumber() == null
+                ? horse.getRegistrationNumber() : request.getRegistrationNumber();
+        String ueln = UelnValidator.normalizeAndValidate(candidate);
+        requireUniqueUeln(ueln, horseId);
+
         horseMapper.updateEntity(horse, request);
+        horse.setRegistrationNumber(ueln);
 
         Horse updatedHorse = horseRepository.save(horse);
 
@@ -138,6 +148,15 @@ public class HorseService {
     
         auditLogService.record(actorId, updatedHorse.getHorseId(), "HORSE", updatedHorse.getHorseId(), "HORSE_ACTIVATED", "SUCCESS", null);
         return horseMapper.toResponse(updatedHorse);
+    }
+
+    private void requireUniqueUeln(String ueln, String currentHorseId) {
+        boolean duplicate = currentHorseId == null
+                ? horseRepository.existsByRegistrationNumberIgnoreCase(ueln)
+                : horseRepository.existsByRegistrationNumberIgnoreCaseAndHorseIdNot(ueln, currentHorseId);
+        if (duplicate) {
+            throw new BusinessRuleException("UELN is already registered to another horse");
+        }
     }
 
     /**

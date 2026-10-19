@@ -25,6 +25,10 @@ public interface HorseRepository extends JpaRepository<Horse, String> {
             """)
     List<Horse> searchByNameOrRegistrationNumber(@Param("keyword") String keyword);
 
+    boolean existsByRegistrationNumberIgnoreCase(String registrationNumber);
+
+    boolean existsByRegistrationNumberIgnoreCaseAndHorseIdNot(String registrationNumber, String horseId);
+
     @Query(value = "SELECT NEXT VALUE FOR dbo.Horse_Id_Sequence", nativeQuery = true)
     Long nextHorseNumber();
 }

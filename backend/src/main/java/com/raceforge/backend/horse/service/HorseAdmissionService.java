@@ -143,6 +143,9 @@ public class HorseAdmissionService {
                     "Horse image, registration number, document type and document URL are required"
             );
         }
+        // Existing horses, including records created before UELN validation, must also
+        // satisfy the current identification policy before Admission submission/approval.
+        UelnValidator.normalizeAndValidate(horse.getRegistrationNumber());
         // The CM reviews document authenticity manually; a URL alone is not proof.
     }
 

@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
@@ -52,7 +53,8 @@ public class HorseCreateRequest {
     private String imageUrl;
 
     @NotBlank(message = "Registration number is required")
-    @Size(max = 100, message = "Registration number must not exceed 100 characters")
+    @Pattern(regexp = "[ \t]*[0-9]{3}[a-zA-Z0-9]{12}[ \t]*",
+             message = "UELN must have 15 alphanumeric characters (3 country digits, 3 issuer characters, 9 horse characters)")
     private String registrationNumber;
 
     @NotBlank(message = "Document type is required")

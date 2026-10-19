@@ -70,7 +70,9 @@ public class HorseMapper {
         horse.setHeight(request.getHeight());
         horse.setDeclaredMedicalHistory(request.getDeclaredMedicalHistory());
         horse.setImageUrl(request.getImageUrl());
-        horse.setRegistrationNumber(request.getRegistrationNumber());
+        if (request.getRegistrationNumber() != null) {
+            horse.setRegistrationNumber(request.getRegistrationNumber());
+        }
         horse.setDocumentType(request.getDocumentType());
         horse.setDocumentUrl(request.getDocumentUrl());
     }

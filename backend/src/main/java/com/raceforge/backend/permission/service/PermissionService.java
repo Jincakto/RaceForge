@@ -54,7 +54,7 @@ public class PermissionService {
   private PermissionAuditLogMapper auditLogMapper;
 
   @Transactional
-  public void grant(GrantPermissionRequest request, Integer performedBy) {
+  public void grant(GrantPermissionRequest request, String performedBy) {
       String roleName = request.getRoleName().trim().toUpperCase(Locale.ROOT);
       String permissionCode = request.getPermissionCode().trim().toUpperCase(Locale.ROOT);
 
@@ -83,7 +83,7 @@ public class PermissionService {
   }
 
   @Transactional
-  public void revoke(String roleName, String permissionCode, Integer performedBy) {
+  public void revoke(String roleName, String permissionCode, String performedBy) {
       roleName = roleName.trim().toUpperCase(Locale.ROOT);
       permissionCode = permissionCode.trim().toUpperCase(Locale.ROOT);
       if (MANAGE_PERMISSION_CODE.equals(permissionCode) && CLUB_MANAGER_ROLE.equals(roleName)) {
@@ -128,18 +128,18 @@ public class PermissionService {
       Role role = roleRepository.findByRoleName(roleName)
               .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleName));
       return auditLogRepository
-              .findByEntityTypeAndEntityIdOrderByCreatedAtDesc(PermissionAuditLog.ENTITY_TYPE, role.getRoleId())
+              .findByEntityTypeAndEntityIdOrderByCreatedAtDesc(PermissionAuditLog.ENTITY_TYPE, role.getRoleId().toString())
               .stream()
               .map(log -> auditLogMapper.toResponse(log, roleName))
               .collect(Collectors.toList());
   }
 
-  private void writeAuditLog(String action, Role role, Permission permission, Integer performedBy) {
+  private void writeAuditLog(String action, Role role, Permission permission, String performedBy) {
       PermissionAuditLog log = new PermissionAuditLog();
       log.setUserId(performedBy);
       log.setAction(action);
       log.setEntityType(PermissionAuditLog.ENTITY_TYPE);
-      log.setEntityId(role.getRoleId());
+      log.setEntityId(role.getRoleId().toString());
       log.setResult("SUCCESS");
       log.setReason(permission.getPermissionName());
       log.setCreatedAt(LocalDateTime.now());

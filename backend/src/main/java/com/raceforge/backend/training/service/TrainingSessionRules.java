@@ -13,11 +13,12 @@ import org.springframework.stereotype.Component;
 @Component
 public class TrainingSessionRules {
     private final HorseRepository horses;
+    private final com.raceforge.backend.horse.admission.AdmissionService admission;
     @PersistenceContext private EntityManager entityManager;
 
-    public TrainingSessionRules(HorseRepository horses) { this.horses = horses; }
+    public TrainingSessionRules(HorseRepository horses, com.raceforge.backend.horse.admission.AdmissionService admission) { this.horses = horses; this.admission=admission; }
 
-    public Horse lockHorse(Integer horseId) {
+    public Horse lockHorse(String horseId) {
         Horse horse = horses.findByIdForUpdate(horseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found: " + horseId));
         // The horse might already be loaded through a session/plan in this persistence context.
@@ -26,6 +27,7 @@ public class TrainingSessionRules {
     }
 
     public void requireUnlocked(Horse horse) {
+        admission.requireCompleted(horse.getHorseId());
         if (Boolean.TRUE.equals(horse.getTrainingLocked())) {
             throw new BusinessRuleException("Horse is training-locked; this operation is not allowed.");
         }

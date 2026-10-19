@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@org.springframework.validation.annotation.Validated
 @RestController
 @RequestMapping("/api/auth")
 @Tag(name = "Authentication")
@@ -38,13 +39,17 @@ public class AuthController {
 
     private final AuthService authService;
     private final AuthProperties properties;
+    private final com.raceforge.backend.account.service.StaffAccountService staffAccounts;
 
-    public AuthController(AuthService authService, AuthProperties properties) {
+    public AuthController(AuthService authService, AuthProperties properties,
+            com.raceforge.backend.account.service.StaffAccountService staffAccounts) {
         this.authService = authService;
         this.properties = properties;
+        this.staffAccounts = staffAccounts;
     }
 
     @PostMapping("/register")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Register a horse owner (email OTP required)", description = "Public registration always assigns HORSE_OWNER. Role selection is not supported.")
     public ApiResponse<MessageResponse> register(@Valid @RequestBody RegisterRequest request) {
         return ApiResponse.success("Registration started", authService.register(request));
     }
@@ -118,6 +123,12 @@ public class AuthController {
     @PostMapping("/reset-password")
     public ApiResponse<MessageResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         return ApiResponse.success("Password reset", authService.resetPassword(request));
+    }
+
+    @PostMapping("/staff/set-password")
+    @io.swagger.v3.oas.annotations.Operation(summary = "Activate invited staff using a single-use emailed token")
+    public ApiResponse<MessageResponse> setStaffPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        return ApiResponse.success("Staff account activated", staffAccounts.setPassword(request));
     }
 
     private void setRefreshCookie(HttpServletResponse response, String refreshToken) {

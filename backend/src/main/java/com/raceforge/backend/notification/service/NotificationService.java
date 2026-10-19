@@ -14,7 +14,7 @@ public class NotificationService {
         this.notificationRepository = notificationRepository;
     }
 
-    public void notify(Integer userId, String type, String title, String message) {
+    public void notify(String userId, String type, String title, String message) {
         Notification notification = new Notification();
         notification.setUserId(userId);
         notification.setNotificationType(type);

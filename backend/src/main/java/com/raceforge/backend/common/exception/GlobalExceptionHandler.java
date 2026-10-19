@@ -31,6 +31,12 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler({org.springframework.web.servlet.resource.NoResourceFoundException.class,
+            org.springframework.web.servlet.NoHandlerFoundException.class})
+    public ResponseEntity<ApiResponse<ErrorResponse>> handleMissingEndpoint(Exception exception, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "Endpoint not found", request.getRequestURI());
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<ErrorResponse>> handleResourceNotFound(
             ResourceNotFoundException exception,
@@ -119,6 +125,10 @@ public class GlobalExceptionHandler {
             Exception exception,
             HttpServletRequest request
     ) {
+        // Persistence callbacks may wrap the explicit capacity error raised by the ID allocator.
+        for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ApiException api) return handleApiException(api, request);
+        }
         if (exception instanceof HttpMessageNotReadableException) {
             return buildErrorResponse(HttpStatus.BAD_REQUEST, "INVALID_REQUEST_BODY",
                     "Request body is missing or invalid. Check JSON syntax, field types and date formats.",

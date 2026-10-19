@@ -16,7 +16,7 @@ public interface TrainingSessionRepository extends JpaRepository<TrainingSession
   @Query("select s from TrainingSession s where s.sessionId = :id")
   Optional<TrainingSession> findByIdForUpdate(@Param("id") Integer id);
 
-  List<TrainingSession> findByHorse_HorseIdOrderByScheduledStartAsc(Integer horseId);
+  List<TrainingSession> findByHorse_HorseIdOrderByScheduledStartAsc(String horseId);
 
-  boolean existsByHorse_HorseIdAndScheduledStart(Integer horseId, LocalDateTime scheduledStart);
+  boolean existsByHorse_HorseIdAndScheduledStart(String horseId, LocalDateTime scheduledStart);
 }

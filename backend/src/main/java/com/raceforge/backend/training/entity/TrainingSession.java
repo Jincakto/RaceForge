@@ -41,7 +41,7 @@ public class TrainingSession {
   @Column(name = "max_speed")
   private Double maxSpeed;
   @Column(name = "recorded_by")
-  private Integer recordedBy;
+  private String recordedBy;
 
   public Integer getHeartRate() { return heartRate; }
   public void setHeartRate(Integer value) { heartRate = value; }
@@ -49,8 +49,8 @@ public class TrainingSession {
   public void setAvgSpeed(Double value) { avgSpeed = value; }
   public Double getMaxSpeed() { return maxSpeed; }
   public void setMaxSpeed(Double value) { maxSpeed = value; }
-  public Integer getRecordedBy() { return recordedBy; }
-  public void setRecordedBy(Integer value) { recordedBy = value; }
+  public String getRecordedBy() { return recordedBy; }
+  public void setRecordedBy(String value) { recordedBy = value; }
 
   @Column(name = "intensity", length = 30)
   private String intensity;

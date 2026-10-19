@@ -25,7 +25,6 @@ import com.raceforge.backend.account.mapper.AccountMapper;
 import com.raceforge.backend.account.repository.PasswordResetTokenRepository;
 import com.raceforge.backend.account.repository.EmailVerificationOtpRepository;
 import com.raceforge.backend.account.repository.RefreshTokenRepository;
-import com.raceforge.backend.account.repository.RegistrationRequestRepository;
 import com.raceforge.backend.account.repository.RoleRepository;
 import com.raceforge.backend.account.repository.UserRepository;
 import com.raceforge.backend.audit.service.AuditService;
@@ -52,8 +51,6 @@ class AuthServiceTest {
     private UserRepository userRepository;
     @Mock
     private RoleRepository roleRepository;
-    @Mock
-    private RegistrationRequestRepository registrationRequestRepository;
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
     @Mock
@@ -87,7 +84,7 @@ class AuthServiceTest {
         authService = new AuthService(
                 userRepository,
                 roleRepository,
-                registrationRequestRepository,
+
                 refreshTokenRepository,
                 passwordResetTokenRepository,
                 emailVerificationOtpRepository,
@@ -95,27 +92,11 @@ class AuthServiceTest {
                 jwtService,
                 emailService,
                 googleTokenVerifier,
-                notificationService,
+
                 auditService,
                 new AccountMapper(),
                 properties
         );
-    }
-
-    @Test
-    void registerRejectsManagerRole() {
-        when(userRepository.existsByEmail("manager@example.com")).thenReturn(false);
-
-        RegisterRequest request = new RegisterRequest(
-                "Manager",
-                "manager@example.com",
-                "StrongPass123",
-                null,
-                1
-        );
-
-        assertThrows(ApiException.class, () -> authService.register(request));
-        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -126,8 +107,7 @@ class AuthServiceTest {
                 "Owner",
                 "owner@example.com",
                 "StrongPass123",
-                null,
-                5
+                null
         );
 
         assertThrows(ApiException.class, () -> authService.register(request));
@@ -135,18 +115,18 @@ class AuthServiceTest {
     }
 
     @Test
-    void registrationUsesUserRoleBcryptAndStringPhoneWithOnlyOtpHashStored() {
-        when(roleRepository.findById(6)).thenReturn(Optional.of(role(6, "USER")));
+    void registrationUsesOwnerRoleBcryptAndStringPhoneWithOnlyOtpHashStored() {
+        when(roleRepository.findById(5)).thenReturn(Optional.of(role(5, "HORSE_OWNER")));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
-            User user=invocation.getArgument(0); user.setUserId(42); return user;
+            User user=invocation.getArgument(0); user.setUserId("OWN-042"); return user;
         });
-        authService.register(new RegisterRequest("Owner", "owner@example.com", "StrongPass123", "0900012345", null));
+        authService.register(new RegisterRequest("Owner", "owner@example.com", "StrongPass123", "0900012345"));
         ArgumentCaptor<User> saved=ArgumentCaptor.forClass(User.class);
         ArgumentCaptor<String> otp=ArgumentCaptor.forClass(String.class);
         verify(userRepository).save(saved.capture());
         verify(emailService).sendOtp(org.mockito.ArgumentMatchers.eq("owner@example.com"),otp.capture());
         User user=saved.getValue();
-        assertEquals(6,user.getRole().getRoleId());
+        assertEquals(5,user.getRole().getRoleId());
         assertEquals("0900012345",user.getPhone());
         assertTrue(new BCryptPasswordEncoder().matches("StrongPass123",user.getPassword()));
         assertNotEquals("StrongPass123",user.getPassword());
@@ -156,23 +136,22 @@ class AuthServiceTest {
         assertNull(verification.getValue().getUserId());
         assertEquals(user, verification.getValue().getUser());
         assertNotEquals(otp.getValue(),verification.getValue().getOtpHash());
-        assertEquals(SecureTokenUtil.hmacSha256Hex("test-otp-secret-at-least-32-bytes","42:"+otp.getValue()),verification.getValue().getOtpHash());
+        assertEquals(SecureTokenUtil.hmacSha256Hex("test-otp-secret-at-least-32-bytes","OWN-042:"+otp.getValue()),verification.getValue().getOtpHash());
         assertEquals("UNVERIFIED",user.getStatus());
     }
 
     @Test
-    void validOtpActivatesBasicUserAndCannotBeUsedTwice() {
+    void validOtpActivatesOwnerAndCannotBeUsedTwice() {
         User user=unverifiedUser();
         when(userRepository.findByEmailForUpdate(user.getEmail())).thenReturn(Optional.of(user));
         EmailVerificationOtp verification=verification(user);
         when(emailVerificationOtpRepository.findByUserIdForUpdate(user.getUserId())).thenReturn(Optional.of(verification));
         authService.verifyEmail(new VerifyEmailRequest(user.getEmail(),"123456"));
         assertEquals("ACTIVE",user.getStatus());
-        assertEquals(6,user.getRole().getRoleId());
+        assertEquals(5,user.getRole().getRoleId());
         assertTrue(user.isEmailVerified());
         verify(emailVerificationOtpRepository).delete(verification);
         authService.verifyEmail(new VerifyEmailRequest(user.getEmail(),"123456"));
-        verify(registrationRequestRepository,never()).save(any());
     }
 
     @Test
@@ -201,18 +180,6 @@ class AuthServiceTest {
     }
 
     @Test
-    void businessRoleRequestKeepsBasicRoleUntilApprovalAndIsCreatedOnce() {
-        User user=unverifiedUser(); user.setRequestedRole(role(5,"HORSE_OWNER"));
-        when(userRepository.findByEmailForUpdate(user.getEmail())).thenReturn(Optional.of(user));
-        when(emailVerificationOtpRepository.findByUserIdForUpdate(user.getUserId())).thenReturn(Optional.of(verification(user)));
-        authService.verifyEmail(new VerifyEmailRequest(user.getEmail(),"123456"));
-        authService.verifyEmail(new VerifyEmailRequest(user.getEmail(),"123456"));
-        assertEquals("PENDING",user.getStatus());
-        assertEquals(6,user.getRole().getRoleId());
-        verify(registrationRequestRepository,times(1)).save(any());
-    }
-
-    @Test
     void resendEnforcesCooldownAndReplacesPreviousOtpHash() {
         User user=unverifiedUser();
         when(userRepository.findByEmailForUpdate(user.getEmail())).thenReturn(Optional.of(user));
@@ -233,19 +200,18 @@ class AuthServiceTest {
     void googleRegistrationUsesEmailAndRequiresPasswordSetup() {
         when(googleTokenVerifier.verify("google-token")).thenReturn(new GoogleIdentity("google-subject","owner@example.com",true,"Owner",null));
         when(userRepository.findByEmailForUpdate("owner@example.com")).thenReturn(Optional.empty());
-        when(roleRepository.findById(6)).thenReturn(Optional.of(role(6,"USER")));
+        when(roleRepository.findById(5)).thenReturn(Optional.of(role(5,"HORSE_OWNER")));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
-            User user=invocation.getArgument(0); user.setUserId(42); return user;
+            User user=invocation.getArgument(0); user.setUserId("OWN-042"); return user;
         });
         when(jwtService.createGooglePasswordSetupToken(any(User.class))).thenReturn("setup-token");
-        AuthService.GoogleLoginResult result=authService.googleLogin(new GoogleAuthRequest("google-token",null));
+        AuthService.GoogleLoginResult result=authService.googleLogin(new GoogleAuthRequest("google-token"));
         assertNull(result.session());
         assertEquals("setup-token",result.passwordSetupToken());
-        assertEquals(6,result.user().getRole().getRoleId());
+        assertEquals(5,result.user().getRole().getRoleId());
         assertEquals("ACTIVE",result.user().getStatus());
         assertNull(result.user().getPassword());
         verify(refreshTokenRepository,never()).save(any());
-        verify(registrationRequestRepository,never()).save(any());
     }
 
     @Test
@@ -255,7 +221,7 @@ class AuthServiceTest {
         user.setStatus("ACTIVE"); user.setEmailVerified(true); user.setPassword("encoded-password");
         when(userRepository.findByEmailForUpdate("owner@example.com")).thenReturn(Optional.of(user));
         when(jwtService.createAccessToken(user)).thenReturn("access-token");
-        AuthService.GoogleLoginResult result=authService.googleLogin(new GoogleAuthRequest("google-token",null));
+        AuthService.GoogleLoginResult result=authService.googleLogin(new GoogleAuthRequest("google-token"));
         assertNotNull(result.session());
         assertNull(result.passwordSetupToken());
         verify(refreshTokenRepository).save(any());
@@ -285,16 +251,63 @@ class AuthServiceTest {
         verify(refreshTokenRepository,never()).save(any());
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"UNVERIFIED", "INVITED", "INACTIVE"})
+    void validPasswordCannotBypassAccountActivationOrLock(String status) {
+        User user = unverifiedUser();
+        user.setStatus(status);
+        user.setPassword(new BCryptPasswordEncoder().encode("StrongPassword123"));
+        when(userRepository.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        assertThrows(ApiException.class, () -> authService.login(new LoginRequest(user.getEmail(), "StrongPassword123")));
+        verify(refreshTokenRepository, never()).save(any());
+        verify(jwtService, never()).createAccessToken(any());
+    }
+
+    @Test
+    void googleCannotActivateInvitedStaffOrIssuePasswordSetupToken() {
+        User user = unverifiedUser();
+        user.setRole(role(3, "VETERINARIAN"));
+        user.setStatus("INVITED");
+        when(googleTokenVerifier.verify("google-token")).thenReturn(new GoogleIdentity("subject", user.getEmail(), true, "Vet", null));
+        when(userRepository.findByEmailForUpdate(user.getEmail())).thenReturn(Optional.of(user));
+        assertThrows(ApiException.class, () -> authService.googleLogin(new GoogleAuthRequest("google-token")));
+        assertEquals("INVITED", user.getStatus());
+        verify(jwtService, never()).createGooglePasswordSetupToken(any());
+        verify(refreshTokenRepository, never()).save(any());
+    }
+
+    @Test
+    void googlePreservesExistingStaffRole() {
+        User user = unverifiedUser();
+        user.setRole(role(3, "VETERINARIAN"));
+        user.setStatus("ACTIVE"); user.setEmailVerified(true); user.setPassword("encoded");
+        when(googleTokenVerifier.verify("google-token")).thenReturn(new GoogleIdentity("subject", user.getEmail(), true, "Vet", null));
+        when(userRepository.findByEmailForUpdate(user.getEmail())).thenReturn(Optional.of(user));
+        authService.googleLogin(new GoogleAuthRequest("google-token"));
+        assertEquals(3, user.getRole().getRoleId());
+    }
+
+    @Test
+    void invitationCannotBeConsumedByPasswordResetEndpoint() {
+        var token = new com.raceforge.backend.account.entity.PasswordResetToken();
+        token.setPurpose(com.raceforge.backend.account.entity.PasswordResetToken.STAFF_INVITATION);
+        token.setExpiresAt(Instant.now().plusSeconds(60));
+        when(passwordResetTokenRepository.findByTokenHashForUpdate(any())).thenReturn(Optional.of(token));
+        assertThrows(ApiException.class, () -> authService.resetPassword(
+                new com.raceforge.backend.account.dto.AuthDtos.ResetPasswordRequest("raw", "StrongPassword123")));
+        assertNull(token.getUsedAt());
+    }
+
     private User unverifiedUser() {
-        User user=new User(); user.setUserId(42); user.setEmail("owner@example.com");
-        user.setRole(role(6,"USER")); user.setStatus("UNVERIFIED");
+        User user=new User(); user.setUserId("OWN-042"); user.setEmail("owner@example.com");
+        user.setRole(role(5,"HORSE_OWNER")); user.setStatus("UNVERIFIED");
         return user;
     }
 
     private EmailVerificationOtp verification(User user) {
         EmailVerificationOtp verification=new EmailVerificationOtp();
         verification.setUser(user);
-        verification.setOtpHash(SecureTokenUtil.hmacSha256Hex("test-otp-secret-at-least-32-bytes","42:123456"));
+        verification.setOtpHash(SecureTokenUtil.hmacSha256Hex("test-otp-secret-at-least-32-bytes","OWN-042:123456"));
         verification.setExpiresAt(Instant.now().plusSeconds(60));
         verification.setSentAt(Instant.now().minusSeconds(61));
         return verification;

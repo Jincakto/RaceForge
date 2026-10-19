@@ -7,7 +7,7 @@ public class TrainingSessionResponse {
 
   private Integer sessionId;
   private Integer planId;
-  private Integer horseId;
+  private @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId;
   private LocalDateTime scheduledStart;
   private LocalDateTime scheduledEnd;
   private BigDecimal distance;
@@ -21,7 +21,7 @@ public class TrainingSessionResponse {
   private Integer heartRate;
   private Double avgSpeed;
   private Double maxSpeed;
-  private Integer recordedBy;
+  private String recordedBy;
 
   public Integer getHeartRate() { return heartRate; }
   public void setHeartRate(Integer value) { heartRate = value; }
@@ -29,8 +29,8 @@ public class TrainingSessionResponse {
   public void setAvgSpeed(Double value) { avgSpeed = value; }
   public Double getMaxSpeed() { return maxSpeed; }
   public void setMaxSpeed(Double value) { maxSpeed = value; }
-  public Integer getRecordedBy() { return recordedBy; }
-  public void setRecordedBy(Integer value) { recordedBy = value; }
+  public String getRecordedBy() { return recordedBy; }
+  public void setRecordedBy(String value) { recordedBy = value; }
 
   public TrainingSessionResponse() {
   }
@@ -51,11 +51,11 @@ public class TrainingSessionResponse {
       this.planId = planId;
   }
 
-  public Integer getHorseId() {
+  public String getHorseId() {
       return horseId;
   }
 
-  public void setHorseId(Integer horseId) {
+  public void setHorseId(@jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
       this.horseId = horseId;
   }
 

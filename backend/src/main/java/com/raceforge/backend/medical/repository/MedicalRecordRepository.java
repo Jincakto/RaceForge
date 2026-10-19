@@ -17,7 +17,7 @@ public interface MedicalRecordRepository
 
     List<MedicalRecord>
         findByVeterinarian_UserIdOrderByExaminedAtDesc(
-            Integer veterinarianId
+            String veterinarianId
         );
 
     List<MedicalRecord>

@@ -45,6 +45,8 @@ public class MedicalRecordMapper {
         response.setNotes(record.getNotes());
         response.setSystemNote(record.getSystemNote());
         response.setTrainingNote(record.getTrainingNote());
+        response.setTrainingEligible(record.getTrainingEligible());
+        response.setEligibilityReason(record.getEligibilityReason());
         response.setStatus(record.getStatus());
         response.setConfirmedAt(record.getConfirmedAt());
         response.setCreatedAt(record.getCreatedAt());

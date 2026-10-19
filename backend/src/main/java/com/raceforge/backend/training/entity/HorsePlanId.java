@@ -8,20 +8,20 @@ import java.util.Objects;
 public class HorsePlanId implements Serializable {
 
   private Integer planId;
-  private Integer horseId;
+  private String horseId;
 
   public HorsePlanId() {
   }
 
-  public HorsePlanId(Integer planId, Integer horseId) {
+  public HorsePlanId(Integer planId, String horseId) {
       this.planId = planId;
       this.horseId = horseId;
   }
 
   public Integer getPlanId() { return planId; }
   public void setPlanId(Integer planId) { this.planId = planId; }
-  public Integer getHorseId() { return horseId; }
-  public void setHorseId(Integer horseId) { this.horseId = horseId; }
+  public String getHorseId() { return horseId; }
+  public void setHorseId(String horseId) { this.horseId = horseId; }
 
   @Override
   public boolean equals(Object o) {

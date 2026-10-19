@@ -18,7 +18,8 @@ public class OpenApiConfig {
     private static final Set<String> PUBLIC_AUTH_PATHS = Set.of(
             "/api/auth/register", "/api/auth/verify-email", "/api/auth/resend-otp",
             "/api/auth/login", "/api/auth/google", "/api/auth/refresh",
-            "/api/auth/forgot-password", "/api/auth/reset-password"
+            "/api/auth/forgot-password", "/api/auth/reset-password", "/api/auth/staff/set-password",
+            "/api/auth/google/set-password"
     );
 
     @Bean

@@ -14,6 +14,7 @@ import com.raceforge.backend.security.AuthenticatedUser;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.access.prepost.PreAuthorize;
 
+@org.springframework.validation.annotation.Validated
 @RestController
 @RequestMapping("/api/training-sessions")
 @PreAuthorize("hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")

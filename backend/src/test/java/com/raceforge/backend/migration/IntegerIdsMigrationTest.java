@@ -24,7 +24,7 @@ class IntegerIdsMigrationTest {
         assertTrue(url.contains("databaseName=RaceForge_IdMigrationTest_"), "Use a restored test database, never the application database");
         String username = System.getenv("DB_USERNAME");
         String password = System.getenv("DB_PASSWORD");
-        Flyway flyway = Flyway.configure().dataSource(url, username, password).locations("classpath:db/migration").load();
+        Flyway flyway = Flyway.configure().dataSource(url, username, password).locations("classpath:db/migration").target("7").load();
         try (Connection connection = DriverManager.getConnection(url, username, password)) {
             execute(connection, """
                     ALTER TABLE dbo.User_External_Login NOCHECK CONSTRAINT ALL;

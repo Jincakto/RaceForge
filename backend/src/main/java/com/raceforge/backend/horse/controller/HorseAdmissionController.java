@@ -25,6 +25,7 @@ public class HorseAdmissionController {
 
     @PostMapping("/admission")
     @PreAuthorize("@horseAccess.owns(authentication, #horseId)")
+<<<<<<< HEAD
     public ApiResponse<HorseResponse> submit(
             @PathVariable String horseId,
             @AuthenticationPrincipal AuthenticatedUser actor
@@ -69,4 +70,16 @@ public class HorseAdmissionController {
                 service.profile(horseId)
         );
     }
+=======
+    public ApiResponse<HorseResponse> submit(@PathVariable String horseId,@AuthenticationPrincipal AuthenticatedUser actor){return ApiResponse.success("Horse submitted",service.submit(horseId,actor.userId()));}
+    @PostMapping("/admission/approve")
+    @PreAuthorize("hasAuthority('CLUB_MANAGER')")
+    public ApiResponse<HorseResponse> approve(@PathVariable String horseId,@AuthenticationPrincipal AuthenticatedUser actor,@Valid @RequestBody Review body){return ApiResponse.success("Admission approved",service.review(horseId,actor.userId(),true,body.note()));}
+    @PostMapping("/admission/reject")
+    @PreAuthorize("hasAuthority('CLUB_MANAGER')")
+    public ApiResponse<HorseResponse> reject(@PathVariable String horseId,@AuthenticationPrincipal AuthenticatedUser actor,@Valid @RequestBody Review body){return ApiResponse.success("Admission rejected",service.review(horseId,actor.userId(),false,body.note()));}
+    @GetMapping("/health-profile")
+    @PreAuthorize("@horseAccess.read(authentication, #horseId)")
+    public ApiResponse<String> profile(@PathVariable String horseId){return ApiResponse.success("Health profile",service.profile(horseId));}
+>>>>>>> 76de6e5 (luu code)
 }

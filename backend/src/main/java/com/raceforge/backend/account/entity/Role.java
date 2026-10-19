@@ -9,21 +9,20 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "[Role]")
-public class Role {
+public class Role extends com.raceforge.backend.common.id.BusinessEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "role_id")
-    private Integer roleId;
+    private String roleId;
 
     @Column(name = "role_name", nullable = false, unique = true, length = 50)
     private String roleName;
 
-    public Integer getRoleId() {
+    public String getRoleId() {
         return roleId;
     }
 
-    public void setRoleId(Integer roleId) {
+    public void setRoleId(String roleId) {
         this.roleId = roleId;
     }
 

@@ -24,6 +24,7 @@ import java.util.Objects;
 @RestController
 @RequestMapping("/api/medical")
 @Tag(name = "Medical Records")
+@org.springframework.security.access.prepost.PreAuthorize("hasAnyAuthority('VETERINARIAN','CLUB_MANAGER','HORSE_OWNER')")
 public class MedicalRecordController {
 
     private final MedicalRecordService medicalRecordService;
@@ -54,10 +55,15 @@ public class MedicalRecordController {
                         horseId, currentUser(authentication).userId(), request));
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VETERINARIAN')")
     @PostMapping("/records")
     @PreAuthorize("hasAuthority('VETERINARIAN')")
     public ResponseEntity<ApiResponse<MedicalRecordResponse>> createMedicalRecord(
+<<<<<<< HEAD
             @Valid @RequestBody MedicalRecordCreateRequest request,
+=======
+            @jakarta.validation.Valid @RequestBody MedicalRecordCreateRequest request,
+>>>>>>> 76de6e5 (luu code)
             Authentication authentication) {
         // Never trust the veterinarian ID provided by a client.
         request.setVeterinarianId(currentUser(authentication).userId());
@@ -66,6 +72,7 @@ public class MedicalRecordController {
                         medicalRecordService.createMedicalRecord(request)));
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyAuthority('VETERINARIAN','CLUB_MANAGER','HORSE_OWNER') and @medicalAccess.readRecord(authentication,#medicalRecordId)")
     @GetMapping("/records/{medicalRecordId}")
     @PreAuthorize("hasAnyAuthority('CLUB_MANAGER', 'VETERINARIAN', 'HORSE_OWNER')")
     @Transactional(readOnly = true)
@@ -80,37 +87,59 @@ public class MedicalRecordController {
         return ApiResponse.success("Medical record retrieved", response);
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyAuthority('VETERINARIAN','CLUB_MANAGER','HORSE_OWNER') and @horseAccess.read(authentication,#horseId)")
     @GetMapping("/horses/{horseId}/records")
     @PreAuthorize("hasAnyAuthority('CLUB_MANAGER', 'VETERINARIAN', 'HORSE_OWNER') "
             + "and @horseAccess.read(authentication, #horseId)")
     public ApiResponse<List<MedicalRecordResponse>> getMedicalHistory(
+<<<<<<< HEAD
             @PathVariable String horseId) {
+=======
+            @PathVariable String horseId,
+            Authentication authentication) {
+
+        currentUserId(authentication);
+>>>>>>> 76de6e5 (luu code)
         return ApiResponse.success("Medical history retrieved",
                 medicalRecordService.getMedicalHistory(horseId));
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyAuthority('VETERINARIAN','CLUB_MANAGER','HORSE_OWNER') and @horseAccess.read(authentication,#horseId)")
     @GetMapping("/horses/{horseId}/previous-examination")
     @PreAuthorize("hasAnyAuthority('CLUB_MANAGER', 'VETERINARIAN', 'HORSE_OWNER') "
             + "and @horseAccess.read(authentication, #horseId)")
     public ResponseEntity<ApiResponse<MedicalRecordResponse>> getPreviousConfirmedExamination(
+<<<<<<< HEAD
             @PathVariable String horseId) {
+=======
+            @PathVariable String horseId,
+            Authentication authentication) {
+
+        currentUserId(authentication);
+>>>>>>> 76de6e5 (luu code)
         return medicalRecordService.getPreviousConfirmedExamination(horseId)
                 .map(record -> ResponseEntity.ok(
                         ApiResponse.success("Previous examination retrieved", record)))
                 .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VETERINARIAN')")
     @PutMapping("/records/{medicalRecordId}/draft")
     @PreAuthorize("hasAuthority('VETERINARIAN')")
     public ApiResponse<MedicalRecordResponse> updateMedicalDraft(
             @PathVariable String medicalRecordId,
+<<<<<<< HEAD
             @Valid @RequestBody MedicalRecordUpdateRequest request,
+=======
+            @jakarta.validation.Valid @RequestBody MedicalRecordUpdateRequest request,
+>>>>>>> 76de6e5 (luu code)
             Authentication authentication) {
         return ApiResponse.success("Medical draft updated",
                 medicalRecordService.updateMedicalDraft(
                         medicalRecordId, currentUser(authentication).userId(), request));
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VETERINARIAN')")
     @PostMapping("/records/{medicalRecordId}/confirm")
     @PreAuthorize("hasAuthority('VETERINARIAN')")
     public ApiResponse<MedicalRecordResponse> confirmMedicalRecord(
@@ -122,27 +151,41 @@ public class MedicalRecordController {
                         medicalRecordId, currentUser(authentication).userId()));
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('VETERINARIAN')")
     @PostMapping("/horses/{horseId}/training-lock/unlock")
     @PreAuthorize("hasAuthority('VETERINARIAN')")
     public ApiResponse<TrainingLockResponse> unlockHorse(
             @PathVariable String horseId,
+<<<<<<< HEAD
             @Valid @RequestBody TrainingUnlockRequest request,
+=======
+            @RequestBody TrainingUnlockRequest request,
+>>>>>>> 76de6e5 (luu code)
             Authentication authentication) {
         return ApiResponse.success("Training lock released",
                 TrainingLockResponse.from(trainingLockService.unlockHorse(
                         horseId, currentUser(authentication).userId(), request.getReason())));
     }
 
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyAuthority('VETERINARIAN','CLUB_MANAGER','HORSE_OWNER') and @horseAccess.read(authentication,#horseId)")
     @GetMapping("/horses/{horseId}/training-lock/history")
     @PreAuthorize("hasAnyAuthority('CLUB_MANAGER', 'VETERINARIAN', 'HORSE_OWNER') "
             + "and @horseAccess.read(authentication, #horseId)")
     public ApiResponse<List<TrainingLockResponse>> getTrainingLockHistory(
+<<<<<<< HEAD
             @PathVariable String horseId) {
+=======
+            @PathVariable String horseId,
+            Authentication authentication) {
+
+        currentUserId(authentication);
+>>>>>>> 76de6e5 (luu code)
         return ApiResponse.success("Training lock history retrieved",
                 trainingLockService.getLockHistory(horseId).stream()
                         .map(TrainingLockResponse::from).toList());
     }
 
+<<<<<<< HEAD
     private AuthenticatedUser currentUser(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()
                 || !(authentication.getPrincipal() instanceof AuthenticatedUser user)
@@ -161,6 +204,34 @@ public class MedicalRecordController {
         }
         if (!horseAccess.read(authentication, horseId)) {
             throw new AccessDeniedException("Not allowed to view medical records of this horse");
+=======
+    private String currentUserId(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()
+                || !(authentication.getPrincipal() instanceof com.raceforge.backend.security.AuthenticatedUser user)
+                || user.userId() == null || user.userId().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication is required");
+>>>>>>> 76de6e5 (luu code)
         }
     }
+<<<<<<< HEAD
+=======
+    // Legacy: Authentication.getName() is not the numeric ID for the JWT principal.
+    //     private String currentUserId(Authentication authentication) {
+    //         if (authentication == null
+    //                 || !authentication.isAuthenticated()
+    //                 || authentication.getName() == null
+    //                 || authentication.getName().isBlank()
+    //                 || "anonymousUser".equals(authentication.getName())) {
+    // 
+    //             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication is required");
+    //         }
+    // 
+    //         try {
+    //             return Integer.valueOf(authentication.getName());
+    //         } catch (NumberFormatException ex) {
+    //             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication user ID must be numeric");
+    //         }
+    //     }
+    // 
+>>>>>>> 76de6e5 (luu code)
 }

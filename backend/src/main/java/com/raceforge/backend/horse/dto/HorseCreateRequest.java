@@ -38,9 +38,18 @@ public class HorseCreateRequest {
     private String dam;
 
 
+<<<<<<< HEAD
     @Positive(message = "Height must be greater than 0")
     private BigDecimal height;
 
+=======
+
+    @NotNull(message = "Height is required")
+    @Positive(message = "Height must be greater than 0")
+    private BigDecimal height;
+
+
+>>>>>>> 76de6e5 (luu code)
     @Size(
         max = 1000,
         message = "Declared medical history must not exceed 1000 characters"
@@ -120,6 +129,13 @@ public class HorseCreateRequest {
         this.dam = dam;
     }
 
+<<<<<<< HEAD
+=======
+
+
+
+
+>>>>>>> 76de6e5 (luu code)
     public BigDecimal getHeight() {
         return height;
     }
@@ -128,6 +144,11 @@ public class HorseCreateRequest {
         this.height = height;
     }
 
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> 76de6e5 (luu code)
     public String getDeclaredMedicalHistory() {
         return declaredMedicalHistory;
     }
@@ -143,6 +164,7 @@ public class HorseCreateRequest {
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
     }
+<<<<<<< HEAD
     public String getRegistrationNumber() {
         return registrationNumber;
     }
@@ -166,4 +188,21 @@ public class HorseCreateRequest {
     public void setDocumentUrl(String documentUrl) {
         this.documentUrl = documentUrl;
     }
+=======
+    @jakarta.validation.constraints.Size(max=100)
+    private String registrationNumber;
+    public String getRegistrationNumber(){return registrationNumber;}
+    public void setRegistrationNumber(String value){registrationNumber=value;}
+
+    @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max=50)
+    private String documentType;
+    public String getDocumentType(){return documentType;}
+    public void setDocumentType(String value){documentType=value;}
+
+    @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max=500)
+    private String documentUrl;
+    public String getDocumentUrl(){return documentUrl;}
+    public void setDocumentUrl(String value){documentUrl=value;}
+
+>>>>>>> 76de6e5 (luu code)
 }

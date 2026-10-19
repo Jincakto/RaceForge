@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 /** Shared by scheduling, start, completion and attendance. Caller owns the transaction. */
 @Component
 public class TrainingSessionRules {
+    @org.springframework.beans.factory.annotation.Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
     private final HorseRepository horses;
     private final com.raceforge.backend.horse.admission.AdmissionService admission;
     @PersistenceContext private EntityManager entityManager;
@@ -27,8 +28,12 @@ public class TrainingSessionRules {
     }
 
     public void requireUnlocked(Horse horse) {
+<<<<<<< HEAD
         admission.requireCompleted(horse.getHorseId());
         if (Boolean.TRUE.equals(horse.getTrainingLocked())) {
+=======
+        if (Boolean.TRUE.equals(horse.getTrainingLocked()) || jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Training_Lock WHERE horse_id=? AND unlocked_at IS NULL",Integer.class,horse.getHorseId())>0) {
+>>>>>>> 76de6e5 (luu code)
             throw new BusinessRuleException("Horse is training-locked; this operation is not allowed.");
         }
     }

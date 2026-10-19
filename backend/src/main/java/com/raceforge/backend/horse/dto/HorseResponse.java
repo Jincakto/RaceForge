@@ -9,9 +9,12 @@ public class HorseResponse {
     private String horseId;
 
     private String ownerId;
+<<<<<<< HEAD
 
     // Assigned HEAD_TRAINER user IDs (not Trainer table primary keys).
     private List<String> trainerIds = List.of();
+=======
+>>>>>>> 76de6e5 (luu code)
 
     private String horseName;
     private LocalDate dateOfBirth;
@@ -39,6 +42,7 @@ public class HorseResponse {
         return admissionStatus;
     }
 
+<<<<<<< HEAD
     public void setAdmissionStatus(String admissionStatus) {
         this.admissionStatus = admissionStatus;
     }
@@ -61,6 +65,10 @@ public class HorseResponse {
 
     public String getHorseId() {
         return horseId;
+=======
+    public String getHorseId() {
+    return horseId;
+>>>>>>> 76de6e5 (luu code)
     }
     
     public void setHorseId(String horseId) {
@@ -75,6 +83,11 @@ public class HorseResponse {
         this.ownerId = ownerId;
     }
     
+<<<<<<< HEAD
+=======
+    
+    
+>>>>>>> 76de6e5 (luu code)
     public String getHorseName() {
         return horseName;
     }
@@ -131,6 +144,13 @@ public class HorseResponse {
         this.dam = dam;
     }
     
+<<<<<<< HEAD
+=======
+    
+    
+    
+    
+>>>>>>> 76de6e5 (luu code)
     public BigDecimal getHeight() {
         return height;
     }
@@ -139,6 +159,11 @@ public class HorseResponse {
         this.height = height;
     }
     
+<<<<<<< HEAD
+=======
+    
+    
+>>>>>>> 76de6e5 (luu code)
     public String getDeclaredMedicalHistory() {
         return declaredMedicalHistory;
     }
@@ -178,6 +203,7 @@ public class HorseResponse {
     public void setStatus(String status) {
         this.status = status;
     }
+<<<<<<< HEAD
     public String getRegistrationNumber() {
         return registrationNumber;
     }
@@ -201,4 +227,21 @@ public class HorseResponse {
     public void setDocumentUrl(String documentUrl) {
         this.documentUrl = documentUrl;
     }
+=======
+    @jakarta.validation.constraints.Size(max=100)
+    private String registrationNumber;
+    public String getRegistrationNumber(){return registrationNumber;}
+    public void setRegistrationNumber(String value){registrationNumber=value;}
+
+
+    private String documentType;
+    public String getDocumentType(){return documentType;}
+    public void setDocumentType(String value){documentType=value;}
+
+
+    private String documentUrl;
+    public String getDocumentUrl(){return documentUrl;}
+    public void setDocumentUrl(String value){documentUrl=value;}
+
+>>>>>>> 76de6e5 (luu code)
 }

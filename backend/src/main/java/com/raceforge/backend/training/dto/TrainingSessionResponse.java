@@ -5,9 +5,92 @@ import java.time.LocalDateTime;
 
 public class TrainingSessionResponse {
 
+<<<<<<< HEAD
   private Integer sessionId;
   private Integer planId;
   private @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId;
+=======
+  private Integer restingHeartRate;
+  public Integer getRestingHeartRate(){return restingHeartRate;}
+  public void setRestingHeartRate(Integer value){restingHeartRate=value;}
+
+  private Integer endExerciseHeartRate;
+  public Integer getEndExerciseHeartRate(){return endExerciseHeartRate;}
+  public void setEndExerciseHeartRate(Integer value){endExerciseHeartRate=value;}
+
+  private Integer recoveryHeartRate2Min;
+  public Integer getRecoveryHeartRate2Min(){return recoveryHeartRate2Min;}
+  public void setRecoveryHeartRate2Min(Integer value){recoveryHeartRate2Min=value;}
+
+  private LocalDateTime recoveryMeasuredAt;
+  public LocalDateTime getRecoveryMeasuredAt(){return recoveryMeasuredAt;}
+  public void setRecoveryMeasuredAt(LocalDateTime value){recoveryMeasuredAt=value;}
+
+  private String restingMedicalRecordId;
+  public String getRestingMedicalRecordId(){return restingMedicalRecordId;}
+  public void setRestingMedicalRecordId(String value){restingMedicalRecordId=value;}
+
+  private LocalDateTime restingMeasuredAt;
+  public LocalDateTime getRestingMeasuredAt(){return restingMeasuredAt;}
+  public void setRestingMeasuredAt(LocalDateTime value){restingMeasuredAt=value;}
+
+  private String horsePackageId;
+  public String getHorsePackageId(){return horsePackageId;}
+  public void setHorsePackageId(String value){horsePackageId=value;}
+
+  private Long actualDurationSeconds;
+  public Long getActualDurationSeconds(){return actualDurationSeconds;}
+  public void setActualDurationSeconds(Long value){actualDurationSeconds=value;}
+
+  private Long recoveryDelaySeconds;
+  public Long getRecoveryDelaySeconds(){return recoveryDelaySeconds;}
+  public void setRecoveryDelaySeconds(Long value){recoveryDelaySeconds=value;}
+
+  private Integer heartRateDrop2Min;
+  public Integer getHeartRateDrop2Min(){return heartRateDrop2Min;}
+  public void setHeartRateDrop2Min(Integer value){heartRateDrop2Min=value;}
+
+  private Boolean trainingLocked;
+  public Boolean getTrainingLocked(){return trainingLocked;}
+  public void setTrainingLocked(Boolean value){trainingLocked=value;}
+
+  private Boolean canStart;
+  public Boolean getCanStart(){return canStart;}
+  public void setCanStart(Boolean value){canStart=value;}
+
+  private Boolean canStop;
+  public Boolean getCanStop(){return canStop;}
+  public void setCanStop(Boolean value){canStop=value;}
+
+  private Boolean canComplete;
+  public Boolean getCanComplete(){return canComplete;}
+  public void setCanComplete(Boolean value){canComplete=value;}
+
+  private String packageType;
+  public String getPackageType(){return packageType;}
+  public void setPackageType(String value){packageType=value;}
+  private String roadmapVersion;
+  public String getRoadmapVersion(){return roadmapVersion;}
+  public void setRoadmapVersion(String value){roadmapVersion=value;}
+  private String stageId;
+  public String getStageId(){return stageId;}
+  public void setStageId(String value){stageId=value;}
+  private String phaseCode;
+  public String getPhaseCode(){return phaseCode;}
+  public void setPhaseCode(String value){phaseCode=value;}
+  private String stageTitle;
+  public String getStageTitle(){return stageTitle;}
+  public void setStageTitle(String value){stageTitle=value;}
+  private String objective;
+  public String getObjective(){return objective;}
+  public void setObjective(String value){objective=value;}
+  private String activityName;
+  public String getActivityName(){return activityName;}
+  public void setActivityName(String value){activityName=value;}
+  private String sessionId;
+  private String planId;
+  private String horseId;
+>>>>>>> 76de6e5 (luu code)
   private LocalDateTime scheduledStart;
   private LocalDateTime scheduledEnd;
   private BigDecimal distance;
@@ -35,19 +118,19 @@ public class TrainingSessionResponse {
   public TrainingSessionResponse() {
   }
 
-  public Integer getSessionId() {
+  public String getSessionId() {
       return sessionId;
   }
 
-  public void setSessionId(Integer sessionId) {
+  public void setSessionId(String sessionId) {
       this.sessionId = sessionId;
   }
 
-  public Integer getPlanId() {
+  public String getPlanId() {
       return planId;
   }
 
-  public void setPlanId(Integer planId) {
+  public void setPlanId(String planId) {
       this.planId = planId;
   }
 
@@ -55,7 +138,11 @@ public class TrainingSessionResponse {
       return horseId;
   }
 
+<<<<<<< HEAD
   public void setHorseId(@jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
+=======
+  public void setHorseId(String horseId) {
+>>>>>>> 76de6e5 (luu code)
       this.horseId = horseId;
   }
 

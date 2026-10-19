@@ -51,7 +51,7 @@ public class NotificationController {
     @PatchMapping("/{id}/read")
     @Transactional
     public NotificationResponse markRead(
-            @PathVariable Integer id,
+            @PathVariable String id,
             @AuthenticationPrincipal AuthenticatedUser principal) {
 
         Notification notification = repository

@@ -8,7 +8,7 @@ import com.raceforge.backend.horse.entity.Horse;
 
 @Entity
 @Table(name = "HORSE_PACKAGE")
-public class HorsePackage {
+public class HorsePackage extends com.raceforge.backend.common.id.BusinessEntity {
 
     @Id
     @Column(name = "horse_package_id", nullable = false, length = 20)
@@ -56,8 +56,10 @@ public class HorsePackage {
     @Column(name = "payment_status", nullable = false, length = 20)
     private String paymentStatus = "PENDING";
 
+    /* Retired in V5: payment_status remains the payment business gate.
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
+    */
 
     @Column(name = "remaining_days")
     private Integer remainingDays;
@@ -190,6 +192,7 @@ public class HorsePackage {
         this.paymentStatus = paymentStatus;
     }
 
+    /* Retired with paid_at; retained for source history.
     public LocalDateTime getPaidAt() {
         return paidAt;
     }
@@ -197,6 +200,7 @@ public class HorsePackage {
     public void setPaidAt(LocalDateTime paidAt) {
         this.paidAt = paidAt;
     }
+    */
 
     public Integer getRemainingDays() {
         return remainingDays;

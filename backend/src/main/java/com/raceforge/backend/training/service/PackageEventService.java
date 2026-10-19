@@ -39,6 +39,7 @@ public class PackageEventService {
         }
     }
 
+<<<<<<< HEAD
     /** Existing accepted Head Trainers stay assigned during medical recovery. */
     public void notifyAssignedTrainers(Horse horse, String type, String message) {
         if (horse == null || horse.getTrainers() == null) return;
@@ -53,6 +54,8 @@ public class PackageEventService {
         }
     }
 
+=======
+>>>>>>> 76de6e5 (luu code)
     public void notifyManagers(String horseId, String type, String message) {
         for (User manager : userRepository.findActiveManagers()) {
             notificationService.notify(manager.getUserId(), type,

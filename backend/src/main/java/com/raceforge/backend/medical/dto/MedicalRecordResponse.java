@@ -9,6 +9,12 @@ public class MedicalRecordResponse {
 
     private String profileId;
     private String veterinarianId;
+<<<<<<< HEAD
+=======
+    private String veterinarianName;
+    public String getVeterinarianName(){return veterinarianName;}
+    public void setVeterinarianName(String value){veterinarianName=value;}
+>>>>>>> 76de6e5 (luu code)
     private String correctionOfId;
 
     private String examType;
@@ -209,6 +215,7 @@ public class MedicalRecordResponse {
         this.clinicalExams = clinicalExams;
     }
 
+<<<<<<< HEAD
     public Boolean getTrainingEligible() {
         return trainingEligible;
     }
@@ -266,4 +273,43 @@ public class MedicalRecordResponse {
     }
 
 
+=======
+    private Boolean trainingEligible;
+    private java.math.BigDecimal idealWeight;
+    private Integer bodyConditionScore;
+    public Boolean getTrainingEligible(){return trainingEligible;}public void setTrainingEligible(Boolean value){trainingEligible=value;}
+    public java.math.BigDecimal getIdealWeight(){return idealWeight;}public void setIdealWeight(java.math.BigDecimal value){idealWeight=value;}
+    public Integer getBodyConditionScore(){return bodyConditionScore;}public void setBodyConditionScore(Integer value){bodyConditionScore=value;}
+
+
+    private String eligibilityReason;
+    public String getEligibilityReason(){return eligibilityReason;}
+    public void setEligibilityReason(String value){eligibilityReason=value;}
+
+
+    private String suggestedConclusion;
+    public String getSuggestedConclusion(){return suggestedConclusion;}
+    public void setSuggestedConclusion(String value){suggestedConclusion=value;}
+
+
+    private String finalConclusion;
+    public String getFinalConclusion(){return finalConclusion;}
+    public void setFinalConclusion(String value){finalConclusion=value;}
+
+
+    private String overrideReason;
+    public String getOverrideReason(){return overrideReason;}
+    public void setOverrideReason(String value){overrideReason=value;}
+
+
+    private String monitoringNote;
+    public String getMonitoringNote(){return monitoringNote;}
+    public void setMonitoringNote(String value){monitoringNote=value;}
+
+
+    private String trainingLockReason;
+    public String getTrainingLockReason(){return trainingLockReason;}
+    public void setTrainingLockReason(String value){trainingLockReason=value;}
+
+>>>>>>> 76de6e5 (luu code)
 }

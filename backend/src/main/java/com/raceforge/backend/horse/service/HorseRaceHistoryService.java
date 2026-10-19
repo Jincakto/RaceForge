@@ -43,9 +43,13 @@ public class HorseRaceHistoryService {
     @Transactional
     public HorseRaceHistoryResponse createRaceHistory(
             String horseId,
+<<<<<<< HEAD
             String actorId,
             HorseRaceHistoryCreateRequest request
     ) {
+=======
+            HorseRaceHistoryCreateRequest request) {
+>>>>>>> 76de6e5 (luu code)
         Horse horse = horseRepository.findById(horseId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Horse not found: " + horseId
@@ -69,8 +73,14 @@ public class HorseRaceHistoryService {
         return raceHistoryMapper.toResponse(saved);
     }
 
+<<<<<<< HEAD
     @Transactional(readOnly = true)
     public List<HorseRaceHistoryResponse> getRaceHistoryByHorse(String horseId) {
+=======
+    public List<HorseRaceHistoryResponse> getRaceHistoryByHorse(
+            String horseId) {
+
+>>>>>>> 76de6e5 (luu code)
         if (!horseRepository.existsById(horseId)) {
             throw new ResourceNotFoundException("Horse not found: " + horseId);
         }
@@ -81,14 +91,25 @@ public class HorseRaceHistoryService {
                 .toList();
     }
 
+<<<<<<< HEAD
     @Transactional(readOnly = true)
     public HorseRaceHistoryResponse getRaceHistoryById(String raceHistoryId) {
         return raceHistoryMapper.toResponse(findRaceHistoryById(raceHistoryId));
+=======
+    public HorseRaceHistoryResponse getRaceHistoryById(
+            String raceHistoryId) {
+
+        HorseRaceHistory history =
+                findRaceHistoryById(raceHistoryId);
+
+        return raceHistoryMapper.toResponse(history);
+>>>>>>> 76de6e5 (luu code)
     }
 
     @Transactional
     public HorseRaceHistoryResponse updateRaceHistory(
             String raceHistoryId,
+<<<<<<< HEAD
             String actorId,
             HorseRaceHistoryUpdateRequest request
     ) {
@@ -96,6 +117,12 @@ public class HorseRaceHistoryService {
         validateRaceDate(
                 request.getRaceDate(), history.getHorse().getDateOfBirth()
         );
+=======
+            HorseRaceHistoryUpdateRequest request) {
+
+        HorseRaceHistory history =
+                findRaceHistoryById(raceHistoryId);
+>>>>>>> 76de6e5 (luu code)
 
         // A new race result can be recorded even after horse admission is APPROVED.
         raceHistoryMapper.updateEntity(history, request);
@@ -109,10 +136,19 @@ public class HorseRaceHistoryService {
         return raceHistoryMapper.toResponse(saved);
     }
 
+<<<<<<< HEAD
     @Transactional
     public void deleteRaceHistory(String raceHistoryId, String actorId) {
         HorseRaceHistory history = findRaceHistoryById(raceHistoryId);
         String horseId = history.getHorse().getHorseId();
+=======
+    @org.springframework.transaction.annotation.Transactional
+    public void deleteRaceHistory(String raceHistoryId) {
+
+        HorseRaceHistory history =
+                findRaceHistoryById(raceHistoryId);
+
+>>>>>>> 76de6e5 (luu code)
         raceHistoryRepository.delete(history);
         auditLogService.record(
                 actorId, horseId, "HORSE_RACE_HISTORY", raceHistoryId,
@@ -120,6 +156,7 @@ public class HorseRaceHistoryService {
         );
     }
 
+<<<<<<< HEAD
     private void validateRaceDate(LocalDate raceDate, LocalDate dateOfBirth) {
         if (raceDate == null) {
             return; // Race date is optional in the existing DTO and database.
@@ -130,6 +167,17 @@ public class HorseRaceHistoryService {
         if (dateOfBirth != null && raceDate.isBefore(dateOfBirth)) {
             throw new BusinessRuleException("Race date cannot precede horse's birth date");
         }
+=======
+    private HorseRaceHistory findRaceHistoryById(String raceHistoryId) {
+
+        return raceHistoryRepository
+                .findById(raceHistoryId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Race history not found: " + raceHistoryId
+                        )
+                );
+>>>>>>> 76de6e5 (luu code)
     }
 
     private HorseRaceHistory findRaceHistoryById(String raceHistoryId) {

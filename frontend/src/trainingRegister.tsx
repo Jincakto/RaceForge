@@ -212,7 +212,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
             const watch = exam?.decision === 'conditional' || exam?.trainingEligibility === 'conditional';
             return (
               <button key={h.id} disabled={!!reason} onClick={() => { setHorseId(h.id); setFieldError(''); }} className={`flex w-full items-center gap-4 rounded-xl border-2 bg-white p-4 text-left ${reason ? 'cursor-not-allowed border-gray-200 opacity-50' : sel ? 'border-[#c9973b] shadow-md' : 'border-gray-200 hover:border-[#c9973b]/60'}`}>
-                {h.imageUrl ? <img src={h.imageUrl} alt="" className="h-12 w-12 rounded-lg bg-gray-200 object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 text-xl">🐎</div>}
+                {h.imageUrl ? <img src={h.imageUrl || undefined} alt="" className="h-12 w-12 rounded-lg bg-gray-200 object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 text-xl">🐎</div>}
                 <div className="flex-1"><div className="font-semibold text-[#0f1729]">{h.name}</div><div className="text-xs text-gray-500">{h.breed} · {h.age} tuổi</div>{watch && !reason && <div className="mt-1 text-xs font-medium text-amber-700">Cần theo dõi: {exam?.followUpNote || exam?.trainingNote || 'Giảm cường độ và theo dõi phản ứng.'}</div>}</div>
                 {reason ? <span className="rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">{reason}</span> : <span className={`h-5 w-5 rounded-full border-2 ${sel ? 'border-[#c9973b] bg-[#c9973b]' : 'border-gray-300'}`} />}
               </button>

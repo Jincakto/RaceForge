@@ -196,7 +196,7 @@ export function TrainingHubPage(props: HubProps) {
                 return (
                   <Card key={e.id} className={`p-4 ${e.status === 'paused' ? 'border-l-4 border-red-400' : needsConfirm ? 'border-l-4 border-amber-400' : ''}`}>
                     <div className="flex items-start gap-3">
-                      {h.imageUrl ? <img src={h.imageUrl} alt="" className="h-11 w-11 rounded-lg bg-gray-200 object-cover" /> : <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gray-100">🐎</div>}
+                      {h.imageUrl ? <img src={h.imageUrl || undefined} alt="" className="h-11 w-11 rounded-lg bg-gray-200 object-cover" /> : <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gray-100">🐎</div>}
                       <div className="flex-1">
                         <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{h.name}</span><IdChip kind="ENR" id={e.id} /><span className="text-xs text-gray-500">Gói {e.packageName}</span><Badge status={e.status === 'paused' ? 'Paused' : 'Active'} /><TrainerStatusPill status={e.trainerStatus} /></div>
                         <div className="mt-1 text-xs text-gray-500">Hiệu lực {t.text} · {t.expired ? 'đã hết hạn' : `còn ${t.left} ngày`}{e.trainerName && e.trainerId !== me.id && isTrainer ? ` · HLV: ${e.trainerName}` : ''}</div>
@@ -610,7 +610,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
             const b = trainerPlanBlockReason(h, state.enrollments, me.id);
             return (
               <button key={h.id} disabled={!!b} onClick={() => { setHorseId(h.id); setErrs({}); }} className={`flex w-full items-center gap-4 rounded-xl border-2 bg-white p-4 text-left ${b ? 'cursor-not-allowed border-gray-200 opacity-50' : horseId === h.id ? 'border-[#c9973b] shadow-md' : 'border-gray-200 hover:border-[#c9973b]/60'}`}>
-                {h.imageUrl ? <img src={h.imageUrl} alt="" className="h-12 w-12 rounded-lg bg-gray-200 object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100">🐎</div>}
+                {h.imageUrl ? <img src={h.imageUrl || undefined} alt="" className="h-12 w-12 rounded-lg bg-gray-200 object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100">🐎</div>}
                 <div className="flex-1"><div className="font-semibold">{h.name}</div><div className="text-xs text-gray-500">{h.breed} · {h.age} tuổi</div></div>
                 {b ? <span className="rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs text-gray-600">{b}</span> : <span className={`h-5 w-5 rounded-full border-2 ${horseId === h.id ? 'border-[#c9973b] bg-[#c9973b]' : 'border-gray-300'}`} />}
               </button>

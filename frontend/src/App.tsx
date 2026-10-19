@@ -277,18 +277,18 @@ function ImageUpload({ value, onChange, onRemove }: { value: string; onChange: (
 // ── Role helpers ──────────────────────────────────────────────────────────────
 
 const ROLE_LABELS: Record<Role, string> = {
-  admin: 'Quản trị viên', manager: 'Quản lý trung tâm', head_trainer: 'Huấn luyện viên',
-  veterinarian: 'Thú y', groom: 'Nhân viên chăm sóc', owner: 'Chủ ngựa',
+  admin: 'Administrator', manager: 'Club Manager', head_trainer: 'Trainer',
+  veterinarian: 'Veterinarian', groom: 'Groom', owner: 'Horse Owner',
 };
 
 const DEMO_ACCOUNTS = [
-  { email: 'admin@raceforce.vn', password: '123456', role: 'Quản trị viên', icon: '🛡', color: 'bg-rose-700' },
-  { email: 'manager@raceforce.vn', password: '123456', role: 'Quản lý trung tâm', icon: '🏛', color: 'bg-[#1a2844]' },
-  { email: 'trainer@raceforce.vn', password: '123456', role: 'Huấn luyện viên', icon: '🏇', color: 'bg-blue-700' },
-  { email: 'vet@raceforce.vn', password: '123456', role: 'Thú y', icon: '🩺', color: 'bg-emerald-700' },
-  { email: 'groom@raceforce.vn', password: '123456', role: 'Nhân viên chăm sóc', icon: '🧹', color: 'bg-amber-600' },
-  { email: 'owner@raceforce.vn', password: '123456', role: 'Chủ ngựa', icon: '👤', color: 'bg-purple-700' },
-  { email: 'owner2@raceforce.vn', password: '123456', role: 'Chủ ngựa (mới)', icon: '👤', color: 'bg-purple-500' },
+  { email: 'admin@raceforce.vn', password: '123456', role: 'Administrator', icon: '🛡', color: 'bg-rose-700' },
+  { email: 'manager@raceforce.vn', password: '123456', role: 'Club Manager', icon: '🏛', color: 'bg-[#1a2844]' },
+  { email: 'trainer@raceforce.vn', password: '123456', role: 'Trainer', icon: '🏇', color: 'bg-blue-700' },
+  { email: 'vet@raceforce.vn', password: '123456', role: 'Veterinarian', icon: '🩺', color: 'bg-emerald-700' },
+  { email: 'groom@raceforce.vn', password: '123456', role: 'Groom', icon: '🧹', color: 'bg-amber-600' },
+  { email: 'owner@raceforce.vn', password: '123456', role: 'Horse Owner', icon: '👤', color: 'bg-purple-700' },
+  { email: 'owner2@raceforce.vn', password: '123456', role: 'Horse Owner (new)', icon: '👤', color: 'bg-purple-500' },
 ];
 
 // ── Homepage ──────────────────────────────────────────────────────────────────
@@ -305,23 +305,23 @@ function HomePage({ navigate }: { navigate: (p: Page) => void }) {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('login')} className="px-5 py-2 text-sm text-gray-300 hover:text-white font-medium transition-colors">Đăng nhập</button>
-          <button onClick={() => navigate('register')} className="px-5 py-2 bg-[#c9973b] hover:bg-[#b8852a] text-white text-sm font-semibold rounded-lg transition-all">Đăng ký</button>
+          <button onClick={() => navigate('login')} className="px-5 py-2 text-sm text-gray-300 hover:text-white font-medium transition-colors">Sign in</button>
+          <button onClick={() => navigate('register')} className="px-5 py-2 bg-[#c9973b] hover:bg-[#b8852a] text-white text-sm font-semibold rounded-lg transition-all">Register</button>
         </div>
       </nav>
       <div className="max-w-6xl mx-auto px-10 pt-20 pb-16 grid grid-cols-2 gap-12 items-center">
         <div>
           <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-[#c9973b]/20 border border-[#c9973b]/30 rounded-full mb-6">
             <span className="w-1.5 h-1.5 rounded-full bg-[#c9973b] animate-pulse" />
-            <span className="text-[#c9973b] text-xs font-medium tracking-wider uppercase">Nền tảng quản lý đua ngựa</span>
+            <span className="text-[#c9973b] text-xs font-medium tracking-wider uppercase">Racehorse management platform</span>
           </div>
           <h1 className="text-white font-serif text-5xl font-bold leading-tight mb-5">
-            Quản lý trung tâm<br /><span className="text-[#c9973b]">huấn luyện ngựa đua</span><br />chuyên nghiệp
+            Professional racehorse<br /><span className="text-[#c9973b]">training club</span><br />management
           </h1>
-          <p className="text-gray-400 text-lg leading-relaxed mb-8">Sức khỏe, giáo án AI, chăm sóc và kết quả đua — tất cả trong một hệ thống duy nhất.</p>
+          <p className="text-gray-400 text-lg leading-relaxed mb-8">Health, AI training plans, daily care and race results — all in one system.</p>
           <div className="flex items-center gap-4">
-            <button onClick={() => navigate('register')} className="px-7 py-3.5 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all text-base shadow-lg shadow-[#c9973b]/20">Bắt đầu miễn phí →</button>
-            <button onClick={() => navigate('login')} className="px-7 py-3.5 bg-white/10 hover:bg-white/15 text-white font-semibold rounded-xl transition-all text-base border border-white/20">Đăng nhập</button>
+            <button onClick={() => navigate('register')} className="px-7 py-3.5 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all text-base shadow-lg shadow-[#c9973b]/20">Get started free →</button>
+            <button onClick={() => navigate('login')} className="px-7 py-3.5 bg-white/10 hover:bg-white/15 text-white font-semibold rounded-xl transition-all text-base border border-white/20">Sign in</button>
           </div>
         </div>
         <div className="relative">
@@ -331,12 +331,12 @@ function HomePage({ navigate }: { navigate: (p: Page) => void }) {
           <div className="absolute -bottom-4 -left-4 bg-white rounded-xl p-4 shadow-xl border border-gray-100">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 text-lg">✓</div>
-              <div><div className="font-semibold text-sm">Thunder King</div><div className="text-xs text-gray-500">Đủ điều kiện thi đấu</div></div>
+              <div><div className="font-semibold text-sm">Thunder King</div><div className="text-xs text-gray-500">Eligible to race</div></div>
             </div>
           </div>
           <div className="absolute -top-4 -right-4 bg-[#1a2844] rounded-xl p-4 shadow-xl">
-            <div className="text-white text-xs font-medium opacity-60 mb-1">Thuật toán AI</div>
-            <div className="text-[#c9973b] font-serif text-lg font-bold">Thi đấu</div>
+            <div className="text-white text-xs font-medium opacity-60 mb-1">AI recommendation</div>
+            <div className="text-[#c9973b] font-serif text-lg font-bold">Race preparation</div>
             <div className="text-white text-xs opacity-60">Prep · 88/100</div>
           </div>
         </div>
@@ -344,9 +344,9 @@ function HomePage({ navigate }: { navigate: (p: Page) => void }) {
       <div className="max-w-6xl mx-auto px-10 pb-20">
         <div className="grid grid-cols-3 gap-6">
           {[
-            { icon: '🤖', title: 'Giáo án thông minh', desc: 'Thuật toán tự động đề xuất lộ trình tập dựa trên sức khỏe, tuổi, cân nặng và kết quả vet.' },
-            { icon: '🏥', title: 'Form khám sức khỏe', desc: 'Vet nhập liệu sinh hiệu, chẩn đoán đầy đủ. Kết quả tự động feed vào thuật toán giáo án.' },
-            { icon: '👥', title: '5 vai trò rõ ràng', desc: 'Quản lý · Huấn luyện viên · Thú y · Nhân viên chăm sóc · Chủ ngựa. Mỗi vai trò có luồng công việc riêng.' },
+            { icon: '🤖', title: 'Smart training plans', desc: 'The system recommends a training plan based on health, age, weight and veterinarian findings.' },
+            { icon: '🏥', title: 'Digital health examinations', desc: 'Veterinarians record vital signs and clinical findings that feed directly into training recommendations.' },
+            { icon: '👥', title: 'Clear role-based workflows', desc: 'Club Manager, Trainer, Veterinarian, Groom and Horse Owner each have a dedicated workflow.' },
           ].map(f => (
             <div key={f.title} className="p-6 bg-white/5 hover:bg-white/8 border border-white/10 rounded-xl transition-all">
               <div className="text-3xl mb-4">{f.icon}</div>
@@ -358,7 +358,7 @@ function HomePage({ navigate }: { navigate: (p: Page) => void }) {
       </div>
       <div className="border-t border-white/10 py-6 px-10 flex items-center justify-between">
         <div className="text-white text-sm font-serif font-bold">RaceForce <span className="text-gray-600">© 2026</span></div>
-        <div className="text-gray-600 text-sm">Hệ thống quản lý trung tâm huấn luyện ngựa đua</div>
+        <div className="text-gray-600 text-sm">Racehorse training club management system</div>
       </div>
     </div>
   );
@@ -604,7 +604,7 @@ const NAV_ITEMS: Partial<Record<Role, { icon: string; label: string; page: Page;
     { icon: '🐎', label: 'Ngựa trong trung tâm', page: 'horse-list' },
     { icon: '📋', label: 'Tiếp nhận ngựa', page: 'center-requests', badge: 'horseReqs' },
     { icon: '🏷', label: 'Danh mục gói', page: 'package-catalog' },
-    { icon: '🧑‍🏫', label: 'Phân công HLV', page: 'trainer-assign' },
+    { icon: '🧑‍🏫', label: 'Trainer assignments', page: 'trainer-assign' },
     { icon: '🩹', label: 'Gói phục hồi', page: 'rehab-center', badge: 'rehabReqs' },
     { icon: '👥', label: 'Nhân sự', page: 'staff' },
     { icon: '🏆', label: 'Kết quả đua', page: 'race-results' },
@@ -757,30 +757,30 @@ function ManagerDashboard({ state, navigate }: { state: AppState; navigate: (p: 
   const unassigned = state.enrollments.filter(e => e.status === 'active' && e.trainerStatus === 'unassigned' && horses.some(h => h.id === e.horseId));
   return (
     <div className="space-y-6">
-      <div><h2 className="text-xl font-serif font-bold text-[#0f1729]">{myClub?.name || 'Trung tâm'} — Tổng quan</h2></div>
-      {unassigned.length > 0 && <Card className="p-4 border-l-4 border-amber-400 bg-amber-50" onClick={() => navigate('trainer-assign')}><div className="flex items-center gap-3"><span className="text-xl">!</span><div className="flex-1"><div className="font-semibold text-amber-800">{unassigned.length} ngựa chưa phân công huấn luyện viên</div><div className="text-sm text-amber-600">{unassigned.map(e => horses.find(h => h.id === e.horseId)?.name).filter(Boolean).join(', ')}</div></div><span className="text-amber-600 text-sm font-medium">Phân công →</span></div></Card>}
-      {pendingHorses.length > 0 && <Card className="p-4 border-l-4 border-sky-400 bg-sky-50" onClick={() => navigate('center-requests')}><div className="flex items-center gap-3"><span className="text-xl">🐎</span><div className="flex-1"><div className="font-semibold text-sky-800">{pendingHorses.length} đơn đăng ký ngựa chờ duyệt</div><div className="text-sm text-sky-600">Tự từ chối sau 7 ngày</div></div><span className="text-sky-600 text-sm font-medium">Duyệt →</span></div></Card>}
-      {horses.filter(h => h.lock && !h.rehab).map(h => <Card key={h.id} className="p-4 border-l-4 border-red-500 bg-red-50" onClick={() => navigate('rehab-center')}><div className="flex items-center gap-3"><span className="text-xl">🔒</span><div className="flex-1"><div className="font-semibold text-red-800">{h.name} bị khóa huấn luyện — cần kích hoạt gói phục hồi</div><div className="text-sm text-red-600">Chẩn đoán: {h.lock!.reason}</div></div><span className="text-red-600 text-sm font-medium">Chọn gói →</span></div></Card>)}
+      <div><h2 className="text-xl font-serif font-bold text-[#0f1729]">{myClub?.name || 'Club'} — Overview</h2></div>
+      {unassigned.length > 0 && <Card className="p-4 border-l-4 border-amber-400 bg-amber-50" onClick={() => navigate('trainer-assign')}><div className="flex items-center gap-3"><span className="text-xl">!</span><div className="flex-1"><div className="font-semibold text-amber-800">{unassigned.length} horse{unassigned.length === 1 ? '' : 's'} awaiting trainer assignment</div><div className="text-sm text-amber-600">{unassigned.map(e => horses.find(h => h.id === e.horseId)?.name).filter(Boolean).join(', ')}</div></div><span className="text-amber-600 text-sm font-medium">Assign →</span></div></Card>}
+      {pendingHorses.length > 0 && <Card className="p-4 border-l-4 border-sky-400 bg-sky-50" onClick={() => navigate('center-requests')}><div className="flex items-center gap-3"><span className="text-xl">🐎</span><div className="flex-1"><div className="font-semibold text-sky-800">{pendingHorses.length} horse intake case{pendingHorses.length === 1 ? '' : 's'} pending</div><div className="text-sm text-sky-600">Automatically closes after 7 days</div></div><span className="text-sky-600 text-sm font-medium">Review →</span></div></Card>}
+      {horses.filter(h => h.lock && !h.rehab).map(h => <Card key={h.id} className="p-4 border-l-4 border-red-500 bg-red-50" onClick={() => navigate('rehab-center')}><div className="flex items-center gap-3"><span className="text-xl">🔒</span><div className="flex-1"><div className="font-semibold text-red-800">{h.name} has a training lock — activate a rehabilitation package</div><div className="text-sm text-red-600">Diagnosis: {h.lock!.reason}</div></div><span className="text-red-600 text-sm font-medium">Choose package →</span></div></Card>)}
       <div className="grid grid-cols-4 gap-4">
-        <StatCard label="Ngựa trong trung tâm" value={horses.length} color="navy" />
-        <StatCard label="Đủ điều kiện" value={horses.filter(h => h.healthStatus === 'Eligible').length} color="green" />
-        <StatCard label="Chấn thương" value={horses.filter(h => h.healthStatus === 'Injured').length} color="red" />
-        <StatCard label="Thành viên" value={myClub?.memberCount || 0} color="navy" />
+        <StatCard label="Horses in the club" value={horses.length} color="navy" />
+        <StatCard label="Eligible" value={horses.filter(h => h.healthStatus === 'Eligible').length} color="green" />
+        <StatCard label="Injured" value={horses.filter(h => h.healthStatus === 'Injured').length} color="red" />
+        <StatCard label="Members" value={myClub?.memberCount || 0} color="navy" />
       </div>
       <div className="grid grid-cols-2 gap-6">
         <Card className="p-5">
-          <div className="flex items-center justify-between mb-4"><h3 className="font-semibold">Ngựa trong trung tâm</h3><Btn variant="ghost" onClick={() => navigate('horse-list')}>Xem tất cả →</Btn></div>
+          <div className="flex items-center justify-between mb-4"><h3 className="font-semibold">Horses in the club</h3><Btn variant="ghost" onClick={() => navigate('horse-list')}>View all →</Btn></div>
           {horses.map(h => (
             <div key={h.id} onClick={() => navigate('horse-detail')} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer border border-transparent hover:border-[#c9973b] transition-all mb-1">
-              <img src={h.imageUrl} alt={h.name} className="w-10 h-10 rounded-lg object-cover bg-gray-200" />
+              <img src={h.imageUrl || undefined} alt={h.name} className="w-10 h-10 rounded-lg object-cover bg-gray-200" />
               <div className="flex-1"><div className="font-medium text-sm">{h.name}</div><div className="text-xs text-gray-500">{h.breed} · {h.age}t</div></div>
               <LifecycleBadge horse={h} />
             </div>
           ))}
         </Card>
         <Card className="p-5">
-          <h3 className="font-semibold mb-4">Hiệu suất — Thunder King</h3>
-          <ResponsiveContainer width="100%" height={200}><LineChart data={PERFORMANCE_DATA}><CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip /><Line type="monotone" dataKey="speed" stroke="#c9973b" strokeWidth={2} dot={false} name="Tốc độ km/h" /><Line type="monotone" dataKey="fitness" stroke="#1a4a3a" strokeWidth={2} dot={false} name="Thể lực %" /></LineChart></ResponsiveContainer>
+          <h3 className="font-semibold mb-4">Performance — Thunder King</h3>
+          <ResponsiveContainer width="100%" height={200}><LineChart data={PERFORMANCE_DATA}><CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip /><Line type="monotone" dataKey="speed" stroke="#c9973b" strokeWidth={2} dot={false} name="Speed km/h" /><Line type="monotone" dataKey="fitness" stroke="#1a4a3a" strokeWidth={2} dot={false} name="Fitness %" /></LineChart></ResponsiveContainer>
         </Card>
       </div>
     </div>
@@ -806,7 +806,7 @@ function HeadTrainerDashboard({ state, navigate }: { state: AppState; navigate: 
           <div className="flex justify-between items-center mb-4"><h3 className="font-semibold">Ngựa đang quản lý</h3><Btn variant="gold" onClick={() => navigate('training-hub')}>Mở Huấn luyện →</Btn></div>
           {horses.map(h => (
             <div key={h.id} onClick={() => navigate('horse-detail')} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer border border-transparent hover:border-[#c9973b] transition-all mb-1">
-              <img src={h.imageUrl} className="w-10 h-10 rounded-lg object-cover" />
+              <img src={h.imageUrl || undefined} className="w-10 h-10 rounded-lg object-cover" />
               <div className="flex-1"><div className="font-medium text-sm">{h.name}</div><div className="text-xs text-gray-500">Sức khỏe: {h.healthStatus}</div></div>
               <LifecycleBadge horse={h} />
             </div>
@@ -853,7 +853,7 @@ function VetDashboard({ state, navigate }: { state: AppState; navigate: (p: Page
           <div className="flex justify-between items-center mb-4"><h3 className="font-semibold">Tình trạng sức khỏe</h3><Btn variant="gold" onClick={() => navigate('vet-health-form')}>+ Nhập khám</Btn></div>
           {horses.map(h => (
             <div key={h.id} onClick={() => navigate('vet-health-form')} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer border border-transparent hover:border-[#c9973b] transition-all mb-2">
-              <img src={h.imageUrl} className="w-10 h-10 rounded-lg object-cover" />
+              <img src={h.imageUrl || undefined} className="w-10 h-10 rounded-lg object-cover" />
               <div className="flex-1"><div className="font-medium text-sm">{h.name}</div><div className="text-xs text-gray-500">{h.vetClearance ? '✓ Đã xác nhận HLV' : '✗ Chưa xác nhận'}</div></div>
               <Badge status={h.healthStatus} />
             </div>
@@ -921,7 +921,7 @@ function OwnerDashboard({ state, navigate }: { state: AppState; navigate: (p: Pa
             <div className="text-center py-8 text-gray-400"><div className="text-4xl mb-3">🐎</div><div className="text-sm mb-3">Chưa có ngựa nào trong trung tâm</div><Btn variant="gold" onClick={() => navigate('horse-create')}>Đăng ký ngựa mới</Btn></div>
           ) : myHorses.map(h => (
             <div key={h.id} onClick={() => navigate('horse-detail')} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer border border-transparent hover:border-[#c9973b] transition-all mb-2">
-              <img src={h.imageUrl} className="w-12 h-12 rounded-lg object-cover" />
+              <img src={h.imageUrl || undefined} className="w-12 h-12 rounded-lg object-cover" />
               <div className="flex-1"><div className="font-medium text-sm">{h.name}</div><div className="text-xs text-gray-500">{h.wins}T / {h.totalRaces}R</div></div>
               <LifecycleBadge horse={h} />
             </div>
@@ -984,7 +984,7 @@ function HorseListPage({ navigate, horses, role, clubId, onSelectHorse }:
           <tbody>
             {rows.map((h, i) => (
               <tr key={h.id} onClick={() => { onSelectHorse(h.id); navigate('horse-detail'); }} className={`border-b border-gray-100 cursor-pointer hover:bg-blue-50 transition-colors ${i % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
-                <td className="px-5 py-3"><div className="flex items-center gap-3"><img src={h.imageUrl} className="w-9 h-9 rounded-lg object-cover bg-gray-200" /><div><div className="font-semibold text-[#0f1729]">{h.name}</div><div className="text-xs text-gray-500">{h.breed} · {h.age}t</div></div></div></td>
+                <td className="px-5 py-3"><div className="flex items-center gap-3"><img src={h.imageUrl || undefined} className="w-9 h-9 rounded-lg object-cover bg-gray-200" /><div><div className="font-semibold text-[#0f1729]">{h.name}</div><div className="text-xs text-gray-500">{h.breed} · {h.age}t</div></div></div></td>
                 <td className="px-5 py-3"><IdChip kind="HRS" id={h.id} /></td>
                 <td className="px-5 py-3 text-xs text-gray-600">{GENDER_LABEL[h.gender] || h.gender}</td>
                 <td className="px-5 py-3 text-gray-600 text-xs">{(h.trainerHistory || []).filter(t => !t.to).map(t => t.name).join(', ') || '—'}</td>
@@ -1092,7 +1092,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
         <span>/</span><span className="text-[#0f1729] font-medium">{horse.name}</span>
       </div>
       <div className="relative rounded-xl overflow-hidden h-44">
-        <img src={horse.imageUrl} className="w-full h-full object-cover" />
+        <img src={horse.imageUrl || undefined} className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#0f1729]/80 to-transparent" />
         <div className="absolute inset-0 flex items-end p-6">
           <div className="flex items-end gap-4 flex-1">
@@ -1524,7 +1524,7 @@ function MyHorsesPage({ user, state, navigate, onSubmitToCenter, onSelectHorse }
           <div className="grid grid-cols-2 gap-4">
             {clubHorses.map(h => (
               <Card key={h.id} className="overflow-hidden" onClick={() => { onSelectHorse(h.id); navigate('horse-detail'); }}>
-                <div className="relative h-32"><img src={h.imageUrl} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" /><div className="absolute bottom-2 left-3 right-3 flex items-end justify-between"><div><div className="text-white font-semibold text-sm">{h.name}</div><div className="text-gray-300 text-xs">{h.id}</div></div><Badge status={h.healthStatus} /></div></div>
+                <div className="relative h-32"><img src={h.imageUrl || undefined} className="w-full h-full object-cover" /><div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" /><div className="absolute bottom-2 left-3 right-3 flex items-end justify-between"><div><div className="text-white font-semibold text-sm">{h.name}</div><div className="text-gray-300 text-xs">{h.id}</div></div><Badge status={h.healthStatus} /></div></div>
                 <div className="px-3 pt-3"><LifecycleBadge horse={h} /></div>
                 <div className="p-3 text-xs text-gray-500 flex justify-between"><span>{h.breed} · {h.age}t</span><span>{h.wins}T/{h.totalRaces}R</span></div>
               </Card>
@@ -1539,7 +1539,7 @@ function MyHorsesPage({ user, state, navigate, onSubmitToCenter, onSelectHorse }
             return (
               <Card key={h.id} className="p-4">
                 <div className="flex items-center gap-4">
-                  {h.imageUrl ? <img src={h.imageUrl} className="w-14 h-14 rounded-xl object-cover flex-shrink-0" /> : <div className="w-14 h-14 rounded-xl bg-gray-200 flex items-center justify-center text-2xl flex-shrink-0">🐎</div>}
+                  {h.imageUrl ? <img src={h.imageUrl || undefined} className="w-14 h-14 rounded-xl object-cover flex-shrink-0" /> : <div className="w-14 h-14 rounded-xl bg-gray-200 flex items-center justify-center text-2xl flex-shrink-0">🐎</div>}
                   <div className="flex-1">
                     <div className="font-semibold">{h.name}</div>
                     <div className="text-sm text-gray-500">{h.breed} · {h.age}t · {h.color}</div>
@@ -1841,7 +1841,7 @@ function CareHubPage({ state, navigate, onComplete, onUndo, onReceive, onReport 
 
       {tab !== 'treat' && horses.length > 0 && (
         <div className="flex gap-2 flex-wrap">
-          {horses.map(h => <button key={h.id} onClick={() => { setHorseId(h.id); setInc(i => ({ ...i, horseId: h.id })); }} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm ${horse?.id === h.id ? 'bg-[#1a2844] text-white border-[#1a2844]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#c9973b]'}`}><img src={h.imageUrl} className="w-6 h-6 rounded-full object-cover bg-gray-200" />{h.name}</button>)}
+          {horses.map(h => <button key={h.id} onClick={() => { setHorseId(h.id); setInc(i => ({ ...i, horseId: h.id })); }} className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm ${horse?.id === h.id ? 'bg-[#1a2844] text-white border-[#1a2844]' : 'bg-white text-gray-600 border-gray-200 hover:border-[#c9973b]'}`}><img src={h.imageUrl || undefined} className="w-6 h-6 rounded-full object-cover bg-gray-200" />{h.name}</button>)}
         </div>
       )}
       {horses.length === 0 && <Card className="p-8 text-center text-sm text-gray-400">Chưa có ngựa nào trong trung tâm</Card>}
@@ -1857,7 +1857,7 @@ function CareHubPage({ state, navigate, onComplete, onUndo, onReceive, onReport 
                   return (
                     <button key={h.id} onClick={() => setHorseId(h.id)} className={`text-left p-3 rounded-xl border-2 transition-all ${horse.id === h.id ? 'border-[#c9973b] bg-[#c9973b]/5' : 'border-gray-200 hover:border-[#c9973b]'}`}>
                       <div className="flex items-center justify-between text-xs mb-2"><span className="font-mono font-bold text-[#1a2844]">Ô {h.stall}</span>{needsTreatment(h) && <span className="text-red-600">🩹</span>}</div>
-                      <img src={h.imageUrl} className="w-full h-20 object-cover rounded-lg bg-gray-200 mb-2" />
+                      <img src={h.imageUrl || undefined} className="w-full h-20 object-cover rounded-lg bg-gray-200 mb-2" />
                       <div className="font-medium text-sm truncate">{h.name}</div>
                       <div className="mt-1.5 w-full bg-gray-200 rounded-full h-1.5"><div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${Math.round(done / total * 100)}%` }} /></div>
                       <div className="text-[11px] text-gray-500 mt-1">{done}/{total} việc</div>
@@ -1926,7 +1926,7 @@ function CareHubPage({ state, navigate, onComplete, onUndo, onReceive, onReport 
             return (
               <div key={h.id} className="space-y-2">
                 <Card className="p-5 border-l-4 border-red-400">
-                  <div className="flex items-center gap-3 mb-3"><img src={h.imageUrl} className="w-12 h-12 rounded-lg object-cover bg-gray-200" /><div className="flex-1"><div className="font-semibold">{h.name}</div><div className="text-xs text-gray-500">{h.stable}, Ô {h.stall}{h.rehab ? ` · Phục hồi: ${h.rehab.name}` : ''}</div></div></div>
+                  <div className="flex items-center gap-3 mb-3"><img src={h.imageUrl || undefined} className="w-12 h-12 rounded-lg object-cover bg-gray-200" /><div className="flex-1"><div className="font-semibold">{h.name}</div><div className="text-xs text-gray-500">{h.stable}, Ô {h.stall}{h.rehab ? ` · Phục hồi: ${h.rehab.name}` : ''}</div></div></div>
                   {h.lock && <div className="text-sm text-red-700 mb-2"><strong>Chẩn đoán hiện tại:</strong> {h.lock.reason}</div>}
                   {g ? (
                     <div className="space-y-2 text-sm">
@@ -2522,17 +2522,17 @@ function ProfilePage({ user, state, navigate, onLogout, onSave }:
   const myClub = state.clubs.find(c => c.id === user.clubId);
   return (
     <div className="space-y-5 max-w-2xl">
-      <h2 className="text-xl font-serif font-bold">Hồ sơ cá nhân</h2>
+      <h2 className="text-xl font-serif font-bold">Profile</h2>
       <Card className="p-6">
-        <div className="flex items-center gap-5 mb-6"><div className="w-20 h-20 rounded-full bg-[#1a2844] text-white flex items-center justify-center text-2xl font-bold">{user.avatar}</div><div><div className="text-xl font-semibold">{user.name}</div><div className="text-sm text-gray-500">{user.role ? ROLE_LABELS[user.role] : 'Chưa có vai trò'}</div>{myClub && <div className="text-sm text-[#c9973b] font-medium">🏛 {myClub.name}</div>}</div></div>
-        <div className="grid grid-cols-2 gap-4"><Input label="Họ và tên" value={name} onChange={setName} /><Input label="Email" value={user.email} onChange={() => {}} />{user.phone && <Input label="Điện thoại" value={user.phone} onChange={() => {}} />}</div>
+        <div className="flex items-center gap-5 mb-6"><div className="w-20 h-20 rounded-full bg-[#1a2844] text-white flex items-center justify-center text-2xl font-bold">{user.avatar}</div><div><div className="text-xl font-semibold">{user.name}</div><div className="text-sm text-gray-500">{user.role ? ROLE_LABELS[user.role] : 'No role assigned'}</div>{myClub && <div className="text-sm text-[#c9973b] font-medium">🏛 {myClub.name}</div>}</div></div>
+        <div className="grid grid-cols-2 gap-4"><Input label="Full name" value={name} onChange={setName} /><Input label="Email" value={user.email} onChange={() => {}} />{user.phone && <Input label="Phone" value={user.phone} onChange={() => {}} />}</div>
         {user.bio && <div className="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-gray-600 italic">"{user.bio}"</div>}
-        {user.experience && <div className="mt-3"><div className="text-xs font-semibold text-gray-500 uppercase mb-1">Kinh nghiệm</div><div className="text-sm text-gray-700">{user.experience}</div></div>}
-        {user.certifications && <div className="mt-3"><div className="text-xs font-semibold text-gray-500 uppercase mb-1">Chứng chỉ</div><div className="text-sm text-gray-700">{user.certifications}</div></div>}
-        <Btn variant="gold" className="mt-4" onClick={() => onSave('Cập nhật hồ sơ thành công!')}>💾 Lưu</Btn>
+        {user.experience && <div className="mt-3"><div className="text-xs font-semibold text-gray-500 uppercase mb-1">Experience</div><div className="text-sm text-gray-700">{user.experience}</div></div>}
+        {user.certifications && <div className="mt-3"><div className="text-xs font-semibold text-gray-500 uppercase mb-1">Certifications</div><div className="text-sm text-gray-700">{user.certifications}</div></div>}
+        <Btn variant="gold" className="mt-4" onClick={() => onSave('Profile updated successfully.')}>Save</Btn>
       </Card>
-      {myClub && <Card className="p-5"><h3 className="font-semibold mb-3">Trung tâm của tôi</h3><div className="flex items-center gap-3"><div className="w-12 h-12 rounded-xl bg-[#1a2844] text-white flex items-center justify-center font-serif font-bold text-lg">{myClub.logoLetter}</div><div><div className="font-semibold">{myClub.name}</div><div className="text-sm text-gray-500">📍 {myClub.location} · Thành lập {myClub.founded}</div></div></div></Card>}
-      <Btn variant="danger" onClick={onLogout}>Đăng xuất</Btn>
+      {myClub && user.role !== 'manager' && <Card className="p-5"><h3 className="font-semibold mb-3">My Club</h3><div className="flex items-center gap-3"><div className="w-12 h-12 rounded-xl bg-[#1a2844] text-white flex items-center justify-center font-serif font-bold text-lg">{myClub.logoLetter}</div><div><div className="font-semibold">{myClub.name}</div><div className="text-sm text-gray-500">📍 {myClub.location} · Founded {myClub.founded}</div></div></div></Card>}
+      <Btn variant="danger" onClick={onLogout}>Sign out</Btn>
     </div>
   );
 }
@@ -2572,7 +2572,7 @@ function PostExamPage({ state, navigate, onSave, onPostExam, onUnlock, onManualL
         {awaiting.length === 0 && <Card className="p-5 text-sm text-gray-400 text-center">Không có ngựa nào đang chờ khám</Card>}
         {awaiting.map(h => (
           <Card key={h.id} className="p-4 flex items-center gap-3">
-            <img src={h.imageUrl} className="w-12 h-12 rounded-lg object-cover bg-gray-200" />
+            <img src={h.imageUrl || undefined} className="w-12 h-12 rounded-lg object-cover bg-gray-200" />
             <div className="flex-1"><div className="font-semibold">{h.name}</div><div className="text-xs text-gray-500">Chủ: {h.ownerName} · {h.breed} · {h.age}t</div></div>
             <LifecycleBadge horse={h} />
             <Btn variant="gold" size="sm" onClick={() => navigate('vet-health-form')}>Khám & ghi hồ sơ →</Btn>
@@ -2588,7 +2588,7 @@ function PostExamPage({ state, navigate, onSave, onPostExam, onUnlock, onManualL
           const h = state.horses.find(x => x.id === s.horseId)!;
           return (
             <Card key={s.id} className="p-4 flex items-center gap-3">
-              <img src={h.imageUrl} className="w-11 h-11 rounded-lg object-cover bg-gray-200" />
+              <img src={h.imageUrl || undefined} className="w-11 h-11 rounded-lg object-cover bg-gray-200" />
               <div className="flex-1"><div className="font-semibold">{h.name} · {s.type} {s.distance}</div><div className="text-xs text-gray-500">{s.date} · {s.time} · HLV {s.trainerName}</div></div>
               <Btn variant="gold" size="sm" onClick={() => setActiveId(s.id)}>Khám sau tập chi tiết →</Btn>
             </Card>
@@ -2623,7 +2623,7 @@ function PostExamPage({ state, navigate, onSave, onPostExam, onUnlock, onManualL
         {locked.length === 0 && <Card className="p-5 text-sm text-gray-400 text-center">Không có ngựa nào bị khóa</Card>}
         {locked.map(h => (
           <Card key={h.id} className="p-5 border-l-4 border-red-500">
-            <div className="flex items-center gap-3 mb-3"><img src={h.imageUrl} className="w-11 h-11 rounded-lg object-cover bg-gray-200" /><div className="flex-1"><div className="font-semibold">{h.name}</div><div className="text-xs text-gray-500">Khóa {h.lock!.lockedAt} · {h.lock!.lockedByName}</div></div><LifecycleBadge horse={h} /></div>
+            <div className="flex items-center gap-3 mb-3"><img src={h.imageUrl || undefined} className="w-11 h-11 rounded-lg object-cover bg-gray-200" /><div className="flex-1"><div className="font-semibold">{h.name}</div><div className="text-xs text-gray-500">Khóa {h.lock!.lockedAt} · {h.lock!.lockedByName}</div></div><LifecycleBadge horse={h} /></div>
             <div className="text-sm text-gray-700 mb-1"><strong>Chẩn đoán:</strong> {h.lock!.reason}</div>
             {h.lock!.notes && <div className="text-sm text-gray-500 mb-1">{h.lock!.notes}</div>}
             <div className="text-xs text-gray-500 mb-3">{h.rehab ? `Gói phục hồi: ${h.rehab.name} (${h.rehab.durationWeeks} tuần)` : 'Chờ Quản lý kích hoạt gói phục hồi'}</div>
@@ -2662,7 +2662,7 @@ function RehabCenterPage({ state, onActivate }:
           const en = state.enrollments.find(e => e.horseId === h.id && e.status !== 'completed');
           return (
             <Card key={h.id} className="p-5 border-l-4 border-red-500">
-              <div className="flex items-center gap-3 mb-3"><img src={h.imageUrl} className="w-12 h-12 rounded-lg object-cover bg-gray-200" /><div className="flex-1"><div className="font-semibold">{h.name} <span className="text-xs text-gray-400 font-normal">· Chủ: {h.ownerName}</span></div><div className="text-xs text-gray-500">Khóa bởi {h.lock!.lockedByName} · {h.lock!.lockedAt}</div></div><LifecycleBadge horse={h} /></div>
+              <div className="flex items-center gap-3 mb-3"><img src={h.imageUrl || undefined} className="w-12 h-12 rounded-lg object-cover bg-gray-200" /><div className="flex-1"><div className="font-semibold">{h.name} <span className="text-xs text-gray-400 font-normal">· Chủ: {h.ownerName}</span></div><div className="text-xs text-gray-500">Khóa bởi {h.lock!.lockedByName} · {h.lock!.lockedAt}</div></div><LifecycleBadge horse={h} /></div>
               <div className="p-3 bg-red-50 rounded-lg text-sm text-red-800 mb-3"><strong>Chẩn đoán Thú y:</strong> {h.lock!.reason}{h.lock!.notes ? ` — ${h.lock!.notes}` : ''}</div>
               {en && <div className="text-xs text-gray-500 mb-3">Gói huấn luyện "{en.packageName}": <Badge status="Paused" /> · Giữ {en.sessionsDone}/{en.sessionsTotal} buổi</div>}
               <div className="grid grid-cols-3 gap-3">
@@ -2683,7 +2683,7 @@ function RehabCenterPage({ state, onActivate }:
       {active.length > 0 && (
         <section className="space-y-3">
           <h3 className="font-semibold">Đang phục hồi</h3>
-          {active.map(h => <Card key={h.id} className="p-4 flex items-center gap-3"><img src={h.imageUrl} className="w-11 h-11 rounded-lg object-cover bg-gray-200" /><div className="flex-1"><div className="font-semibold">{h.name}</div><div className="text-xs text-gray-500">{h.rehab!.name} · {h.rehab!.durationWeeks} tuần · từ {h.rehab!.activatedAt}</div></div><LifecycleBadge horse={h} /><span className="text-xs text-gray-400">Chờ Thú y gỡ khóa</span></Card>)}
+          {active.map(h => <Card key={h.id} className="p-4 flex items-center gap-3"><img src={h.imageUrl || undefined} className="w-11 h-11 rounded-lg object-cover bg-gray-200" /><div className="flex-1"><div className="font-semibold">{h.name}</div><div className="text-xs text-gray-500">{h.rehab!.name} · {h.rehab!.durationWeeks} tuần · từ {h.rehab!.activatedAt}</div></div><LifecycleBadge horse={h} /><span className="text-xs text-gray-400">Chờ Thú y gỡ khóa</span></Card>)}
         </section>
       )}
     </div>
@@ -2693,16 +2693,16 @@ function RehabCenterPage({ state, onActivate }:
 // ── Page titles ───────────────────────────────────────────────────────────────
 
 const PAGE_TITLES: Partial<Record<Page, string>> = {
-  accounts: 'Quản lý tài khoản', permissions: 'Phân quyền', 'audit-log': 'Nhật ký thay đổi',
-  dashboard: 'Dashboard', 'horse-list': 'Ngựa trong trung tâm', 'horse-detail': 'Chi tiết ngựa',
-  'horse-create': 'Đăng ký ngựa mới', 'horse-edit': 'Chỉnh sửa ngựa', 'my-horses': 'Ngựa của tôi',
-  'center-requests': 'Duyệt đăng ký ngựa', 'package-catalog': 'Danh mục gói huấn luyện', 'trainer-assign': 'Phân công huấn luyện viên',
-  'trainer-profile': 'Hồ sơ ứng viên',
-  'health-records': 'Lịch sử khám', 'vet-health-form': 'Khám sức khỏe',
-  'training-hub': 'Huấn luyện & Lộ trình', 'care-hub': 'Chăm sóc & Cho ăn',
-  performance: 'Hiệu suất', 'race-results': 'Kết quả đua', reports: 'Báo cáo',
-  staff: 'Nhân sự', notifications: 'Thông báo', profile: 'Hồ sơ',
-  'training-register': 'Đăng ký huấn luyện', 'vet-assign': 'Ngựa được giao khám', 'post-exam': 'Khám sau tập & Khóa', 'rehab-center': 'Gói phục hồi', inventory: 'Kho của tôi', 'inventory-log': 'Lịch sử kho',
+  accounts: 'Account management', permissions: 'Permissions', 'audit-log': 'Audit log',
+  dashboard: 'Overview', 'horse-list': 'Horses in the club', 'horse-detail': 'Horse details',
+  'horse-create': 'Register a new horse', 'horse-edit': 'Edit horse', 'my-horses': 'My horses',
+  'center-requests': 'Horse intake', 'package-catalog': 'Training package catalogue', 'trainer-assign': 'Trainer assignments',
+  'trainer-profile': 'Candidate profile',
+  'health-records': 'Medical records', 'vet-health-form': 'Health examination',
+  'training-hub': 'Training & plans', 'care-hub': 'Care & feeding',
+  performance: 'Performance', 'race-results': 'Race results', reports: 'Reports',
+  staff: 'Staff', notifications: 'Notifications', profile: 'Profile',
+  'training-register': 'Training registration', 'vet-assign': 'Assigned horses', 'post-exam': 'Post-training exams & locks', 'rehab-center': 'Rehabilitation packages', inventory: 'My inventory', 'inventory-log': 'Inventory history',
 };
 
 const TODAY = '25/09/2026';

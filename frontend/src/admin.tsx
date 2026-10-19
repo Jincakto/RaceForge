@@ -15,11 +15,11 @@ export function IdChip({ kind, id, className = '' }: { kind: IdKind; id: string;
   const [copied, setCopied] = useState(false);
   const code = dispId(kind, id);
   return (
-    <span className={`inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 pl-2 pr-1 py-0.5 font-mono text-[11px] text-gray-700 ${className}`} title="Mã định danh — chỉ đọc">
+    <span className={`inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50 pl-2 pr-1 py-0.5 font-mono text-[11px] text-gray-700 ${className}`} title="Identification Code — read only">
       {code}
       <button
         type="button"
-        aria-label={`Sao chép ${code}`}
+        aria-label={`Copy ${code}`}
         onClick={e => { e.stopPropagation(); navigator.clipboard?.writeText(code); setCopied(true); setTimeout(() => setCopied(false), 1200); }}
         className="rounded px-1 text-[10px] text-gray-400 hover:bg-gray-200 hover:text-gray-700"
       >{copied ? '✓' : '⧉'}</button>
@@ -27,7 +27,7 @@ export function IdChip({ kind, id, className = '' }: { kind: IdKind; id: string;
   );
 }
 
-export const GENDER_LABEL: Record<string, string> = { Stallion: 'Đực', Mare: 'Cái', Gelding: 'Đực', Đực: 'Đực', Cái: 'Cái', 'Đực thiến': 'Đực' };
+export const GENDER_LABEL: Record<string, string> = { Stallion: 'Stallion', Mare: 'Mare', Gelding: 'Gelding', Đực: 'Stallion', Cái: 'Mare', 'Đực thiến': 'Gelding' };
 
 // ── Audit log ─────────────────────────────────────────────────────────────────
 
@@ -36,32 +36,32 @@ export interface AuditEntry { id: string; time: string; actor: string; actorRole
 // ── Role metadata ─────────────────────────────────────────────────────────────
 
 export const ROLE_NAME: Record<Role, string> = {
-  admin: 'Quản trị viên', manager: 'Quản lý CLB', head_trainer: 'Huấn luyện viên trưởng',
-  veterinarian: 'Bác sĩ thú y', groom: 'Nhân viên chăm sóc', owner: 'Chủ ngựa',
+  admin: 'Administrator', manager: 'Club Manager', head_trainer: 'Trainer',
+  veterinarian: 'Veterinarian', groom: 'Groom', owner: 'Horse Owner',
 };
 const STAFF_ROLES: Role[] = ['manager', 'head_trainer', 'veterinarian', 'groom'];
 const MATRIX_ROLES: Role[] = ['manager', 'head_trainer', 'veterinarian', 'groom', 'owner'];
 
 export const FEATURES: { page: string; label: string; icon: string; group: string }[] = [
-  { page: 'horse-list', label: 'Xem danh sách ngựa trung tâm', icon: '🐎', group: 'Ngựa' },
-  { page: 'my-horses', label: 'Ngựa của tôi', icon: '🐎', group: 'Ngựa' },
-  { page: 'horse-create', label: 'Đăng ký ngựa mới', icon: '➕', group: 'Ngựa' },
-  { page: 'center-requests', label: 'Duyệt hồ sơ ngựa', icon: '📋', group: 'Ngựa' },
-  { page: 'health-records', label: 'Lịch sử khám', icon: '🏥', group: 'Thú y' },
-  { page: 'vet-health-form', label: 'Lập hồ sơ khám', icon: '📝', group: 'Thú y' },
-  { page: 'vet-assign', label: 'Phân công bác sĩ khám', icon: '🧑‍⚕️', group: 'Thú y' },
-  { page: 'post-exam', label: 'Khám sau tập & Khóa', icon: '🩺', group: 'Thú y' },
-  { page: 'rehab-center', label: 'Gói phục hồi', icon: '🩹', group: 'Thú y' },
-  { page: 'training-register', label: 'Đăng ký gói huấn luyện', icon: '🎯', group: 'Huấn luyện' },
-  { page: 'package-catalog', label: 'Danh mục gói huấn luyện', icon: '📦', group: 'Huấn luyện' },
-  { page: 'trainer-assign', label: 'Phân công huấn luyện viên', icon: '🧑‍🏫', group: 'Huấn luyện' },
-  { page: 'training-hub', label: 'Huấn luyện & Lộ trình', icon: '📋', group: 'Huấn luyện' },
-  { page: 'performance', label: 'Hiệu suất', icon: '📈', group: 'Huấn luyện' },
-  { page: 'race-results', label: 'Kết quả đua', icon: '🏆', group: 'Huấn luyện' },
-  { page: 'care-hub', label: 'Chăm sóc & chuồng trại', icon: '🌿', group: 'Chăm sóc' },
-  { page: 'inventory', label: 'Kho vật tư', icon: '📦', group: 'Chăm sóc' },
-  { page: 'staff', label: 'Nhân sự trung tâm', icon: '👥', group: 'Quản trị' },
-  { page: 'reports', label: 'Báo cáo', icon: '📊', group: 'Quản trị' },
+  { page: 'horse-list', label: 'View club horses', icon: '🐎', group: 'Horses' },
+  { page: 'my-horses', label: 'My horses', icon: '🐎', group: 'Horses' },
+  { page: 'horse-create', label: 'Register a new horse', icon: '➕', group: 'Horses' },
+  { page: 'center-requests', label: 'Horse intake', icon: '📋', group: 'Horses' },
+  { page: 'health-records', label: 'Medical records', icon: '🏥', group: 'Veterinary' },
+  { page: 'vet-health-form', label: 'Create medical record', icon: '📝', group: 'Veterinary' },
+  { page: 'vet-assign', label: 'Veterinarian assignments', icon: '🧑‍⚕️', group: 'Veterinary' },
+  { page: 'post-exam', label: 'Post-training exams & locks', icon: '🩺', group: 'Veterinary' },
+  { page: 'rehab-center', label: 'Rehabilitation packages', icon: '🩹', group: 'Veterinary' },
+  { page: 'training-register', label: 'Training package registration', icon: '🎯', group: 'Training' },
+  { page: 'package-catalog', label: 'Training package catalogue', icon: '📦', group: 'Training' },
+  { page: 'trainer-assign', label: 'Trainer assignments', icon: '🧑‍🏫', group: 'Training' },
+  { page: 'training-hub', label: 'Training & plans', icon: '📋', group: 'Training' },
+  { page: 'performance', label: 'Performance', icon: '📈', group: 'Training' },
+  { page: 'race-results', label: 'Race results', icon: '🏆', group: 'Training' },
+  { page: 'care-hub', label: 'Care & stables', icon: '🌿', group: 'Care' },
+  { page: 'inventory', label: 'Inventory', icon: '📦', group: 'Care' },
+  { page: 'staff', label: 'Club staff', icon: '👥', group: 'Administration' },
+  { page: 'reports', label: 'Reports', icon: '📊', group: 'Administration' },
 ];
 
 // ── Shared dialogs ────────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ export function Modal({ title, children, onClose, wide = false }: { title: strin
       <div role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} className={`w-full ${wide ? 'max-w-xl' : 'max-w-md'} max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl`}>
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
           <h3 className="font-serif text-lg font-bold text-[#0f1729]">{title}</h3>
-          <button onClick={onClose} aria-label="Đóng" className="text-gray-400 hover:text-gray-700">✕</button>
+          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-700">✕</button>
         </div>
         <div className="p-6">{children}</div>
       </div>
@@ -86,18 +86,18 @@ export function ReasonDialog({ title, description, confirmLabel, danger = false,
   const [err, setErr] = useState('');
   const submit = () => {
     const r = reason.trim();
-    if (r.length < 10) { setErr('Lý do phải có ít nhất 10 ký tự.'); return; }
-    if (r.length > 300) { setErr('Lý do tối đa 300 ký tự.'); return; }
+    if (r.length < 10) { setErr('The reason must contain at least 10 characters.'); return; }
+    if (r.length > 300) { setErr('The reason cannot exceed 300 characters.'); return; }
     onConfirm(r);
   };
   return (
     <Modal title={title} onClose={onClose}>
       <div className="mb-4 text-sm text-gray-600">{description}</div>
-      <label className="mb-1 block text-sm font-medium text-gray-700">Lý do <span className="text-red-500">*</span></label>
-      <Textarea value={reason} onChange={v => { setReason(v); setErr(''); }} placeholder="Nêu rõ lý do — nội dung được ghi vào nhật ký thay đổi" />
+      <label className="mb-1 block text-sm font-medium text-gray-700">Reason <span className="text-red-500">*</span></label>
+      <Textarea value={reason} onChange={v => { setReason(v); setErr(''); }} placeholder="Provide a clear reason — it will be recorded in the audit log" />
       <div className="mt-0.5 flex justify-between text-xs"><span className="text-red-600">{err}</span><span className="text-gray-400">{reason.length}/300</span></div>
       <div className="mt-5 flex justify-end gap-2">
-        <Btn variant="secondary" onClick={onClose}>Hủy</Btn>
+        <Btn variant="secondary" onClick={onClose}>Cancel</Btn>
         <Btn variant={danger ? 'danger' : 'primary'} onClick={submit}>{confirmLabel}</Btn>
       </div>
     </Modal>

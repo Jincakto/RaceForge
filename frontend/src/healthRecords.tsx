@@ -166,7 +166,7 @@ export function HealthRecordsPage({ state, navigate }: { state: RecState; naviga
                       <td className="px-3 py-3"><IdChip kind="MED" id={r.id} /></td>
                       <td className="whitespace-nowrap px-3 py-3 text-gray-700">{r.date}</td>
                       <td className="px-3 py-3 text-gray-700">{vetName(r)}</td>
-                      <td className="px-3 py-3"><div className="flex items-center gap-2"><img src={h.imageUrl} alt="" className="h-8 w-8 rounded-lg bg-gray-200 object-cover" /><div><div className="font-medium text-[#0f1729]">{h.name}</div><div className="text-[11px] text-gray-400">{dispId('HRS', h.id)}</div></div></div></td>
+                      <td className="px-3 py-3"><div className="flex items-center gap-2">{h.imageUrl ? <img src={h.imageUrl || undefined} alt="" className="h-8 w-8 rounded-lg bg-gray-200 object-cover" /> : <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">🐎</div>}<div><div className="font-medium text-[#0f1729]">{h.name}</div><div className="text-[11px] text-gray-400">{dispId('HRS', h.id)}</div></div></div></td>
                       <td className="max-w-xs px-3 py-3"><DecisionPill d={recordDecision(r)} small /><div className="mt-1 line-clamp-2 text-xs text-gray-500">{r.conclusion || r.diagnosis || r.notes}</div></td>
                       <td className="px-3 py-3 text-right"><Btn size="sm" variant="secondary" onClick={() => setOpenId(r.id)}>Chi tiết</Btn></td>
                     </tr>
@@ -206,7 +206,7 @@ function RecordDetail({ rec, horse, vet, all, onClose }: { rec: HealthRecord; ho
     <OverlayModal title="Chi tiết hồ sơ khám" onClose={onClose}>
       <div className="space-y-5 text-sm">
         <div className="flex flex-wrap items-center gap-3">
-          <img src={horse.imageUrl} alt="" className="h-14 w-14 rounded-xl bg-gray-200 object-cover" />
+          {horse.imageUrl ? <img src={horse.imageUrl || undefined} alt="" className="h-14 w-14 rounded-xl bg-gray-200 object-cover" /> : <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-xl">🐎</div>}
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-2"><span className="font-serif text-lg font-bold text-[#0f1729]">{horse.name}</span><IdChip kind="HRS" id={horse.id} /></div>
             <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500"><IdChip kind="MED" id={rec.id} /><span>{rec.date}</span><span>· Bác sĩ {vet}</span><span>· {rec.type}</span></div>

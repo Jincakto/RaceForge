@@ -221,7 +221,7 @@ export function TrainerAssignPage({ user, users, horses, enrollments, onAssign }
         return (
           <Card key={e.id} className={`p-5 ${e.trainerStatus === 'unassigned' ? 'border-l-4 border-amber-400' : ''}`}>
             <div className="flex items-start gap-4">
-              {h?.imageUrl ? <img src={h.imageUrl} alt="" className="h-12 w-12 rounded-lg bg-gray-200 object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 text-xl">🐎</div>}
+              {h?.imageUrl ? <img src={h.imageUrl || undefined} alt="" className="h-12 w-12 rounded-lg bg-gray-200 object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 text-xl">🐎</div>}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold text-[#0f1729]">{h?.name}</span>

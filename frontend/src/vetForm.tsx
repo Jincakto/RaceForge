@@ -381,7 +381,7 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, today
                   <li key={h.id}>
                     <button type="button" onMouseDown={e => e.preventDefault()} onClick={() => { setHorseId(h.id); setQuery(''); setFocus(false); }}
                       className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-[#c9973b]/10">
-                      <img src={h.imageUrl} alt="" className="h-9 w-9 rounded-lg bg-gray-200 object-cover" />
+                      {h.imageUrl ? <img src={h.imageUrl || undefined} alt="" className="h-9 w-9 rounded-lg bg-gray-200 object-cover" /> : <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100">🐎</span>}
                       <span className="flex-1"><span className="block text-sm font-semibold text-[#0f1729]">{h.name}</span><span className="text-xs text-gray-500">{dispId('HRS', h.id)} · {h.breed} · {ageText(h)}</span></span>
                     </button>
                   </li>
@@ -394,7 +394,7 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, today
         {horse && (
           <div className={postSession ? '' : 'mt-0'}>
             <div className="flex flex-wrap items-start gap-4">
-              <img src={horse.imageUrl} alt={horse.name} className="h-24 w-24 rounded-xl bg-gray-200 object-cover" />
+              {horse.imageUrl ? <img src={horse.imageUrl || undefined} alt={horse.name} className="h-24 w-24 rounded-xl bg-gray-200 object-cover" /> : <div className="flex h-24 w-24 items-center justify-center rounded-xl bg-gray-100 text-3xl">🐎</div>}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2"><span className="font-serif text-lg font-bold text-[#0f1729]">{horse.name}</span><IdChip kind="HRS" id={horse.id} />{isIntake && <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700">Khám tiếp nhận</span>}</div>
                 <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
@@ -554,7 +554,7 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, today
       {confirm && horse && (
         <Modal title="Xác nhận hồ sơ khám" onClose={() => setConfirm(false)} wide>
           <div className="space-y-4 text-sm">
-            <div className="flex items-center gap-3"><img src={horse.imageUrl} alt="" className="h-12 w-12 rounded-lg object-cover" /><div><div className="font-semibold text-[#0f1729]">{horse.name}</div><div className="text-xs text-gray-500">{dispId('HRS', horse.id)} · {today} · {postSession ? 'Khám sau buổi tập' : isIntake ? 'Khám tiếp nhận' : examType}</div></div></div>
+            <div className="flex items-center gap-3">{horse.imageUrl ? <img src={horse.imageUrl || undefined} alt="" className="h-12 w-12 rounded-lg object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100">🐎</div>}<div><div className="font-semibold text-[#0f1729]">{horse.name}</div><div className="text-xs text-gray-500">{dispId('HRS', horse.id)} · {today} · {postSession ? 'Khám sau buổi tập' : isIntake ? 'Khám tiếp nhận' : examType}</div></div></div>
             <div className="grid grid-cols-3 gap-2">
               {VITAL_DEFS.map(d => <div key={d.key} className={`rounded-lg border p-2 text-center ${vs[d.key].kind === 'normal' ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}><div className="text-[11px] text-gray-500">{d.label}</div><div className="font-semibold">{fmtNum(vs[d.key].n)} {d.unit}</div><div className="text-[11px]">{vs[d.key].kind === 'normal' ? 'Bình thường' : 'Bất thường'}</div></div>)}
             </div>

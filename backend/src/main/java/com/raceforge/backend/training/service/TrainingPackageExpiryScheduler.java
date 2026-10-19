@@ -28,7 +28,7 @@ public class TrainingPackageExpiryScheduler {
     @Scheduled(cron = "${raceforge.training.package-expiry-cron:0 5 0 * * *}")
     public void expireOverduePackages() {
         LocalDate today = LocalDate.now();
-        for (Integer id : horsePackages.findExpiredActiveRegistrationIds(today)) {
+        for (String id : horsePackages.findExpiredActiveRegistrationIds(today)) {
             try {
                 expiration.expireRegistration(id, today);
             } catch (RuntimeException e) {

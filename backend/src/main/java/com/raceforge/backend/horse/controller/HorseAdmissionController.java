@@ -63,7 +63,7 @@ public class HorseAdmissionController {
 
     @GetMapping("/health-profile")
     @PreAuthorize("@horseAccess.read(authentication, #horseId)")
-    public ApiResponse<Integer> profile(@PathVariable String horseId) {
+    public ApiResponse<String> profile(@PathVariable String horseId) {
         return ApiResponse.success(
                 "Health profile",
                 service.profile(horseId)

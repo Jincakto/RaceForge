@@ -7,10 +7,10 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
-public interface HorseAssignmentRepository extends JpaRepository<HorseAssignment, Integer> {
+public interface HorseAssignmentRepository extends JpaRepository<HorseAssignment, String> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from HorseAssignment a where a.id = :id")
-    Optional<HorseAssignment> findByIdForUpdate(@Param("id") Integer id);
+    Optional<HorseAssignment> findByIdForUpdate(@Param("id") String id);
 
     List<HorseAssignment> findByHorse_HorseIdAndKindAndStatusIn(
             String horseId, String kind, List<String> statuses);

@@ -110,7 +110,7 @@ public class HorseAdmissionService {
     }
 
     @Transactional(readOnly = true)
-    public Integer profile(String horseId) {
+    public String profile(String horseId) {
         return profiles.findByHorse_HorseId(horseId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Health profile not found; veterinary assignment is required"

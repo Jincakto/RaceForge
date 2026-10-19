@@ -20,11 +20,12 @@ import static org.mockito.Mockito.*;
 
 class HorseRaceHistoryServiceTest {
 
+    private final com.raceforge.backend.horse.service.ModuleIdAllocator ids = mock(com.raceforge.backend.horse.service.ModuleIdAllocator.class);
     private final HorseRaceHistoryRepository histories = mock(HorseRaceHistoryRepository.class);
     private final HorseRepository horses = mock(HorseRepository.class);
     private final AuditLogService audit = mock(AuditLogService.class);
     private final HorseRaceHistoryService service = new HorseRaceHistoryService(
-            histories, horses, new HorseRaceHistoryMapper(), audit
+            histories, horses, new HorseRaceHistoryMapper(), audit, ids
     );
 
     private Horse horse() {
@@ -65,16 +66,16 @@ class HorseRaceHistoryServiceTest {
     @Test
     void raceHistoryUpdateMustRespectHorseBirthDate() {
         HorseRaceHistory history = new HorseRaceHistory();
-        history.setRaceHistoryId(20);
+        history.setRaceHistoryId("RAC-020");
         history.setHorse(horse());
-        when(histories.findById(20)).thenReturn(Optional.of(history));
+        when(histories.findById("RAC-020")).thenReturn(Optional.of(history));
 
         HorseRaceHistoryUpdateRequest request = new HorseRaceHistoryUpdateRequest();
         request.setRaceName("Incorrect date");
         request.setRaceDate(LocalDate.of(2010, 1, 1));
 
         assertThrows(BusinessRuleException.class,
-                () -> service.updateRaceHistory(20, "7", request));
+                () -> service.updateRaceHistory("RAC-020", "7", request));
         verify(histories, never()).save(any(HorseRaceHistory.class));
     }
 }

@@ -2,16 +2,16 @@ package com.raceforge.backend.medical.dto;
 
 public class MedicalClinicalExamResponse {
 
-    private Integer clinicalExamId;
+    private String clinicalExamId;
     private String examinationArea;
     private String conditionStatus;
     private String notes;
 
-    public Integer getClinicalExamId() {
+    public String getClinicalExamId() {
         return clinicalExamId;
     }
 
-    public void setClinicalExamId(Integer clinicalExamId) {
+    public void setClinicalExamId(String clinicalExamId) {
         this.clinicalExamId = clinicalExamId;
     }
 

@@ -27,6 +27,7 @@ import java.util.Locale;
 
 @Service
 public class HorsePackageService {
+    private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
 
     private final HorseRepository horseRepository;
     private final TrainingPackageRepository trainingPackageRepository;
@@ -47,8 +48,9 @@ public class HorsePackageService {
             HorsePackageMapper mapper,
             EntityManager entityManager,
             PackageEventService packageEventService,
-            TrainingPackageExpirationService expirationService
-    ) {
+            TrainingPackageExpirationService expirationService,
+            com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator) {
+        this.idAllocator = idAllocator;
         this.horseRepository = horseRepository;
         this.trainingPackageRepository = trainingPackageRepository;
         this.horsePackageRepository = horsePackageRepository;
@@ -119,6 +121,7 @@ public class HorsePackageService {
         }
 
         HorsePackage registration = new HorsePackage();
+        registration.setHorsePackageId(idAllocator.next("HPG"));
         registration.setHorse(horse);
         registration.setTrainingPackage(trainingPackage);
         registration.setTotalPrice(trainingPackage.getPrice());
@@ -137,7 +140,7 @@ public class HorsePackageService {
     }
 
     @Transactional
-    public HorsePackageResponse simulatePayment(Integer registrationId, boolean successful, String ownerId) {
+    public HorsePackageResponse simulatePayment(String registrationId, boolean successful, String ownerId) {
         requireOwnerId(ownerId);
 
         HorsePackage registration = horsePackageRepository.findById(registrationId)

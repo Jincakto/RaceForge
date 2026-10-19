@@ -31,6 +31,8 @@ class MedicalRecordIdGenerationTest {
         AuditLogService audit = mock(AuditLogService.class);
         MedicalAssignmentService assignments = mock(MedicalAssignmentService.class);
 
+        var ids = mock(com.raceforge.backend.horse.service.ModuleIdAllocator.class);
+        when(ids.next("MED")).thenReturn("MED-042");
         Role role = new Role();
         role.setRoleName("VETERINARIAN");
         User vet = new User();
@@ -41,10 +43,9 @@ class MedicalRecordIdGenerationTest {
         Horse horse = new Horse();
         horse.setHorseId("HOR-001");
         HealthProfile profile = new HealthProfile();
-        profile.setProfileId(5);
+        profile.setProfileId("HLT-005");
         profile.setHorse(horse);
-        when(profiles.findById(5)).thenReturn(Optional.of(profile));
-        when(records.nextMedicalRecordNumber()).thenReturn(42L);
+        when(profiles.findById("HLT-005")).thenReturn(Optional.of(profile));
         when(evaluation.evaluate(eq("INITIAL"), isNull(), isNull()))
                 .thenReturn(new MedicalEvaluationResult(
                         MedicalEvaluationResult.EvaluationLevel.INCOMPLETE,
@@ -53,14 +54,14 @@ class MedicalRecordIdGenerationTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         MedicalRecordCreateRequest request = new MedicalRecordCreateRequest();
-        request.setProfileId(5);
+        request.setProfileId("HLT-005");
         request.setVeterinarianId("7");
         request.setExamType("INITIAL");
 
-        service(profiles, records, vitals, exams, users, evaluation, mapper, locks, audit, assignments)
+        service(profiles, records, vitals, exams, users, evaluation, mapper, locks, audit, assignments, ids)
                 .createMedicalRecord(request);
 
-        verify(records).save(argThat(record -> "MED-000042".equals(record.getMedicalRecordId())));
+        verify(records).save(argThat(record -> "MED-042".equals(record.getMedicalRecordId())));
         verify(assignments).requireAccepted("HOR-001", "7");
     }
 
@@ -73,8 +74,8 @@ class MedicalRecordIdGenerationTest {
                                         MedicalRecordMapper mapper,
                                         TrainingLockService locks,
                                         AuditLogService audit,
-                                        MedicalAssignmentService assignments) {
+                                        MedicalAssignmentService assignments, com.raceforge.backend.horse.service.ModuleIdAllocator ids) {
         return new MedicalRecordService(profiles, records, vitals, exams, users,
-                evaluation, mapper, locks, audit, assignments);
+                evaluation, mapper, locks, audit, assignments, ids);
     }
 }

@@ -11,7 +11,7 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 import java.util.Optional;
 
-public interface TrainerRepository extends JpaRepository<Trainer, Integer> {
+public interface TrainerRepository extends JpaRepository<Trainer, String> {
 
     Optional<Trainer> findByUser_UserId(String userId);
 

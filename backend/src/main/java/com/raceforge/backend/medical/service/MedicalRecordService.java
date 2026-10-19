@@ -22,6 +22,7 @@ import java.util.Set;
 
 @Service
 public class MedicalRecordService {
+    private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
 
     private static final Set<String> FINAL_CONCLUSIONS =
             Set.of("FIT", "FIT_WITH_MONITORING", "NOT_FIT");
@@ -49,7 +50,9 @@ public class MedicalRecordService {
             MedicalRecordMapper medicalRecordMapper,
             TrainingLockService trainingLockService,
             AuditLogService auditLogService,
-            MedicalAssignmentService medicalAssignments) {
+            MedicalAssignmentService medicalAssignments,
+            com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator) {
+        this.idAllocator = idAllocator;
         this.healthProfileRepository = healthProfileRepository;
         this.medicalRecordRepository = medicalRecordRepository;
         this.medicalVitalSignRepository = medicalVitalSignRepository;
@@ -170,6 +173,7 @@ public class MedicalRecordService {
             }
         } else {
             MedicalVitalSign vital = existing == null ? new MedicalVitalSign() : existing;
+            if (existing == null) vital.setVitalSignId(idAllocator.next("VIT"));
             if (existing == null) {
                 vital.setMedicalRecord(record);
             }
@@ -280,15 +284,7 @@ public class MedicalRecordService {
      * will be added when the final schema/Flyway migrations are consolidated.
      */
     private String nextMedicalRecordId() {
-        Long number = medicalRecordRepository.nextMedicalRecordNumber();
-        if (number == null || number < 1) {
-            throw new BusinessRuleException("Invalid medical record ID sequence value");
-        }
-        String medicalRecordId = "MED-" + String.format(Locale.ROOT, "%06d", number);
-        if (medicalRecordId.length() > 20) {
-            throw new BusinessRuleException("Medical record ID exceeds VARCHAR(20) capacity");
-        }
-        return medicalRecordId;
+        return idAllocator.next("MED");
     }
 
     private MedicalRecord requireOwnedDraft(String recordId, String veterinarianId) {
@@ -364,6 +360,7 @@ public class MedicalRecordService {
             return;
         }
         MedicalVitalSign vital = new MedicalVitalSign();
+        vital.setVitalSignId(idAllocator.next("VIT"));
         vital.setMedicalRecord(record);
         copyVitalSign(vital, request);
         medicalVitalSignRepository.save(vital);
@@ -386,6 +383,7 @@ public class MedicalRecordService {
                 continue; // Partial drafts are allowed; confirmation revalidates all four.
             }
             MedicalClinicalExam exam = new MedicalClinicalExam();
+            exam.setClinicalExamId(idAllocator.next("CLN"));
             exam.setMedicalRecord(record);
             exam.setExaminationArea(normalize(request.getExaminationArea()));
             exam.setConditionStatus(normalize(request.getConditionStatus()));

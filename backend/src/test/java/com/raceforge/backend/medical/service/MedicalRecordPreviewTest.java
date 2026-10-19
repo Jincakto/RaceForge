@@ -21,6 +21,7 @@ import static org.mockito.Mockito.*;
 
 class MedicalRecordPreviewTest {
 
+    private final com.raceforge.backend.horse.service.ModuleIdAllocator ids = mock(com.raceforge.backend.horse.service.ModuleIdAllocator.class);
     private final HealthProfileRepository profiles = mock(HealthProfileRepository.class);
     private final MedicalRecordRepository records = mock(MedicalRecordRepository.class);
     private final MedicalVitalSignRepository vitals = mock(MedicalVitalSignRepository.class);
@@ -34,7 +35,7 @@ class MedicalRecordPreviewTest {
 
     private final MedicalRecordService service = new MedicalRecordService(
             profiles, records, vitals, exams, users, evaluation,
-            mapper, trainingLocks, audit, assignments);
+            mapper, trainingLocks, audit, assignments, ids);
 
     private void activeVet(String id) {
         Role role = new Role();
@@ -68,14 +69,14 @@ class MedicalRecordPreviewTest {
     void cancelledDraftCannotBeEditedOrConfirmed() {
         activeVet("7");
         MedicalRecord cancelled = new MedicalRecord();
-        cancelled.setMedicalRecordId("MED-000091");
+        cancelled.setMedicalRecordId("MED-091");
         cancelled.setStatus("CANCELLED");
-        when(records.findById("MED-000091")).thenReturn(Optional.of(cancelled));
+        when(records.findById("MED-091")).thenReturn(Optional.of(cancelled));
 
         assertThrows(BusinessRuleException.class,
-                () -> service.updateMedicalDraft("MED-000091", "7", new MedicalRecordUpdateRequest()));
+                () -> service.updateMedicalDraft("MED-091", "7", new MedicalRecordUpdateRequest()));
         assertThrows(BusinessRuleException.class,
-                () -> service.confirmMedicalRecord("MED-000091", "7"));
+                () -> service.confirmMedicalRecord("MED-091", "7"));
         verifyNoInteractions(assignments, trainingLocks);
     }
 

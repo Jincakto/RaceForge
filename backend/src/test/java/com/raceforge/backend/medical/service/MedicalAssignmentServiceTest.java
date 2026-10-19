@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class MedicalAssignmentServiceTest {
+    private final com.raceforge.backend.horse.service.ModuleIdAllocator ids = mock(com.raceforge.backend.horse.service.ModuleIdAllocator.class);
     private final HorseAssignmentRepository assignments = mock(HorseAssignmentRepository.class);
     private final MedicalRecordRepository medicalRecords = mock(MedicalRecordRepository.class);
     private final HorseRepository horses = mock(HorseRepository.class);
@@ -32,7 +33,7 @@ class MedicalAssignmentServiceTest {
     private final NotificationService notifications = mock(NotificationService.class);
     private final AuditLogService audit = mock(AuditLogService.class);
     private final MedicalAssignmentService service = new MedicalAssignmentService(
-            assignments, medicalRecords, horses, users, profiles, notifications, audit);
+            assignments, medicalRecords, horses, users, profiles, notifications, audit, ids);
 
     private User user(String id, String roleName) {
         User user = new User();
@@ -57,20 +58,20 @@ class MedicalAssignmentServiceTest {
 
     private HorseAssignment task(User vet, String status) {
         HorseAssignment a = new HorseAssignment();
-        a.setId(22);
+        a.setId("ASN-022");
         a.setHorse(horse());
         a.setKind("VET");
         a.setAssignee(vet);
         a.setAssignedBy(user("2", "CLUB_MANAGER"));
         a.setStatus(status);
-        when(assignments.findByIdForUpdate(22)).thenReturn(Optional.of(a));
+        when(assignments.findByIdForUpdate("ASN-022")).thenReturn(Optional.of(a));
         return a;
     }
 
     @Test
     void acceptanceDoesNotCreateAMedicalRecord() {
         HorseAssignment a = task(user("7", "VETERINARIAN"), "ASSIGNED");
-        service.accept(22, "7");
+        service.accept("ASN-022", "7");
         assertEquals("ACCEPTED", a.getStatus());
         assertNotNull(a.getRespondedAt());
         verifyNoInteractions(medicalRecords);
@@ -80,9 +81,9 @@ class MedicalAssignmentServiceTest {
     void declineRequiresMatchingVetAndReason() {
         HorseAssignment a = task(user("7", "VETERINARIAN"), "ASSIGNED");
         user("8", "VETERINARIAN");
-        assertThrows(BusinessRuleException.class, () -> service.decline(22, "8", "Unavailable this week"));
-        assertThrows(BusinessRuleException.class, () -> service.decline(22, "7", "short"));
-        service.decline(22, "7", "Unavailable this week");
+        assertThrows(BusinessRuleException.class, () -> service.decline("ASN-022", "8", "Unavailable this week"));
+        assertThrows(BusinessRuleException.class, () -> service.decline("ASN-022", "7", "short"));
+        service.decline("ASN-022", "7", "Unavailable this week");
         assertEquals("DECLINED", a.getStatus());
         assertEquals("Unavailable this week", a.getReason());
         verify(notifications).notify(eq("2"), eq("MEDICAL_ASSIGNMENT_DECLINED"), anyString(), anyString());

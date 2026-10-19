@@ -25,7 +25,7 @@ public class PackageEventService {
         this.userRepository = userRepository;
     }
 
-    public void record(String actorId, String horseId, Integer entityId,
+    public void record(String actorId, String horseId, String entityId,
                        String action, String reason) {
         auditLogService.record(actorId, horseId, "HORSE_PACKAGE", entityId,
                 action, "SUCCESS", reason);

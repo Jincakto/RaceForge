@@ -7,9 +7,8 @@ import jakarta.persistence.*;
 public class MedicalClinicalExam {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "clinical_exam_id", length = 20)
-    private Integer clinicalExamId;
+    private String clinicalExamId;
 
     @ManyToOne
     @JoinColumn(name = "medical_record_id", nullable = false)
@@ -28,11 +27,11 @@ public class MedicalClinicalExam {
     public MedicalClinicalExam() {
     }
 
-    public Integer getClinicalExamId() {
+    public String getClinicalExamId() {
         return clinicalExamId;
     }
 
-    public void setClinicalExamId(Integer clinicalExamId) {
+    public void setClinicalExamId(String clinicalExamId) {
         this.clinicalExamId = clinicalExamId;
     }
 

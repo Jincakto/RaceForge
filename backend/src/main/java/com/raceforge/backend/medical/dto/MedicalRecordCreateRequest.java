@@ -5,7 +5,7 @@ import java.util.List;
 
 public class MedicalRecordCreateRequest {
 
-    private Integer profileId;
+    private String profileId;
     private String veterinarianId;
     private String correctionOfId;
 
@@ -30,11 +30,11 @@ public class MedicalRecordCreateRequest {
 
     private List<MedicalClinicalExamRequest> clinicalExams;
 
-    public Integer getProfileId() {
+    public String getProfileId() {
         return profileId;
     }
 
-    public void setProfileId(Integer profileId) {
+    public void setProfileId(String profileId) {
         this.profileId = profileId;
     }
 

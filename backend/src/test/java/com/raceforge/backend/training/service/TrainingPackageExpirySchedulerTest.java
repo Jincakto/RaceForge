@@ -17,19 +17,19 @@ class TrainingPackageExpirySchedulerTest {
     @Test
     void runsEachExpiredIdOnce() {
         when(registrations.findExpiredActiveRegistrationIds(any(LocalDate.class)))
-                .thenReturn(List.of(10, 11));
+                .thenReturn(List.of("HPG-010", "HPG-011"));
         scheduler.expireOverduePackages();
-        verify(expiration).expireRegistration(eq(10), any(LocalDate.class));
-        verify(expiration).expireRegistration(eq(11), any(LocalDate.class));
+        verify(expiration).expireRegistration(eq("HPG-010"), any(LocalDate.class));
+        verify(expiration).expireRegistration(eq("HPG-011"), any(LocalDate.class));
     }
 
     @Test
     void oneFailureDoesNotPreventProcessingTheNextRegistration() {
         when(registrations.findExpiredActiveRegistrationIds(any(LocalDate.class)))
-                .thenReturn(List.of(10, 11));
+                .thenReturn(List.of("HPG-010", "HPG-011"));
         doThrow(new RuntimeException("temporary failure"))
-                .when(expiration).expireRegistration(eq(10), any(LocalDate.class));
+                .when(expiration).expireRegistration(eq("HPG-010"), any(LocalDate.class));
         scheduler.expireOverduePackages();
-        verify(expiration).expireRegistration(eq(11), any(LocalDate.class));
+        verify(expiration).expireRegistration(eq("HPG-011"), any(LocalDate.class));
     }
 }

@@ -26,7 +26,7 @@ public class PackageResumptionController {
     @PreAuthorize("hasAuthority('CLUB_MANAGER')")
     @PostMapping("/{recoveryId}/resume-original")
     public ResponseEntity<ApiResponse<HorsePackageResponse>> resumeOriginal(
-            @PathVariable Integer recoveryId,
+            @PathVariable String recoveryId,
             @Valid @RequestBody ResumeOriginalPackageRequest request,
             @AuthenticationPrincipal(expression = "userId") String managerId
     ) {
@@ -44,7 +44,7 @@ public class PackageResumptionController {
     @PreAuthorize("hasAuthority('CLUB_MANAGER')")
     @PostMapping("/{originalId}/resume-after-unlock")
     public ResponseEntity<ApiResponse<HorsePackageResponse>> resumeWithoutRecovery(
-            @PathVariable Integer originalId,
+            @PathVariable String originalId,
             @Valid @RequestBody ResumeOriginalPackageRequest request,
             @AuthenticationPrincipal(expression = "userId") String managerId
     ) {

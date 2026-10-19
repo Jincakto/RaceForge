@@ -5,7 +5,7 @@ import java.time.LocalDateTime;
 
 /** Fields map to Horse_Assignment, not to the removed Medical_Assignment table. */
 public record MedicalAssignmentResponse(
-        Integer assignmentId,
+        String assignmentId,
         String horseId,
         String horseName,
         String veterinarianId,

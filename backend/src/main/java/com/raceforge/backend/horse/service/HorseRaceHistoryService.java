@@ -20,6 +20,7 @@ import java.util.List;
 
 @Service
 public class HorseRaceHistoryService {
+    private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
 
     private final HorseRaceHistoryRepository raceHistoryRepository;
     private final HorseRepository horseRepository;
@@ -30,8 +31,9 @@ public class HorseRaceHistoryService {
             HorseRaceHistoryRepository raceHistoryRepository,
             HorseRepository horseRepository,
             HorseRaceHistoryMapper raceHistoryMapper,
-            AuditLogService auditLogService
-    ) {
+            AuditLogService auditLogService,
+            com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator) {
+        this.idAllocator = idAllocator;
         this.raceHistoryRepository = raceHistoryRepository;
         this.horseRepository = horseRepository;
         this.raceHistoryMapper = raceHistoryMapper;
@@ -52,6 +54,7 @@ public class HorseRaceHistoryService {
         validateRaceDate(request.getRaceDate(), horse.getDateOfBirth());
 
         HorseRaceHistory history = raceHistoryMapper.toEntity(request);
+        history.setRaceHistoryId(idAllocator.next("RAC"));
         history.setHorse(horse);
 
         LocalDateTime now = LocalDateTime.now();
@@ -79,13 +82,13 @@ public class HorseRaceHistoryService {
     }
 
     @Transactional(readOnly = true)
-    public HorseRaceHistoryResponse getRaceHistoryById(Integer raceHistoryId) {
+    public HorseRaceHistoryResponse getRaceHistoryById(String raceHistoryId) {
         return raceHistoryMapper.toResponse(findRaceHistoryById(raceHistoryId));
     }
 
     @Transactional
     public HorseRaceHistoryResponse updateRaceHistory(
-            Integer raceHistoryId,
+            String raceHistoryId,
             String actorId,
             HorseRaceHistoryUpdateRequest request
     ) {
@@ -107,7 +110,7 @@ public class HorseRaceHistoryService {
     }
 
     @Transactional
-    public void deleteRaceHistory(Integer raceHistoryId, String actorId) {
+    public void deleteRaceHistory(String raceHistoryId, String actorId) {
         HorseRaceHistory history = findRaceHistoryById(raceHistoryId);
         String horseId = history.getHorse().getHorseId();
         raceHistoryRepository.delete(history);
@@ -129,7 +132,7 @@ public class HorseRaceHistoryService {
         }
     }
 
-    private HorseRaceHistory findRaceHistoryById(Integer raceHistoryId) {
+    private HorseRaceHistory findRaceHistoryById(String raceHistoryId) {
         return raceHistoryRepository.findById(raceHistoryId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Race history not found: " + raceHistoryId

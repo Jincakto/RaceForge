@@ -24,20 +24,20 @@ class MedicalPrincipalTest {
         var principal = new AuthenticatedUser("42", "doctor@example.test", "ACTIVE", 3, "VETERINARIAN");
         var authentication = UsernamePasswordAuthenticationToken.authenticated(principal, null, List.of());
         assertThrows(NumberFormatException.class, () -> Integer.valueOf(authentication.getName()));
-        assertDoesNotThrow(() -> controller.confirmMedicalRecord("MED-000007", authentication));
-        verify(records).confirmMedicalRecord("MED-000007", "42");
+        assertDoesNotThrow(() -> controller.confirmMedicalRecord("MED-007", authentication));
+        verify(records).confirmMedicalRecord("MED-007", "42");
     }
 
     @Test
     void missingAuthenticationIsRejectedBeforeService() {
-        assertThrows(AccessDeniedException.class, () -> controller.confirmMedicalRecord("MED-000001", null));
+        assertThrows(AccessDeniedException.class, () -> controller.confirmMedicalRecord("MED-001", null));
         verifyNoInteractions(records);
     }
 
     @Test
     void arbitraryNumericNameCannotSubstituteForJwtPrincipal() {
         var authentication = UsernamePasswordAuthenticationToken.authenticated("42", null, List.of());
-        assertThrows(AccessDeniedException.class, () -> controller.confirmMedicalRecord("MED-000001", authentication));
+        assertThrows(AccessDeniedException.class, () -> controller.confirmMedicalRecord("MED-001", authentication));
         verifyNoInteractions(records);
     }
 }

@@ -51,15 +51,15 @@ class HorseAdmissionServiceTest {
 
     private void confirmedInitialExam(String healthStatus) {
         HealthProfile profile = new HealthProfile();
-        profile.setProfileId(5);
+        profile.setProfileId("HLT-005");
         when(profiles.findByHorse_HorseId("HOR-014")).thenReturn(Optional.of(profile));
 
         MedicalRecord initial = new MedicalRecord();
-        initial.setMedicalRecordId("MED-000001");
+        initial.setMedicalRecordId("MED-001");
         initial.setExamType("INITIAL");
         initial.setStatus("CONFIRMED");
         initial.setHealthStatus(healthStatus);
-        when(medicalRecords.findByHealthProfile_ProfileIdOrderByExaminedAtDesc(5))
+        when(medicalRecords.findByHealthProfile_ProfileIdOrderByExaminedAtDesc("HLT-005"))
                 .thenReturn(List.of(initial));
     }
 
@@ -96,9 +96,9 @@ class HorseAdmissionServiceTest {
     void approvalNeedsConfirmedInitialExam() {
         Horse horse = horse("PENDING");
         HealthProfile profile = new HealthProfile();
-        profile.setProfileId(5);
+        profile.setProfileId("HLT-005");
         when(profiles.findByHorse_HorseId("HOR-014")).thenReturn(Optional.of(profile));
-        when(medicalRecords.findByHealthProfile_ProfileIdOrderByExaminedAtDesc(5))
+        when(medicalRecords.findByHealthProfile_ProfileIdOrderByExaminedAtDesc("HLT-005"))
                 .thenReturn(List.of());
 
         assertThrows(BusinessRuleException.class,
@@ -116,7 +116,7 @@ class HorseAdmissionServiceTest {
         assertEquals("APPROVED", horse.getAdmissionStatus());
         assertEquals("INACTIVE", horse.getStatus());
         assertNull(horse.getHealthStatus());
-        assertEquals("MED-000001", horse.getAdmission().getMedicalRecordId());
+        assertEquals("MED-001", horse.getAdmission().getMedicalRecordId());
         verify(profiles, never()).save(any(HealthProfile.class));
     }
 

@@ -59,13 +59,13 @@ public class HorseAccess {
                 && horses.existsById(horseId);
     }
 
-    public boolean ownsRaceHistory(Authentication authentication, Integer raceHistoryId) {
+    public boolean ownsRaceHistory(Authentication authentication, String raceHistoryId) {
         return histories.findById(raceHistoryId)
                 .map(history -> owns(authentication, history.getHorse().getHorseId()))
                 .orElse(false);
     }
 
-    public boolean readRaceHistory(Authentication authentication, Integer raceHistoryId) {
+    public boolean readRaceHistory(Authentication authentication, String raceHistoryId) {
         return histories.findById(raceHistoryId)
                 .map(history -> read(authentication, history.getHorse().getHorseId()))
                 .orElse(false);

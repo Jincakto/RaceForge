@@ -9,9 +9,8 @@ import java.time.LocalDateTime;
 public class HealthProfile {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "profile_id", length = 20)
-    private Integer profileId;
+    private String profileId;
 
     @OneToOne
     @JoinColumn(
@@ -41,11 +40,11 @@ public class HealthProfile {
     public HealthProfile() {
     }
 
-    public Integer getProfileId() {
+    public String getProfileId() {
         return profileId;
     }
 
-    public void setProfileId(Integer profileId) {
+    public void setProfileId(String profileId) {
         this.profileId = profileId;
     }
 

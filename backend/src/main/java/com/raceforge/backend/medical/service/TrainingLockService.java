@@ -27,6 +27,7 @@ import java.util.Objects;
 
 @Service
 public class TrainingLockService {
+    private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
 
     private final TrainingLockRepository trainingLockRepository;
     private final HorseRepository horseRepository;
@@ -43,7 +44,9 @@ public class TrainingLockService {
             AuditLogService auditLogService,
             EntityManager entityManager,
             NotificationService notificationService,
-            TrainingPackagePauseService packagePauseService) {
+            TrainingPackagePauseService packagePauseService,
+            com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator) {
+        this.idAllocator = idAllocator;
         this.trainingLockRepository = trainingLockRepository;
         this.horseRepository = horseRepository;
         this.userRepository = userRepository;
@@ -95,6 +98,7 @@ public class TrainingLockService {
         packagePauseService.pauseActiveNormalPackage(horse.getHorseId(), record.getMedicalRecordId());
 
         TrainingLock lock = new TrainingLock();
+        lock.setLockId(idAllocator.next("LCK"));
         lock.setHorse(horse);
         lock.setMedicalRecord(record);
         lock.setLockedBy(veterinarian);

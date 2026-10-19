@@ -8,9 +8,8 @@ import java.math.BigDecimal;
 public class MedicalVitalSign {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "vital_sign_id", length = 20)
-    private Integer vitalSignId;
+    private String vitalSignId;
 
     @OneToOne
     @JoinColumn(
@@ -36,11 +35,11 @@ public class MedicalVitalSign {
     public MedicalVitalSign() {
     }
 
-    public Integer getVitalSignId() {
+    public String getVitalSignId() {
         return vitalSignId;
     }
 
-    public void setVitalSignId(Integer vitalSignId) {
+    public void setVitalSignId(String vitalSignId) {
         this.vitalSignId = vitalSignId;
     }
 

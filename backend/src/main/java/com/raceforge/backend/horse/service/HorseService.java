@@ -141,13 +141,13 @@ public class HorseService {
     }
 
     /**
-     * Identifier allocation uses a database SEQUENCE to avoid duplicate IDs.
-     * The sequence is introduced only when the final Flyway schema is agreed.
+     * Horse IDs continue to use dbo.Horse_Id_Sequence from the merged schema.
+     * Its output must fit the DB CHECK constraint HOR-001..HOR-999.
      */
     private String nextHorseId() {
         long number = horseRepository.nextHorseNumber();
-        if (number < 1 || number > 999_999) {
-            throw new BusinessRuleException("Horse ID sequence exceeds VARCHAR(10) capacity");
+        if (number < 1 || number > 999) {
+            throw new BusinessRuleException("Horse ID sequence exceeds HOR-999 capacity");
         }
         return "HOR-" + String.format(java.util.Locale.ROOT, "%03d", number);
     }

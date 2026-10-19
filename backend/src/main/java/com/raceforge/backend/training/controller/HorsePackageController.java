@@ -39,7 +39,7 @@ public class HorsePackageController {
     @PreAuthorize("hasAuthority('HORSE_OWNER')")
     @PostMapping("/{id}/simulate-payment")
     public ResponseEntity<ApiResponse<HorsePackageResponse>> simulatePayment(
-            @PathVariable Integer id,
+            @PathVariable String id,
             @Valid @RequestBody HorsePackagePaymentRequest request,
             @AuthenticationPrincipal(expression = "userId") String ownerId
     ) {

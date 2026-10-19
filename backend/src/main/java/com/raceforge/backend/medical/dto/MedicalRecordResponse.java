@@ -7,7 +7,7 @@ public class MedicalRecordResponse {
 
     private String medicalRecordId;
 
-    private Integer profileId;
+    private String profileId;
     private String veterinarianId;
     private String correctionOfId;
 
@@ -57,11 +57,11 @@ public class MedicalRecordResponse {
         this.medicalRecordId = medicalRecordId;
     }
 
-    public Integer getProfileId() {
+    public String getProfileId() {
         return profileId;
     }
 
-    public void setProfileId(Integer profileId) {
+    public void setProfileId(String profileId) {
         this.profileId = profileId;
     }
 

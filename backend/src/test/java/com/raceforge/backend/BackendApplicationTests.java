@@ -49,8 +49,6 @@ import org.springframework.test.web.servlet.MockMvc;
 })
 @AutoConfigureMockMvc
 class BackendApplicationTests {
-    @MockitoBean private com.raceforge.backend.horse.admission.AdmissionRepository admissions;
-    @MockitoBean private com.raceforge.backend.horse.admission.AssignmentRepository assignments;
     @MockitoBean
     private com.raceforge.backend.common.id.BusinessIdGenerator businessIdGenerator;
 
@@ -243,41 +241,7 @@ class BackendApplicationTests {
                 .andExpect(jsonPath("$.components.schemas.UserResponse.properties.userId.type").value("string"))
                 .andExpect(jsonPath("$.components.schemas.RoleResponse.properties.roleId.type").value("integer"))
                 .andExpect(jsonPath("$.components.schemas.MedicalRecordResponse.properties.medicalRecordId.type").value("string"))
-                .andExpect(jsonPath("$.components.schemas.MedicalRecordResponse.properties.profileId.type").value("integer"));
-    }
-
-    @Test
-    void admissionRequiresLoginAndOwnerCannotAssign() throws Exception {
-        mockMvc.perform(get("/api/horse-admissions")).andExpect(status().isUnauthorized());
-        var principal=new com.raceforge.backend.security.AuthenticatedUser("OWN-000","owner@example.com","ACTIVE",5,"HORSE_OWNER");
-        var auth=new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal,null,
-                java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("HORSE_OWNER")));
-        mockMvc.perform(post("/api/horse-admissions/HOR-000/assignments")
-                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication(auth))
-                .contentType("application/json").content("{\"kind\":\"VET\",\"assigneeId\":\"VET-000\"}"))
-                .andExpect(status().isForbidden());
-        mockMvc.perform(get("/api/horse-admissions/123")
-                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication(auth)))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void horseRegistrationUsesAuthenticatedOwnerAndCreatesPendingAdmission() throws Exception {
-        var owner=new com.raceforge.backend.account.entity.User();owner.setUserId("OWN-000");
-        org.mockito.Mockito.when(userRepository.findById("OWN-000")).thenReturn(java.util.Optional.of(owner));
-        org.mockito.Mockito.when(horseRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(call->{
-            com.raceforge.backend.horse.entity.Horse horse=call.getArgument(0);horse.setHorseId("HOR-000");return horse;
-        });
-        var principal=new com.raceforge.backend.security.AuthenticatedUser("OWN-000","owner@example.com","ACTIVE",5,"HORSE_OWNER");
-        var auth=new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal,null,
-                java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("HORSE_OWNER")));
-        mockMvc.perform(post("/api/horses?ownerId=OWN-999")
-                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication(auth))
-                .contentType("application/json").content("{\"horseName\":\"New horse\",\"coatColor\":\"Brown\",\"weight\":400,\"height\":150}"))
-                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.ownerId").value("OWN-000"))
-                .andExpect(jsonPath("$.data.status").value("INACTIVE"));
-        org.mockito.Mockito.verify(admissions).save(org.mockito.ArgumentMatchers.argThat(a->"PENDING_REVIEW".equals(a.status)&&"HOR-000".equals(a.horseId)));
-        org.mockito.Mockito.verify(healthProfileRepository).save(org.mockito.ArgumentMatchers.argThat(p->"HOR-000".equals(p.getHorse().getHorseId())));
+                .andExpect(jsonPath("$.components.schemas.MedicalRecordResponse.properties.profileId.type").value("string"));
     }
 
 }

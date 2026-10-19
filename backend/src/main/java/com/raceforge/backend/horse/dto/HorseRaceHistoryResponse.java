@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 public class HorseRaceHistoryResponse {
 
-    private Integer raceHistoryId;
+    private String raceHistoryId;
     private String horseId;
 
     private String raceName;
@@ -22,11 +22,11 @@ public class HorseRaceHistoryResponse {
     private LocalDateTime updatedAt;
 
 
-    public Integer getRaceHistoryId() {
+    public String getRaceHistoryId() {
         return raceHistoryId;
     }
 
-    public void setRaceHistoryId(Integer raceHistoryId) {
+    public void setRaceHistoryId(String raceHistoryId) {
         this.raceHistoryId = raceHistoryId;
     }
 

@@ -27,6 +27,7 @@ import java.util.List;
 
 @Service
 public class RecoveryPackageService {
+    private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
 
     private final HorseRepository horseRepository;
     private final HorsePackageRepository horsePackageRepository;
@@ -45,8 +46,9 @@ public class RecoveryPackageService {
             HorsePackageMapper mapper,
             EntityManager entityManager,
             PackageEventService packageEventService,
-            TrainingPackageExpirationService expirationService
-    ) {
+            TrainingPackageExpirationService expirationService,
+            com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator) {
+        this.idAllocator = idAllocator;
         this.horseRepository = horseRepository;
         this.horsePackageRepository = horsePackageRepository;
         this.trainingPackageRepository = trainingPackageRepository;
@@ -138,6 +140,7 @@ public class RecoveryPackageService {
         // center's internal accounting cost.
         LocalDate today = LocalDate.now();
         HorsePackage centerRecovery = new HorsePackage();
+        centerRecovery.setHorsePackageId(idAllocator.next("HPG"));
         centerRecovery.setHorse(horse);
         centerRecovery.setTrainingPackage(recovery);
         centerRecovery.setReplacedHorsePackage(original);
@@ -165,7 +168,7 @@ public class RecoveryPackageService {
 
     @Transactional
     public HorsePackageResponse simulateRecoveryPayment(
-            Integer recoveryRegistrationId, boolean successful, String ownerId
+            String recoveryRegistrationId, boolean successful, String ownerId
     ) {
         HorsePackage registration = horsePackageRepository.findById(recoveryRegistrationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Recovery registration not found"));

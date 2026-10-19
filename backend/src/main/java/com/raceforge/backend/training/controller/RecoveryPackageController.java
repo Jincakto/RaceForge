@@ -41,7 +41,7 @@ public class RecoveryPackageController {
     @PreAuthorize("hasAuthority('HORSE_OWNER')")
     @PostMapping("/{id}/simulate-recovery-payment")
     public ResponseEntity<ApiResponse<HorsePackageResponse>> simulateRecoveryPayment(
-            @PathVariable Integer id,
+            @PathVariable String id,
             @Valid @RequestBody HorsePackagePaymentRequest request,
             @AuthenticationPrincipal(expression = "userId") String ownerId
     ) {

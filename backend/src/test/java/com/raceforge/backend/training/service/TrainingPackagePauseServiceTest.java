@@ -33,7 +33,7 @@ class TrainingPackagePauseServiceTest {
         when(packages.findByHorseIdAndStatusForUpdate("HOR-001", "ACTIVE"))
                 .thenReturn(List.of(regular));
 
-        service.pauseActiveNormalPackage("HOR-001", "MED-000001");
+        service.pauseActiveNormalPackage("HOR-001", "MED-001");
 
         assertEquals("PAUSED", regular.getStatus());
         assertEquals(12, regular.getRemainingDays());
@@ -47,7 +47,7 @@ class TrainingPackagePauseServiceTest {
         when(packages.findByHorseIdAndStatusForUpdate("HOR-001", "ACTIVE"))
                 .thenReturn(List.of(recovery));
 
-        service.pauseActiveNormalPackage("HOR-001", "MED-000001");
+        service.pauseActiveNormalPackage("HOR-001", "MED-001");
 
         assertEquals("ACTIVE", recovery.getStatus());
         verify(packages, never()).save(any(HorsePackage.class));
@@ -60,9 +60,9 @@ class TrainingPackagePauseServiceTest {
                 .thenReturn(List.of(original))
                 .thenReturn(List.of());
 
-        service.pauseActiveNormalPackage("HOR-001", "MED-000001");
+        service.pauseActiveNormalPackage("HOR-001", "MED-001");
         Integer frozen = original.getRemainingDays();
-        service.pauseActiveNormalPackage("HOR-001", "MED-000001");
+        service.pauseActiveNormalPackage("HOR-001", "MED-001");
 
         assertEquals("PAUSED", original.getStatus());
         assertEquals(frozen, original.getRemainingDays());
@@ -75,7 +75,7 @@ class TrainingPackagePauseServiceTest {
         when(packages.findByHorseIdAndStatusForUpdate("HOR-001", "ACTIVE"))
                 .thenReturn(List.of(old));
 
-        service.pauseActiveNormalPackage("HOR-001", "MED-000001");
+        service.pauseActiveNormalPackage("HOR-001", "MED-001");
 
         assertEquals("COMPLETED", old.getStatus());
         assertEquals(0, old.getRemainingDays());
@@ -87,7 +87,7 @@ class TrainingPackagePauseServiceTest {
                 .thenReturn(List.of(activePackage("BASIC", 5), activePackage("RACING", 10)));
 
         assertThrows(BusinessRuleException.class,
-                () -> service.pauseActiveNormalPackage("HOR-001", "MED-000001"));
+                () -> service.pauseActiveNormalPackage("HOR-001", "MED-001"));
 
         verify(packages, never()).save(any(HorsePackage.class));
     }

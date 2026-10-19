@@ -15,7 +15,7 @@ class HorsePackageMapperExpirationTest {
         Horse h = new Horse();
         h.setHorseId("HOR-001");
         TrainingPackage p = new TrainingPackage();
-        p.setPackageId("PKG-000001");
+        p.setPackageId("PKG-001");
         HorsePackage hp = new HorsePackage();
         hp.setHorse(h);
         hp.setTrainingPackage(p);

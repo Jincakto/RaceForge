@@ -9,9 +9,8 @@ import java.time.LocalDateTime;
 @Table(name = "Horse_Assignment")
 public class HorseAssignment {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id")
-    private Integer id;
+    private String id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "horse_id", nullable = false)
@@ -48,8 +47,8 @@ public class HorseAssignment {
     @PrePersist
     void initialize() { if (createdAt == null) createdAt = LocalDateTime.now(); }
 
-    public Integer getId() { return id; }
-    public void setId(Integer id) { this.id = id; }
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
     public Horse getHorse() { return horse; }
     public void setHorse(Horse horse) { this.horse = horse; }
     public String getKind() { return kind; }

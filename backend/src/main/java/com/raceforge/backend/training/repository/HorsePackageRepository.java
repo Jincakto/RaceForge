@@ -11,7 +11,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
-public interface HorsePackageRepository extends JpaRepository<HorsePackage, Integer> {
+public interface HorsePackageRepository extends JpaRepository<HorsePackage, String> {
 
     List<HorsePackage> findByHorse_HorseIdOrderByRegisteredAtDesc(String horseId);
 
@@ -37,9 +37,9 @@ public interface HorsePackageRepository extends JpaRepository<HorsePackage, Inte
     @Query("SELECT hp.horsePackageId FROM HorsePackage hp "
             + "WHERE hp.status = 'ACTIVE' AND hp.endDate < :today "
             + "ORDER BY hp.horsePackageId")
-    List<Integer> findExpiredActiveRegistrationIds(@Param("today") LocalDate today);
+    List<String> findExpiredActiveRegistrationIds(@Param("today") LocalDate today);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT hp FROM HorsePackage hp WHERE hp.horsePackageId = :id")
-    Optional<HorsePackage> findForUpdate(@Param("id") Integer id);
+    Optional<HorsePackage> findForUpdate(@Param("id") String id);
 }

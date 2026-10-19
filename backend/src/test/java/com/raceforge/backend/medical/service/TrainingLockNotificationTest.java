@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class TrainingLockNotificationTest {
+    private final com.raceforge.backend.horse.service.ModuleIdAllocator ids = mock(com.raceforge.backend.horse.service.ModuleIdAllocator.class);
     private final TrainingLockRepository locks = mock(TrainingLockRepository.class);
     private final HorseRepository horses = mock(HorseRepository.class);
     private final UserRepository users = mock(UserRepository.class);
@@ -31,7 +32,7 @@ class TrainingLockNotificationTest {
     private final NotificationService notifications = mock(NotificationService.class);
     private final TrainingPackagePauseService pauseService = mock(TrainingPackagePauseService.class);
     private final TrainingLockService service = new TrainingLockService(
-            locks, horses, users, audit, entityManager, notifications, pauseService);
+            locks, horses, users, audit, entityManager, notifications, pauseService, ids);
 
     private User user(String id, String roleName) {
         User user = new User();
@@ -57,7 +58,7 @@ class TrainingLockNotificationTest {
         HealthProfile profile = new HealthProfile();
         profile.setHorse(horse);
         MedicalRecord medical = new MedicalRecord();
-        medical.setMedicalRecordId("MED-000001");
+        medical.setMedicalRecordId("MED-001");
         medical.setHealthProfile(profile);
         medical.setVeterinarian(veterinarian);
         medical.setStatus("CONFIRMED");
@@ -66,12 +67,12 @@ class TrainingLockNotificationTest {
         service.lockFromConfirmedExamination(horse, medical, veterinarian,
                 "Horse requires a veterinary recovery program");
         assertTrue(horse.getTrainingLocked());
-        verify(pauseService).pauseActiveNormalPackage("HOR-001", "MED-000001");
+        verify(pauseService).pauseActiveNormalPackage("HOR-001", "MED-001");
         verify(notifications).notify(eq("2"), eq("TRAINING_LOCKED"), anyString(), anyString());
 
         service.lockFromConfirmedExamination(horse, medical, veterinarian,
                 "Horse requires a veterinary recovery program");
-        verify(pauseService, times(1)).pauseActiveNormalPackage("HOR-001", "MED-000001");
+        verify(pauseService, times(1)).pauseActiveNormalPackage("HOR-001", "MED-001");
         verify(notifications, times(1)).notify(eq("2"), eq("TRAINING_LOCKED"), anyString(), anyString());
     }
 

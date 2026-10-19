@@ -16,6 +16,7 @@ import java.util.Set;
 
 @Service
 public class TrainingPackageService {
+    private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
 
     private static final Set<String> ALLOWED_TYPES = Set.of("BASIC", "RACING", "PERFORMANCE", "RECOVERY");
     private static final Set<String> ALLOWED_STATUSES = Set.of("ACTIVE", "INACTIVE");
@@ -24,7 +25,9 @@ public class TrainingPackageService {
     private final HorsePackageRepository horsePackageRepository;
     private final TrainingPackageMapper mapper;
 
-    public TrainingPackageService(TrainingPackageRepository repository, HorsePackageRepository horsePackageRepository, TrainingPackageMapper mapper) {
+    public TrainingPackageService(TrainingPackageRepository repository, HorsePackageRepository horsePackageRepository, TrainingPackageMapper mapper,
+            com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator) {
+        this.idAllocator = idAllocator;
         this.repository = repository;
         this.horsePackageRepository = horsePackageRepository;
         this.mapper = mapper;
@@ -80,11 +83,7 @@ public class TrainingPackageService {
     }
 
     private String nextPackageId() {
-        Long value = repository.nextPackageNumber();
-        if (value == null || value < 1 || value > 999_999_999_999_999L) {
-            throw new BusinessRuleException("Training package ID sequence is out of range");
-        }
-        return "PKG-" + String.format(Locale.ROOT, "%06d", value);
+        return idAllocator.next("PKG");
     }
 
     private TrainingPackage findById(String id) {

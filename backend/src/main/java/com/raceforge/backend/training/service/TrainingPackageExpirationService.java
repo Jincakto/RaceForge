@@ -62,7 +62,7 @@ public class TrainingPackageExpirationService {
      * Rows changed or already expired by another caller are safely skipped.
      */
     @Transactional
-    public boolean expireRegistration(Integer registrationId, LocalDate today) {
+    public boolean expireRegistration(String registrationId, LocalDate today) {
         Objects.requireNonNull(today, "today");
         if (registrationId == null) {
             throw new IllegalArgumentException("Registration ID is required");

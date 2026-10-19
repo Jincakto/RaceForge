@@ -12,19 +12,18 @@ import jakarta.persistence.*;
 public class Trainer {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "trainer_id")
-    private Integer trainerId;
+    private String trainerId;
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
-    public Integer getTrainerId() {
+    public String getTrainerId() {
         return trainerId;
     }
 
-    public void setTrainerId(Integer trainerId) {
+    public void setTrainerId(String trainerId) {
         this.trainerId = trainerId;
     }
 

@@ -46,7 +46,7 @@ public class PackageResumptionService {
      */
     @Transactional
     public HorsePackageResponse resumeWithoutRecovery(
-            Integer originalRegistrationId,
+            String originalRegistrationId,
             String reason,
             String managerId
     ) {
@@ -119,7 +119,7 @@ public class PackageResumptionService {
      */
     @Transactional
     public HorsePackageResponse resumeOriginalPackage(
-            Integer recoveryRegistrationId,
+            String recoveryRegistrationId,
             String reason,
             String managerId
     ) {

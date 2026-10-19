@@ -2,7 +2,6 @@ package com.raceforge.backend.medical.repository;
 
 import com.raceforge.backend.medical.entity.MedicalRecord;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
@@ -12,7 +11,7 @@ public interface MedicalRecordRepository
 
     List<MedicalRecord>
         findByHealthProfile_ProfileIdOrderByExaminedAtDesc(
-            Integer profileId
+            String profileId
         );
 
     List<MedicalRecord>
@@ -30,11 +29,8 @@ public interface MedicalRecordRepository
                 
     Optional<MedicalRecord>
         findFirstByHealthProfile_ProfileIdAndStatusOrderByExaminedAtDesc(
-                Integer profileId,
+                String profileId,
                 String status
         );
 
-    // Final Flyway schema must create dbo.Medical_Record_Id_Sequence.
-    @Query(value = "SELECT NEXT VALUE FOR dbo.Medical_Record_Id_Sequence", nativeQuery = true)
-    Long nextMedicalRecordNumber();
 }

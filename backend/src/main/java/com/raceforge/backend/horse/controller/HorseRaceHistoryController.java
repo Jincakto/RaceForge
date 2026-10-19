@@ -51,7 +51,7 @@ public class HorseRaceHistoryController {
     @GetMapping("/race-history/{raceHistoryId}")
     @PreAuthorize("@horseAccess.readRaceHistory(authentication, #raceHistoryId)")
     public ResponseEntity<ApiResponse<HorseRaceHistoryResponse>> getRaceHistoryById(
-            @PathVariable Integer raceHistoryId) {
+            @PathVariable String raceHistoryId) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Race history retrieved successfully", raceHistoryService.getRaceHistoryById(raceHistoryId)));
     }
@@ -59,7 +59,7 @@ public class HorseRaceHistoryController {
     @PutMapping("/race-history/{raceHistoryId}")
     @PreAuthorize("@horseAccess.ownsRaceHistory(authentication, #raceHistoryId)")
     public ResponseEntity<ApiResponse<HorseRaceHistoryResponse>> updateRaceHistory(
-            @PathVariable Integer raceHistoryId,
+            @PathVariable String raceHistoryId,
             @AuthenticationPrincipal AuthenticatedUser actor,
             @Valid @RequestBody HorseRaceHistoryUpdateRequest request) {
         return ResponseEntity.ok(ApiResponse.success(
@@ -70,7 +70,7 @@ public class HorseRaceHistoryController {
     @DeleteMapping("/race-history/{raceHistoryId}")
     @PreAuthorize("@horseAccess.ownsRaceHistory(authentication, #raceHistoryId)")
     public ResponseEntity<ApiResponse<Void>> deleteRaceHistory(
-            @PathVariable Integer raceHistoryId,
+            @PathVariable String raceHistoryId,
             @AuthenticationPrincipal AuthenticatedUser actor) {
         raceHistoryService.deleteRaceHistory(raceHistoryId, actor.userId());
         return ResponseEntity.ok(ApiResponse.success("Race history deleted successfully", null));

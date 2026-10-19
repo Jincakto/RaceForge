@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class HorsePackageAdmissionTest {
+    private final com.raceforge.backend.horse.service.ModuleIdAllocator ids = mock(com.raceforge.backend.horse.service.ModuleIdAllocator.class);
     private final HorseRepository horses = mock(HorseRepository.class);
     private final TrainingPackageRepository packages = mock(TrainingPackageRepository.class);
     private final HorsePackageRepository registrations = mock(HorsePackageRepository.class);
@@ -30,7 +31,7 @@ class HorsePackageAdmissionTest {
     private final TrainingPackageExpirationService expirations = mock(TrainingPackageExpirationService.class);
     private final HorsePackageService service = new HorsePackageService(
             horses, packages, registrations, profiles, medicalRecords,
-            mapper, entityManager, events, expirations);
+            mapper, entityManager, events, expirations, ids);
 
     @Test
     void unapprovedHorseCannotRegisterEvenIfOwnerMatches() {
@@ -43,8 +44,8 @@ class HorsePackageAdmissionTest {
         when(horses.findById("HOR-001")).thenReturn(Optional.of(horse));
 
         assertThrows(BusinessRuleException.class,
-                () -> service.register(new HorsePackageRegisterRequest("HOR-001", "PKG-000012"), "7"));
-        verify(packages, never()).findById("PKG-000012");
+                () -> service.register(new HorsePackageRegisterRequest("HOR-001", "PKG-012"), "7"));
+        verify(packages, never()).findById("PKG-012");
         verify(registrations, never()).saveAndFlush(any());
     }
 }

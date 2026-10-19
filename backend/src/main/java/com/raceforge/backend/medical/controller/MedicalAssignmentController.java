@@ -38,7 +38,7 @@ public class MedicalAssignmentController {
     @PostMapping("/{assignmentId}/accept")
     @PreAuthorize("hasAuthority('VETERINARIAN')")
     public ApiResponse<MedicalAssignmentResponse> accept(
-            @PathVariable Integer assignmentId,
+            @PathVariable String assignmentId,
             @AuthenticationPrincipal AuthenticatedUser actor) {
         return ApiResponse.success("Assignment accepted", service.accept(assignmentId, actor.userId()));
     }
@@ -46,7 +46,7 @@ public class MedicalAssignmentController {
     @PostMapping("/{assignmentId}/decline")
     @PreAuthorize("hasAuthority('VETERINARIAN')")
     public ApiResponse<MedicalAssignmentResponse> decline(
-            @PathVariable Integer assignmentId,
+            @PathVariable String assignmentId,
             @Valid @RequestBody MedicalAssignmentDeclineRequest request,
             @AuthenticationPrincipal AuthenticatedUser actor) {
         return ApiResponse.success("Assignment declined",

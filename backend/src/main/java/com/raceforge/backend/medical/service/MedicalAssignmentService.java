@@ -23,6 +23,7 @@ import java.util.List;
 
 @Service
 public class MedicalAssignmentService {
+    private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
 
     private static final List<String> OPEN_STATUSES = List.of("ASSIGNED", "ACCEPTED");
     private final HorseAssignmentRepository assignments;
@@ -39,7 +40,9 @@ public class MedicalAssignmentService {
                                     UserRepository users,
                                     HealthProfileRepository profiles,
                                     NotificationService notifications,
-                                    AuditLogService audit) {
+                                    AuditLogService audit,
+            com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator) {
+        this.idAllocator = idAllocator;
         this.assignments = assignments;
         this.medicalRecords = medicalRecords;
         this.horses = horses;
@@ -83,10 +86,12 @@ public class MedicalAssignmentService {
 
         if (profiles.findByHorse_HorseId(horseId).isEmpty()) {
             HealthProfile profile = new HealthProfile();
+            profile.setProfileId(idAllocator.next("HLT"));
             profile.setHorse(horse);
             profiles.saveAndFlush(profile);
         }
         HorseAssignment assignment = new HorseAssignment();
+        assignment.setId(idAllocator.next("ASN"));
         assignment.setHorse(horse);
         assignment.setKind("VET");
         assignment.setAssignee(vet);
@@ -101,7 +106,7 @@ public class MedicalAssignmentService {
     }
 
     @Transactional
-    public MedicalAssignmentResponse accept(Integer assignmentId, String veterinarianId) {
+    public MedicalAssignmentResponse accept(String assignmentId, String veterinarianId) {
         requireRole(veterinarianId, "VETERINARIAN");
         HorseAssignment a = findAssignedToVet(assignmentId, veterinarianId);
         requireStatus(a, "ASSIGNED");
@@ -113,7 +118,7 @@ public class MedicalAssignmentService {
 
     /** A decline is a terminal decision for this assignment; CM must assign again. */
     @Transactional
-    public MedicalAssignmentResponse decline(Integer assignmentId, String veterinarianId, String reason) {
+    public MedicalAssignmentResponse decline(String assignmentId, String veterinarianId, String reason) {
         requireRole(veterinarianId, "VETERINARIAN");
         if (reason == null || reason.trim().length() < 10 || reason.trim().length() > 500) {
             throw new BusinessRuleException("Decline reason must contain 10 to 500 characters");
@@ -211,7 +216,7 @@ public class MedicalAssignmentService {
         }
     }
 
-    private HorseAssignment findAssignedToVet(Integer assignmentId, String veterinarianId) {
+    private HorseAssignment findAssignedToVet(String assignmentId, String veterinarianId) {
         HorseAssignment a = assignments.findByIdForUpdate(assignmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Veterinary assignment not found"));
         if (!"VET".equals(a.getKind()) || !a.getAssignee().getUserId().equals(veterinarianId)) {

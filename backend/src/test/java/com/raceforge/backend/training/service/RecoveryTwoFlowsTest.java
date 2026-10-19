@@ -30,6 +30,7 @@ import static org.mockito.Mockito.*;
 
 class RecoveryTwoFlowsTest {
 
+    private final com.raceforge.backend.horse.service.ModuleIdAllocator ids = mock(com.raceforge.backend.horse.service.ModuleIdAllocator.class);
     private final HorseRepository horses = mock(HorseRepository.class);
     private final HorsePackageRepository registrations = mock(HorsePackageRepository.class);
     private final TrainingPackageRepository packages = mock(TrainingPackageRepository.class);
@@ -42,9 +43,9 @@ class RecoveryTwoFlowsTest {
     private final TrainingPackageExpirationService expirations = mock(TrainingPackageExpirationService.class);
 
     private final RecoveryPackageService recovery = new RecoveryPackageService(
-            horses, registrations, packages, locks, mapper, em, events, expirations);
+            horses, registrations, packages, locks, mapper, em, events, expirations, ids);
     private final HorsePackageService ownerService = new HorsePackageService(
-            horses, packages, registrations, profiles, records, mapper, em, events, expirations);
+            horses, packages, registrations, profiles, records, mapper, em, events, expirations, ids);
 
     private Horse horse() {
         User owner = new User();
@@ -61,19 +62,19 @@ class RecoveryTwoFlowsTest {
 
     private TrainingPackage recoveryPackage() {
         TrainingPackage pkg = new TrainingPackage();
-        pkg.setPackageId("PKG-000002");
+        pkg.setPackageId("PKG-002");
         pkg.setStatus("ACTIVE");
         pkg.setPackageType("RECOVERY");
         pkg.setDurationDays(14);
         pkg.setPrice(new BigDecimal("1000000"));
-        when(packages.findById("PKG-000002")).thenReturn(Optional.of(pkg));
+        when(packages.findById("PKG-002")).thenReturn(Optional.of(pkg));
         return pkg;
     }
 
     private void medicalLocked(Horse h) {
         MedicalRecord mr = new MedicalRecord();
         mr.setStatus("CONFIRMED");
-        mr.setMedicalRecordId("MED-000001");
+        mr.setMedicalRecordId("MED-001");
         TrainingLock lock = new TrainingLock();
         lock.setMedicalRecord(mr);
         lock.setLockedAt(java.time.LocalDateTime.now());
@@ -92,7 +93,7 @@ class RecoveryTwoFlowsTest {
         original.setHorse(h);
         original.setTrainingPackage(normal);
         original.setStatus("PAUSED");
-        original.setPauseReason("TRAINING_LOCK_MEDICAL:MED-000001");
+        original.setPauseReason("TRAINING_LOCK_MEDICAL:MED-001");
         original.setPausedAt(java.time.LocalDateTime.now().minusMinutes(1));
         original.setPaymentStatus("PAID");
         original.setRemainingDays(12);
@@ -101,7 +102,7 @@ class RecoveryTwoFlowsTest {
         when(registrations.saveAndFlush(any(HorsePackage.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        recovery.approveRecovery("HOR-001", new RecoveryApprovalRequest("PKG-000002", "In-training injury"), "2");
+        recovery.approveRecovery("HOR-001", new RecoveryApprovalRequest("PKG-002", "In-training injury"), "2");
 
         var captured = org.mockito.ArgumentCaptor.forClass(HorsePackage.class);
         verify(registrations).saveAndFlush(captured.capture());
@@ -124,7 +125,7 @@ class RecoveryTwoFlowsTest {
         when(registrations.findByHorseIdOrderByRegisteredAtDesc("HOR-001"))
                 .thenReturn(List.of());
         assertThrows(BusinessRuleException.class,
-                () -> recovery.approveRecovery("HOR-001", new RecoveryApprovalRequest("PKG-000002", "First injury"), "2"));
+                () -> recovery.approveRecovery("HOR-001", new RecoveryApprovalRequest("PKG-002", "First injury"), "2"));
         verify(registrations, never()).saveAndFlush(any());
     }
 
@@ -133,19 +134,19 @@ class RecoveryTwoFlowsTest {
         Horse h = horse();
         recoveryPackage();
         HealthProfile profile = new HealthProfile();
-        profile.setProfileId(3);
+        profile.setProfileId("HLT-003");
         when(profiles.findByHorse_HorseId("HOR-001")).thenReturn(Optional.of(profile));
         MedicalRecord initial = new MedicalRecord();
         initial.setExamType("INITIAL");
         initial.setStatus("CONFIRMED");
-        when(records.findByHealthProfile_ProfileIdOrderByExaminedAtDesc(3))
+        when(records.findByHealthProfile_ProfileIdOrderByExaminedAtDesc("HLT-003"))
                 .thenReturn(List.of(initial));
         when(registrations.findByHorseIdOrderByRegisteredAtDesc("HOR-001"))
                 .thenReturn(List.of());
         when(registrations.saveAndFlush(any(HorsePackage.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        ownerService.register(new HorsePackageRegisterRequest("HOR-001", "PKG-000002"), "7");
+        ownerService.register(new HorsePackageRegisterRequest("HOR-001", "PKG-002"), "7");
 
         var captured = org.mockito.ArgumentCaptor.forClass(HorsePackage.class);
         verify(registrations).saveAndFlush(captured.capture());
@@ -165,7 +166,7 @@ class RecoveryTwoFlowsTest {
         pending.setStatus("PENDING");
         pending.setPaymentStatus("PENDING");
         pending.setTotalPrice(new BigDecimal("1000000"));
-        when(registrations.findById(44)).thenReturn(Optional.of(pending));
+        when(registrations.findById("HPG-044")).thenReturn(Optional.of(pending));
         when(registrations.findByHorse_HorseIdAndStatus("HOR-001", "ACTIVE"))
                 .thenReturn(List.of());
         when(registrations.findByHorseIdOrderByRegisteredAtDesc("HOR-001"))
@@ -173,7 +174,7 @@ class RecoveryTwoFlowsTest {
         when(registrations.saveAndFlush(any(HorsePackage.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        recovery.simulateRecoveryPayment(44, true, "7");
+        recovery.simulateRecoveryPayment("HPG-044", true, "7");
 
         assertEquals("ACTIVE", pending.getStatus());
         assertEquals("PAID", pending.getPaymentStatus());
@@ -191,9 +192,9 @@ class RecoveryTwoFlowsTest {
         centerRecovery.setReplacedHorsePackage(new HorsePackage());
         centerRecovery.setStatus("ACTIVE");
         centerRecovery.setPaymentStatus("CENTER_COVERED");
-        when(registrations.findById(45)).thenReturn(Optional.of(centerRecovery));
+        when(registrations.findById("HPG-045")).thenReturn(Optional.of(centerRecovery));
         assertThrows(BusinessRuleException.class,
-                () -> recovery.simulateRecoveryPayment(45, true, "7"));
+                () -> recovery.simulateRecoveryPayment("HPG-045", true, "7"));
         verify(registrations, never()).saveAndFlush(any());
     }
 }

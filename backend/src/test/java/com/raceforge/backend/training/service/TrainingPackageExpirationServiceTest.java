@@ -40,7 +40,7 @@ class TrainingPackageExpirationServiceTest {
         TrainingPackage normalType = new TrainingPackage();
         normalType.setPackageType("RACING");
         normal = new HorsePackage();
-        normal.setHorsePackageId(10);
+        normal.setHorsePackageId("HPG-010");
         normal.setHorse(horse);
         normal.setTrainingPackage(normalType);
         normal.setStatus("ACTIVE");
@@ -48,8 +48,8 @@ class TrainingPackageExpirationServiceTest {
         normal.setEndDate(today.minusDays(1));
         when(registrations.findByHorseIdAndStatusForUpdate("HOR-001", "ACTIVE"))
                 .thenReturn(List.of(normal));
-        when(registrations.findById(10)).thenReturn(Optional.of(normal));
-        when(registrations.findForUpdate(10)).thenReturn(Optional.of(normal));
+        when(registrations.findById("HPG-010")).thenReturn(Optional.of(normal));
+        when(registrations.findForUpdate("HPG-010")).thenReturn(Optional.of(normal));
         when(horses.findById("HOR-001")).thenReturn(Optional.of(horse));
     }
 
@@ -110,25 +110,25 @@ class TrainingPackageExpirationServiceTest {
 
     @Test
     void expiryIsIdempotentOnRepeatCall() {
-        assertTrue(service.expireRegistration(10, today));
-        assertFalse(service.expireRegistration(10, today));
+        assertTrue(service.expireRegistration("HPG-010", today));
+        assertFalse(service.expireRegistration("HPG-010", today));
         verify(registrations, times(1)).save(normal);
         verify(events, times(1)).notifyOwner(eq("7"), eq("HOR-001"), anyString(), anyString());
     }
 
     @Test
     void scheduledSingleRowPathAcquiresHorseBeforeRegistrationLock() {
-        assertTrue(service.expireRegistration(10, today));
+        assertTrue(service.expireRegistration("HPG-010", today));
         var inOrder = inOrder(horses, em, registrations);
         inOrder.verify(horses).findById("HOR-001");
         inOrder.verify(em).lock(eq(horse), any());
-        inOrder.verify(registrations).findForUpdate(10);
+        inOrder.verify(registrations).findForUpdate("HPG-010");
     }
 
     @Test
     void anAlreadyCompletedRecordIsSkippedByScheduledPath() {
         normal.setStatus("COMPLETED");
-        assertFalse(service.expireRegistration(10, today));
+        assertFalse(service.expireRegistration("HPG-010", today));
         verify(events, never()).record(any(), any(), any(), any(), any());
     }
 }

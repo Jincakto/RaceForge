@@ -34,6 +34,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api")
 public class TrainerController {
+    private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
     private final UserRepository users;
     private final HorseRepository horses;
     private final TrainerRepository trainers;
@@ -46,7 +47,9 @@ public class TrainerController {
     public TrainerController(UserRepository users, HorseRepository horses,
                              TrainerRepository trainers, HorseAssignmentRepository assignments,
                              HorsePackageRepository horsePackages, HorseMapper mapper,
-                             AuditLogService audit, NotificationService notifications) {
+                             AuditLogService audit, NotificationService notifications,
+            com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator) {
+        this.idAllocator = idAllocator;
         this.users = users;
         this.horses = horses;
         this.trainers = trainers;
@@ -60,7 +63,7 @@ public class TrainerController {
     public record TrainerSummary(String userId, String fullName, String avatarUrl) {}
     public record Assignment(@NotBlank String trainerId) {}
     public record Decline(@NotBlank @Size(min = 10, max = 1000) String reason) {}
-    public record TrainerTask(Integer id, String horseId, String assigneeId, String status,
+    public record TrainerTask(String id, String horseId, String assigneeId, String status,
                               String reason, LocalDateTime createdAt, LocalDateTime respondedAt) {
         static TrainerTask from(HorseAssignment a) {
             return new TrainerTask(a.getId(), a.getHorse().getHorseId(),
@@ -130,6 +133,7 @@ public class TrainerController {
             throw new BusinessRuleException("An active trainer assignment already exists");
         }
         HorseAssignment task = new HorseAssignment();
+        task.setId(idAllocator.next("ASN"));
         task.setKind("TRAINER");
         task.setHorse(horse);
         task.setAssignedBy(manager);
@@ -156,7 +160,7 @@ public class TrainerController {
     @PostMapping("/trainers/assignments/{id}/accept")
     @PreAuthorize("hasAuthority('HEAD_TRAINER')")
     @Transactional
-    public ApiResponse<HorseResponse> accept(@PathVariable Integer id,
+    public ApiResponse<HorseResponse> accept(@PathVariable String id,
                                              @AuthenticationPrincipal AuthenticatedUser actor) {
         HorseAssignment task = getTrainerTaskForUser(id, actor.userId());
         requirePending(task);
@@ -166,6 +170,7 @@ public class TrainerController {
         User user = findEligible(actor.userId());
         Trainer trainer = trainers.findByUser_UserId(user.getUserId()).orElseGet(() -> {
             Trainer item = new Trainer();
+            item.setTrainerId(idAllocator.next("HTR"));
             item.setUser(user);
             return trainers.saveAndFlush(item);
         });
@@ -184,7 +189,7 @@ public class TrainerController {
     @PostMapping("/trainers/assignments/{id}/decline")
     @PreAuthorize("hasAuthority('HEAD_TRAINER')")
     @Transactional
-    public ApiResponse<TrainerTask> decline(@PathVariable Integer id,
+    public ApiResponse<TrainerTask> decline(@PathVariable String id,
                                             @AuthenticationPrincipal AuthenticatedUser actor,
                                             @Valid @RequestBody Decline body) {
         HorseAssignment task = getTrainerTaskForUser(id, actor.userId());
@@ -223,7 +228,7 @@ public class TrainerController {
         return ApiResponse.success("Trainer unassigned", mapper.toResponse(horse));
     }
 
-    private HorseAssignment getTrainerTaskForUser(Integer id, String userId) {
+    private HorseAssignment getTrainerTaskForUser(String id, String userId) {
         HorseAssignment a = assignments.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Assignment not found"));
         if (!"TRAINER".equals(a.getKind()) || !a.getAssignee().getUserId().equals(userId)) {

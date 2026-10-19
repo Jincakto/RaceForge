@@ -36,7 +36,9 @@ spring:
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
     baseline-on-migrate: true
-    baseline-version: 0
+    locations: ${FLYWAY_LOCATIONS:classpath:db/string-migration}
+    table: ${FLYWAY_HISTORY_TABLE:flyway_string_schema_history}
+    baseline-version: ${FLYWAY_BASELINE_VERSION:12}
 
 springdoc:
   override-with-generic-response: false
@@ -75,3 +77,9 @@ raceforge:
     password-setup-minutes: ${GOOGLE_PASSWORD_SETUP_MINUTES:15}
   mail:
     from: ${MAIL_FROM:no-reply@raceforge.local}
+
+logging:
+  level:
+    org.springframework.web: INFO
+    org.springframework.jdbc: INFO
+    org.hibernate.SQL: INFO

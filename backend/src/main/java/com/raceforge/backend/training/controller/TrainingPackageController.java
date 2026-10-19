@@ -15,6 +15,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/training-packages")
 @Tag(name = "Training Packages")
+@org.springframework.security.access.prepost.PreAuthorize("hasAnyAuthority('CLUB_MANAGER','HEAD_TRAINER','HORSE_OWNER')")
 public class TrainingPackageController {
 
     private final TrainingPackageService service;
@@ -39,7 +40,11 @@ public class TrainingPackageController {
         return ResponseEntity.ok(ApiResponse.success("Package retrieved", service.getPackage(id)));
     }
 
+<<<<<<< HEAD
     @PreAuthorize("hasAuthority('CLUB_MANAGER')")
+=======
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('CLUB_MANAGER')")
+>>>>>>> 76de6e5 (luu code)
     @PostMapping
     public ResponseEntity<ApiResponse<TrainingPackageResponse>> create(
             @Valid @RequestBody TrainingPackageCreateRequest request) {
@@ -47,14 +52,22 @@ public class TrainingPackageController {
                 .body(ApiResponse.success("Package created", service.create(request)));
     }
 
+<<<<<<< HEAD
     @PreAuthorize("hasAuthority('CLUB_MANAGER')")
+=======
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('CLUB_MANAGER')")
+>>>>>>> 76de6e5 (luu code)
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<TrainingPackageResponse>> update(
             @PathVariable String id, @Valid @RequestBody TrainingPackageUpdateRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Package updated", service.update(id, request)));
     }
 
+<<<<<<< HEAD
     @PreAuthorize("hasAuthority('CLUB_MANAGER')")
+=======
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('CLUB_MANAGER')")
+>>>>>>> 76de6e5 (luu code)
     @PatchMapping("/{id}/status")
     public ResponseEntity<ApiResponse<TrainingPackageResponse>> changeStatus(
             @PathVariable String id, @Valid @RequestBody TrainingPackageStatusRequest request) {

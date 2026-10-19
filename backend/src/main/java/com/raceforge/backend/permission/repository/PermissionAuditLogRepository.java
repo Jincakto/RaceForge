@@ -4,7 +4,7 @@ import com.raceforge.backend.permission.entity.PermissionAuditLog;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-public interface PermissionAuditLogRepository extends JpaRepository<PermissionAuditLog, Integer> {
+public interface PermissionAuditLogRepository extends JpaRepository<PermissionAuditLog, String> {
 
   List<PermissionAuditLog> findByEntityTypeAndEntityIdOrderByCreatedAtDesc(String entityType, String entityId);
 }

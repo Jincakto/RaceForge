@@ -22,6 +22,13 @@ public class MedicalClinicalExamRequest {
         this.conditionStatus = conditionStatus;
     }
 
+<<<<<<< HEAD
+=======
+
+
+
+
+>>>>>>> 76de6e5 (luu code)
     public String getNotes() {
         return notes;
     }

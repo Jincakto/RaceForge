@@ -79,20 +79,40 @@ public final class AuthDtos {
     }
 
     public record UserResponse(
+<<<<<<< HEAD
             @jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String userId,
+=======
+            String userId,
+>>>>>>> 76de6e5 (luu code)
             String fullName,
             String email,
             String phone,
             String status,
             boolean emailVerified,
             String avatarUrl,
-            RoleResponse role
+            RoleResponse role,
+            String profileId
     ) {
     }
 
-    public record RoleResponse(Integer roleId, String roleName) {
+    public record RoleResponse(String roleId, String roleName) {
     }
 
+<<<<<<< HEAD
+=======
+    public record RegistrationRequestResponse(
+            String requestId,
+            UserResponse user,
+            RoleResponse requestedRole,
+            String status,
+            String reviewedBy,
+            Instant reviewedAt,
+            String reviewNote,
+            Instant createdAt
+    ) {
+    }
+
+>>>>>>> 76de6e5 (luu code)
     public record PageResponse<T>(
             List<T> content,
             int page,

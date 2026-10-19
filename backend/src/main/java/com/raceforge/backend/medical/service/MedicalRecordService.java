@@ -22,6 +22,7 @@ import java.util.Set;
 
 @Service
 public class MedicalRecordService {
+<<<<<<< HEAD
     private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
 
     private static final Set<String> FINAL_CONCLUSIONS =
@@ -29,6 +30,9 @@ public class MedicalRecordService {
     private static final int MIN_REASON_LENGTH = 10; // Matches current FE validation.
     private static final int MAX_REASON_LENGTH = 1000;
 
+=======
+    @org.springframework.beans.factory.annotation.Autowired private com.raceforge.backend.horse.service.VetAssignmentService assignments;
+>>>>>>> 76de6e5 (luu code)
     private final HealthProfileRepository healthProfileRepository;
     private final MedicalRecordRepository medicalRecordRepository;
     private final MedicalVitalSignRepository medicalVitalSignRepository;
@@ -97,15 +101,30 @@ public class MedicalRecordService {
         }
         HealthProfile profile = healthProfileRepository.findById(request.getProfileId())
                 .orElseThrow(() -> new ResourceNotFoundException("Health profile not found"));
+<<<<<<< HEAD
         User veterinarian = getVeterinarian(request.getVeterinarianId());
         medicalAssignments.requireAccepted(profile.getHorse().getHorseId(), veterinarian.getUserId());
 
+=======
+        String assignment=assignments.requireAccepted(profile.getHorse().getHorseId(),request.getVeterinarianId(),request.getAssignmentId());
+>>>>>>> 76de6e5 (luu code)
         MedicalRecord record = new MedicalRecord();
         record.setMedicalRecordId(nextMedicalRecordId());
         record.setHealthProfile(profile);
         record.setVeterinarian(veterinarian);
         record.setExamType(normalize(request.getExamType()));
         record.setExaminedAt(request.getExaminedAt());
+<<<<<<< HEAD
+=======
+        record.setHealthStatus(request.getHealthStatus());
+        record.setDiagnosis(request.getDiagnosis());
+        record.setTreatment(request.getTreatment());
+        record.setMedication(request.getMedication());
+        record.setCareRecommendation(request.getCareRecommendation());
+        record.setNotes(request.getNotes());
+        record.setEligibilityReason(request.getEligibilityReason());record.setFinalConclusion(request.getFinalConclusion());record.setOverrideReason(request.getOverrideReason());record.setMonitoringNote(request.getMonitoringNote());record.setTrainingLockReason(request.getTrainingLockReason());
+        record.setIdealWeight(request.getIdealWeight());record.setBodyConditionScore(request.getBodyConditionScore());
+>>>>>>> 76de6e5 (luu code)
         record.setStatus("DRAFT");
         // No official eligibility decision until the veterinarian confirms.
         record.setTrainingEligible(null);
@@ -119,13 +138,144 @@ public class MedicalRecordService {
             record.setCorrectionOf(original);
         }
 
+<<<<<<< HEAD
         updateDecisionFields(record, request.getFinalConclusion(), request.getOverrideReason(),
                 request.getMonitoringNote(), request.getTrainingLockReason());
+=======
+        MedicalEvaluationResult evaluation = medicalEvaluationService.evaluate(
+                request.getExamType(), request.getVitalSign(), request.getClinicalExams());
+        record.setSuggestedConclusion(suggested(evaluation));
+        record.setSystemNote(evaluation.systemNote());
+        record.setTrainingNote(evaluation.trainingNote());
+        medicalRecordRepository.save(record);
+
+        medicalRecordRepository.flush();assignments.attach(assignment,record.getMedicalRecordId());
+        saveVitalSign(record, request.getVitalSign());
+        saveClinicalExams(record, request.getClinicalExams());
+        auditLogService.record(record.getVeterinarian().getUserId(), profile.getHorse().getHorseId(), "MEDICAL_RECORD", record.getMedicalRecordId(), "MEDICAL_RECORD_CREATED", "SUCCESS", null);
+
+        return buildResponse(record);
+    }
+
+    private void saveVitalSign(MedicalRecord record, MedicalVitalSignRequest request) {
+        if (request == null) {
+            return;
+        }
+        MedicalVitalSign entity = new MedicalVitalSign();
+        entity.setMedicalRecord(record);
+        validateWeight(request.getWeight());
+        entity.setWeight(request.getWeight());
+        entity.setBodyTemperature(request.getBodyTemperature());
+        entity.setRestingHeartRate(request.getRestingHeartRate());
+        entity.setRestingRespiratoryRate(request.getRestingRespiratoryRate());
+        medicalVitalSignRepository.save(entity);
+    }
+
+    private void saveClinicalExams(MedicalRecord record, List<MedicalClinicalExamRequest> requests) {
+        if (requests == null) {
+            return;
+        }
+        for (MedicalClinicalExamRequest request : requests) {
+
+            if (request == null || isBlank(request.getExaminationArea())
+                    || isBlank(request.getConditionStatus())) {
+                continue;
+            }
+            MedicalClinicalExam entity = new MedicalClinicalExam();
+            entity.setMedicalRecord(record);
+            entity.setExaminationArea(normalize(request.getExaminationArea()));
+            entity.setConditionStatus(normalize(request.getConditionStatus()));
+            entity.setNotes(request.getNotes());
+            medicalClinicalExamRepository.save(entity);
+        }
+    }
+
+    private MedicalRecordResponse buildResponse(MedicalRecord record) {
+        MedicalVitalSign vitalSign = medicalVitalSignRepository
+                .findByMedicalRecord_MedicalRecordId(record.getMedicalRecordId())
+                .orElse(null);
+        List<MedicalClinicalExam> exams = medicalClinicalExamRepository
+                .findByMedicalRecord_MedicalRecordId(record.getMedicalRecordId());
+        return medicalRecordMapper.toResponse(record, vitalSign, exams);
+    }
+
+    private User getVeterinarian(String veterinarianId) {
+        User user = userRepository.findDetailedById(veterinarianId)
+                .orElseThrow(() -> new ResourceNotFoundException("Veterinarian not found"));
+        if (!"ACTIVE".equals(user.getStatus())) {
+            throw new BusinessRuleException("Veterinarian account is not active");
+        }
+        if (user.getRole() == null || !"VETERINARIAN".equals(user.getRole().getRoleName())) {
+            throw new BusinessRuleException("User does not have Veterinarian role");
+        }
+        return user;
+    }
+
+    @Transactional(readOnly = true)
+    public MedicalRecordResponse getMedicalRecordById(String medicalRecordId) {
+        MedicalRecord record = medicalRecordRepository.findById(medicalRecordId)
+                .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
+        return buildResponse(record);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MedicalRecordResponse> getMedicalHistory(String horseId) {
+        HealthProfile profile = healthProfileRepository.findByHorse_HorseId(horseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Health profile not found"));
+        return medicalRecordRepository.findByHealthProfile_ProfileIdOrderByExaminedAtDesc(profile.getProfileId())
+                .stream().map(this::buildResponse).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<MedicalRecordResponse> getPreviousConfirmedExamination(String horseId) {
+        HealthProfile profile = healthProfileRepository.findByHorse_HorseId(horseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Health profile not found"));
+        return medicalRecordRepository
+                .findFirstByHealthProfile_ProfileIdAndStatusOrderByExaminedAtDesc(
+                        profile.getProfileId(), "CONFIRMED")
+                .map(this::buildResponse);
+    }
+
+    @Transactional
+    public MedicalRecordResponse updateMedicalDraft(String medicalRecordId,
+                                                     String veterinarianId,
+                                                     MedicalRecordUpdateRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Update request is required");
+        }
+
+        User veterinarian = getVeterinarian(veterinarianId);
+        MedicalRecord record = medicalRecordRepository.findById(medicalRecordId)
+                .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
+        assignments.requireRecord(record.getHealthProfile().getHorse().getHorseId(),veterinarianId,medicalRecordId);
+        if (!"DRAFT".equals(record.getStatus())) {
+            throw new BusinessRuleException("Only DRAFT medical records can be edited");
+        }
+
+        if (!record.getVeterinarian().getUserId().equals(veterinarian.getUserId())) {
+            throw new BusinessRuleException("Only the assigned veterinarian can edit this record");
+        }
+
+        if (request.getExaminedAt() == null) {
+            throw new IllegalArgumentException("ExaminedAt is required");
+        }
+
+        String healthStatus = normalize(request.getHealthStatus());
+        if (healthStatus != null && !List.of("READY", "INJURED", "QUARANTINED").contains(healthStatus)) {
+            throw new IllegalArgumentException("Unsupported horse health status: " + healthStatus);
+        }
+
+        MedicalEvaluationResult evaluation = medicalEvaluationService.evaluate(
+                record.getExamType(), request.getVitalSign(), request.getClinicalExams());
+        record.setExaminedAt(request.getExaminedAt());
+        record.setHealthStatus(healthStatus);
+>>>>>>> 76de6e5 (luu code)
         record.setDiagnosis(request.getDiagnosis());
         record.setTreatment(request.getTreatment());
         record.setMedication(request.getMedication());
         record.setCareRecommendation(request.getCareRecommendation());
         record.setNotes(request.getNotes());
+<<<<<<< HEAD
         applySuggestion(record, medicalEvaluationService.evaluate(
                 record.getExamType(), request.getVitalSign(), request.getClinicalExams()));
 
@@ -163,6 +313,13 @@ public class MedicalRecordService {
         record.setNotes(request.getNotes());
         applySuggestion(record, medicalEvaluationService.evaluate(
                 record.getExamType(), request.getVitalSign(), request.getClinicalExams()));
+=======
+        record.setEligibilityReason(request.getEligibilityReason());record.setFinalConclusion(request.getFinalConclusion());record.setOverrideReason(request.getOverrideReason());record.setMonitoringNote(request.getMonitoringNote());record.setTrainingLockReason(request.getTrainingLockReason());
+        record.setIdealWeight(request.getIdealWeight());record.setBodyConditionScore(request.getBodyConditionScore());
+        record.setSuggestedConclusion(suggested(evaluation));
+        record.setSystemNote(evaluation.systemNote());
+        record.setTrainingNote(evaluation.trainingNote());
+>>>>>>> 76de6e5 (luu code)
         medicalRecordRepository.save(record);
 
         MedicalVitalSign existing = medicalVitalSignRepository
@@ -177,7 +334,16 @@ public class MedicalRecordService {
             if (existing == null) {
                 vital.setMedicalRecord(record);
             }
+<<<<<<< HEAD
             copyVitalSign(vital, request.getVitalSign());
+=======
+
+            validateWeight(newVital.getWeight());
+            vital.setWeight(newVital.getWeight());
+            vital.setBodyTemperature(newVital.getBodyTemperature());
+            vital.setRestingHeartRate(newVital.getRestingHeartRate());
+            vital.setRestingRespiratoryRate(newVital.getRestingRespiratoryRate());
+>>>>>>> 76de6e5 (luu code)
             medicalVitalSignRepository.save(vital);
         }
 
@@ -198,22 +364,73 @@ public class MedicalRecordService {
      */
     @Transactional
     public MedicalRecordResponse confirmMedicalRecord(String medicalRecordId,
+<<<<<<< HEAD
                                                       String veterinarianId) {
         MedicalRecord record = requireOwnedDraft(medicalRecordId, veterinarianId);
+=======
+                                                       String veterinarianId) {
+        User veterinarian = getVeterinarian(veterinarianId);
+        MedicalRecord record = medicalRecordRepository.findById(medicalRecordId)
+                .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
+        assignments.requireRecord(record.getHealthProfile().getHorse().getHorseId(),veterinarianId,medicalRecordId);
+        if (!"DRAFT".equals(record.getStatus())) {
+            throw new BusinessRuleException("Only DRAFT medical records can be confirmed");
+        }
+
+        if (!record.getVeterinarian().getUserId().equals(veterinarian.getUserId())) {
+            throw new BusinessRuleException("Only the assigned veterinarian can confirm this record");
+        }
+
+>>>>>>> 76de6e5 (luu code)
         MedicalVitalSign savedVital = medicalVitalSignRepository
                 .findByMedicalRecord_MedicalRecordId(medicalRecordId).orElse(null);
         List<MedicalClinicalExam> savedExams = medicalClinicalExamRepository
                 .findByMedicalRecord_MedicalRecordId(medicalRecordId);
+<<<<<<< HEAD
+=======
+        MedicalVitalSignRequest vitalRequest = null;
+        if (savedVital != null) {
+            vitalRequest = new MedicalVitalSignRequest();
+            vitalRequest.setWeight(savedVital.getWeight());
+            vitalRequest.setBodyTemperature(savedVital.getBodyTemperature());
+            vitalRequest.setRestingHeartRate(savedVital.getRestingHeartRate());
+            vitalRequest.setRestingRespiratoryRate(savedVital.getRestingRespiratoryRate());
+        }
+
+        List<MedicalClinicalExamRequest> examRequests = new ArrayList<>();
+        for (MedicalClinicalExam saved : savedExams) {
+            MedicalClinicalExamRequest exam = new MedicalClinicalExamRequest();
+            exam.setExaminationArea(saved.getExaminationArea());
+            exam.setConditionStatus(saved.getConditionStatus());
+            exam.setNotes(saved.getNotes());
+            examRequests.add(exam);
+        }
+>>>>>>> 76de6e5 (luu code)
 
         MedicalEvaluationResult evaluation = medicalEvaluationService.evaluate(
                 record.getExamType(), toVitalRequest(savedVital), toExamRequests(savedExams));
         if (evaluation.level() == MedicalEvaluationResult.EvaluationLevel.INCOMPLETE) {
             throw new BusinessRuleException("Complete all vital signs and four clinical areas before confirmation");
         }
+<<<<<<< HEAD
         String suggested = suggestedConclusion(evaluation);
         String selected = normalize(record.getFinalConclusion());
         if (selected == null || !FINAL_CONCLUSIONS.contains(selected)) {
             throw new BusinessRuleException("Veterinarian must select a final conclusion");
+=======
+
+        String conclusion=normalize(record.getFinalConclusion());
+        if(!List.of("FIT","FIT_WITH_MONITORING","NOT_FIT").contains(conclusion==null?"":conclusion))throw new BusinessRuleException("Vet must select FIT, FIT_WITH_MONITORING or NOT_FIT");
+        if(record.getEligibilityReason()==null||record.getEligibilityReason().isBlank())throw new BusinessRuleException("Eligibility reason is required");
+        record.setFinalConclusion(conclusion);record.setTrainingEligible(!"NOT_FIT".equals(conclusion));
+        if(!conclusion.equals(suggested(evaluation))&&(record.getOverrideReason()==null||record.getOverrideReason().isBlank()))throw new BusinessRuleException("An override reason is required when the vet differs from the system suggestion");
+        if("FIT_WITH_MONITORING".equals(conclusion)&&(record.getMonitoringNote()==null||record.getMonitoringNote().isBlank()))throw new BusinessRuleException("Monitoring instructions are required");
+        if("NOT_FIT".equals(conclusion)&&(record.getTrainingLockReason()==null||record.getTrainingLockReason().isBlank()))throw new BusinessRuleException("A training lock reason is required");
+        String healthStatus = normalize(record.getHealthStatus());
+        if(Boolean.TRUE.equals(record.getTrainingEligible())&&!"READY".equals(healthStatus))throw new BusinessRuleException("Only a READY examination may authorize training");
+        if (healthStatus == null || healthStatus.isBlank()) {
+            throw new BusinessRuleException("Veterinarian must provide health status before confirmation");
+>>>>>>> 76de6e5 (luu code)
         }
         if (!selected.equals(suggested)) {
             requireExplanation(record.getOverrideReason(), "Reason for choosing a different conclusion");
@@ -226,12 +443,36 @@ public class MedicalRecordService {
         }
 
         Horse horse = record.getHealthProfile().getHorse();
+<<<<<<< HEAD
         User veterinarian = record.getVeterinarian();
         applySuggestion(record, evaluation); // Recompute: never trust FE-supplied suggestion.
         record.setFinalConclusion(selected);
         applyConfirmedEligibility(record, selected);
         record.setStatus("CONFIRMED");
         record.setConfirmedAt(LocalDateTime.now());
+=======
+        boolean mustLock = !Boolean.TRUE.equals(record.getTrainingEligible()) || evaluation.suggestedLock()
+                || "INJURED".equals(healthStatus)
+                || "QUARANTINED".equals(healthStatus);
+        record.setHealthStatus(healthStatus);
+        record.setSuggestedConclusion(suggested(evaluation));
+        record.setSystemNote(evaluation.systemNote());
+        record.setTrainingNote(evaluation.trainingNote());
+        if(savedVital!=null && savedVital.getWeight()!=null && savedVital.getWeight().signum()<=0)throw new BusinessRuleException("Measured weight must be positive");
+        record.setStatus("CONFIRMED");
+        record.setConfirmedAt(LocalDateTime.now());
+        horse.setHealthStatus(healthStatus);
+        if (mustLock) {
+            String reason = "Confirmed medical examination " + medicalRecordId
+                    + ": " + (record.getTrainingLockReason()==null?evaluation.systemNote():record.getTrainingLockReason())
+                    + ("INJURED".equals(healthStatus) || "QUARANTINED".equals(healthStatus)
+                       ? " Health status: " + healthStatus + "." : "");
+            if (reason.length() > 1000) {
+                reason = reason.substring(0, 1000);
+            }
+            trainingLockService.lockFromConfirmedExamination(horse, record, veterinarian, reason);
+        }
+>>>>>>> 76de6e5 (luu code)
 
         // This is fitness for training, not a veterinary diagnosis of injury.
         // HorsePackage gating already requires READY for normal training packages.
@@ -239,6 +480,7 @@ public class MedicalRecordService {
         record.setHealthStatus(fitnessStatus);
         horse.setHealthStatus(fitnessStatus);
         medicalRecordRepository.save(record);
+<<<<<<< HEAD
 
         // Only the veterinarian's confirmed decision causes a lock. The automatic
         // CRITICAL suggestion by itself never locks a horse.
@@ -250,6 +492,10 @@ public class MedicalRecordService {
         medicalAssignments.complete(horse.getHorseId(), veterinarianId, medicalRecordId);
         auditLogService.record(veterinarianId, horse.getHorseId(), "MEDICAL_RECORD",
                 medicalRecordId, "MEDICAL_RECORD_CONFIRMED", "SUCCESS", null);
+=======
+        medicalRecordRepository.flush();assignments.complete(medicalRecordId);
+        auditLogService.record(veterinarianId, horse.getHorseId(), "MEDICAL_RECORD", medicalRecordId, "MEDICAL_RECORD_CONFIRMED", "SUCCESS", null);
+>>>>>>> 76de6e5 (luu code)
         return buildResponse(record);
     }
 
@@ -452,6 +698,19 @@ public class MedicalRecordService {
 
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static void validateWeight(java.math.BigDecimal weight){
+        if(weight!=null && (weight.signum()<=0 || weight.scale()>2 || weight.compareTo(new java.math.BigDecimal("99999.99"))>0))throw new BusinessRuleException("weight must be positive kg within DECIMAL(7,2); this is a storage check, not a normal weight range.");
+    }
+
+    private static String suggested(MedicalEvaluationResult evaluation){
+        return switch(evaluation.level()){
+            case NORMAL -> "FIT";
+            case WARNING -> "FIT_WITH_MONITORING";
+            case CRITICAL -> "NOT_FIT";
+            case INCOMPLETE -> null;
+        };
     }
 
     private String normalize(String value) {

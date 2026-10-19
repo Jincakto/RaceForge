@@ -27,8 +27,12 @@ import java.util.Objects;
 
 @Service
 public class TrainingLockService {
+<<<<<<< HEAD
     private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
 
+=======
+    @org.springframework.beans.factory.annotation.Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
+>>>>>>> 76de6e5 (luu code)
     private final TrainingLockRepository trainingLockRepository;
     private final HorseRepository horseRepository;
     private final UserRepository userRepository;
@@ -117,7 +121,11 @@ public class TrainingLockService {
 
     @Transactional
     public TrainingLock unlockHorse(String horseId, String veterinarianId, String reason) {
+<<<<<<< HEAD
         if (horseId == null || horseId.isBlank() || veterinarianId == null) {
+=======
+        if (horseId == null || veterinarianId == null) {
+>>>>>>> 76de6e5 (luu code)
             throw new IllegalArgumentException("Horse ID and veterinarian ID are required");
         }
         String unlockReason = requireReason(reason, "Unlock reason");
@@ -131,6 +139,8 @@ public class TrainingLockService {
         if (!"READY".equals(normalize(horse.getHealthStatus()))) {
             throw new BusinessRuleException("Only horses with READY health status may be unlocked");
         }
+        var fitness=jdbc.queryForList("SELECT TOP 1 mr.training_eligible,mr.final_conclusion FROM dbo.Medical_Record mr JOIN dbo.Health_Profile hp ON hp.profile_id=mr.profile_id WHERE hp.horse_id=? AND mr.status='CONFIRMED' ORDER BY mr.examined_at DESC,mr.confirmed_at DESC,mr.medical_record_id DESC",horseId);
+        if(fitness.isEmpty()||!Boolean.TRUE.equals(fitness.get(0).get("training_eligible"))||fitness.get(0).get("final_conclusion")==null||!java.util.Set.of("FIT","FIT_WITH_MONITORING").contains(fitness.get(0).get("final_conclusion")))throw new BusinessRuleException("Latest confirmed veterinary conclusion must authorize training before unlock");
         if (!Boolean.TRUE.equals(horse.getTrainingLocked())) {
             throw new BusinessRuleException("Horse is not currently training-locked");
         }

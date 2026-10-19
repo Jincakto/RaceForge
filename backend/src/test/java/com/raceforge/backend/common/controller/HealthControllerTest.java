@@ -64,8 +64,13 @@ class HealthControllerTest {
     @Test
     void databaseFailureDuringAuthenticationIsNotReportedAsInvalidToken() throws Exception {
         org.mockito.Mockito.when(jwtService.parse("valid"))
+<<<<<<< HEAD
                 .thenReturn(new com.raceforge.backend.security.AuthenticatedUser("CM-001", "test@example.com", "ACTIVE", 1, "CLUB_MANAGER"));
         org.mockito.Mockito.when(userRepository.findDetailedById("CM-001"))
+=======
+                .thenReturn(new com.raceforge.backend.security.AuthenticatedUser("USR-001", "test@example.com", "ACTIVE", "ROL-001", "CLUB_MANAGER"));
+        org.mockito.Mockito.when(userRepository.findDetailedById("USR-001"))
+>>>>>>> 76de6e5 (luu code)
                 .thenThrow(new org.springframework.dao.DataAccessResourceFailureException("Database unavailable"));
         mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer valid"))
                 .andExpect(status().isServiceUnavailable())

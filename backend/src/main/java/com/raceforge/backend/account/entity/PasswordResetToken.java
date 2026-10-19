@@ -13,6 +13,7 @@ import java.time.Instant;
 
 @Entity
 @Table(name = "Password_Reset_Token")
+<<<<<<< HEAD
 public class PasswordResetToken {
     public static final String PASSWORD_RESET = "PASSWORD_RESET";
     public static final String STAFF_INVITATION = "STAFF_INVITATION";
@@ -22,11 +23,13 @@ public class PasswordResetToken {
 
     public String getPurpose() { return purpose; }
     public void setPurpose(String purpose) { this.purpose = purpose; }
+=======
+public class PasswordResetToken extends com.raceforge.backend.common.id.BusinessEntity {
+>>>>>>> 76de6e5 (luu code)
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "reset_token_id")
-    private Integer resetTokenId;
+    private String resetTokenId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
@@ -44,11 +47,11 @@ public class PasswordResetToken {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    public Integer getResetTokenId() {
+    public String getResetTokenId() {
         return resetTokenId;
     }
 
-    public void setResetTokenId(Integer resetTokenId) {
+    public void setResetTokenId(String resetTokenId) {
         this.resetTokenId = resetTokenId;
     }
 

@@ -55,8 +55,10 @@ public class AuthController {
     }
 
     @PostMapping("/verify-email")
-    public ApiResponse<MessageResponse> verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
-        return ApiResponse.success("Email verified", authService.verifyEmail(request));
+    public ApiResponse<AuthResponse> verifyEmail(@Valid @RequestBody VerifyEmailRequest request,HttpServletResponse response) {
+        AuthSession session=authService.verifyAndSignIn(request);
+        setRefreshCookie(response,session.refreshToken());
+        return ApiResponse.success("Email verified and owner signed in",authService.toAuthResponse(session));
     }
 
     @PostMapping("/resend-otp")

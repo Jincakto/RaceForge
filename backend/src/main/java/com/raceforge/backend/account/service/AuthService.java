@@ -106,6 +106,10 @@ public class AuthService {
         if (userRepository.existsByEmail(email)) {
             throw new ApiException(HttpStatus.CONFLICT, "EMAIL_ALREADY_EXISTS", "Email already exists");
         }
+<<<<<<< HEAD
+=======
+        Role requestedRole = null; // Public registration always creates an owner.
+>>>>>>> 76de6e5 (luu code)
 
         User user = new User();
         user.setRole(defaultRole());
@@ -148,8 +152,34 @@ public class AuthService {
         emailVerificationOtpRepository.delete(verification);
         user.setEmailVerified(true);
         user.setStatus(STATUS_ACTIVE);
+<<<<<<< HEAD
         return new MessageResponse("Email verified. You can log in to your horse owner account.");
     }
+=======
+        user.setRequestedRole(null);
+
+        if (user.getRequestedRole() != null
+                && !registrationRequestRepository.existsByUserUserIdAndStatus(user.getUserId(), REQUEST_PENDING)) {
+            createRegistrationRequest(user, user.getRequestedRole());
+            notifyManagersForRegistration(user);
+        }
+        return new MessageResponse(user.getRequestedRole() == null
+                ? "Email verified. You can log in to your owner account."
+                : "Email verified. Registration request is pending manager review.");
+    }
+
+    @Transactional(noRollbackFor = InvalidOtpException.class)
+    public AuthSession verifyAndSignIn(VerifyEmailRequest request) {
+        User user=userRepository.findByEmailForUpdate(EmailNormalizer.normalize(request.email()))
+                .orElseThrow(InvalidOtpException::new);
+        // Never issue a session by replaying an OTP against an already-verified email.
+        if(!STATUS_UNVERIFIED.equals(user.getStatus()))throw new ApiException(HttpStatus.CONFLICT,"EMAIL_ALREADY_VERIFIED","Email is already verified; use login");
+        verifyEmail(request);
+        ensureLoginAllowed(user);
+        return createSession(user);
+    }
+
+>>>>>>> 76de6e5 (luu code)
     @Transactional
     public MessageResponse resendOtp(ResendOtpRequest request) {
         String email = EmailNormalizer.normalize(request.email());
@@ -314,8 +344,13 @@ public class AuthService {
         );
     }
 
+<<<<<<< HEAD
     private User createGoogleRegistration(GoogleIdentity identity, String email) {
 
+=======
+    private User createGoogleRegistration(GoogleAuthRequest request, GoogleIdentity identity, String email) {
+        Role requestedRole = null; // Public sign-in never provisions staff roles.
+>>>>>>> 76de6e5 (luu code)
         User user = new User();
         user.setRole(defaultRole());
         user.setEmail(email);
@@ -363,9 +398,26 @@ public class AuthService {
         return new AuthSession(jwtService.createAccessToken(user), refreshToken, user);
     }
 
+<<<<<<< HEAD
     private Role defaultRole() {
         return roleRepository.findById(com.raceforge.backend.account.AccountConstants.ROLE_HORSE_OWNER)
                 .orElseThrow(() -> new ResourceNotFoundException("HORSE_OWNER role not found"));
+=======
+    private Role selfRegistrationRole(String requestedRoleId) {
+        if (requestedRoleId == null || ROLE_USER.equals(requestedRoleId)) {
+            return null;
+        }
+        if (ROLE_MANAGER.equals(requestedRoleId) || !SELF_REGISTRATION_ROLES.contains(requestedRoleId)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_REQUESTED_ROLE", "Requested role is not allowed for public registration");
+        }
+        return roleRepository.findById(requestedRoleId)
+                .orElseThrow(() -> new ResourceNotFoundException("Role not found"));
+    }
+
+    private Role defaultRole() {
+        return roleRepository.findById(com.raceforge.backend.account.AccountConstants.ROLE_HORSE_OWNER)
+                .orElseThrow(() -> new ResourceNotFoundException("Default owner role not found"));
+>>>>>>> 76de6e5 (luu code)
     }
     private void ensureLoginAllowed(User user) {
         if (STATUS_UNVERIFIED.equals(user.getStatus())) {

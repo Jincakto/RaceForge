@@ -18,6 +18,7 @@ public interface HorsePackageRepository extends JpaRepository<HorsePackage, Stri
     List<HorsePackage> findByHorse_HorseIdAndStatus(String horseId, String status);
 
     boolean existsByHorse_HorseIdAndStatusIn(String horseId, List<String> statuses);
+<<<<<<< HEAD
 
     boolean existsByTrainingPackage_PackageId(String packageId);
 
@@ -38,6 +39,8 @@ public interface HorsePackageRepository extends JpaRepository<HorsePackage, Stri
             + "WHERE hp.status = 'ACTIVE' AND hp.endDate < :today "
             + "ORDER BY hp.horsePackageId")
     List<String> findExpiredActiveRegistrationIds(@Param("today") LocalDate today);
+=======
+>>>>>>> 76de6e5 (luu code)
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT hp FROM HorsePackage hp WHERE hp.horsePackageId = :id")

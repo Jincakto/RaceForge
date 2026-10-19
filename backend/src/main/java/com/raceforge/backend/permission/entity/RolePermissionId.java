@@ -7,30 +7,30 @@ import java.util.Objects;
 @Embeddable
 public class RolePermissionId implements Serializable {
 
-  private Integer roleId;
-  private Integer permissionId;
+  private String roleId;
+  private String permissionId;
 
   public RolePermissionId() {
   }
 
-  public RolePermissionId(Integer roleId, Integer permissionId) {
+  public RolePermissionId(String roleId, String permissionId) {
       this.roleId = roleId;
       this.permissionId = permissionId;
   }
 
-  public Integer getRoleId() {
+  public String getRoleId() {
       return roleId;
   }
 
-  public void setRoleId(Integer roleId) {
+  public void setRoleId(String roleId) {
       this.roleId = roleId;
   }
 
-  public Integer getPermissionId() {
+  public String getPermissionId() {
       return permissionId;
   }
 
-  public void setPermissionId(Integer permissionId) {
+  public void setPermissionId(String permissionId) {
       this.permissionId = permissionId;
   }
 

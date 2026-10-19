@@ -7,6 +7,12 @@ public class MedicalClinicalExamResponse {
     private String conditionStatus;
     private String notes;
 
+<<<<<<< HEAD
+=======
+    public MedicalClinicalExamResponse() {
+    }
+
+>>>>>>> 76de6e5 (luu code)
     public String getClinicalExamId() {
         return clinicalExamId;
     }
@@ -31,6 +37,13 @@ public class MedicalClinicalExamResponse {
         this.conditionStatus = conditionStatus;
     }
 
+<<<<<<< HEAD
+=======
+
+
+
+
+>>>>>>> 76de6e5 (luu code)
     public String getNotes() {
         return notes;
     }

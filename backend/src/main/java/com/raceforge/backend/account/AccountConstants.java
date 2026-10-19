@@ -4,6 +4,7 @@ import java.util.Set;
 
 public final class AccountConstants {
 
+<<<<<<< HEAD
     public static final Integer ROLE_MANAGER = 1;
     public static final Integer ROLE_HEAD_TRAINER = 2;
     public static final Integer ROLE_VETERINARIAN = 3;
@@ -14,6 +15,20 @@ public final class AccountConstants {
     public static final String STATUS_INVITED = "INVITED";
     public static final Set<Integer> BUSINESS_ROLES = Set.of(
             ROLE_MANAGER, ROLE_HEAD_TRAINER, ROLE_VETERINARIAN, ROLE_GROOM, ROLE_HORSE_OWNER);
+
+=======
+    public static final String ROLE_MANAGER = "ROL-001";
+    public static final String ROLE_HEAD_TRAINER = "ROL-002";
+    public static final String ROLE_VETERINARIAN = "ROL-003";
+    public static final String ROLE_GROOM = "ROL-004";
+    public static final String ROLE_HORSE_OWNER = "ROL-005";
+    public static final String ROLE_USER = "ROL-006";
+    public static final String ROLE_ADMIN = "ROL-007";
+    public static final Set<String> BUSINESS_ROLES = Set.of(
+            ROLE_MANAGER, ROLE_HEAD_TRAINER, ROLE_VETERINARIAN, ROLE_GROOM, ROLE_HORSE_OWNER, ROLE_ADMIN);
+
+    public static final Set<String> SELF_REGISTRATION_ROLES = Set.of(ROLE_HORSE_OWNER);
+
 
     public static final String STATUS_UNVERIFIED = "UNVERIFIED";
     public static final String STATUS_PENDING = "PENDING";

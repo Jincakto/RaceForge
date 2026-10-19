@@ -5,12 +5,11 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "Audit_Log")
-public class AuditLog {
+public class AuditLog extends com.raceforge.backend.common.id.BusinessEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "audit_id")
-    private Integer auditId;
+    private String auditId;
 
     @Column(name = "user_id")
     private String userId;
@@ -44,11 +43,11 @@ public class AuditLog {
     }
 
    
-    public Integer getAuditId() {
+    public String getAuditId() {
         return auditId;
     }
     
-    public void setAuditId(Integer auditId) {
+    public void setAuditId(String auditId) {
         this.auditId = auditId;
     }
     
@@ -56,16 +55,26 @@ public class AuditLog {
         return userId;
     }
     
+<<<<<<< HEAD
     public void setUserId(Object userId) {
         this.userId = userId == null ? null : userId.toString();
+=======
+    public void setUserId(String userId) {
+        this.userId = userId;
+>>>>>>> 76de6e5 (luu code)
     }
     
     public String getHorseId() {
         return horseId;
     }
     
+<<<<<<< HEAD
     public void setHorseId(Object horseId) {
         this.horseId = horseId == null ? null : horseId.toString();
+=======
+    public void setHorseId(String horseId) {
+        this.horseId = horseId;
+>>>>>>> 76de6e5 (luu code)
     }
     
     public String getAction() {
@@ -88,8 +97,13 @@ public class AuditLog {
         return entityId;
     }
     
+<<<<<<< HEAD
     public void setEntityId(Object entityId) {
         this.entityId = entityId == null ? null : entityId.toString();
+=======
+    public void setEntityId(String entityId) {
+        this.entityId = entityId;
+>>>>>>> 76de6e5 (luu code)
     }
     
     public String getResult() {

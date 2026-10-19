@@ -24,4 +24,6 @@ public final class MedicalReferenceRange {
 
     public static final int MIN_NORMAL_RESPIRATORY_RATE = 10;
     public static final int MAX_NORMAL_RESPIRATORY_RATE = 20;
+
+    public static final int CRITICAL_HIGH_RESPIRATORY_RATE = 30;
 }

@@ -10,9 +10,8 @@ import java.time.LocalDateTime;
 public class TrainingPackage {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "package_id", nullable = false, length = 20)
-    private Integer packageId;
+    private String packageId;
 
     @Column(name = "package_name", nullable = false, length = 100)
     private String packageName;
@@ -51,11 +50,11 @@ public class TrainingPackage {
         updatedAt = LocalDateTime.now();
     }
 
-    public Integer getPackageId() {
+    public String getPackageId() {
         return packageId;
     }
 
-    public void setPackageId(Integer packageId) {
+    public void setPackageId(String packageId) {
         this.packageId = packageId;
     }
 

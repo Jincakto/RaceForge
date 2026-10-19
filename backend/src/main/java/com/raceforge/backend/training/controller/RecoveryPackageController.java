@@ -28,12 +28,12 @@ public class RecoveryPackageController {
     @PreAuthorize("hasAuthority('CLUB_MANAGER')")
     @PostMapping("/horse/{horseId}/approve-recovery")
     public ResponseEntity<ApiResponse<HorsePackageResponse>> approveRecovery(
-            @PathVariable Integer horseId,
+            @PathVariable String horseId,
             @Valid @RequestBody RecoveryApprovalRequest request,
             @AuthenticationPrincipal(expression = "userId") Integer managerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                "Recovery transition approved; awaiting simulated payment",
+                "Center-funded Recovery activated immediately; no Owner payment",
                 service.approveRecovery(horseId, request, managerId)
         ));
     }
@@ -46,7 +46,7 @@ public class RecoveryPackageController {
             @AuthenticationPrincipal(expression = "userId") Integer ownerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
-                "Recovery payment simulation processed",
+                "Owner-paid initial Recovery payment simulation processed",
                 service.simulateRecoveryPayment(id, request.successful(), ownerId)
         ));
     }

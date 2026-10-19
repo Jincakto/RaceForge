@@ -2,13 +2,16 @@ package com.raceforge.backend.horse.dto;
 
 import java.time.LocalDate;
 import java.math.BigDecimal;
+import java.util.List;
 
 public class HorseResponse {
 
-    private Integer horseId;
+    private String horseId;
 
     private Integer ownerId;
-    private Integer headTrainerId;
+
+    // Assigned HEAD_TRAINER user IDs (not Trainer table primary keys).
+    private List<Integer> trainerIds = List.of();
 
     private String horseName;
     private LocalDate dateOfBirth;
@@ -18,30 +21,49 @@ public class HorseResponse {
 
     private String sire;
     private String dam;
-    private String damSire;
 
-    private BigDecimal weight;
     private BigDecimal height;
 
-    private String background;
     private String declaredMedicalHistory;
     private String imageUrl;
+    private String registrationNumber;
+    private String documentType;
+    private String documentUrl;
 
     private String healthStatus;
     private Boolean trainingLocked;
     private String status;
     private String admissionStatus;
     private String admissionNote;
-    public String getAdmissionStatus() { return admissionStatus; }
-    public void setAdmissionStatus(String value) { admissionStatus = value; }
-    public String getAdmissionNote() { return admissionNote; }
-    public void setAdmissionNote(String value) { admissionNote = value; }
+    public String getAdmissionStatus() {
+        return admissionStatus;
+    }
 
-    public Integer getHorseId() {
-    return horseId;
+    public void setAdmissionStatus(String admissionStatus) {
+        this.admissionStatus = admissionStatus;
+    }
+
+    public String getAdmissionNote() {
+        return admissionNote;
+    }
+
+    public void setAdmissionNote(String admissionNote) {
+        this.admissionNote = admissionNote;
+    }
+
+    public List<Integer> getTrainerIds() {
+        return trainerIds;
+    }
+
+    public void setTrainerIds(List<Integer> trainerIds) {
+        this.trainerIds = trainerIds;
+    }
+
+    public String getHorseId() {
+        return horseId;
     }
     
-    public void setHorseId(Integer horseId) {
+    public void setHorseId(String horseId) {
         this.horseId = horseId;
     }
     
@@ -51,14 +73,6 @@ public class HorseResponse {
     
     public void setOwnerId(Integer ownerId) {
         this.ownerId = ownerId;
-    }
-    
-    public Integer getHeadTrainerId() {
-        return headTrainerId;
-    }
-    
-    public void setHeadTrainerId(Integer headTrainerId) {
-        this.headTrainerId = headTrainerId;
     }
     
     public String getHorseName() {
@@ -117,36 +131,12 @@ public class HorseResponse {
         this.dam = dam;
     }
     
-    public String getDamSire() {
-        return damSire;
-    }
-    
-    public void setDamSire(String damSire) {
-        this.damSire = damSire;
-    }
-    
-    public BigDecimal getWeight() {
-        return weight;
-    }
-    
-    public void setWeight(BigDecimal weight) {
-        this.weight = weight;
-    }
-    
     public BigDecimal getHeight() {
         return height;
     }
     
     public void setHeight(BigDecimal height) {
         this.height = height;
-    }
-    
-    public String getBackground() {
-        return background;
-    }
-    
-    public void setBackground(String background) {
-        this.background = background;
     }
     
     public String getDeclaredMedicalHistory() {
@@ -187,5 +177,28 @@ public class HorseResponse {
     
     public void setStatus(String status) {
         this.status = status;
+    }
+    public String getRegistrationNumber() {
+        return registrationNumber;
+    }
+
+    public void setRegistrationNumber(String registrationNumber) {
+        this.registrationNumber = registrationNumber;
+    }
+
+    public String getDocumentType() {
+        return documentType;
+    }
+
+    public void setDocumentType(String documentType) {
+        this.documentType = documentType;
+    }
+
+    public String getDocumentUrl() {
+        return documentUrl;
+    }
+
+    public void setDocumentUrl(String documentUrl) {
+        this.documentUrl = documentUrl;
     }
 }

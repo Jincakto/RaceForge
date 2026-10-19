@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public record TrainingPackageResponse(
-        Integer packageId,
+        String packageId,
         String packageName,
         String packageType,
         String description,

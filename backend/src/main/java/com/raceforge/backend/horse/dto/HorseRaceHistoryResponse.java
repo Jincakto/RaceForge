@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 public class HorseRaceHistoryResponse {
 
     private Integer raceHistoryId;
-    private Integer horseId;
+    private String horseId;
 
     private String raceName;
     private LocalDate raceDate;
@@ -30,11 +30,11 @@ public class HorseRaceHistoryResponse {
         this.raceHistoryId = raceHistoryId;
     }
 
-    public Integer getHorseId() {
+    public String getHorseId() {
         return horseId;
     }
 
-    public void setHorseId(Integer horseId) {
+    public void setHorseId(String horseId) {
         this.horseId = horseId;
     }
 

@@ -1,21 +1,20 @@
 package com.raceforge.backend.horse.service;
 
 import com.raceforge.backend.audit.service.AuditLogService;
+import com.raceforge.backend.common.exception.BusinessRuleException;
+import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.horse.dto.HorseRaceHistoryCreateRequest;
 import com.raceforge.backend.horse.dto.HorseRaceHistoryResponse;
 import com.raceforge.backend.horse.dto.HorseRaceHistoryUpdateRequest;
-
 import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.entity.HorseRaceHistory;
-
 import com.raceforge.backend.horse.mapper.HorseRaceHistoryMapper;
-
 import com.raceforge.backend.horse.repository.HorseRaceHistoryRepository;
 import com.raceforge.backend.horse.repository.HorseRepository;
-import com.raceforge.backend.common.exception.ResourceNotFoundException;
-
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -31,107 +30,109 @@ public class HorseRaceHistoryService {
             HorseRaceHistoryRepository raceHistoryRepository,
             HorseRepository horseRepository,
             HorseRaceHistoryMapper raceHistoryMapper,
-            AuditLogService auditLogService) {
-
+            AuditLogService auditLogService
+    ) {
         this.raceHistoryRepository = raceHistoryRepository;
         this.horseRepository = horseRepository;
         this.raceHistoryMapper = raceHistoryMapper;
         this.auditLogService = auditLogService;
     }
 
-    @org.springframework.transaction.annotation.Transactional
+    @Transactional
     public HorseRaceHistoryResponse createRaceHistory(
-            Integer horseId,
-            HorseRaceHistoryCreateRequest request) {
+            String horseId,
+            Integer actorId,
+            HorseRaceHistoryCreateRequest request
+    ) {
         Horse horse = horseRepository.findById(horseId)
-            .orElseThrow(() ->
-                new ResourceNotFoundException(
+                .orElseThrow(() -> new ResourceNotFoundException(
                         "Horse not found: " + horseId
-                )
-        );
+                ));
 
-        HorseRaceHistory history =
-                raceHistoryMapper.toEntity(request);
+        validateRaceDate(request.getRaceDate(), horse.getDateOfBirth());
 
-        
+        HorseRaceHistory history = raceHistoryMapper.toEntity(request);
         history.setHorse(horse);
 
         LocalDateTime now = LocalDateTime.now();
-
         history.setCreatedAt(now);
         history.setUpdatedAt(now);
 
-        HorseRaceHistory savedHistory =
-                raceHistoryRepository.save(history);
-
-        auditLogService.record(null, horseId, "HORSE_RACE_HISTORY", savedHistory.getRaceHistoryId(), "RACE_HISTORY_CREATED", "SUCCESS", null);
-        return raceHistoryMapper.toResponse(savedHistory);
+        HorseRaceHistory saved = raceHistoryRepository.save(history);
+        auditLogService.record(
+                actorId, horseId, "HORSE_RACE_HISTORY", saved.getRaceHistoryId(),
+                "RACE_HISTORY_CREATED", "SUCCESS", null
+        );
+        return raceHistoryMapper.toResponse(saved);
     }
 
-    public List<HorseRaceHistoryResponse> getRaceHistoryByHorse(
-            Integer horseId) {
-
+    @Transactional(readOnly = true)
+    public List<HorseRaceHistoryResponse> getRaceHistoryByHorse(String horseId) {
         if (!horseRepository.existsById(horseId)) {
-            throw new ResourceNotFoundException(
-                    "Horse not found: " + horseId
-            );
+            throw new ResourceNotFoundException("Horse not found: " + horseId);
         }
 
-        return raceHistoryRepository
-                .findByHorseHorseId(horseId)
+        return raceHistoryRepository.findByHorseHorseId(horseId)
                 .stream()
                 .map(raceHistoryMapper::toResponse)
                 .toList();
     }
 
-    public HorseRaceHistoryResponse getRaceHistoryById(
-            Integer raceHistoryId) {
-
-        HorseRaceHistory history =
-                findRaceHistoryById(raceHistoryId);
-
-        return raceHistoryMapper.toResponse(history);
+    @Transactional(readOnly = true)
+    public HorseRaceHistoryResponse getRaceHistoryById(Integer raceHistoryId) {
+        return raceHistoryMapper.toResponse(findRaceHistoryById(raceHistoryId));
     }
 
-    @org.springframework.transaction.annotation.Transactional
+    @Transactional
     public HorseRaceHistoryResponse updateRaceHistory(
             Integer raceHistoryId,
-            HorseRaceHistoryUpdateRequest request) {
+            Integer actorId,
+            HorseRaceHistoryUpdateRequest request
+    ) {
+        HorseRaceHistory history = findRaceHistoryById(raceHistoryId);
+        validateRaceDate(
+                request.getRaceDate(), history.getHorse().getDateOfBirth()
+        );
 
-        HorseRaceHistory history =
-                findRaceHistoryById(raceHistoryId);
-
+        // A new race result can be recorded even after horse admission is APPROVED.
         raceHistoryMapper.updateEntity(history, request);
-
         history.setUpdatedAt(LocalDateTime.now());
 
-        HorseRaceHistory updatedHistory =
-                raceHistoryRepository.save(history);
-
-        auditLogService.record(null, updatedHistory.getHorse().getHorseId(), "HORSE_RACE_HISTORY", updatedHistory.getRaceHistoryId(), "RACE_HISTORY_UPDATED", "SUCCESS", null);
-        return raceHistoryMapper.toResponse(updatedHistory);
+        HorseRaceHistory saved = raceHistoryRepository.save(history);
+        auditLogService.record(
+                actorId, saved.getHorse().getHorseId(), "HORSE_RACE_HISTORY",
+                saved.getRaceHistoryId(), "RACE_HISTORY_UPDATED", "SUCCESS", null
+        );
+        return raceHistoryMapper.toResponse(saved);
     }
 
-    @org.springframework.transaction.annotation.Transactional
-    public void deleteRaceHistory(Integer raceHistoryId) {
-
-        HorseRaceHistory history =
-                findRaceHistoryById(raceHistoryId);
-
+    @Transactional
+    public void deleteRaceHistory(Integer raceHistoryId, Integer actorId) {
+        HorseRaceHistory history = findRaceHistoryById(raceHistoryId);
+        String horseId = history.getHorse().getHorseId();
         raceHistoryRepository.delete(history);
-        auditLogService.record(null, history.getHorse().getHorseId(), "HORSE_RACE_HISTORY", raceHistoryId, "RACE_HISTORY_DELETED", "SUCCESS", null);
+        auditLogService.record(
+                actorId, horseId, "HORSE_RACE_HISTORY", raceHistoryId,
+                "RACE_HISTORY_DELETED", "SUCCESS", null
+        );
+    }
+
+    private void validateRaceDate(LocalDate raceDate, LocalDate dateOfBirth) {
+        if (raceDate == null) {
+            return; // Race date is optional in the existing DTO and database.
+        }
+        if (raceDate.isAfter(LocalDate.now())) {
+            throw new BusinessRuleException("Race date cannot be in the future");
+        }
+        if (dateOfBirth != null && raceDate.isBefore(dateOfBirth)) {
+            throw new BusinessRuleException("Race date cannot precede horse's birth date");
+        }
     }
 
     private HorseRaceHistory findRaceHistoryById(Integer raceHistoryId) {
-
-        return raceHistoryRepository
-                .findById(raceHistoryId)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "Race history not found: " + raceHistoryId
-                        )
-                );
+        return raceHistoryRepository.findById(raceHistoryId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Race history not found: " + raceHistoryId
+                ));
     }
-
-
 }

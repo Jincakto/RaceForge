@@ -8,6 +8,7 @@ public class MedicalVitalSignResponse {
     private BigDecimal bodyTemperature;
     private Integer restingHeartRate;
     private Integer restingRespiratoryRate;
+    private BigDecimal weight;
 
     public MedicalVitalSignResponse() {
     }
@@ -43,4 +44,13 @@ public class MedicalVitalSignResponse {
     public void setRestingRespiratoryRate(Integer restingRespiratoryRate) {
         this.restingRespiratoryRate = restingRespiratoryRate;
     }
+
+    public BigDecimal getWeight() {
+        return weight;
+    }
+
+    public void setWeight(BigDecimal weight) {
+        this.weight = weight;
+    }
+
 }

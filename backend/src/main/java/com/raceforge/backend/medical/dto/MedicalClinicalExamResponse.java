@@ -5,12 +5,7 @@ public class MedicalClinicalExamResponse {
     private Integer clinicalExamId;
     private String examinationArea;
     private String conditionStatus;
-    private String abnormalityType;
-    private String severity;
     private String notes;
-
-    public MedicalClinicalExamResponse() {
-    }
 
     public Integer getClinicalExamId() {
         return clinicalExamId;
@@ -34,22 +29,6 @@ public class MedicalClinicalExamResponse {
 
     public void setConditionStatus(String conditionStatus) {
         this.conditionStatus = conditionStatus;
-    }
-
-    public String getAbnormalityType() {
-        return abnormalityType;
-    }
-
-    public void setAbnormalityType(String abnormalityType) {
-        this.abnormalityType = abnormalityType;
-    }
-
-    public String getSeverity() {
-        return severity;
-    }
-
-    public void setSeverity(String severity) {
-        this.severity = severity;
     }
 
     public String getNotes() {

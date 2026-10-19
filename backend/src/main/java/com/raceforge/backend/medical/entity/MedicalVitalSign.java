@@ -29,6 +29,10 @@ public class MedicalVitalSign {
     @Column(name = "resting_respiratory_rate")
     private Integer restingRespiratoryRate;
 
+    // Optional actual measured weight at this examination (kilograms).
+    @Column(name = "weight", precision = 7, scale = 2)
+    private BigDecimal weight;
+
     public MedicalVitalSign() {
     }
 
@@ -70,5 +74,13 @@ public class MedicalVitalSign {
 
     public void setRestingRespiratoryRate(Integer restingRespiratoryRate) {
         this.restingRespiratoryRate = restingRespiratoryRate;
+    }
+
+    public BigDecimal getWeight() {
+        return weight;
+    }
+
+    public void setWeight(BigDecimal weight) {
+        this.weight = weight;
     }
 }

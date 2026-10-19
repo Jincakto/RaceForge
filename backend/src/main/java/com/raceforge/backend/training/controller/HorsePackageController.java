@@ -49,10 +49,21 @@ public class HorsePackageController {
         ));
     }
 
+    /** CM oversight: unlike Owner history, this endpoint has no ownership filter. */
+    @PreAuthorize("hasAuthority('CLUB_MANAGER')")
+    @GetMapping("/manage/horse/{horseId}")
+    public ResponseEntity<ApiResponse<List<HorsePackageResponse>>> managerHistory(
+            @PathVariable String horseId
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Horse package history for Club Manager", service.historyForManager(horseId)
+        ));
+    }
+
     @PreAuthorize("hasAuthority('HORSE_OWNER')")
     @GetMapping("/horse/{horseId}")
     public ResponseEntity<ApiResponse<List<HorsePackageResponse>>> history(
-            @PathVariable Integer horseId,
+            @PathVariable String horseId,
             @AuthenticationPrincipal(expression = "userId") Integer ownerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(

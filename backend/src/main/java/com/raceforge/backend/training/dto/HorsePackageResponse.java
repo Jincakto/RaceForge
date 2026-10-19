@@ -6,8 +6,8 @@ import java.time.LocalDateTime;
 
 public record HorsePackageResponse(
         Integer horsePackageId,
-        Integer horseId,
-        Integer packageId,
+        String horseId,
+        String packageId,
         String packageName,
         String packageType,
         String status,

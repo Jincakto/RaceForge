@@ -21,12 +21,7 @@ public class MedicalClinicalExam {
     @Column(name = "condition_status", nullable = false, length = 20)
     private String conditionStatus;
 
-    @Column(name = "abnormality_type", length = 100)
-    private String abnormalityType;
-
-    @Column(name = "severity", length = 20)
-    private String severity;
-
+    // NORMAL or ABNORMAL. The veterinarian describes any abnormality in notes.
     @Column(name = "notes", length = 500)
     private String notes;
 
@@ -63,22 +58,6 @@ public class MedicalClinicalExam {
 
     public void setConditionStatus(String conditionStatus) {
         this.conditionStatus = conditionStatus;
-    }
-
-    public String getAbnormalityType() {
-        return abnormalityType;
-    }
-
-    public void setAbnormalityType(String abnormalityType) {
-        this.abnormalityType = abnormalityType;
-    }
-
-    public String getSeverity() {
-        return severity;
-    }
-
-    public void setSeverity(String severity) {
-        this.severity = severity;
     }
 
     public String getNotes() {

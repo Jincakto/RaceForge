@@ -10,6 +10,6 @@ public interface MedicalClinicalExamRepository
 
     List<MedicalClinicalExam>
         findByMedicalRecord_MedicalRecordId(
-            Integer medicalRecordId
+            String medicalRecordId
         );
 }

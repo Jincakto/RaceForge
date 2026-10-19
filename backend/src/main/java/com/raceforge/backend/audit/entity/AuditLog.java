@@ -1,4 +1,3 @@
-
 package com.raceforge.backend.audit.entity;
 
 import jakarta.persistence.*;
@@ -14,10 +13,10 @@ public class AuditLog {
     private Integer auditId;
 
     @Column(name = "user_id")
-    private Integer userId;
+    private String userId;
 
     @Column(name = "horse_id")
-    private Integer horseId;
+    private String horseId;
 
     @Column(name = "action", nullable = false, length = 100)
     private String action;
@@ -26,7 +25,7 @@ public class AuditLog {
     private String entityType;
 
     @Column(name = "entity_id")
-    private Integer entityId;
+    private String entityId;
 
     @Column(name = "result", length = 50)
     private String result;
@@ -53,20 +52,20 @@ public class AuditLog {
         this.auditId = auditId;
     }
     
-    public Integer getUserId() {
+    public String getUserId() {
         return userId;
     }
     
-    public void setUserId(Integer userId) {
-        this.userId = userId;
+    public void setUserId(Object userId) {
+        this.userId = userId == null ? null : userId.toString();
     }
     
-    public Integer getHorseId() {
+    public String getHorseId() {
         return horseId;
     }
     
-    public void setHorseId(Integer horseId) {
-        this.horseId = horseId;
+    public void setHorseId(Object horseId) {
+        this.horseId = horseId == null ? null : horseId.toString();
     }
     
     public String getAction() {
@@ -85,12 +84,12 @@ public class AuditLog {
         this.entityType = entityType;
     }
     
-    public Integer getEntityId() {
+    public String getEntityId() {
         return entityId;
     }
     
-    public void setEntityId(Integer entityId) {
-        this.entityId = entityId;
+    public void setEntityId(Object entityId) {
+        this.entityId = entityId == null ? null : entityId.toString();
     }
     
     public String getResult() {

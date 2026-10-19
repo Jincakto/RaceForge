@@ -10,6 +10,6 @@ public interface MedicalVitalSignRepository
 
     Optional<MedicalVitalSign>
         findByMedicalRecord_MedicalRecordId(
-            Integer medicalRecordId
+            String medicalRecordId
         );
 }

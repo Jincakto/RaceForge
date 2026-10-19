@@ -36,6 +36,7 @@ public class HorsePackageService {
     private final HorsePackageMapper mapper;
     private final EntityManager entityManager;
     private final PackageEventService packageEventService;
+    private final TrainingPackageExpirationService expirationService;
 
     public HorsePackageService(
             HorseRepository horseRepository,
@@ -45,7 +46,8 @@ public class HorsePackageService {
             MedicalRecordRepository medicalRecordRepository,
             HorsePackageMapper mapper,
             EntityManager entityManager,
-            PackageEventService packageEventService
+            PackageEventService packageEventService,
+            TrainingPackageExpirationService expirationService
     ) {
         this.horseRepository = horseRepository;
         this.trainingPackageRepository = trainingPackageRepository;
@@ -55,6 +57,7 @@ public class HorsePackageService {
         this.mapper = mapper;
         this.entityManager = entityManager;
         this.packageEventService = packageEventService;
+        this.expirationService = expirationService;
     }
 
     @Transactional
@@ -65,6 +68,8 @@ public class HorsePackageService {
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found: " + request.horseId()));
         entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);
         checkOwnership(horse, ownerId);
+        requireApprovedAdmission(horse);
+        expirationService.expireForLockedHorse(horse, LocalDate.now());
 
         TrainingPackage trainingPackage = trainingPackageRepository.findById(request.packageId())
                 .orElseThrow(() -> new ResourceNotFoundException("Training package not found: " + request.packageId()));
@@ -86,16 +91,31 @@ public class HorsePackageService {
         if (locked && !recovery) {
             throw new BusinessRuleException("Training is locked: only a veterinarian-authorized recovery package is allowed");
         }
-        if (recovery) {
-
-          throw new BusinessRuleException("Recovery registration requires veterinarian approval and the CM workflow (Stage 4)");
-        }
-        if (!"READY".equalsIgnoreCase(horse.getHealthStatus())) {
-            throw new BusinessRuleException("Horse must have READY health status to register a normal package");
-        }
         if (horsePackageRepository.existsByHorse_HorseIdAndStatusIn(
                 horse.getHorseId(), List.of("PENDING", "ACTIVE", "PAUSED"))) {
             throw new BusinessRuleException("Horse already has a pending or ongoing package");
+        }
+        if (recovery) {
+            // First-time injury before ordinary training: Owner buys Recovery.
+            // CM's center-funded route is ONLY used if an ordinary package was
+            // ACTIVE when Training Lock began and is now PAUSED.
+            if (!locked || !"NOT_FIT".equalsIgnoreCase(horse.getHealthStatus())) {
+                throw new BusinessRuleException(
+                        "Owner-paid Recovery requires a confirmed NOT_FIT Training Lock");
+            }
+            boolean hasOrdinaryHistory = horsePackageRepository
+                    .findByHorseIdOrderByRegisteredAtDesc(horse.getHorseId())
+                    .stream()
+                    .anyMatch(p -> !"RECOVERY".equalsIgnoreCase(
+                            p.getTrainingPackage().getPackageType()));
+            if (hasOrdinaryHistory) {
+                throw new BusinessRuleException(
+                        "Owner-paid Recovery is only available before the first ordinary training package; "
+                        + "contact Club Manager for an in-training injury");
+            }
+        } else if (!"READY".equalsIgnoreCase(horse.getHealthStatus())) {
+            throw new BusinessRuleException(
+                    "Horse must have READY health status to register a normal package");
         }
 
         HorsePackage registration = new HorsePackage();
@@ -106,9 +126,13 @@ public class HorsePackageService {
         registration.setPaymentStatus("PENDING");
         HorsePackage saved = horsePackageRepository.saveAndFlush(registration);
         packageEventService.record(ownerId, horse.getHorseId(), saved.getHorsePackageId(),
-                "NORMAL_PACKAGE_REGISTERED", "Normal training package registration pending payment");
+                recovery ? "RECOVERY_OWNER_REGISTERED" : "NORMAL_PACKAGE_REGISTERED",
+                recovery ? "First-time Owner-paid Recovery awaiting payment"
+                        : "Normal training package registration pending payment");
         packageEventService.notifyOwner(ownerId, horse.getHorseId(),
-                "NORMAL_PACKAGE_REGISTERED", "Training package registration is awaiting payment.");
+                recovery ? "RECOVERY_OWNER_REGISTERED" : "NORMAL_PACKAGE_REGISTERED",
+                recovery ? "Your Recovery package is awaiting simulated payment."
+                        : "Training package registration is awaiting payment.");
         return mapper.toResponse(saved);
     }
 
@@ -123,8 +147,10 @@ public class HorsePackageService {
         entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);
         entityManager.lock(registration, LockModeType.PESSIMISTIC_WRITE);
         checkOwnership(horse, ownerId);
+        requireApprovedAdmission(horse);
+        expirationService.expireForLockedHorse(horse, LocalDate.now());
         if ("RECOVERY".equalsIgnoreCase(registration.getTrainingPackage().getPackageType())) {
-            throw new BusinessRuleException("Recovery payments must use the Recovery workflow");
+            throw new BusinessRuleException("Use /simulate-recovery-payment for Owner-paid Recovery; center-funded Recovery needs no payment");
         }
 
         if (!"PENDING".equals(registration.getStatus()) || !"PENDING".equals(registration.getPaymentStatus())) {
@@ -168,14 +194,33 @@ public class HorsePackageService {
         return mapper.toResponse(saved);
     }
 
-    @Transactional(readOnly = true)
-    public List<HorsePackageResponse> history(Integer horseId, Integer ownerId) {
+    @Transactional
+    public List<HorsePackageResponse> history(String horseId, Integer ownerId) {
         requireOwnerId(ownerId);
         Horse horse = horseRepository.findById(horseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found: " + horseId));
         checkOwnership(horse, ownerId);
+        entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);
+        expirationService.expireForLockedHorse(horse, LocalDate.now());
         return horsePackageRepository.findByHorse_HorseIdOrderByRegisteredAtDesc(horseId)
                 .stream().map(mapper::toResponse).toList();
+    }
+
+    /** CM needs the full package history to review PAUSED, Recovery and resumption. */
+    @Transactional
+    public List<HorsePackageResponse> historyForManager(String horseId) {
+        Horse horse = horseRepository.findById(horseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Horse not found: " + horseId));
+        entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);
+        expirationService.expireForLockedHorse(horse, LocalDate.now());
+        return horsePackageRepository.findByHorse_HorseIdOrderByRegisteredAtDesc(horseId)
+                .stream().map(mapper::toResponse).toList();
+    }
+
+    private void requireApprovedAdmission(Horse horse) {
+        if (!"APPROVED".equalsIgnoreCase(horse.getAdmissionStatus())) {
+            throw new BusinessRuleException("Horse admission must be APPROVED before training package registration");
+        }
     }
 
     private boolean isConfirmedInitial(MedicalRecord record) {

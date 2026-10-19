@@ -5,8 +5,8 @@ import java.time.LocalDateTime;
 
 public class TrainingLockResponse {
     private Integer lockId;
-    private Integer horseId;
-    private Integer medicalRecordId;
+    private String horseId;
+    private String medicalRecordId;
     private Integer lockedById;
     private Integer unlockedById;
     private LocalDateTime lockedAt;
@@ -32,11 +32,11 @@ public class TrainingLockResponse {
          return lockId; 
     }
 
-    public Integer getHorseId() { 
+    public String getHorseId() { 
         return horseId; 
     }
 
-    public Integer getMedicalRecordId() { 
+    public String getMedicalRecordId() { 
         return medicalRecordId; 
     }
 

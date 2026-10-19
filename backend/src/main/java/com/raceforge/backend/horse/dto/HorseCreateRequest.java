@@ -15,12 +15,15 @@ public class HorseCreateRequest {
     @Size(max = 100, message = "Horse name must not exceed 100 characters")
     private String horseName;
 
+    @NotNull(message = "Date of birth is required")
     @Past(message = "Date of birth must be in the past")
     private LocalDate dateOfBirth;
 
+    @NotBlank(message = "Gender is required")
     @Size(max = 20, message = "Gender must not exceed 20 characters")
     private String gender;
 
+    @NotBlank(message = "Breed is required")
     @Size(max = 100, message = "Breed must not exceed 100 characters")
     private String breed;
 
@@ -34,19 +37,9 @@ public class HorseCreateRequest {
     @Size(max = 100, message = "Dam must not exceed 100 characters")
     private String dam;
 
-    @Size(max = 100, message = "Dam sire must not exceed 100 characters")
-    private String damSire;
 
-    @NotNull(message = "Weight is required")
-    @Positive(message = "Weight must be greater than 0")
-    private BigDecimal weight;
-
-    @NotNull(message = "Height is required")
     @Positive(message = "Height must be greater than 0")
     private BigDecimal height;
-
-    @Size(max = 1000, message = "Background must not exceed 1000 characters")
-    private String background;
 
     @Size(
         max = 1000,
@@ -54,8 +47,21 @@ public class HorseCreateRequest {
     )
     private String declaredMedicalHistory;
 
+    @NotBlank(message = "Image URL is required")
     @Size(max = 500, message = "Image URL must not exceed 500 characters")
     private String imageUrl;
+
+    @NotBlank(message = "Registration number is required")
+    @Size(max = 100, message = "Registration number must not exceed 100 characters")
+    private String registrationNumber;
+
+    @NotBlank(message = "Document type is required")
+    @Size(max = 50, message = "Document type must not exceed 50 characters")
+    private String documentType;
+
+    @NotBlank(message = "Document URL is required")
+    @Size(max = 500, message = "Document URL must not exceed 500 characters")
+    private String documentUrl;
 
 
     public String getHorseName() {
@@ -114,36 +120,12 @@ public class HorseCreateRequest {
         this.dam = dam;
     }
 
-    public String getDamSire() {
-        return damSire;
-    }
-
-    public void setDamSire(String damSire) {
-        this.damSire = damSire;
-    }
-
-    public BigDecimal getWeight() {
-        return weight;
-    }
-
-    public void setWeight(BigDecimal weight) {
-        this.weight = weight;
-    }
-
     public BigDecimal getHeight() {
         return height;
     }
 
     public void setHeight(BigDecimal height) {
         this.height = height;
-    }
-
-    public String getBackground() {
-        return background;
-    }
-
-    public void setBackground(String background) {
-        this.background = background;
     }
 
     public String getDeclaredMedicalHistory() {
@@ -160,5 +142,28 @@ public class HorseCreateRequest {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+    public String getRegistrationNumber() {
+        return registrationNumber;
+    }
+
+    public void setRegistrationNumber(String registrationNumber) {
+        this.registrationNumber = registrationNumber;
+    }
+
+    public String getDocumentType() {
+        return documentType;
+    }
+
+    public void setDocumentType(String documentType) {
+        this.documentType = documentType;
+    }
+
+    public String getDocumentUrl() {
+        return documentUrl;
+    }
+
+    public void setDocumentUrl(String documentUrl) {
+        this.documentUrl = documentUrl;
     }
 }

@@ -57,7 +57,7 @@ public class RecoveryPackageService {
 
     @Transactional
     public HorsePackageResponse approveRecovery(
-            Integer horseId, RecoveryApprovalRequest request, Integer managerId
+            String horseId, RecoveryApprovalRequest request, String managerId
     ) {
         Horse horse = lockedHorse(horseId);
         requireConfirmedTrainingLock(horse);
@@ -143,7 +143,7 @@ public class RecoveryPackageService {
 
     @Transactional
     public HorsePackageResponse simulateRecoveryPayment(
-            Integer recoveryRegistrationId, boolean successful, Integer ownerId
+            Integer recoveryRegistrationId, boolean successful, String ownerId
     ) {
         HorsePackage registration = horsePackageRepository.findById(recoveryRegistrationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Recovery registration not found"));
@@ -211,7 +211,7 @@ public class RecoveryPackageService {
         return mapper.toResponse(saved);
     }
 
-    private Horse lockedHorse(Integer horseId) {
+    private Horse lockedHorse(String horseId) {
         Horse horse = horseRepository.findById(horseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found"));
         entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);

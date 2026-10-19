@@ -14,7 +14,7 @@ public class GrantPermissionRequest {
   private String permissionCode;
 
   // Legacy field accepted for compatibility, but the controller uses the authenticated actor.
-  private Integer performedBy;
+  private String performedBy;
 
   public GrantPermissionRequest() {
   }
@@ -35,11 +35,11 @@ public class GrantPermissionRequest {
       this.permissionCode = permissionCode;
   }
 
-  public Integer getPerformedBy() {
+  public String getPerformedBy() {
       return performedBy;
   }
 
-  public void setPerformedBy(Integer performedBy) {
+  public void setPerformedBy(String performedBy) {
       this.performedBy = performedBy;
   }
 }

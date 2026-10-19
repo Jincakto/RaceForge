@@ -26,7 +26,7 @@ class IdentityMigrationTest {
         assertTrue(url.matches("(?i).*;databaseName=RaceForge_IdMigrationTest_[A-Za-z0-9_]+(?:;.*)?"));
         String username = System.getenv("DB_USERNAME"), password = System.getenv("DB_PASSWORD");
         Flyway.configure().dataSource(url, username, password).target("6").load().migrate();
-        Flyway flyway = Flyway.configure().dataSource(url, username, password).load();
+        Flyway flyway = Flyway.configure().dataSource(url, username, password).target("7").load();
         try (Connection connection = DriverManager.getConnection(url, username, password)) {
             Map<String, String> roots = roots(connection);
             assertEquals(22, roots.size());

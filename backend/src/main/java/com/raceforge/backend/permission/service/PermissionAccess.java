@@ -23,7 +23,7 @@ public class PermissionAccess {
                 && permissions.hasPermission(user.roleName(), code);
     }
 
-    public boolean canReadHorse(Authentication authentication, Integer horseId) {
+    public boolean canReadHorse(Authentication authentication, String horseId) {
         if (!has(authentication, "VIEW_TRAINING")) return false;
         AuthenticatedUser user = (AuthenticatedUser) authentication.getPrincipal();
         if (!"HORSE_OWNER".equals(user.roleName())) return true;

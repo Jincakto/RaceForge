@@ -24,5 +24,5 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Inte
             set t.revokedAt = :now
             where t.user.userId = :userId and t.revokedAt is null
             """)
-    int revokeAllForUser(@Param("userId") Integer userId, @Param("now") Instant now);
+    int revokeAllForUser(@Param("userId") String userId, @Param("now") Instant now);
 }

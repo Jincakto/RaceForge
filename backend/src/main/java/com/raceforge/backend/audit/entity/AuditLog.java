@@ -13,11 +13,11 @@ public class AuditLog {
     @Column(name = "audit_id")
     private Integer auditId;
 
-    @Column(name = "user_id")
-    private Integer userId;
+    @Column(name = "user_id", length = 20)
+    private String userId;
 
-    @Column(name = "horse_id")
-    private Integer horseId;
+    @Column(name = "horse_id", length = 20)
+    private String horseId;
 
     @Column(name = "action", nullable = false, length = 100)
     private String action;
@@ -25,8 +25,8 @@ public class AuditLog {
     @Column(name = "entity_type", length = 100)
     private String entityType;
 
-    @Column(name = "entity_id")
-    private Integer entityId;
+    @Column(name = "entity_id", length = 20)
+    private String entityId;
 
     @Column(name = "result", length = 50)
     private String result;
@@ -53,19 +53,19 @@ public class AuditLog {
         this.auditId = auditId;
     }
     
-    public Integer getUserId() {
+    public String getUserId() {
         return userId;
     }
     
-    public void setUserId(Integer userId) {
+    public void setUserId(String userId) {
         this.userId = userId;
     }
     
-    public Integer getHorseId() {
+    public String getHorseId() {
         return horseId;
     }
     
-    public void setHorseId(Integer horseId) {
+    public void setHorseId(String horseId) {
         this.horseId = horseId;
     }
     
@@ -85,11 +85,11 @@ public class AuditLog {
         this.entityType = entityType;
     }
     
-    public Integer getEntityId() {
+    public String getEntityId() {
         return entityId;
     }
     
-    public void setEntityId(Integer entityId) {
+    public void setEntityId(String entityId) {
         this.entityId = entityId;
     }
     

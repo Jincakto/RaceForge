@@ -5,11 +5,11 @@ import java.util.List;
 
 public class MedicalRecordResponse {
 
-    private Integer medicalRecordId;
+    private @jakarta.validation.constraints.Pattern(regexp = "MED-[0-9]{3}") String medicalRecordId;
 
     private Integer profileId;
-    private Integer veterinarianId;
-    private Integer correctionOfId;
+    private @jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String veterinarianId;
+    private @jakarta.validation.constraints.Pattern(regexp = "MED-[0-9]{3}") String correctionOfId;
 
     private String examType;
     private LocalDateTime examinedAt;
@@ -25,6 +25,14 @@ public class MedicalRecordResponse {
     private String systemNote;
     private String trainingNote;
 
+    private Boolean trainingEligible;
+
+    private String eligibilityReason;
+    public Boolean getTrainingEligible() { return trainingEligible; }
+    public void setTrainingEligible(Boolean value) { trainingEligible=value; }
+    public String getEligibilityReason() { return eligibilityReason; }
+    public void setEligibilityReason(String value) { eligibilityReason=value; }
+
     private String status;
     private LocalDateTime confirmedAt;
 
@@ -38,11 +46,11 @@ public class MedicalRecordResponse {
     public MedicalRecordResponse() {
     }
 
-    public Integer getMedicalRecordId() {
+    public String getMedicalRecordId() {
         return medicalRecordId;
     }
 
-    public void setMedicalRecordId(Integer medicalRecordId) {
+    public void setMedicalRecordId(@jakarta.validation.constraints.Pattern(regexp = "MED-[0-9]{3}") String medicalRecordId) {
         this.medicalRecordId = medicalRecordId;
     }
 
@@ -54,19 +62,19 @@ public class MedicalRecordResponse {
         this.profileId = profileId;
     }
 
-    public Integer getVeterinarianId() {
+    public String getVeterinarianId() {
         return veterinarianId;
     }
 
-    public void setVeterinarianId(Integer veterinarianId) {
+    public void setVeterinarianId(@jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String veterinarianId) {
         this.veterinarianId = veterinarianId;
     }
 
-    public Integer getCorrectionOfId() {
+    public String getCorrectionOfId() {
         return correctionOfId;
     }
 
-    public void setCorrectionOfId(Integer correctionOfId) {
+    public void setCorrectionOfId(@jakarta.validation.constraints.Pattern(regexp = "MED-[0-9]{3}") String correctionOfId) {
         this.correctionOfId = correctionOfId;
     }
 

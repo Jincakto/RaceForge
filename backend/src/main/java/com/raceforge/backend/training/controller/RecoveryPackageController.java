@@ -14,6 +14,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+@org.springframework.validation.annotation.Validated
 @RestController
 @RequestMapping("/api/horse-packages")
 @Tag(name = "Recovery Packages")
@@ -28,9 +29,9 @@ public class RecoveryPackageController {
     @PreAuthorize("hasAuthority('CLUB_MANAGER')")
     @PostMapping("/horse/{horseId}/approve-recovery")
     public ResponseEntity<ApiResponse<HorsePackageResponse>> approveRecovery(
-            @PathVariable Integer horseId,
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId,
             @Valid @RequestBody RecoveryApprovalRequest request,
-            @AuthenticationPrincipal(expression = "userId") Integer managerId
+            @AuthenticationPrincipal(expression = "userId") String managerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Recovery transition approved; awaiting simulated payment",
@@ -43,7 +44,7 @@ public class RecoveryPackageController {
     public ResponseEntity<ApiResponse<HorsePackageResponse>> simulateRecoveryPayment(
             @PathVariable Integer id,
             @Valid @RequestBody HorsePackagePaymentRequest request,
-            @AuthenticationPrincipal(expression = "userId") Integer ownerId
+            @AuthenticationPrincipal(expression = "userId") String ownerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Recovery payment simulation processed",

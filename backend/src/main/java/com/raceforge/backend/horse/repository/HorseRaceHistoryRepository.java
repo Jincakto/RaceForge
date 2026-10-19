@@ -12,6 +12,6 @@ import java.util.List;
 public interface HorseRaceHistoryRepository
         extends JpaRepository<HorseRaceHistory, Integer> {
 
-    List<HorseRaceHistory> findByHorseHorseId(Integer horseId);
+    List<HorseRaceHistory> findByHorseHorseId(String horseId);
 }
 

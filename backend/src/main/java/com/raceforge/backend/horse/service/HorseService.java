@@ -18,17 +18,20 @@ import java.util.List;
 @Service
 public class HorseService {
 
+    private final com.raceforge.backend.horse.admission.AdmissionService admission;
     private final HorseRepository horseRepository;
     private final UserRepository userRepository;
     private final HorseMapper horseMapper;
     private final AuditLogService auditLogService;
 
     public HorseService(
+            com.raceforge.backend.horse.admission.AdmissionService admission,
             HorseRepository horseRepository,
             UserRepository userRepository,
             HorseMapper horseMapper,
             AuditLogService auditLogService) {
 
+        this.admission = admission;
         this.horseRepository = horseRepository;
         this.userRepository = userRepository;
         this.horseMapper = horseMapper;
@@ -37,13 +40,15 @@ public class HorseService {
 
     @org.springframework.transaction.annotation.Transactional
     public HorseResponse createHorse(
-            Integer ownerId,
+            String ownerId,
             HorseCreateRequest request) {
 
+        admission.requireRole("HORSE_OWNER");
+        ownerId = admission.actor().userId();
         User owner = userRepository.findById(ownerId)
             .orElseThrow(() ->
                 new ResourceNotFoundException(
-                        "Owner not found: " + ownerId
+                        "Authenticated owner not found"
                 )
         );
 
@@ -59,8 +64,8 @@ public class HorseService {
         horse.setStatus("INACTIVE");
 
         Horse savedHorse = horseRepository.save(horse);
-        // TODO: resolve authenticated actor from merged User/Auth module.
-        auditLogService.record(null, savedHorse.getHorseId(), "HORSE", savedHorse.getHorseId(), "HORSE_CREATED", "SUCCESS", null);
+        admission.register(savedHorse);
+        auditLogService.record(admission.actor().userId(), savedHorse.getHorseId(), "HORSE", savedHorse.getHorseId(), "HORSE_CREATED", "SUCCESS", null);
 
         return horseMapper.toResponse(savedHorse);
     }
@@ -68,58 +73,63 @@ public class HorseService {
     public List<HorseResponse> getAllHorses() {
 
         return horseRepository.findAll()
-                .stream()
+                .stream().filter(admission::canRead)
                 .map(horseMapper::toResponse)
                 .toList();
     }
 
-    public HorseResponse getHorseById(Integer horseId) {
+    public HorseResponse getHorseById(String horseId) {
 
         Horse horse = findHorseById(horseId);
+        admission.checkRead(horse);
 
         return horseMapper.toResponse(horse);
     }
 
     @org.springframework.transaction.annotation.Transactional
-    public HorseResponse updateHorse(Integer horseId, HorseUpdateRequest request) {
+    public HorseResponse updateHorse(String horseId, HorseUpdateRequest request) {
 
-        Horse horse = findHorseById(horseId);
+        Horse horse = horseRepository.findByIdForUpdate(horseId).orElseThrow(() -> new ResourceNotFoundException("Horse not found"));
 
+        admission.requireEditable(horse);
         horseMapper.updateEntity(horse, request);
 
         Horse updatedHorse = horseRepository.save(horse);
 
-        auditLogService.record(null, updatedHorse.getHorseId(), "HORSE", updatedHorse.getHorseId(), "HORSE_UPDATED", "SUCCESS", null);
+        auditLogService.record(admission.actor().userId(), updatedHorse.getHorseId(), "HORSE", updatedHorse.getHorseId(), "HORSE_UPDATED", "SUCCESS", null);
         return horseMapper.toResponse(updatedHorse);
     }
 
     @org.springframework.transaction.annotation.Transactional
-    public HorseResponse deactivateHorse(Integer horseId) {
+    public HorseResponse deactivateHorse(String horseId) {
     
         Horse horse = findHorseById(horseId);
     
+        admission.requireRole("CLUB_MANAGER");
         horse.setStatus("INACTIVE");
     
         Horse updatedHorse = horseRepository.save(horse);
     
-        auditLogService.record(null, updatedHorse.getHorseId(), "HORSE", updatedHorse.getHorseId(), "HORSE_DEACTIVATED", "SUCCESS", null);
+        auditLogService.record(admission.actor().userId(), updatedHorse.getHorseId(), "HORSE", updatedHorse.getHorseId(), "HORSE_DEACTIVATED", "SUCCESS", null);
         return horseMapper.toResponse(updatedHorse);
     }
 
     @org.springframework.transaction.annotation.Transactional
-    public HorseResponse activateHorse(Integer horseId) {
+    public HorseResponse activateHorse(String horseId) {
     
         Horse horse = findHorseById(horseId);
     
+        admission.requireRole("CLUB_MANAGER");
+        admission.requireCompleted(horseId);
         horse.setStatus("ACTIVE");
     
         Horse updatedHorse = horseRepository.save(horse);
     
-        auditLogService.record(null, updatedHorse.getHorseId(), "HORSE", updatedHorse.getHorseId(), "HORSE_ACTIVATED", "SUCCESS", null);
+        auditLogService.record(admission.actor().userId(), updatedHorse.getHorseId(), "HORSE", updatedHorse.getHorseId(), "HORSE_ACTIVATED", "SUCCESS", null);
         return horseMapper.toResponse(updatedHorse);
     }
 
-    private Horse findHorseById(Integer horseId) {
+    private Horse findHorseById(String horseId) {
         return horseRepository.findById(horseId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(

@@ -5,11 +5,16 @@ import java.util.List;
 
 public class MedicalRecordCreateRequest {
 
+    @jakarta.validation.constraints.NotNull
+    @jakarta.validation.constraints.Positive
     private Integer profileId;
-    private Integer veterinarianId;
-    private Integer correctionOfId;
+    private @jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String veterinarianId;
+    private @jakarta.validation.constraints.Pattern(regexp = "MED-[0-9]{3}") String correctionOfId;
 
+    @jakarta.validation.constraints.NotBlank
+    @jakarta.validation.constraints.Pattern(regexp="INITIAL|PERIODIC|FOLLOW_UP")
     private String examType;
+    @jakarta.validation.constraints.NotNull
     private LocalDateTime examinedAt;
 
     private String healthStatus;
@@ -32,19 +37,19 @@ public class MedicalRecordCreateRequest {
         this.profileId = profileId;
     }
 
-    public Integer getVeterinarianId() {
+    public String getVeterinarianId() {
         return veterinarianId;
     }
 
-    public void setVeterinarianId(Integer veterinarianId) {
+    public void setVeterinarianId(@jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String veterinarianId) {
         this.veterinarianId = veterinarianId;
     }
 
-    public Integer getCorrectionOfId() {
+    public String getCorrectionOfId() {
         return correctionOfId;
     }
 
-    public void setCorrectionOfId(Integer correctionOfId) {
+    public void setCorrectionOfId(@jakarta.validation.constraints.Pattern(regexp = "MED-[0-9]{3}") String correctionOfId) {
         this.correctionOfId = correctionOfId;
     }
 

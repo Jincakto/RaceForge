@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface MedicalRecordRepository
-        extends JpaRepository<MedicalRecord, Integer> {
+        extends JpaRepository<MedicalRecord, String> {
 
     List<MedicalRecord>
         findByHealthProfile_ProfileIdOrderByExaminedAtDesc(
@@ -16,7 +16,7 @@ public interface MedicalRecordRepository
 
     List<MedicalRecord>
         findByVeterinarian_UserIdOrderByExaminedAtDesc(
-            Integer veterinarianId
+            String veterinarianId
         );
 
     List<MedicalRecord>

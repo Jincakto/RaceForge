@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+@org.springframework.validation.annotation.Validated
 @RestController
 @RequestMapping("/api/horse-packages")
 @Tag(name = "Package Resumption")
@@ -27,7 +28,7 @@ public class PackageResumptionController {
     public ResponseEntity<ApiResponse<HorsePackageResponse>> resumeOriginal(
             @PathVariable Integer recoveryId,
             @Valid @RequestBody ResumeOriginalPackageRequest request,
-            @AuthenticationPrincipal(expression = "userId") Integer managerId
+            @AuthenticationPrincipal(expression = "userId") String managerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Original training package resumed",

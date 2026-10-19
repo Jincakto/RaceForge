@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class MedicalRecordService {
+    private final com.raceforge.backend.horse.admission.AdmissionService admission;
     private final HealthProfileRepository healthProfileRepository;
     private final MedicalRecordRepository medicalRecordRepository;
     private final MedicalVitalSignRepository medicalVitalSignRepository;
@@ -34,6 +35,7 @@ public class MedicalRecordService {
     private final AuditLogService auditLogService;
 
     public MedicalRecordService(
+            com.raceforge.backend.horse.admission.AdmissionService admission,
             HealthProfileRepository healthProfileRepository,
             MedicalRecordRepository medicalRecordRepository,
             MedicalVitalSignRepository medicalVitalSignRepository,
@@ -43,6 +45,7 @@ public class MedicalRecordService {
             MedicalRecordMapper medicalRecordMapper,
             TrainingLockService trainingLockService,
             AuditLogService auditLogService) {
+        this.admission = admission;
         this.healthProfileRepository = healthProfileRepository;
         this.medicalRecordRepository = medicalRecordRepository;
         this.medicalVitalSignRepository = medicalVitalSignRepository;
@@ -58,6 +61,9 @@ public class MedicalRecordService {
     public MedicalRecordResponse createMedicalRecord(MedicalRecordCreateRequest request) {
         HealthProfile profile = healthProfileRepository.findById(request.getProfileId())
                 .orElseThrow(() -> new ResourceNotFoundException("Health profile not found"));
+        admission.requireRole("VETERINARIAN");
+        admission.checkRead(profile.getHorse());
+        admission.checkExamination(profile.getHorse().getHorseId(), request.getVeterinarianId(), normalize(request.getExamType()), null, request.getCorrectionOfId()!=null);
         MedicalRecord record = new MedicalRecord();
         record.setHealthProfile(profile);
         record.setVeterinarian(getVeterinarian(request.getVeterinarianId()));
@@ -77,6 +83,7 @@ public class MedicalRecordService {
                 throw new BusinessRuleException("Correction must belong to the same health profile");
             }
 
+            if (!"CONFIRMED".equals(original.getStatus()) || !original.getVeterinarian().getUserId().equals(request.getVeterinarianId()) || !original.getExamType().equals(record.getExamType())) throw new BusinessRuleException("Correction must reference your confirmed examination of the same type");
             record.setCorrectionOf(original);
         }
 
@@ -86,6 +93,7 @@ public class MedicalRecordService {
         record.setTrainingNote(evaluation.trainingNote());
         medicalRecordRepository.save(record);
 
+        admission.linkInitial(record);
         saveVitalSign(record, request.getVitalSign());
         saveClinicalExams(record, request.getClinicalExams());
         auditLogService.record(record.getVeterinarian().getUserId(), profile.getHorse().getHorseId(), "MEDICAL_RECORD", record.getMedicalRecordId(), "MEDICAL_RECORD_CREATED", "SUCCESS", null);
@@ -135,7 +143,7 @@ public class MedicalRecordService {
         return medicalRecordMapper.toResponse(record, vitalSign, exams);
     }
 
-    private User getVeterinarian(Integer veterinarianId) {
+    private User getVeterinarian(String veterinarianId) {
         User user = userRepository.findDetailedById(veterinarianId)
                 .orElseThrow(() -> new ResourceNotFoundException("Veterinarian not found"));
         if (!"ACTIVE".equals(user.getStatus())) {
@@ -148,24 +156,28 @@ public class MedicalRecordService {
     }
 
     @Transactional(readOnly = true)
-    public MedicalRecordResponse getMedicalRecordById(Integer medicalRecordId) {
+    public MedicalRecordResponse getMedicalRecordById(String medicalRecordId) {
         MedicalRecord record = medicalRecordRepository.findById(medicalRecordId)
                 .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
+        admission.checkRead(record.getHealthProfile().getHorse());
         return buildResponse(record);
     }
 
     @Transactional(readOnly = true)
-    public List<MedicalRecordResponse> getMedicalHistory(Integer horseId) {
-        HealthProfile profile = healthProfileRepository.findByHorse_HorseId(horseId)
-                .orElseThrow(() -> new ResourceNotFoundException("Health profile not found"));
+    public List<MedicalRecordResponse> getMedicalHistory(String horseId) {
+        admission.get(horseId);
+        HealthProfile profile = healthProfileRepository.findByHorse_HorseId(horseId).orElse(null);
+        if (profile == null) return List.of();
+        admission.checkRead(profile.getHorse());
         return medicalRecordRepository.findByHealthProfile_ProfileIdOrderByExaminedAtDesc(profile.getProfileId())
                 .stream().map(this::buildResponse).toList();
     }
 
     @Transactional(readOnly = true)
-    public Optional<MedicalRecordResponse> getPreviousConfirmedExamination(Integer horseId) {
+    public Optional<MedicalRecordResponse> getPreviousConfirmedExamination(String horseId) {
         HealthProfile profile = healthProfileRepository.findByHorse_HorseId(horseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Health profile not found"));
+        admission.checkRead(profile.getHorse());
         return medicalRecordRepository
                 .findFirstByHealthProfile_ProfileIdAndStatusOrderByExaminedAtDesc(
                         profile.getProfileId(), "CONFIRMED")
@@ -173,8 +185,8 @@ public class MedicalRecordService {
     }
 
     @Transactional
-    public MedicalRecordResponse updateMedicalDraft(Integer medicalRecordId,
-                                                     Integer veterinarianId,
+    public MedicalRecordResponse updateMedicalDraft(String medicalRecordId,
+                                                     String veterinarianId,
                                                      MedicalRecordUpdateRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("Update request is required");
@@ -183,6 +195,8 @@ public class MedicalRecordService {
         User veterinarian = getVeterinarian(veterinarianId);
         MedicalRecord record = medicalRecordRepository.findById(medicalRecordId)
                 .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
+        admission.requireRole("VETERINARIAN");
+        admission.checkExamination(record.getHealthProfile().getHorse().getHorseId(), veterinarianId, record.getExamType(), medicalRecordId, record.getCorrectionOf()!=null);
         if (!"DRAFT".equals(record.getStatus())) {
             throw new BusinessRuleException("Only DRAFT medical records can be edited");
         }
@@ -244,11 +258,13 @@ public class MedicalRecordService {
 
 
     @Transactional
-    public MedicalRecordResponse confirmMedicalRecord(Integer medicalRecordId,
-                                                       Integer veterinarianId) {
+    public MedicalRecordResponse confirmMedicalRecord(String medicalRecordId,
+                                                       String veterinarianId) {
         User veterinarian = getVeterinarian(veterinarianId);
         MedicalRecord record = medicalRecordRepository.findById(medicalRecordId)
                 .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
+        admission.requireRole("VETERINARIAN");
+        admission.checkExamination(record.getHealthProfile().getHorse().getHorseId(), veterinarianId, record.getExamType(), medicalRecordId, record.getCorrectionOf()!=null);
         if (!"DRAFT".equals(record.getStatus())) {
             throw new BusinessRuleException("Only DRAFT medical records can be confirmed");
         }
@@ -305,9 +321,12 @@ public class MedicalRecordService {
         boolean mustLock = evaluation.suggestedLock()
                 || "INJURED".equals(healthStatus)
                 || "QUARANTINED".equals(healthStatus);
+        if (mustLock && (record.getDiagnosis()==null || record.getDiagnosis().isBlank())) throw new BusinessRuleException("Explain why the horse is not eligible for training in the diagnosis");
         record.setHealthStatus(healthStatus);
         record.setSystemNote(evaluation.systemNote());
         record.setTrainingNote(evaluation.trainingNote());
+        record.setTrainingEligible(!mustLock);
+        record.setEligibilityReason(mustLock ? record.getDiagnosis().substring(0,Math.min(1000,record.getDiagnosis().length())) : null);
         record.setStatus("CONFIRMED");
         record.setConfirmedAt(LocalDateTime.now());
         horse.setHealthStatus(healthStatus);
@@ -323,6 +342,7 @@ public class MedicalRecordService {
         }
 
         medicalRecordRepository.save(record);
+        admission.examined(record);
         auditLogService.record(veterinarianId, horse.getHorseId(), "MEDICAL_RECORD", medicalRecordId, "MEDICAL_RECORD_CONFIRMED", "SUCCESS", null);
         return buildResponse(record);
     }

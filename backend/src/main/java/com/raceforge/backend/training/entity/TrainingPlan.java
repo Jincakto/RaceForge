@@ -14,7 +14,7 @@ public class TrainingPlan {
 
   // [User](user_id) of the authenticated creator; persisted as an integer FK.
   @Column(name = "created_by", nullable = false)
-  private Integer createdBy;
+  private String createdBy;
 
   @Column(name = "plan_name", nullable = false, length = 150)
   private String planName;
@@ -42,11 +42,11 @@ public class TrainingPlan {
       this.planId = planId;
   }
 
-  public Integer getCreatedBy() {
+  public String getCreatedBy() {
       return createdBy;
   }
 
-  public void setCreatedBy(Integer createdBy) {
+  public void setCreatedBy(String createdBy) {
       this.createdBy = createdBy;
   }
 

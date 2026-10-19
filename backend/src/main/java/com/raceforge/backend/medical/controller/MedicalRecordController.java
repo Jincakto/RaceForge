@@ -25,6 +25,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.List;
 
 
+@org.springframework.validation.annotation.Validated
 @RestController
 @RequestMapping("/api/medical")
 @Tag(name = "Medical Records")
@@ -42,7 +43,7 @@ public class MedicalRecordController {
 
     @PostMapping("/records")
     public ResponseEntity<ApiResponse<MedicalRecordResponse>> createMedicalRecord(
-            @RequestBody MedicalRecordCreateRequest request,
+            @jakarta.validation.Valid @RequestBody MedicalRecordCreateRequest request,
             Authentication authentication) {
 
         if (request == null) {
@@ -58,7 +59,7 @@ public class MedicalRecordController {
 
     @GetMapping("/records/{medicalRecordId}")
     public ApiResponse<MedicalRecordResponse> getMedicalRecord(
-            @PathVariable Integer medicalRecordId,
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "MED-[0-9]{3}") String medicalRecordId,
             Authentication authentication) {
 
         currentUserId(authentication);
@@ -68,7 +69,7 @@ public class MedicalRecordController {
 
     @GetMapping("/horses/{horseId}/records")
     public ApiResponse<List<MedicalRecordResponse>> getMedicalHistory(
-            @PathVariable Integer horseId,
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId,
             Authentication authentication) {
 
         currentUserId(authentication);
@@ -78,7 +79,7 @@ public class MedicalRecordController {
 
     @GetMapping("/horses/{horseId}/previous-examination")
     public ResponseEntity<ApiResponse<MedicalRecordResponse>> getPreviousConfirmedExamination(
-            @PathVariable Integer horseId,
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId,
             Authentication authentication) {
 
         currentUserId(authentication);
@@ -89,7 +90,7 @@ public class MedicalRecordController {
 
     @PutMapping("/records/{medicalRecordId}/draft")
     public ApiResponse<MedicalRecordResponse> updateMedicalDraft(
-            @PathVariable Integer medicalRecordId,
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "MED-[0-9]{3}") String medicalRecordId,
             @RequestBody MedicalRecordUpdateRequest request,
             Authentication authentication) {
 
@@ -102,7 +103,7 @@ public class MedicalRecordController {
 
     @PostMapping("/records/{medicalRecordId}/confirm")
     public ApiResponse<MedicalRecordResponse> confirmMedicalRecord(
-            @PathVariable Integer medicalRecordId,
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "MED-[0-9]{3}") String medicalRecordId,
             Authentication authentication) {
 
         return ApiResponse.success("Medical record confirmed",
@@ -113,7 +114,7 @@ public class MedicalRecordController {
 
     @PostMapping("/horses/{horseId}/training-lock/unlock")
     public ApiResponse<TrainingLockResponse> unlockHorse(
-            @PathVariable Integer horseId,
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId,
             @RequestBody TrainingUnlockRequest request,
             Authentication authentication) {
 
@@ -130,7 +131,7 @@ public class MedicalRecordController {
 
     @GetMapping("/horses/{horseId}/training-lock/history")
     public ApiResponse<List<TrainingLockResponse>> getTrainingLockHistory(
-            @PathVariable Integer horseId,
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId,
             Authentication authentication) {
 
         currentUserId(authentication);
@@ -141,30 +142,17 @@ public class MedicalRecordController {
                         .toList());
     }
 
-    private Integer currentUserId(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()
-                || !(authentication.getPrincipal() instanceof com.raceforge.backend.security.AuthenticatedUser user)
-                || user.userId() == null || user.userId() <= 0) {
+    private String currentUserId(Authentication authentication) {
+        if (authentication == null
+                || !authentication.isAuthenticated()
+                || authentication.getName() == null
+                || authentication.getName().isBlank()
+                || "anonymousUser".equals(authentication.getName())) {
+
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication is required");
         }
-        return user.userId();
+
+        if (authentication.getPrincipal() instanceof com.raceforge.backend.security.AuthenticatedUser user) return user.userId();
+        throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "A valid user identity is required");
     }
-    // Legacy: Authentication.getName() is not the numeric ID for the JWT principal.
-    //     private Integer currentUserId(Authentication authentication) {
-    //         if (authentication == null
-    //                 || !authentication.isAuthenticated()
-    //                 || authentication.getName() == null
-    //                 || authentication.getName().isBlank()
-    //                 || "anonymousUser".equals(authentication.getName())) {
-    // 
-    //             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication is required");
-    //         }
-    // 
-    //         try {
-    //             return Integer.valueOf(authentication.getName());
-    //         } catch (NumberFormatException ex) {
-    //             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication user ID must be numeric");
-    //         }
-    //     }
-    // 
 }

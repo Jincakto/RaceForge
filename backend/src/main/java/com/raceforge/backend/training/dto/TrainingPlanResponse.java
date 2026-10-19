@@ -3,8 +3,8 @@ package com.raceforge.backend.training.dto;
 public class TrainingPlanResponse {
 
   private Integer planId;
-  private Integer horseId;
-  private Integer createdBy;
+  private @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId;
+  private String createdBy;
   private String planName;
   private String goal;
   private Integer duration;
@@ -22,19 +22,19 @@ public class TrainingPlanResponse {
       this.planId = planId;
   }
 
-  public Integer getHorseId() {
+  public String getHorseId() {
       return horseId;
   }
 
-  public void setHorseId(Integer horseId) {
+  public void setHorseId(@jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
       this.horseId = horseId;
   }
 
-  public Integer getCreatedBy() {
+  public String getCreatedBy() {
       return createdBy;
   }
 
-  public void setCreatedBy(Integer createdBy) {
+  public void setCreatedBy(String createdBy) {
       this.createdBy = createdBy;
   }
 

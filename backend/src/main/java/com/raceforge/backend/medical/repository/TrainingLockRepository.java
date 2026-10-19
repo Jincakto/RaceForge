@@ -6,6 +6,6 @@ import java.util.Optional;
 import java.util.List;
 
 public interface TrainingLockRepository extends JpaRepository<TrainingLock, Integer> {
-    Optional<TrainingLock> findFirstByHorse_HorseIdAndUnlockedAtIsNullOrderByLockedAtDesc(Integer horseId);
-    List<TrainingLock> findByHorse_HorseIdOrderByLockedAtDesc(Integer horseId);
+    Optional<TrainingLock> findFirstByHorse_HorseIdAndUnlockedAtIsNullOrderByLockedAtDesc(String horseId);
+    List<TrainingLock> findByHorse_HorseIdOrderByLockedAtDesc(String horseId);
 }

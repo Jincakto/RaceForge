@@ -8,5 +8,5 @@ import java.util.Optional;
 public interface HealthProfileRepository
         extends JpaRepository<HealthProfile, Integer> {
 
-    Optional<HealthProfile> findByHorse_HorseId(Integer horseId);
+    Optional<HealthProfile> findByHorse_HorseId(String horseId);
 }

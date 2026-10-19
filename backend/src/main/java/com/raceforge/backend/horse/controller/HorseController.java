@@ -15,13 +15,12 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@org.springframework.validation.annotation.Validated
 @RestController
 @RequestMapping("/api/horses")
 @Tag(name = "Horses")
 public class HorseController {
 
-    @org.springframework.beans.factory.annotation.Autowired
-    private com.raceforge.backend.horse.service.HorseAccess access;
     private final HorseService horseService;
 
     public HorseController(HorseService horseService) {
@@ -30,7 +29,7 @@ public class HorseController {
 
     @PostMapping
     public ResponseEntity<ApiResponse<HorseResponse>> createHorse(
-            @RequestParam Integer ownerId,
+            @RequestParam(required = false) @jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String ownerId,
             @Valid @RequestBody HorseCreateRequest request) {
 
         HorseResponse horse =
@@ -47,10 +46,10 @@ public class HorseController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<HorseResponse>>> getAllHorses(org.springframework.security.core.Authentication authentication) {
+    public ResponseEntity<ApiResponse<List<HorseResponse>>> getAllHorses() {
 
         List<HorseResponse> horses =
-                horseService.getAllHorses().stream().filter(h -> access.read(authentication, h.getHorseId())).toList();
+                horseService.getAllHorses();
 
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -60,10 +59,9 @@ public class HorseController {
         );
     }
 
-    @org.springframework.security.access.prepost.PreAuthorize("@horseAccess.read(authentication, #horseId)")
     @GetMapping("/{horseId}")
     public ResponseEntity<ApiResponse<HorseResponse>> getHorseById(
-            @PathVariable Integer horseId) {
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
 
         HorseResponse horse =
                 horseService.getHorseById(horseId);
@@ -76,10 +74,9 @@ public class HorseController {
         );
     }
 
-    @org.springframework.security.access.prepost.PreAuthorize("@horseAccess.owns(authentication, #horseId)")
     @PutMapping("/{horseId}")
     public ResponseEntity<ApiResponse<HorseResponse>> updateHorse(
-            @PathVariable Integer horseId,
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId,
             @Valid @RequestBody HorseUpdateRequest request) {
 
         HorseResponse horse =
@@ -93,10 +90,9 @@ public class HorseController {
         );
     }
 
-    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('CLUB_MANAGER')")
     @PatchMapping("/{horseId}/activate")
     public ResponseEntity<ApiResponse<HorseResponse>> activateHorse(
-            @PathVariable Integer horseId) {
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
 
         HorseResponse horse =
                 horseService.activateHorse(horseId);
@@ -111,7 +107,7 @@ public class HorseController {
 
     @PatchMapping("/{horseId}/deactivate")
     public ResponseEntity<ApiResponse<HorseResponse>> deactivateHorse(
-            @PathVariable Integer horseId) {
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
 
         HorseResponse horse =
                 horseService.deactivateHorse(horseId);

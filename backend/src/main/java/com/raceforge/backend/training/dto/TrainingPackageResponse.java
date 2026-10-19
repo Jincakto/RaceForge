@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public record TrainingPackageResponse(
-        Integer packageId,
+        @jakarta.validation.constraints.Pattern(regexp = "PKG-[0-9]{3}") String packageId,
         String packageName,
         String packageType,
         String description,

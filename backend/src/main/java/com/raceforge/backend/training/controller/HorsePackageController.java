@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@org.springframework.validation.annotation.Validated
 @RestController
 @RequestMapping("/api/horse-packages")
 @Tag(name = "Horse Packages")
@@ -30,7 +31,7 @@ public class HorsePackageController {
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<HorsePackageResponse>> register(
             @Valid @RequestBody HorsePackageRegisterRequest request,
-            @AuthenticationPrincipal(expression = "userId") Integer ownerId
+            @AuthenticationPrincipal(expression = "userId") String ownerId
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Registration created", service.register(request, ownerId)));
@@ -41,7 +42,7 @@ public class HorsePackageController {
     public ResponseEntity<ApiResponse<HorsePackageResponse>> simulatePayment(
             @PathVariable Integer id,
             @Valid @RequestBody HorsePackagePaymentRequest request,
-            @AuthenticationPrincipal(expression = "userId") Integer ownerId
+            @AuthenticationPrincipal(expression = "userId") String ownerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Payment simulation processed",
@@ -52,8 +53,8 @@ public class HorsePackageController {
     @PreAuthorize("hasAuthority('HORSE_OWNER')")
     @GetMapping("/horse/{horseId}")
     public ResponseEntity<ApiResponse<List<HorsePackageResponse>>> history(
-            @PathVariable Integer horseId,
-            @AuthenticationPrincipal(expression = "userId") Integer ownerId
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId,
+            @AuthenticationPrincipal(expression = "userId") String ownerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Horse package history retrieved", service.history(horseId, ownerId)

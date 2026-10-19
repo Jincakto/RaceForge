@@ -6,12 +6,11 @@ import com.raceforge.backend.account.entity.User;
 
 @Entity
 @Table(name = "Medical_Record")
-public class MedicalRecord {
+public class MedicalRecord extends com.raceforge.backend.common.id.AssignedBusinessEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "medical_record_id", length = 20)
-    private Integer medicalRecordId;
+    @Column(name = "medical_record_id", length = 20, updatable = false)
+    private String medicalRecordId;
 
     @ManyToOne
     @JoinColumn(name = "profile_id", nullable = false)
@@ -55,6 +54,14 @@ public class MedicalRecord {
 
     @Column(name = "training_note", length = 1000)
     private String trainingNote;
+    @jakarta.persistence.Column(name="training_eligible")
+    private Boolean trainingEligible;
+    @jakarta.persistence.Column(name="eligibility_reason", length=1000)
+    private String eligibilityReason;
+    public Boolean getTrainingEligible() { return trainingEligible; }
+    public void setTrainingEligible(Boolean value) { trainingEligible=value; }
+    public String getEligibilityReason() { return eligibilityReason; }
+    public void setEligibilityReason(String value) { eligibilityReason=value; }
     
     @Column(name = "status", nullable = false, length = 20)
     private String status;
@@ -90,11 +97,11 @@ public class MedicalRecord {
         updatedAt = LocalDateTime.now();
     }
 
-    public Integer getMedicalRecordId() {
+    public String getMedicalRecordId() {
         return medicalRecordId;
     }
 
-    public void setMedicalRecordId(Integer medicalRecordId) {
+    public void setMedicalRecordId(String medicalRecordId) {
         this.medicalRecordId = medicalRecordId;
     }
 
@@ -233,4 +240,5 @@ public class MedicalRecord {
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
     }
+    @Override public String getId() { return medicalRecordId; }
 }

@@ -14,13 +14,13 @@ public class AuditLogService {
     }
 
     @Transactional
-    public AuditLog record(Integer actorId, Integer horseId, String entityType,
-                           Integer entityId, String action, String result, String reason) {
+    public AuditLog record(String actorId, String horseId, String entityType,
+                           Object entityId, String action, String result, String reason) {
         AuditLog log = new AuditLog();
         log.setUserId(actorId);
         log.setHorseId(horseId);
         log.setEntityType(entityType);
-        log.setEntityId(entityId);
+        log.setEntityId(entityId == null ? null : entityId.toString());
         log.setAction(action);
         log.setResult(result);
         log.setReason(reason);

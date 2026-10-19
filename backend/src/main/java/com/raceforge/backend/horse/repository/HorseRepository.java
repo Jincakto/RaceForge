@@ -12,11 +12,11 @@ import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
 @Repository
-public interface HorseRepository extends JpaRepository<Horse, Integer> {
+public interface HorseRepository extends JpaRepository<Horse, String> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT h FROM Horse h WHERE h.horseId = :horseId")
     Optional<Horse> findByIdForUpdate(
-            @Param("horseId") Integer horseId
+            @Param("horseId") String horseId
     );
 }

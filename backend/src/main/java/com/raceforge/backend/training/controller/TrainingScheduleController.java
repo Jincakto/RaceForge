@@ -1,7 +1,6 @@
 package com.raceforge.backend.training.controller;
 
 import com.raceforge.backend.common.response.ApiResponse;
-import com.raceforge.backend.training.dto.SchedulingPackageResponse;
 import com.raceforge.backend.training.dto.AttendSessionRequest;
 import com.raceforge.backend.training.dto.AttendanceResponse;
 import com.raceforge.backend.training.dto.ScheduleRecurringRequest;
@@ -19,6 +18,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 
 // Shares the /api/training-sessions base path with TrainingSessionController but uses different
 // sub-paths (/recurring, /{id}/attendance, /horse/{id}), so the mappings do not collide.
+@org.springframework.validation.annotation.Validated
 @RestController
 @RequestMapping("/api/training-sessions")
 @Tag(name = "Training Schedule")
@@ -33,14 +33,6 @@ public class TrainingScheduleController {
           @Valid @RequestBody ScheduleRecurringRequest request) {
       List<TrainingSessionResponse> created = trainingScheduleService.createRecurringSchedule(request);
       return ResponseEntity.ok(ApiResponse.success("Training schedule created", created));
-  }
-
-  @GetMapping("/horse/{horseId}/scheduling-packages")
-  @PreAuthorize("hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")
-  public ResponseEntity<ApiResponse<List<SchedulingPackageResponse>>> schedulingPackages(
-          @PathVariable Integer horseId) {
-      return ResponseEntity.ok(ApiResponse.success("Scheduling packages retrieved",
-              trainingScheduleService.getSchedulingPackages(horseId)));
   }
 
   @PutMapping("/{sessionId}/attendance")
@@ -58,7 +50,7 @@ public class TrainingScheduleController {
 
   @GetMapping("/horse/{horseId}")
   @PreAuthorize("@permissionAccess.canReadHorse(authentication, #p0)")
-  public ResponseEntity<ApiResponse<List<TrainingSessionResponse>>> getByHorse(@PathVariable Integer horseId) {
+  public ResponseEntity<ApiResponse<List<TrainingSessionResponse>>> getByHorse(@PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
       return ResponseEntity.ok(ApiResponse.success(
               "Training schedule retrieved", trainingScheduleService.getScheduleByHorseId(horseId)));
   }

@@ -11,7 +11,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.raceforge.backend.account.repository.PasswordResetTokenRepository;
 import com.raceforge.backend.account.repository.EmailVerificationOtpRepository;
 import com.raceforge.backend.account.repository.RefreshTokenRepository;
-import com.raceforge.backend.account.repository.RegistrationRequestRepository;
 import com.raceforge.backend.account.repository.RoleRepository;
 import com.raceforge.backend.account.repository.UserRepository;
 import com.raceforge.backend.audit.repository.AuditLogRepository;
@@ -50,6 +49,10 @@ import org.springframework.test.web.servlet.MockMvc;
 })
 @AutoConfigureMockMvc
 class BackendApplicationTests {
+    @MockitoBean private com.raceforge.backend.horse.admission.AdmissionRepository admissions;
+    @MockitoBean private com.raceforge.backend.horse.admission.AssignmentRepository assignments;
+    @MockitoBean
+    private com.raceforge.backend.common.id.BusinessIdGenerator businessIdGenerator;
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -58,8 +61,6 @@ class BackendApplicationTests {
 	private UserRepository userRepository;
 	@MockitoBean
 	private RoleRepository roleRepository;
-	@MockitoBean
-	private RegistrationRequestRepository registrationRequestRepository;
 	@MockitoBean
 	private RefreshTokenRepository refreshTokenRepository;
 	@MockitoBean
@@ -144,7 +145,12 @@ class BackendApplicationTests {
 				.andExpect(jsonPath("$.security[0].bearerAuth").isArray())
 				.andExpect(jsonPath("$.paths['/api/auth/login'].post.security").isEmpty())
 				.andExpect(jsonPath("$.paths['/api/auth/register'].post.security").isEmpty())
-				.andExpect(jsonPath("$.paths['/api/auth/google/set-password'].post.security").doesNotExist())
+				.andExpect(jsonPath("$.paths['/api/auth/google/set-password'].post.security").isEmpty())
+                .andExpect(jsonPath("$.paths['/api/auth/staff/set-password'].post.security").isEmpty())
+                .andExpect(jsonPath("$.paths['/api/admin/users'].post.responses['201']").exists())
+                .andExpect(jsonPath("$.components.schemas.RegisterRequest.properties.requestedRoleId").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.GoogleAuthRequest.properties.requestedRoleId").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/registration-requests/{id}/approve']").doesNotExist())
 				.andExpect(jsonPath("$.paths['/api/users/me/external-logins/google']").doesNotExist())
 				.andExpect(jsonPath("$.paths['/api/health'].get.security").isEmpty())
 				.andExpect(jsonPath("$.paths['/api/auth/logout'].post").exists())
@@ -152,7 +158,13 @@ class BackendApplicationTests {
 				.andExpect(jsonPath("$.paths['/api/users/me'].get").exists())
 				.andExpect(jsonPath("$.paths['/api/users/me'].get.security").doesNotExist())
 				.andExpect(jsonPath("$.paths['/api/users/me'].get.parameters").doesNotExist())
-				.andExpect(jsonPath("$.paths['/api/registration-requests'].get").exists());
+				.andExpect(jsonPath("$.paths['/api/registration-requests']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/registration-requests/{id}']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/registration-requests/{id}/reject']").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/users/me/registration-request']").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.RegistrationRequestResponse").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.ApproveRequest").doesNotExist())
+                .andExpect(jsonPath("$.components.schemas.RejectRequest").doesNotExist());
 		mockMvc.perform(get("/v3/api-docs.yaml"))
 				.andExpect(status().isOk());
 	}
@@ -189,5 +201,83 @@ class BackendApplicationTests {
 		mockMvc.perform(get("/api/registration-requests")).andExpect(status().isUnauthorized());
 		mockMvc.perform(post("/api/auth/logout")).andExpect(status().isUnauthorized());
 	}
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "POST, /api/registration-requests/1/approve",
+            "POST, /api/registration-requests/1/reject",
+            "GET, /api/registration-requests",
+            "GET, /api/registration-requests/1",
+            "GET, /api/users/me/registration-request"
+    })
+    void removedAccountApisHaveNoControllerAndReturn404ForAdmin(String method, String path) throws Exception {
+        var principal = new com.raceforge.backend.security.AuthenticatedUser("ADM-007", "admin@example.com", "ACTIVE", 7, "ADMIN");
+        var authentication = new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                principal, null, java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ADMIN")));
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request(
+                        org.springframework.http.HttpMethod.valueOf(method), path)
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication(authentication)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.data.code").value("RESOURCE_NOT_FOUND"))
+                .andExpect(result -> org.junit.jupiter.api.Assertions.assertFalse(
+                        result.getHandler() instanceof org.springframework.web.method.HandlerMethod));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+            "/api/horses/14, 400", "/api/horses/hor-000, 400", "/api/horses/HOR-1000, 400",
+            "/api/horses/HOR-999, 404", "/api/training-packages/14, 400", "/api/training-packages/PKG-999, 404"
+    })
+    void businessIdPathsValidateFormatBeforeLookingUpRecords(String path, int expected) throws Exception {
+        var principal=new com.raceforge.backend.security.AuthenticatedUser("OWN-000","owner@example.com","ACTIVE",5,"HORSE_OWNER");
+        var auth=new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal,null,
+                java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("HORSE_OWNER")));
+        mockMvc.perform(get(path).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication(auth)))
+                .andExpect(status().is(expected));
+    }
+
+    @Test
+    void swaggerPreservesMixedIdentifierTypes() throws Exception {
+        mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.components.schemas.HorseResponse.properties.horseId.type").value("string"))
+                .andExpect(jsonPath("$.components.schemas.UserResponse.properties.userId.type").value("string"))
+                .andExpect(jsonPath("$.components.schemas.RoleResponse.properties.roleId.type").value("integer"))
+                .andExpect(jsonPath("$.components.schemas.MedicalRecordResponse.properties.medicalRecordId.type").value("string"))
+                .andExpect(jsonPath("$.components.schemas.MedicalRecordResponse.properties.profileId.type").value("integer"));
+    }
+
+    @Test
+    void admissionRequiresLoginAndOwnerCannotAssign() throws Exception {
+        mockMvc.perform(get("/api/horse-admissions")).andExpect(status().isUnauthorized());
+        var principal=new com.raceforge.backend.security.AuthenticatedUser("OWN-000","owner@example.com","ACTIVE",5,"HORSE_OWNER");
+        var auth=new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal,null,
+                java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("HORSE_OWNER")));
+        mockMvc.perform(post("/api/horse-admissions/HOR-000/assignments")
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication(auth))
+                .contentType("application/json").content("{\"kind\":\"VET\",\"assigneeId\":\"VET-000\"}"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/horse-admissions/123")
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication(auth)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void horseRegistrationUsesAuthenticatedOwnerAndCreatesPendingAdmission() throws Exception {
+        var owner=new com.raceforge.backend.account.entity.User();owner.setUserId("OWN-000");
+        org.mockito.Mockito.when(userRepository.findById("OWN-000")).thenReturn(java.util.Optional.of(owner));
+        org.mockito.Mockito.when(horseRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(call->{
+            com.raceforge.backend.horse.entity.Horse horse=call.getArgument(0);horse.setHorseId("HOR-000");return horse;
+        });
+        var principal=new com.raceforge.backend.security.AuthenticatedUser("OWN-000","owner@example.com","ACTIVE",5,"HORSE_OWNER");
+        var auth=new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal,null,
+                java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("HORSE_OWNER")));
+        mockMvc.perform(post("/api/horses?ownerId=OWN-999")
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication(auth))
+                .contentType("application/json").content("{\"horseName\":\"New horse\",\"coatColor\":\"Brown\",\"weight\":400,\"height\":150}"))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.ownerId").value("OWN-000"))
+                .andExpect(jsonPath("$.data.status").value("INACTIVE"));
+        org.mockito.Mockito.verify(admissions).save(org.mockito.ArgumentMatchers.argThat(a->"PENDING_REVIEW".equals(a.status)&&"HOR-000".equals(a.horseId)));
+        org.mockito.Mockito.verify(healthProfileRepository).save(org.mockito.ArgumentMatchers.argThat(p->"HOR-000".equals(p.getHorse().getHorseId())));
+    }
 
 }

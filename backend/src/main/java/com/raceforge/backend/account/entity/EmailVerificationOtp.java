@@ -16,7 +16,7 @@ public class EmailVerificationOtp {
 
     @Id
     @Column(name = "user_id")
-    private Integer userId;
+    private String userId;
 
     @MapsId
     @OneToOne(fetch = FetchType.LAZY)
@@ -35,7 +35,7 @@ public class EmailVerificationOtp {
     @Column(name = "attempt_count", nullable = false)
     private int attemptCount;
 
-    public Integer getUserId() {
+    public String getUserId() {
         return userId;
     }
 

@@ -5,10 +5,10 @@ import java.math.BigDecimal;
 
 public class HorseResponse {
 
-    private Integer horseId;
+    private @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId;
 
-    private Integer ownerId;
-    private Integer headTrainerId;
+    private @jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String ownerId;
+    private String headTrainerId;
 
     private String horseName;
     private LocalDate dateOfBirth;
@@ -30,34 +30,28 @@ public class HorseResponse {
     private String healthStatus;
     private Boolean trainingLocked;
     private String status;
-    private String admissionStatus;
-    private String admissionNote;
-    public String getAdmissionStatus() { return admissionStatus; }
-    public void setAdmissionStatus(String value) { admissionStatus = value; }
-    public String getAdmissionNote() { return admissionNote; }
-    public void setAdmissionNote(String value) { admissionNote = value; }
 
-    public Integer getHorseId() {
+    public String getHorseId() {
     return horseId;
     }
     
-    public void setHorseId(Integer horseId) {
+    public void setHorseId(@jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
         this.horseId = horseId;
     }
     
-    public Integer getOwnerId() {
+    public String getOwnerId() {
         return ownerId;
     }
     
-    public void setOwnerId(Integer ownerId) {
+    public void setOwnerId(@jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String ownerId) {
         this.ownerId = ownerId;
     }
     
-    public Integer getHeadTrainerId() {
+    public String getHeadTrainerId() {
         return headTrainerId;
     }
     
-    public void setHeadTrainerId(Integer headTrainerId) {
+    public void setHeadTrainerId(String headTrainerId) {
         this.headTrainerId = headTrainerId;
     }
     

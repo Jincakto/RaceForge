@@ -21,13 +21,13 @@ public class PackageEventService {
         this.userRepository = userRepository;
     }
 
-    public void record(Integer actorId, Integer horseId, Integer entityId,
+    public void record(String actorId, String horseId, Integer entityId,
                        String action, String reason) {
         auditLogService.record(actorId, horseId, "HORSE_PACKAGE", entityId,
                 action, "SUCCESS", reason);
     }
 
-    public void notifyOwner(Integer ownerId, Integer horseId,
+    public void notifyOwner(String ownerId, String horseId,
                             String type, String message) {
         if (ownerId != null) {
             notificationService.notify(ownerId, type,
@@ -35,7 +35,7 @@ public class PackageEventService {
         }
     }
 
-    public void notifyManagers(Integer horseId, String type, String message) {
+    public void notifyManagers(String horseId, String type, String message) {
         for (User manager : userRepository.findActiveManagers()) {
             notificationService.notify(manager.getUserId(), type,
                     "Horse medical/training update", "Horse " + horseId + ": " + message);

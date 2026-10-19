@@ -9,7 +9,7 @@ public class TrainingPlanCreateRequest {
 
   // User id (INT) of the trainer creating the plan -> Training_Plan.created_by
   // Legacy trainerId is ignored; creator is the authenticated principal.
-  private Integer trainerId;
+  private @jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String trainerId;
 
   // Training_Plan.plan_name (NOT NULL)
   @NotBlank
@@ -30,11 +30,11 @@ public class TrainingPlanCreateRequest {
   public TrainingPlanCreateRequest() {
   }
 
-  public Integer getTrainerId() {
+  public String getTrainerId() {
       return trainerId;
   }
 
-  public void setTrainerId(Integer trainerId) {
+  public void setTrainerId(@jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String trainerId) {
       this.trainerId = trainerId;
   }
 

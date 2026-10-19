@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@org.springframework.validation.annotation.Validated
 @RestController
 @RequestMapping("/api/horses")
 @Tag(name = "Horse Race History")
@@ -31,7 +32,7 @@ public class HorseRaceHistoryController {
     @PostMapping("/{horseId}/race-history")
     public ResponseEntity<ApiResponse<HorseRaceHistoryResponse>>
     createRaceHistory(
-            @PathVariable Integer horseId,
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId,
             @Valid @RequestBody HorseRaceHistoryCreateRequest request) {
 
         HorseRaceHistoryResponse history =
@@ -53,7 +54,7 @@ public class HorseRaceHistoryController {
     @GetMapping("/{horseId}/race-history")
     public ResponseEntity<ApiResponse<List<HorseRaceHistoryResponse>>>
     getRaceHistoryByHorse(
-            @PathVariable Integer horseId) {
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
 
         List<HorseRaceHistoryResponse> histories =
                 raceHistoryService.getRaceHistoryByHorse(horseId);

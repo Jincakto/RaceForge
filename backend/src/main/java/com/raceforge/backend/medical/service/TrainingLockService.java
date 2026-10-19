@@ -74,7 +74,7 @@ public class TrainingLockService {
     }
 
     @Transactional
-    public TrainingLock unlockHorse(Integer horseId, Integer veterinarianId, String reason) {
+    public TrainingLock unlockHorse(String horseId, String veterinarianId, String reason) {
         if (horseId == null || veterinarianId == null) {
             throw new IllegalArgumentException("Horse ID and veterinarian ID are required");
         }
@@ -111,7 +111,7 @@ public class TrainingLockService {
     }
 
     @Transactional(readOnly = true)
-    public List<TrainingLock> getLockHistory(Integer horseId) {
+    public List<TrainingLock> getLockHistory(String horseId) {
         if (!horseRepository.existsById(horseId)) {
             throw new ResourceNotFoundException("Horse not found");
         }

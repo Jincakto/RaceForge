@@ -39,7 +39,7 @@ public class TrainingPackageService {
     }
 
     @Transactional(readOnly = true)
-    public TrainingPackageResponse getPackage(Integer id) {
+    public TrainingPackageResponse getPackage(String id) {
         return mapper.toResponse(findById(id));
     }
 
@@ -51,7 +51,7 @@ public class TrainingPackageService {
     }
 
     @Transactional
-    public TrainingPackageResponse update(Integer id, TrainingPackageUpdateRequest request) {
+    public TrainingPackageResponse update(String id, TrainingPackageUpdateRequest request) {
         validateType(request.packageType());
         TrainingPackage entity = findById(id);
         mapper.updateEntity(entity, request);
@@ -59,7 +59,7 @@ public class TrainingPackageService {
     }
 
     @Transactional
-    public TrainingPackageResponse changeStatus(Integer id, TrainingPackageStatusRequest request) {
+    public TrainingPackageResponse changeStatus(String id, TrainingPackageStatusRequest request) {
         String status = request.status().trim().toUpperCase(Locale.ROOT);
         if (!ALLOWED_STATUSES.contains(status)) {
             throw new BusinessRuleException("Invalid training package status: " + request.status());
@@ -69,7 +69,7 @@ public class TrainingPackageService {
         return mapper.toResponse(repository.saveAndFlush(entity));
     }
 
-    private TrainingPackage findById(Integer id) {
+    private TrainingPackage findById(String id) {
         return repository.findById(id).orElseThrow(
                 () -> new ResourceNotFoundException("Training package not found: " + id)
         );

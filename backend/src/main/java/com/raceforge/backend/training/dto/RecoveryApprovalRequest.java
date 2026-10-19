@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record RecoveryApprovalRequest(
-        @NotNull Integer recoveryPackageId,
+        @NotNull @jakarta.validation.constraints.Pattern(regexp = "PKG-[0-9]{3}") String recoveryPackageId,
         String reason
 ) {
 }

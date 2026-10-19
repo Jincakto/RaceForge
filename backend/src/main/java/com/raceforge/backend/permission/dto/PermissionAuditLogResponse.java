@@ -8,7 +8,7 @@ public class PermissionAuditLogResponse {
   private String action;
   private String roleName;
   private String permissionCode;
-  private Integer performedBy;
+  private String performedBy;
   private LocalDateTime performedAt;
 
   public PermissionAuditLogResponse() {
@@ -46,11 +46,11 @@ public class PermissionAuditLogResponse {
       this.permissionCode = permissionCode;
   }
 
-  public Integer getPerformedBy() {
+  public String getPerformedBy() {
       return performedBy;
   }
 
-  public void setPerformedBy(Integer performedBy) {
+  public void setPerformedBy(String performedBy) {
       this.performedBy = performedBy;
   }
 

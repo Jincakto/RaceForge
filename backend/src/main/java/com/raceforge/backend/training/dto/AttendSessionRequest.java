@@ -16,7 +16,7 @@ public class AttendSessionRequest extends CompleteSessionRequest {
   private String absenceNote;
 
   // Compatibility only. Actor identity is taken from the authenticated principal.
-  private Integer performedBy;
+  private String performedBy;
 
   public AttendSessionRequest() {
   }
@@ -45,11 +45,11 @@ public class AttendSessionRequest extends CompleteSessionRequest {
       this.absenceNote = absenceNote;
   }
 
-  public Integer getPerformedBy() {
+  public String getPerformedBy() {
       return performedBy;
   }
 
-  public void setPerformedBy(Integer performedBy) {
+  public void setPerformedBy(String performedBy) {
       this.performedBy = performedBy;
   }
 }

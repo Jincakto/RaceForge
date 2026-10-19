@@ -22,7 +22,7 @@ public class TrainingPlanHorseResolver {
   @Autowired
   private HorsePlanRepository horsePlanRepository;
 
-  public void validateSchedule(TrainingPlan plan, Integer horseId, LocalDate date) {
+  public void validateSchedule(TrainingPlan plan, String horseId, LocalDate date) {
       HorsePlan link = horsePlanRepository.findById(new HorsePlanId(plan.getPlanId(), horseId))
               .orElseThrow(() -> new ResourceNotFoundException("Horse is not part of training plan"));
       if (!"ACTIVE".equals(plan.getStatus()) || !"ACTIVE".equals(link.getStatus())) {
@@ -34,7 +34,7 @@ public class TrainingPlanHorseResolver {
       }
   }
 
-  public Horse resolve(Integer planId, Integer horseId) {
+  public Horse resolve(Integer planId, String horseId) {
       if (horseId != null) {
           HorsePlan hp = horsePlanRepository.findById(new HorsePlanId(planId, horseId))
                   .orElseThrow(() -> new ResourceNotFoundException(

@@ -48,7 +48,7 @@ public class TrainingSessionService {
     }
 
     @Transactional
-    public TrainingSessionResponse completeSession(Integer sessionId, CompleteSessionRequest request, Integer actorId) {
+    public TrainingSessionResponse completeSession(Integer sessionId, CompleteSessionRequest request, String actorId) {
         TrainingSession session = lockedSession(sessionId);
         rules.requireUnlocked(rules.lockHorse(session.getHorse().getHorseId()));
         rules.requireOpen(session);

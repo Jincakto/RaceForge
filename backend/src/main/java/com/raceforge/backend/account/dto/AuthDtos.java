@@ -4,7 +4,6 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import java.time.Instant;
 import java.util.List;
 
 public final class AuthDtos {
@@ -16,8 +15,7 @@ public final class AuthDtos {
             @NotBlank @Size(max = 150) String fullName,
             @NotBlank @Email @Size(max = 255) String email,
             @NotBlank @Size(min = 8, max = 100) String password,
-            @Size(max = 20) String phone,
-            Integer requestedRoleId
+            @Size(max = 20) String phone
     ) {
     }
 
@@ -37,8 +35,7 @@ public final class AuthDtos {
     }
 
     public record GoogleAuthRequest(
-            @NotBlank String idToken,
-            Integer requestedRoleId
+            @NotBlank String idToken
     ) {
     }
 
@@ -82,7 +79,7 @@ public final class AuthDtos {
     }
 
     public record UserResponse(
-            Integer userId,
+            @jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String userId,
             String fullName,
             String email,
             String phone,
@@ -94,18 +91,6 @@ public final class AuthDtos {
     }
 
     public record RoleResponse(Integer roleId, String roleName) {
-    }
-
-    public record RegistrationRequestResponse(
-            Integer requestId,
-            UserResponse user,
-            RoleResponse requestedRole,
-            String status,
-            Integer reviewedBy,
-            Instant reviewedAt,
-            String reviewNote,
-            Instant createdAt
-    ) {
     }
 
     public record PageResponse<T>(

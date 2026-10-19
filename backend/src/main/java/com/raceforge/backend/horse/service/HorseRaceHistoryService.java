@@ -41,7 +41,7 @@ public class HorseRaceHistoryService {
 
     @org.springframework.transaction.annotation.Transactional
     public HorseRaceHistoryResponse createRaceHistory(
-            Integer horseId,
+            String horseId,
             HorseRaceHistoryCreateRequest request) {
         Horse horse = horseRepository.findById(horseId)
             .orElseThrow(() ->
@@ -69,7 +69,7 @@ public class HorseRaceHistoryService {
     }
 
     public List<HorseRaceHistoryResponse> getRaceHistoryByHorse(
-            Integer horseId) {
+            String horseId) {
 
         if (!horseRepository.existsById(horseId)) {
             throw new ResourceNotFoundException(

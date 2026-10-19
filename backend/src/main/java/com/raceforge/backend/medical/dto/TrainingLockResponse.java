@@ -5,10 +5,10 @@ import java.time.LocalDateTime;
 
 public class TrainingLockResponse {
     private Integer lockId;
-    private Integer horseId;
-    private Integer medicalRecordId;
-    private Integer lockedById;
-    private Integer unlockedById;
+    private @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId;
+    private @jakarta.validation.constraints.Pattern(regexp = "MED-[0-9]{3}") String medicalRecordId;
+    private String lockedById;
+    private String unlockedById;
     private LocalDateTime lockedAt;
     private String lockReason;
     private LocalDateTime unlockedAt;
@@ -27,41 +27,41 @@ public class TrainingLockResponse {
         result.unlockReason = lock.getUnlockReason();
         return result;
     }
-    
+
     public Integer getLockId() {
-         return lockId; 
+         return lockId;
     }
 
-    public Integer getHorseId() { 
-        return horseId; 
+    public String getHorseId() {
+        return horseId;
     }
 
-    public Integer getMedicalRecordId() { 
-        return medicalRecordId; 
+    public String getMedicalRecordId() {
+        return medicalRecordId;
     }
 
-    public Integer getLockedById() { 
-        return lockedById; 
+    public String getLockedById() {
+        return lockedById;
     }
 
-    public Integer getUnlockedById() { 
-        return unlockedById; 
+    public String getUnlockedById() {
+        return unlockedById;
     }
 
-    public LocalDateTime getLockedAt() { 
-        return lockedAt; 
+    public LocalDateTime getLockedAt() {
+        return lockedAt;
     }
 
-    public String getLockReason() { 
-        return lockReason; 
+    public String getLockReason() {
+        return lockReason;
     }
 
-    public LocalDateTime getUnlockedAt() { 
-        return unlockedAt; 
+    public LocalDateTime getUnlockedAt() {
+        return unlockedAt;
     }
 
-    public String getUnlockReason() { 
-        return unlockReason; 
+    public String getUnlockReason() {
+        return unlockReason;
     }
-    
+
 }

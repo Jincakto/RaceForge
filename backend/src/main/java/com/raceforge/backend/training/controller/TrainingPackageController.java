@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@org.springframework.validation.annotation.Validated
 @RestController
 @RequestMapping("/api/training-packages")
 @Tag(name = "Training Packages")
@@ -33,7 +34,7 @@ public class TrainingPackageController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<TrainingPackageResponse>> get(@PathVariable Integer id) {
+    public ResponseEntity<ApiResponse<TrainingPackageResponse>> get(@PathVariable @jakarta.validation.constraints.Pattern(regexp = "PKG-[0-9]{3}") String id) {
         return ResponseEntity.ok(ApiResponse.success("Package retrieved", service.getPackage(id)));
     }
 
@@ -46,13 +47,13 @@ public class TrainingPackageController {
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<TrainingPackageResponse>> update(
-            @PathVariable Integer id, @Valid @RequestBody TrainingPackageUpdateRequest request) {
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "PKG-[0-9]{3}") String id, @Valid @RequestBody TrainingPackageUpdateRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Package updated", service.update(id, request)));
     }
 
     @PatchMapping("/{id}/status")
     public ResponseEntity<ApiResponse<TrainingPackageResponse>> changeStatus(
-            @PathVariable Integer id, @Valid @RequestBody TrainingPackageStatusRequest request) {
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "PKG-[0-9]{3}") String id, @Valid @RequestBody TrainingPackageStatusRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Package status updated", service.changeStatus(id, request)));
     }
 }

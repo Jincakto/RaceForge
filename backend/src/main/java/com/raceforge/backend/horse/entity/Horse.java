@@ -8,12 +8,11 @@ import java.time.LocalDate;
 
 @Entity
 @Table(name = "Horse")
-public class Horse {
+public class Horse extends com.raceforge.backend.common.id.AssignedBusinessEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "horse_id", length = 20)
-    private Integer horseId;
+    @Column(name = "horse_id", length = 20, updatable = false)
+    private String horseId;
 
     @ManyToOne
     @JoinColumn(name = "owner_id", nullable = false)
@@ -71,21 +70,12 @@ public class Horse {
     @Column(name = "status", nullable = false)
     private String status;
 
-    @Column(name = "admission_status", nullable = false, length = 20)
-    private String admissionStatus = "NOT_SUBMITTED";
-    @Column(name = "admission_note", length = 500)
-    private String admissionNote;
-    public String getAdmissionStatus() { return admissionStatus; }
-    public void setAdmissionStatus(String value) { admissionStatus = value; }
-    public String getAdmissionNote() { return admissionNote; }
-    public void setAdmissionNote(String value) { admissionNote = value; }
 
-
-    public Integer getHorseId() {
+    public String getHorseId() {
         return horseId;
     }
 
-    public void setHorseId(Integer horseId) {
+    public void setHorseId(String horseId) {
         this.horseId = horseId;
     }
 
@@ -232,4 +222,5 @@ public class Horse {
     public void setStatus(String status) {
         this.status = status;
     }
+    @Override public String getId() { return horseId; }
 }

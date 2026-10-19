@@ -1,90 +1,21 @@
-\# RaceForge Frontend
+# Racehorse Club Management
 
+Frontend độc lập (React 19 + Vite + Tailwind CSS v4 + Recharts), chuyển từ dự án Figma Make.
+Các phần phụ thuộc Figma (`.figma/`, plugin trong `vite.config.ts`, placeholder trong `index.html`) đã được loại bỏ.
 
-
-Frontend application for \*\*RaceForge â€” Racehorse Training \& Management System\*\*.
-
-
-
-\## Status
-
-
-
-The frontend workspace has been created. React application setup and feature development will be added in the next phase.
-
-
-
-\## Planned technology
-
-
-
-\- React
-
-\- Vite
-
-\- JavaScript or TypeScript
-
-\- REST API integration with the RaceForge Spring Boot backend
-
-
-
-\## Main modules
-
-
-
-\- Authentication and authorization
-
-\- Horse profile submission and approval
-
-\- Training management
-
-\- Medical and training-lock management
-
-\- Stable care and nutrition
-
-\- Inventory management
-
-\- Notifications and audit information
-
-
-
-Competition management is not included in the current project scope.
-
-
-
-\## Repository structure
-
-
-
-```text
-
-RaceForge/
-
-â”œâ”€â”€ backend/     # Spring Boot REST API
-
-â”œâ”€â”€ frontend/    # React application
-
-â”œâ”€â”€ database/    # Database scripts and documentation
-
-â””â”€â”€ docs/        # Project documentation and diagrams
-
+## Chạy dự án
+```bash
+npm install
+npm run dev        # http://localhost:5173
+npm run build      # typecheck + build ra thư mục dist/
+npm run preview    # xem thử bản build, http://localhost:4173
 ```
+Yêu cầu Node.js >= 20.
 
-
-
-\## Development
-
-
-
-Frontend installation and startup instructions will be added after the React project is initialized.
-
-
-
-\## Environment variables
-
-
-
-Real environment files such as `.env` and `.env.local` must not be committed. A `.env.example` file will be provided when API integration is configured.
-
-
-
+## Cấu trúc
+- `src/App.tsx` – ứng dụng chính, điều hướng theo vai trò
+- `src/admin.tsx`, `intake.tsx`, `vetForm.tsx`, `healthRecords.tsx` – tài khoản, tiếp nhận, khám thú y, hồ sơ sức khỏe
+- `src/trainingPlans.tsx`, `trainingRegister.tsx`, `trainingLogic.ts`, `packages.tsx` – huấn luyện và gói dịch vụ
+- `src/data.ts` – dữ liệu mẫu; `src/ui.tsx` – component dùng chung
+- `src/englishUi.ts` + `translations.json` – lớp chuyển giao diện sang tiếng Anh
+- `src/imports/` – tài liệu yêu cầu và ảnh tham chiếu

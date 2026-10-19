@@ -33,7 +33,7 @@ class TrainingPackageExpirationServiceTest {
     @BeforeEach
     void setup() {
         User owner = new User();
-        owner.setUserId(7);
+        owner.setUserId("7");
         horse = new Horse();
         horse.setHorseId("HOR-001");
         horse.setOwner(owner);
@@ -59,7 +59,7 @@ class TrainingPackageExpirationServiceTest {
         assertEquals("COMPLETED", normal.getStatus());
         assertEquals(0, normal.getRemainingDays());
         verify(registrations).save(normal);
-        verify(events).notifyOwner(eq(7), eq("HOR-001"),
+        verify(events).notifyOwner(eq("7"), eq("HOR-001"),
                 eq("TRAINING_PACKAGE_EXPIRED"), anyString());
         verify(events, never()).notifyManagers(anyString(), anyString(), anyString());
     }
@@ -113,7 +113,7 @@ class TrainingPackageExpirationServiceTest {
         assertTrue(service.expireRegistration(10, today));
         assertFalse(service.expireRegistration(10, today));
         verify(registrations, times(1)).save(normal);
-        verify(events, times(1)).notifyOwner(eq(7), eq("HOR-001"), anyString(), anyString());
+        verify(events, times(1)).notifyOwner(eq("7"), eq("HOR-001"), anyString(), anyString());
     }
 
     @Test

@@ -13,7 +13,7 @@ import java.util.Optional;
 
 public interface TrainerRepository extends JpaRepository<Trainer, Integer> {
 
-    Optional<Trainer> findByUser_UserId(Integer userId);
+    Optional<Trainer> findByUser_UserId(String userId);
 
     @Query("""
             select u from User u join u.role r
@@ -35,5 +35,5 @@ public interface TrainerRepository extends JpaRepository<Trainer, Integer> {
             where h.horseId = :horseId and t.user.userId = :userId
             """)
     boolean isAssigned(@Param("horseId") String horseId,
-                       @Param("userId") Integer userId);
+                       @Param("userId") String userId);
 }

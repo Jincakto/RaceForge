@@ -39,7 +39,7 @@ public class HorseService {
 
     @org.springframework.transaction.annotation.Transactional
     public HorseResponse createHorse(
-            Integer ownerId,
+            String ownerId,
             HorseCreateRequest request) {
 
         User owner = userRepository.findById(ownerId)
@@ -99,7 +99,7 @@ public class HorseService {
     }
 
     @org.springframework.transaction.annotation.Transactional
-    public HorseResponse updateHorse(String horseId, Integer actorId, HorseUpdateRequest request) {
+    public HorseResponse updateHorse(String horseId, String actorId, HorseUpdateRequest request) {
 
         Horse horse = findHorseById(horseId);
 
@@ -115,7 +115,7 @@ public class HorseService {
     }
 
     @org.springframework.transaction.annotation.Transactional
-    public HorseResponse deactivateHorse(String horseId, Integer actorId) {
+    public HorseResponse deactivateHorse(String horseId, String actorId) {
     
         Horse horse = findHorseById(horseId);
     
@@ -128,7 +128,7 @@ public class HorseService {
     }
 
     @org.springframework.transaction.annotation.Transactional
-    public HorseResponse activateHorse(String horseId, Integer actorId) {
+    public HorseResponse activateHorse(String horseId, String actorId) {
     
         Horse horse = findHorseById(horseId);
     

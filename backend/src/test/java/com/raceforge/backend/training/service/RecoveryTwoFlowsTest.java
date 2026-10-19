@@ -48,7 +48,7 @@ class RecoveryTwoFlowsTest {
 
     private Horse horse() {
         User owner = new User();
-        owner.setUserId(7);
+        owner.setUserId("7");
         Horse h = new Horse();
         h.setHorseId("HOR-001");
         h.setOwner(owner);
@@ -73,8 +73,10 @@ class RecoveryTwoFlowsTest {
     private void medicalLocked(Horse h) {
         MedicalRecord mr = new MedicalRecord();
         mr.setStatus("CONFIRMED");
+        mr.setMedicalRecordId("MED-000001");
         TrainingLock lock = new TrainingLock();
         lock.setMedicalRecord(mr);
+        lock.setLockedAt(java.time.LocalDateTime.now());
         when(locks.findFirstByHorse_HorseIdAndUnlockedAtIsNullOrderByLockedAtDesc("HOR-001"))
                 .thenReturn(Optional.of(lock));
     }
@@ -90,6 +92,8 @@ class RecoveryTwoFlowsTest {
         original.setHorse(h);
         original.setTrainingPackage(normal);
         original.setStatus("PAUSED");
+        original.setPauseReason("TRAINING_LOCK_MEDICAL:MED-000001");
+        original.setPausedAt(java.time.LocalDateTime.now().minusMinutes(1));
         original.setPaymentStatus("PAID");
         original.setRemainingDays(12);
         when(registrations.findByHorseIdOrderByRegisteredAtDesc("HOR-001"))
@@ -97,7 +101,7 @@ class RecoveryTwoFlowsTest {
         when(registrations.saveAndFlush(any(HorsePackage.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        recovery.approveRecovery("HOR-001", new RecoveryApprovalRequest("PKG-000002", "In-training injury"), 2);
+        recovery.approveRecovery("HOR-001", new RecoveryApprovalRequest("PKG-000002", "In-training injury"), "2");
 
         var captured = org.mockito.ArgumentCaptor.forClass(HorsePackage.class);
         verify(registrations).saveAndFlush(captured.capture());
@@ -120,7 +124,7 @@ class RecoveryTwoFlowsTest {
         when(registrations.findByHorseIdOrderByRegisteredAtDesc("HOR-001"))
                 .thenReturn(List.of());
         assertThrows(BusinessRuleException.class,
-                () -> recovery.approveRecovery("HOR-001", new RecoveryApprovalRequest("PKG-000002", "First injury"), 2));
+                () -> recovery.approveRecovery("HOR-001", new RecoveryApprovalRequest("PKG-000002", "First injury"), "2"));
         verify(registrations, never()).saveAndFlush(any());
     }
 
@@ -141,7 +145,7 @@ class RecoveryTwoFlowsTest {
         when(registrations.saveAndFlush(any(HorsePackage.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        ownerService.register(new HorsePackageRegisterRequest("HOR-001", "PKG-000002"), 7);
+        ownerService.register(new HorsePackageRegisterRequest("HOR-001", "PKG-000002"), "7");
 
         var captured = org.mockito.ArgumentCaptor.forClass(HorsePackage.class);
         verify(registrations).saveAndFlush(captured.capture());
@@ -169,7 +173,7 @@ class RecoveryTwoFlowsTest {
         when(registrations.saveAndFlush(any(HorsePackage.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        recovery.simulateRecoveryPayment(44, true, 7);
+        recovery.simulateRecoveryPayment(44, true, "7");
 
         assertEquals("ACTIVE", pending.getStatus());
         assertEquals("PAID", pending.getPaymentStatus());
@@ -189,7 +193,7 @@ class RecoveryTwoFlowsTest {
         centerRecovery.setPaymentStatus("CENTER_COVERED");
         when(registrations.findById(45)).thenReturn(Optional.of(centerRecovery));
         assertThrows(BusinessRuleException.class,
-                () -> recovery.simulateRecoveryPayment(45, true, 7));
+                () -> recovery.simulateRecoveryPayment(45, true, "7"));
         verify(registrations, never()).saveAndFlush(any());
     }
 }

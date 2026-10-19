@@ -20,14 +20,14 @@ public interface HorseAssignmentRepository extends JpaRepository<HorseAssignment
 
     List<HorseAssignment> findByKindAndStatusOrderByCreatedAtDesc(String kind, String status);
 
-    List<HorseAssignment> findByAssignee_UserIdAndKindOrderByCreatedAtDesc(Integer userId, String kind);
+    List<HorseAssignment> findByAssignee_UserIdAndKindOrderByCreatedAtDesc(String userId, String kind);
 
     List<HorseAssignment> findByAssignee_UserIdAndKindAndStatusInOrderByCreatedAtDesc(
-            Integer userId, String kind, List<String> statuses);
+            String userId, String kind, List<String> statuses);
 
     boolean existsByHorse_HorseIdAndAssignee_UserIdAndKindAndStatusIn(
-            String horseId, Integer userId, String kind, List<String> statuses);
+            String horseId, String userId, String kind, List<String> statuses);
 
     Optional<HorseAssignment> findFirstByHorse_HorseIdAndAssignee_UserIdAndKindAndStatusOrderByCreatedAtDesc(
-            String horseId, Integer userId, String kind, String status);
+            String horseId, String userId, String kind, String status);
 }

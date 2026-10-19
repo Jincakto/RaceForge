@@ -59,7 +59,7 @@ public class RecoveryPackageService {
 
     @Transactional
     public HorsePackageResponse approveRecovery(
-            String horseId, RecoveryApprovalRequest request, Integer managerId
+            String horseId, RecoveryApprovalRequest request, String managerId
     ) {
         Horse horse = lockedHorse(horseId);
         expirationService.expireForLockedHorse(horse, LocalDate.now());
@@ -165,7 +165,7 @@ public class RecoveryPackageService {
 
     @Transactional
     public HorsePackageResponse simulateRecoveryPayment(
-            Integer recoveryRegistrationId, boolean successful, Integer ownerId
+            Integer recoveryRegistrationId, boolean successful, String ownerId
     ) {
         HorsePackage registration = horsePackageRepository.findById(recoveryRegistrationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Recovery registration not found"));

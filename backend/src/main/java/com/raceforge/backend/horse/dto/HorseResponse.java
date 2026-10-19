@@ -8,10 +8,10 @@ public class HorseResponse {
 
     private String horseId;
 
-    private Integer ownerId;
+    private String ownerId;
 
     // Assigned HEAD_TRAINER user IDs (not Trainer table primary keys).
-    private List<Integer> trainerIds = List.of();
+    private List<String> trainerIds = List.of();
 
     private String horseName;
     private LocalDate dateOfBirth;
@@ -51,11 +51,11 @@ public class HorseResponse {
         this.admissionNote = admissionNote;
     }
 
-    public List<Integer> getTrainerIds() {
+    public List<String> getTrainerIds() {
         return trainerIds;
     }
 
-    public void setTrainerIds(List<Integer> trainerIds) {
+    public void setTrainerIds(List<String> trainerIds) {
         this.trainerIds = trainerIds;
     }
 
@@ -67,11 +67,11 @@ public class HorseResponse {
         this.horseId = horseId;
     }
     
-    public Integer getOwnerId() {
+    public String getOwnerId() {
         return ownerId;
     }
     
-    public void setOwnerId(Integer ownerId) {
+    public void setOwnerId(String ownerId) {
         this.ownerId = ownerId;
     }
     

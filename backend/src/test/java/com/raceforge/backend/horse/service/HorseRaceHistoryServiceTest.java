@@ -43,7 +43,7 @@ class HorseRaceHistoryServiceTest {
         request.setRaceDate(LocalDate.of(2014, 12, 1));
 
         assertThrows(BusinessRuleException.class,
-                () -> service.createRaceHistory("HOR-014", 7, request));
+                () -> service.createRaceHistory("HOR-014", "7", request));
         verify(histories, never()).save(any(HorseRaceHistory.class));
     }
 
@@ -56,7 +56,7 @@ class HorseRaceHistoryServiceTest {
         request.setRaceName("Example race");
         request.setRaceDate(LocalDate.of(2023, 5, 6));
 
-        var response = service.createRaceHistory("HOR-014", 7, request);
+        var response = service.createRaceHistory("HOR-014", "7", request);
         assertEquals("Example race", response.getRaceName());
         assertEquals("HOR-014", response.getHorseId());
         verify(histories).save(any(HorseRaceHistory.class));
@@ -74,7 +74,7 @@ class HorseRaceHistoryServiceTest {
         request.setRaceDate(LocalDate.of(2010, 1, 1));
 
         assertThrows(BusinessRuleException.class,
-                () -> service.updateRaceHistory(20, 7, request));
+                () -> service.updateRaceHistory(20, "7", request));
         verify(histories, never()).save(any(HorseRaceHistory.class));
     }
 }

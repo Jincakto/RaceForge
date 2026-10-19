@@ -41,7 +41,7 @@ public class HorseRaceHistoryService {
     @Transactional
     public HorseRaceHistoryResponse createRaceHistory(
             String horseId,
-            Integer actorId,
+            String actorId,
             HorseRaceHistoryCreateRequest request
     ) {
         Horse horse = horseRepository.findById(horseId)
@@ -86,7 +86,7 @@ public class HorseRaceHistoryService {
     @Transactional
     public HorseRaceHistoryResponse updateRaceHistory(
             Integer raceHistoryId,
-            Integer actorId,
+            String actorId,
             HorseRaceHistoryUpdateRequest request
     ) {
         HorseRaceHistory history = findRaceHistoryById(raceHistoryId);
@@ -107,7 +107,7 @@ public class HorseRaceHistoryService {
     }
 
     @Transactional
-    public void deleteRaceHistory(Integer raceHistoryId, Integer actorId) {
+    public void deleteRaceHistory(Integer raceHistoryId, String actorId) {
         HorseRaceHistory history = findRaceHistoryById(raceHistoryId);
         String horseId = history.getHorse().getHorseId();
         raceHistoryRepository.delete(history);

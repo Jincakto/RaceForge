@@ -69,7 +69,7 @@ public class MedicalRecordService {
      */
     @Transactional(readOnly = true)
     public MedicalEvaluationPreviewResponse previewEvaluation(
-            String horseId, Integer veterinarianId, MedicalEvaluationPreviewRequest request) {
+            String horseId, String veterinarianId, MedicalEvaluationPreviewRequest request) {
         if (request == null || horseId == null || horseId.isBlank()) {
             throw new IllegalArgumentException("Horse ID and examination data are required");
         }
@@ -138,7 +138,7 @@ public class MedicalRecordService {
 
     @Transactional
     public MedicalRecordResponse updateMedicalDraft(String medicalRecordId,
-                                                    Integer veterinarianId,
+                                                    String veterinarianId,
                                                     MedicalRecordUpdateRequest request) {
         if (request == null) {
             throw new IllegalArgumentException("Update request is required");
@@ -194,7 +194,7 @@ public class MedicalRecordService {
      */
     @Transactional
     public MedicalRecordResponse confirmMedicalRecord(String medicalRecordId,
-                                                      Integer veterinarianId) {
+                                                      String veterinarianId) {
         MedicalRecord record = requireOwnedDraft(medicalRecordId, veterinarianId);
         MedicalVitalSign savedVital = medicalVitalSignRepository
                 .findByMedicalRecord_MedicalRecordId(medicalRecordId).orElse(null);
@@ -291,7 +291,7 @@ public class MedicalRecordService {
         return medicalRecordId;
     }
 
-    private MedicalRecord requireOwnedDraft(String recordId, Integer veterinarianId) {
+    private MedicalRecord requireOwnedDraft(String recordId, String veterinarianId) {
         User veterinarian = getVeterinarian(veterinarianId);
         MedicalRecord record = medicalRecordRepository.findById(recordId)
                 .orElseThrow(() -> new ResourceNotFoundException("Medical record not found"));
@@ -418,7 +418,7 @@ public class MedicalRecordService {
         return requests;
     }
 
-    private User getVeterinarian(Integer veterinarianId) {
+    private User getVeterinarian(String veterinarianId) {
         User user = userRepository.findDetailedById(veterinarianId)
                 .orElseThrow(() -> new ResourceNotFoundException("Veterinarian not found"));
         if (!"ACTIVE".equals(user.getStatus()) || user.getRole() == null

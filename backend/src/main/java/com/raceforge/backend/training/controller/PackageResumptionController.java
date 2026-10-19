@@ -46,7 +46,7 @@ public class PackageResumptionController {
     public ResponseEntity<ApiResponse<HorsePackageResponse>> resumeWithoutRecovery(
             @PathVariable Integer originalId,
             @Valid @RequestBody ResumeOriginalPackageRequest request,
-            @AuthenticationPrincipal(expression = "userId") Integer managerId
+            @AuthenticationPrincipal(expression = "userId") String managerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Original training package resumed without Recovery",

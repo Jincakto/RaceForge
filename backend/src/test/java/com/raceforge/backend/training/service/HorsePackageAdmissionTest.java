@@ -35,7 +35,7 @@ class HorsePackageAdmissionTest {
     @Test
     void unapprovedHorseCannotRegisterEvenIfOwnerMatches() {
         User owner = new User();
-        owner.setUserId(7);
+        owner.setUserId("7");
         Horse horse = new Horse();
         horse.setHorseId("HOR-001");
         horse.setOwner(owner);
@@ -43,7 +43,7 @@ class HorsePackageAdmissionTest {
         when(horses.findById("HOR-001")).thenReturn(Optional.of(horse));
 
         assertThrows(BusinessRuleException.class,
-                () -> service.register(new HorsePackageRegisterRequest("HOR-001", "PKG-000012"), 7));
+                () -> service.register(new HorsePackageRegisterRequest("HOR-001", "PKG-000012"), "7"));
         verify(packages, never()).findById("PKG-000012");
         verify(registrations, never()).saveAndFlush(any());
     }

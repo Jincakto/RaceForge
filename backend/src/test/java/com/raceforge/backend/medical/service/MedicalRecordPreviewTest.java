@@ -36,7 +36,7 @@ class MedicalRecordPreviewTest {
             profiles, records, vitals, exams, users, evaluation,
             mapper, trainingLocks, audit, assignments);
 
-    private void activeVet(int id) {
+    private void activeVet(String id) {
         Role role = new Role();
         role.setRoleName("VETERINARIAN");
         User user = new User();
@@ -48,45 +48,45 @@ class MedicalRecordPreviewTest {
 
     @Test
     void previewReturnsSuggestionWithoutSavingOrTrainingLock() {
-        activeVet(7);
+        activeVet("7");
         var request = new MedicalEvaluationPreviewRequest("INITIAL", null, List.of());
         when(evaluation.evaluate(eq("INITIAL"), isNull(), anyList()))
                 .thenReturn(new MedicalEvaluationResult(
                         MedicalEvaluationResult.EvaluationLevel.CRITICAL,
                         "Resting respiratory rate is high", "TRAINING_LOCK", true));
 
-        var response = service.previewEvaluation("HOR-001", 7, request);
+        var response = service.previewEvaluation("HOR-001", "7", request);
 
         assertEquals("CRITICAL", response.level());
         assertEquals("NOT_FIT", response.suggestedConclusion());
         assertTrue(response.suggestedLock());
-        verify(assignments).requireAccepted("HOR-001", 7);
+        verify(assignments).requireAccepted("HOR-001", "7");
         verifyNoInteractions(records, vitals, exams, trainingLocks, audit);
     }
 
     @Test
     void cancelledDraftCannotBeEditedOrConfirmed() {
-        activeVet(7);
+        activeVet("7");
         MedicalRecord cancelled = new MedicalRecord();
         cancelled.setMedicalRecordId("MED-000091");
         cancelled.setStatus("CANCELLED");
         when(records.findById("MED-000091")).thenReturn(Optional.of(cancelled));
 
         assertThrows(BusinessRuleException.class,
-                () -> service.updateMedicalDraft("MED-000091", 7, new MedicalRecordUpdateRequest()));
+                () -> service.updateMedicalDraft("MED-000091", "7", new MedicalRecordUpdateRequest()));
         assertThrows(BusinessRuleException.class,
-                () -> service.confirmMedicalRecord("MED-000091", 7));
+                () -> service.confirmMedicalRecord("MED-000091", "7"));
         verifyNoInteractions(assignments, trainingLocks);
     }
 
     @Test
     void previewDoesNotBypassAssignmentAcceptance() {
-        activeVet(7);
+        activeVet("7");
         doThrow(new BusinessRuleException("Assignment not accepted"))
-                .when(assignments).requireAccepted("HOR-001", 7);
+                .when(assignments).requireAccepted("HOR-001", "7");
 
         assertThrows(BusinessRuleException.class,
-                () -> service.previewEvaluation("HOR-001", 7,
+                () -> service.previewEvaluation("HOR-001", "7",
                         new MedicalEvaluationPreviewRequest("INITIAL", null, List.of())));
         verifyNoInteractions(evaluation, records, trainingLocks);
     }

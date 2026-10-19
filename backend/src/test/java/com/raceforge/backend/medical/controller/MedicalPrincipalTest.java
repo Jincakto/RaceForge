@@ -21,11 +21,11 @@ class MedicalPrincipalTest {
 
     @Test
     void jwtPrincipalUsesUserIdInsteadOfAuthenticationName() {
-        var principal = new AuthenticatedUser(42, "doctor@example.test", "ACTIVE", 3, "VETERINARIAN");
+        var principal = new AuthenticatedUser("42", "doctor@example.test", "ACTIVE", 3, "VETERINARIAN");
         var authentication = UsernamePasswordAuthenticationToken.authenticated(principal, null, List.of());
         assertThrows(NumberFormatException.class, () -> Integer.valueOf(authentication.getName()));
         assertDoesNotThrow(() -> controller.confirmMedicalRecord("MED-000007", authentication));
-        verify(records).confirmMedicalRecord("MED-000007", 42);
+        verify(records).confirmMedicalRecord("MED-000007", "42");
     }
 
     @Test

@@ -34,10 +34,10 @@ class MedicalRecordIdGenerationTest {
         Role role = new Role();
         role.setRoleName("VETERINARIAN");
         User vet = new User();
-        vet.setUserId(7);
+        vet.setUserId("7");
         vet.setStatus("ACTIVE");
         vet.setRole(role);
-        when(users.findDetailedById(7)).thenReturn(Optional.of(vet));
+        when(users.findDetailedById("7")).thenReturn(Optional.of(vet));
         Horse horse = new Horse();
         horse.setHorseId("HOR-001");
         HealthProfile profile = new HealthProfile();
@@ -54,14 +54,14 @@ class MedicalRecordIdGenerationTest {
 
         MedicalRecordCreateRequest request = new MedicalRecordCreateRequest();
         request.setProfileId(5);
-        request.setVeterinarianId(7);
+        request.setVeterinarianId("7");
         request.setExamType("INITIAL");
 
         service(profiles, records, vitals, exams, users, evaluation, mapper, locks, audit, assignments)
                 .createMedicalRecord(request);
 
         verify(records).save(argThat(record -> "MED-000042".equals(record.getMedicalRecordId())));
-        verify(assignments).requireAccepted("HOR-001", 7);
+        verify(assignments).requireAccepted("HOR-001", "7");
     }
 
     private MedicalRecordService service(HealthProfileRepository profiles,

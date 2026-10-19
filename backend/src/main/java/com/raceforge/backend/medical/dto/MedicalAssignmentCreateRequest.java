@@ -1,5 +1,5 @@
 package com.raceforge.backend.medical.dto;
 
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotBlank;
 
-public record MedicalAssignmentCreateRequest(@NotNull Integer veterinarianId) { }
+public record MedicalAssignmentCreateRequest(@NotBlank String veterinarianId) { }

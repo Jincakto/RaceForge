@@ -51,7 +51,7 @@ public class MedicalAssignmentService {
 
     /** CM assigns or reassigns a vet; a HealthProfile is created only once. */
     @Transactional
-    public MedicalAssignmentResponse assign(String horseId, Integer veterinarianId, Integer managerId) {
+    public MedicalAssignmentResponse assign(String horseId, String veterinarianId, String managerId) {
         User manager = requireRole(managerId, "CLUB_MANAGER");
         User vet = requireRole(veterinarianId, "VETERINARIAN");
         Horse horse = horses.findByIdForUpdate(horseId)
@@ -101,7 +101,7 @@ public class MedicalAssignmentService {
     }
 
     @Transactional
-    public MedicalAssignmentResponse accept(Integer assignmentId, Integer veterinarianId) {
+    public MedicalAssignmentResponse accept(Integer assignmentId, String veterinarianId) {
         requireRole(veterinarianId, "VETERINARIAN");
         HorseAssignment a = findAssignedToVet(assignmentId, veterinarianId);
         requireStatus(a, "ASSIGNED");
@@ -113,7 +113,7 @@ public class MedicalAssignmentService {
 
     /** A decline is a terminal decision for this assignment; CM must assign again. */
     @Transactional
-    public MedicalAssignmentResponse decline(Integer assignmentId, Integer veterinarianId, String reason) {
+    public MedicalAssignmentResponse decline(Integer assignmentId, String veterinarianId, String reason) {
         requireRole(veterinarianId, "VETERINARIAN");
         if (reason == null || reason.trim().length() < 10 || reason.trim().length() > 500) {
             throw new BusinessRuleException("Decline reason must contain 10 to 500 characters");
@@ -131,7 +131,7 @@ public class MedicalAssignmentService {
     }
 
     @Transactional(readOnly = true)
-    public List<MedicalAssignmentResponse> myAssignments(Integer veterinarianId) {
+    public List<MedicalAssignmentResponse> myAssignments(String veterinarianId) {
         requireRole(veterinarianId, "VETERINARIAN");
         return assignments.findByAssignee_UserIdAndKindAndStatusInOrderByCreatedAtDesc(
                         veterinarianId, "VET", OPEN_STATUSES)
@@ -139,7 +139,7 @@ public class MedicalAssignmentService {
     }
 
     @Transactional(readOnly = true)
-    public List<MedicalAssignmentResponse> acceptedHorses(Integer veterinarianId) {
+    public List<MedicalAssignmentResponse> acceptedHorses(String veterinarianId) {
         requireRole(veterinarianId, "VETERINARIAN");
         return assignments.findByAssignee_UserIdAndKindAndStatusInOrderByCreatedAtDesc(
                         veterinarianId, "VET", List.of("ACCEPTED"))
@@ -147,14 +147,14 @@ public class MedicalAssignmentService {
     }
 
     @Transactional(readOnly = true)
-    public List<MedicalAssignmentResponse> myHistory(Integer veterinarianId) {
+    public List<MedicalAssignmentResponse> myHistory(String veterinarianId) {
         requireRole(veterinarianId, "VETERINARIAN");
         return assignments.findByAssignee_UserIdAndKindOrderByCreatedAtDesc(veterinarianId, "VET")
                 .stream().map(MedicalAssignmentResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
-    public List<MedicalAssignmentResponse> declinedAssignments(Integer managerId) {
+    public List<MedicalAssignmentResponse> declinedAssignments(String managerId) {
         requireRole(managerId, "CLUB_MANAGER");
         return assignments.findByKindAndStatusOrderByCreatedAtDesc("VET", "DECLINED")
                 .stream().map(MedicalAssignmentResponse::from).toList();
@@ -169,7 +169,7 @@ public class MedicalAssignmentService {
 
     /** Called at create, draft update and confirmation; never trust a client-supplied vet ID. */
     @Transactional(readOnly = true)
-    public void requireAccepted(String horseId, Integer veterinarianId) {
+    public void requireAccepted(String horseId, String veterinarianId) {
         if (!assignments.existsByHorse_HorseIdAndAssignee_UserIdAndKindAndStatusIn(
                 horseId, veterinarianId, "VET", List.of("ACCEPTED"))) {
             throw new BusinessRuleException("Veterinarian must accept an active assignment before examination");
@@ -178,12 +178,12 @@ public class MedicalAssignmentService {
 
     /** Once a record is confirmed, this accepted assignment has been fulfilled. */
     @Transactional
-    public void complete(String horseId, Integer veterinarianId) {
+    public void complete(String horseId, String veterinarianId) {
         complete(horseId, veterinarianId, null);
     }
 
     @Transactional
-    public void complete(String horseId, Integer veterinarianId, String medicalRecordId) {
+    public void complete(String horseId, String veterinarianId, String medicalRecordId) {
         HorseAssignment assignment = assignments
                 .findFirstByHorse_HorseIdAndAssignee_UserIdAndKindAndStatusOrderByCreatedAtDesc(
                         horseId, veterinarianId, "VET", "ACCEPTED")
@@ -196,7 +196,7 @@ public class MedicalAssignmentService {
     }
 
     /** Cancel unfinished records when a CM issues a new assignment. */
-    private void cancelSupersededDrafts(String horseId, Integer managerId) {
+    private void cancelSupersededDrafts(String horseId, String managerId) {
         List<MedicalRecord> drafts = medicalRecords
                 .findByHealthProfile_Horse_HorseIdAndStatus(horseId, "DRAFT");
         for (MedicalRecord draft : drafts) {
@@ -211,7 +211,7 @@ public class MedicalAssignmentService {
         }
     }
 
-    private HorseAssignment findAssignedToVet(Integer assignmentId, Integer veterinarianId) {
+    private HorseAssignment findAssignedToVet(Integer assignmentId, String veterinarianId) {
         HorseAssignment a = assignments.findByIdForUpdate(assignmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Veterinary assignment not found"));
         if (!"VET".equals(a.getKind()) || !a.getAssignee().getUserId().equals(veterinarianId)) {
@@ -226,7 +226,7 @@ public class MedicalAssignmentService {
         }
     }
 
-    private User requireRole(Integer userId, String requiredRole) {
+    private User requireRole(String userId, String requiredRole) {
         User user = users.findDetailedById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         if (!"ACTIVE".equals(user.getStatus()) || user.getRole() == null
@@ -236,7 +236,7 @@ public class MedicalAssignmentService {
         return user;
     }
 
-    private void recordAudit(Integer actorId, HorseAssignment assignment, String action, String reason) {
+    private void recordAudit(String actorId, HorseAssignment assignment, String action, String reason) {
         audit.record(actorId, assignment.getHorse().getHorseId(),
                 "HORSE_ASSIGNMENT", assignment.getId(), action, "SUCCESS", reason);
     }

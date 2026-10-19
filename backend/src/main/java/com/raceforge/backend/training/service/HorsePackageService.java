@@ -61,7 +61,7 @@ public class HorsePackageService {
     }
 
     @Transactional
-    public HorsePackageResponse register(HorsePackageRegisterRequest request, Integer ownerId) {
+    public HorsePackageResponse register(HorsePackageRegisterRequest request, String ownerId) {
         requireOwnerId(ownerId);
 
       Horse horse = horseRepository.findById(request.horseId())
@@ -137,7 +137,7 @@ public class HorsePackageService {
     }
 
     @Transactional
-    public HorsePackageResponse simulatePayment(Integer registrationId, boolean successful, Integer ownerId) {
+    public HorsePackageResponse simulatePayment(Integer registrationId, boolean successful, String ownerId) {
         requireOwnerId(ownerId);
 
         HorsePackage registration = horsePackageRepository.findById(registrationId)
@@ -195,7 +195,7 @@ public class HorsePackageService {
     }
 
     @Transactional
-    public List<HorsePackageResponse> history(String horseId, Integer ownerId) {
+    public List<HorsePackageResponse> history(String horseId, String ownerId) {
         requireOwnerId(ownerId);
         Horse horse = horseRepository.findById(horseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found: " + horseId));
@@ -228,14 +228,14 @@ public class HorsePackageService {
                 && "CONFIRMED".equalsIgnoreCase(record.getStatus());
     }
 
-    private void checkOwnership(Horse horse, Integer ownerId) {
+    private void checkOwnership(Horse horse, String ownerId) {
         if (horse.getOwner() == null || !ownerId.equals(horse.getOwner().getUserId())) {
             throw new BusinessRuleException("You are not the owner of this horse");
         }
     }
 
-    private void requireOwnerId(Integer ownerId) {
-        if (ownerId == null || ownerId <= 0) {
+    private void requireOwnerId(String ownerId) {
+        if (ownerId == null || ownerId.isBlank()) {
             throw new BusinessRuleException("Authenticated Horse Owner is required");
         }
     }

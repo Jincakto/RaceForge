@@ -7,8 +7,8 @@ public class TrainingLockResponse {
     private Integer lockId;
     private String horseId;
     private String medicalRecordId;
-    private Integer lockedById;
-    private Integer unlockedById;
+    private String lockedById;
+    private String unlockedById;
     private LocalDateTime lockedAt;
     private String lockReason;
     private LocalDateTime unlockedAt;
@@ -40,11 +40,11 @@ public class TrainingLockResponse {
         return medicalRecordId; 
     }
 
-    public Integer getLockedById() { 
+    public String getLockedById() { 
         return lockedById; 
     }
 
-    public Integer getUnlockedById() { 
+    public String getUnlockedById() { 
         return unlockedById; 
     }
 

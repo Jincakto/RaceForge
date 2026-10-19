@@ -35,13 +35,14 @@ class HorseAdmissionServiceTest {
         Horse horse = new Horse();
         horse.setHorseId("HOR-014");
         User owner = new User();
-        owner.setUserId(7);
+        owner.setUserId("7");
         horse.setOwner(owner);
         horse.setStatus("INACTIVE");
         HorseAdmission admission = new HorseAdmission();
         horse.setAdmission(admission);
         horse.setAdmissionStatus(admissionStatus);
         horse.setImageUrl("https://example.org/horse.png");
+        horse.setRegistrationNumber("REG-014");
         horse.setDocumentType("REGISTRATION_CERTIFICATE");
         horse.setDocumentUrl("https://example.org/certificate.pdf");
         when(horses.findByIdForUpdate("HOR-014")).thenReturn(Optional.of(horse));
@@ -65,7 +66,7 @@ class HorseAdmissionServiceTest {
     @Test
     void ownerSubmitDoesNotActivateHorse() {
         Horse horse = horse("NOT_SUBMITTED");
-        service.submit("HOR-014", 7);
+        service.submit("HOR-014", "7");
         assertEquals("PENDING", horse.getAdmissionStatus());
         assertEquals("INACTIVE", horse.getStatus());
         assertNull(horse.getHealthStatus());
@@ -74,21 +75,21 @@ class HorseAdmissionServiceTest {
     @Test
     void anotherOwnerCannotSubmit() {
         horse("NOT_SUBMITTED");
-        assertThrows(BusinessRuleException.class, () -> service.submit("HOR-014", 8));
+        assertThrows(BusinessRuleException.class, () -> service.submit("HOR-014", "8"));
     }
 
     @Test
     void registrationMustIncludeDocuments() {
         Horse horse = horse("NOT_SUBMITTED");
         horse.setDocumentUrl(null);
-        assertThrows(BusinessRuleException.class, () -> service.submit("HOR-014", 7));
+        assertThrows(BusinessRuleException.class, () -> service.submit("HOR-014", "7"));
         assertEquals("NOT_SUBMITTED", horse.getAdmissionStatus());
     }
 
     @Test
     void duplicateSubmissionIsRejected() {
         horse("PENDING");
-        assertThrows(BusinessRuleException.class, () -> service.submit("HOR-014", 7));
+        assertThrows(BusinessRuleException.class, () -> service.submit("HOR-014", "7"));
     }
 
     @Test
@@ -101,7 +102,7 @@ class HorseAdmissionServiceTest {
                 .thenReturn(List.of());
 
         assertThrows(BusinessRuleException.class,
-                () -> service.review("HOR-014", 1, true, "Documents verified"));
+                () -> service.review("HOR-014", "1", true, "Documents verified"));
         assertEquals("PENDING", horse.getAdmissionStatus());
     }
 
@@ -110,7 +111,7 @@ class HorseAdmissionServiceTest {
         Horse horse = horse("PENDING");
         confirmedInitialExam("NOT_FIT");
 
-        service.review("HOR-014", 1, true, "Documents verified");
+        service.review("HOR-014", "1", true, "Documents verified");
 
         assertEquals("APPROVED", horse.getAdmissionStatus());
         assertEquals("INACTIVE", horse.getStatus());
@@ -123,10 +124,10 @@ class HorseAdmissionServiceTest {
     void rejectionRequiresReasonAndDoesNotCreateProfile() {
         Horse horse = horse("PENDING");
         assertThrows(BusinessRuleException.class,
-                () -> service.review("HOR-014", 1, false, " "));
+                () -> service.review("HOR-014", "1", false, " "));
         assertEquals("PENDING", horse.getAdmissionStatus());
 
-        service.review("HOR-014", 1, false, "Missing information");
+        service.review("HOR-014", "1", false, "Missing information");
         assertEquals("REJECTED", horse.getAdmissionStatus());
         verify(profiles, never()).save(any(HealthProfile.class));
     }
@@ -135,6 +136,6 @@ class HorseAdmissionServiceTest {
     void approvedHorseCannotBeReviewedAgain() {
         horse("APPROVED");
         assertThrows(BusinessRuleException.class,
-                () -> service.review("HOR-014", 1, true, ""));
+                () -> service.review("HOR-014", "1", true, ""));
     }
 }

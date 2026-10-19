@@ -33,7 +33,7 @@ class TrainingLockNotificationTest {
     private final TrainingLockService service = new TrainingLockService(
             locks, horses, users, audit, entityManager, notifications, pauseService);
 
-    private User user(int id, String roleName) {
+    private User user(String id, String roleName) {
         User user = new User();
         user.setUserId(id);
         user.setStatus("ACTIVE");
@@ -48,8 +48,8 @@ class TrainingLockNotificationTest {
         Horse horse = new Horse();
         horse.setHorseId("HOR-001");
         horse.setTrainingLocked(false);
-        User veterinarian = user(7, "VETERINARIAN");
-        User manager = user(2, "CLUB_MANAGER");
+        User veterinarian = user("7", "VETERINARIAN");
+        User manager = user("2", "CLUB_MANAGER");
         when(users.findActiveManagers()).thenReturn(List.of(manager));
         when(locks.findFirstByHorse_HorseIdAndUnlockedAtIsNullOrderByLockedAtDesc("HOR-001"))
                 .thenReturn(Optional.empty(), Optional.of(new TrainingLock()));
@@ -66,13 +66,13 @@ class TrainingLockNotificationTest {
         service.lockFromConfirmedExamination(horse, medical, veterinarian,
                 "Horse requires a veterinary recovery program");
         assertTrue(horse.getTrainingLocked());
-        verify(pauseService).pauseActiveNormalPackage("HOR-001");
-        verify(notifications).notify(eq(2), eq("TRAINING_LOCKED"), anyString(), anyString());
+        verify(pauseService).pauseActiveNormalPackage("HOR-001", "MED-000001");
+        verify(notifications).notify(eq("2"), eq("TRAINING_LOCKED"), anyString(), anyString());
 
         service.lockFromConfirmedExamination(horse, medical, veterinarian,
                 "Horse requires a veterinary recovery program");
-        verify(pauseService, times(1)).pauseActiveNormalPackage("HOR-001");
-        verify(notifications, times(1)).notify(eq(2), eq("TRAINING_LOCKED"), anyString(), anyString());
+        verify(pauseService, times(1)).pauseActiveNormalPackage("HOR-001", "MED-000001");
+        verify(notifications, times(1)).notify(eq("2"), eq("TRAINING_LOCKED"), anyString(), anyString());
     }
 
     @Test
@@ -81,15 +81,15 @@ class TrainingLockNotificationTest {
         horse.setHorseId("HOR-001");
         horse.setHealthStatus("READY");
         horse.setTrainingLocked(true);
-        User veterinarian = user(7, "VETERINARIAN");
-        when(users.findDetailedById(7)).thenReturn(Optional.of(veterinarian));
+        User veterinarian = user("7", "VETERINARIAN");
+        when(users.findDetailedById("7")).thenReturn(Optional.of(veterinarian));
         when(horses.findById("HOR-001")).thenReturn(Optional.of(horse));
-        when(users.findActiveManagers()).thenReturn(List.of(user(2, "CLUB_MANAGER")));
+        when(users.findActiveManagers()).thenReturn(List.of(user("2", "CLUB_MANAGER")));
         when(locks.findFirstByHorse_HorseIdAndUnlockedAtIsNullOrderByLockedAtDesc("HOR-001"))
                 .thenReturn(Optional.of(new TrainingLock()));
 
-        service.unlockHorse("HOR-001", 7, "Follow-up examination has confirmed recovery");
+        service.unlockHorse("HOR-001", "7", "Follow-up examination has confirmed recovery");
         assertFalse(horse.getTrainingLocked());
-        verify(notifications).notify(eq(2), eq("TRAINING_UNLOCKED"), anyString(), anyString());
+        verify(notifications).notify(eq("2"), eq("TRAINING_UNLOCKED"), anyString(), anyString());
     }
 }

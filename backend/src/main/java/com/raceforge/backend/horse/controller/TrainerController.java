@@ -20,7 +20,6 @@ import com.raceforge.backend.notification.service.NotificationService;
 import com.raceforge.backend.training.repository.HorsePackageRepository;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -58,10 +57,10 @@ public class TrainerController {
         this.notifications = notifications;
     }
 
-    public record TrainerSummary(Integer userId, String fullName, String avatarUrl) {}
-    public record Assignment(@NotNull Integer trainerId) {}
+    public record TrainerSummary(String userId, String fullName, String avatarUrl) {}
+    public record Assignment(@NotBlank String trainerId) {}
     public record Decline(@NotBlank @Size(min = 10, max = 1000) String reason) {}
-    public record TrainerTask(Integer id, String horseId, Integer assigneeId, String status,
+    public record TrainerTask(Integer id, String horseId, String assigneeId, String status,
                               String reason, LocalDateTime createdAt, LocalDateTime respondedAt) {
         static TrainerTask from(HorseAssignment a) {
             return new TrainerTask(a.getId(), a.getHorse().getHorseId(),
@@ -82,7 +81,7 @@ public class TrainerController {
 
     @GetMapping("/trainers/{id}")
     @Transactional(readOnly = true)
-    public ApiResponse<TrainerSummary> trainer(@PathVariable Integer id) {
+    public ApiResponse<TrainerSummary> trainer(@PathVariable String id) {
         User user = findEligible(id);
         return ApiResponse.success("Trainer", summary(user));
     }
@@ -116,8 +115,8 @@ public class TrainerController {
         return requestAssignment(horseId, actor.userId(), body.trainerId());
     }
 
-    private ApiResponse<TrainerTask> requestAssignment(String horseId, Integer managerId,
-                                                       Integer trainerUserId) {
+    private ApiResponse<TrainerTask> requestAssignment(String horseId, String managerId,
+                                                       String trainerUserId) {
         Horse horse = getHorseForUpdate(horseId);
         requireEligibleForTrainerAssignment(horse);
         User manager = users.findById(managerId)
@@ -139,7 +138,7 @@ public class TrainerController {
         assignments.saveAndFlush(task);
         notifications.notify(trainerUserId, "TRAINER_ASSIGNMENT_CREATED",
                 "New training assignment", "You have been assigned horse " + horseId);
-        // Audit actor ID and entity ID are still Integer until cross-module Audit migration.
+        // The audit service accepts the prefixed User ID and integer assignment ID.
         audit.record(managerId, null, "HORSE_ASSIGNMENT", task.getId(),
                 "TRAINER_ASSIGNMENT_CREATED", "SUCCESS", null);
         return ApiResponse.success("Trainer assignment requested", TrainerTask.from(task));
@@ -204,7 +203,7 @@ public class TrainerController {
     @PreAuthorize("hasAuthority('CLUB_MANAGER')")
     @Transactional
     public ApiResponse<HorseResponse> unassign(@PathVariable String horseId,
-                                               @PathVariable Integer userId,
+                                               @PathVariable String userId,
                                                @AuthenticationPrincipal AuthenticatedUser actor) {
         Horse horse = getHorseForUpdate(horseId);
         boolean removed = horse.getTrainers().removeIf(t -> t.getUser().getUserId().equals(userId));
@@ -224,7 +223,7 @@ public class TrainerController {
         return ApiResponse.success("Trainer unassigned", mapper.toResponse(horse));
     }
 
-    private HorseAssignment getTrainerTaskForUser(Integer id, Integer userId) {
+    private HorseAssignment getTrainerTaskForUser(Integer id, String userId) {
         HorseAssignment a = assignments.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Assignment not found"));
         if (!"TRAINER".equals(a.getKind()) || !a.getAssignee().getUserId().equals(userId)) {
@@ -267,7 +266,7 @@ public class TrainerController {
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found"));
     }
 
-    private User findEligible(Integer userId) {
+    private User findEligible(String userId) {
         User user = users.findDetailedById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Trainer not found"));
         if (user.getRole() == null || !"HEAD_TRAINER".equals(user.getRole().getRoleName())

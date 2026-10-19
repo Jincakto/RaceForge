@@ -30,7 +30,7 @@ public class RecoveryPackageController {
     public ResponseEntity<ApiResponse<HorsePackageResponse>> approveRecovery(
             @PathVariable String horseId,
             @Valid @RequestBody RecoveryApprovalRequest request,
-            @AuthenticationPrincipal(expression = "userId") Integer managerId
+            @AuthenticationPrincipal(expression = "userId") String managerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Center-funded Recovery activated immediately; no Owner payment",
@@ -43,7 +43,7 @@ public class RecoveryPackageController {
     public ResponseEntity<ApiResponse<HorsePackageResponse>> simulateRecoveryPayment(
             @PathVariable Integer id,
             @Valid @RequestBody HorsePackagePaymentRequest request,
-            @AuthenticationPrincipal(expression = "userId") Integer ownerId
+            @AuthenticationPrincipal(expression = "userId") String ownerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Owner-paid initial Recovery payment simulation processed",

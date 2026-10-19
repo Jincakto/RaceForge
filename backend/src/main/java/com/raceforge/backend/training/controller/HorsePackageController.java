@@ -30,7 +30,7 @@ public class HorsePackageController {
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<HorsePackageResponse>> register(
             @Valid @RequestBody HorsePackageRegisterRequest request,
-            @AuthenticationPrincipal(expression = "userId") Integer ownerId
+            @AuthenticationPrincipal(expression = "userId") String ownerId
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Registration created", service.register(request, ownerId)));
@@ -41,7 +41,7 @@ public class HorsePackageController {
     public ResponseEntity<ApiResponse<HorsePackageResponse>> simulatePayment(
             @PathVariable Integer id,
             @Valid @RequestBody HorsePackagePaymentRequest request,
-            @AuthenticationPrincipal(expression = "userId") Integer ownerId
+            @AuthenticationPrincipal(expression = "userId") String ownerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Payment simulation processed",
@@ -64,7 +64,7 @@ public class HorsePackageController {
     @GetMapping("/horse/{horseId}")
     public ResponseEntity<ApiResponse<List<HorsePackageResponse>>> history(
             @PathVariable String horseId,
-            @AuthenticationPrincipal(expression = "userId") Integer ownerId
+            @AuthenticationPrincipal(expression = "userId") String ownerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Horse package history retrieved", service.history(horseId, ownerId)

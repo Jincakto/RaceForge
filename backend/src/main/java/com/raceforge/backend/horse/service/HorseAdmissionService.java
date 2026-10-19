@@ -42,7 +42,7 @@ public class HorseAdmissionService {
     }
 
     @Transactional
-    public HorseResponse submit(String horseId, Integer actorId) {
+    public HorseResponse submit(String horseId, String actorId) {
         Horse horse = findLockedHorse(horseId);
 
         if (horse.getOwner() == null ||
@@ -71,7 +71,7 @@ public class HorseAdmissionService {
     @Transactional
     public HorseResponse review(
             String horseId,
-            Integer actorId,
+            String actorId,
             boolean approved,
             String note
     ) {
@@ -96,9 +96,7 @@ public class HorseAdmissionService {
         horse.setAdmissionStatus(approved ? "APPROVED" : "REJECTED");
         horse.setAdmissionNote(note);
         horse.getAdmission().setMedicalRecordId(initialMedicalRecordId);
-        // User IDs are currently Integer in Java; this column is VARCHAR(20)
-        // and must be switched to the real prefixed user ID during Auth migration.
-        horse.getAdmission().setDecisionBy(String.valueOf(actorId));
+        horse.getAdmission().setDecisionBy(actorId);
         horse.getAdmission().setDecidedAt(LocalDateTime.now());
 
         audit(
@@ -157,7 +155,7 @@ public class HorseAdmissionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found"));
     }
 
-    private void audit(Horse horse, Integer actorId, String action, String note) {
+    private void audit(Horse horse, String actorId, String action, String note) {
         audit.record(
                 actorId,
                 horse.getHorseId(),

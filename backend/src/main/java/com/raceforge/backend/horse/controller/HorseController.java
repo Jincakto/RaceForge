@@ -35,7 +35,7 @@ public class HorseController {
     @PostMapping
     @PreAuthorize("hasAuthority('HORSE_OWNER')")
     public ResponseEntity<ApiResponse<HorseResponse>> createHorse(
-            @RequestParam(required = false) Integer ownerId,
+            @RequestParam(required = false) String ownerId,
             @AuthenticationPrincipal AuthenticatedUser actor,
             @Valid @RequestBody HorseCreateRequest request) {
 

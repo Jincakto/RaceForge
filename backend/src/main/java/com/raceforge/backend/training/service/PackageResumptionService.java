@@ -48,7 +48,7 @@ public class PackageResumptionService {
     public HorsePackageResponse resumeWithoutRecovery(
             Integer originalRegistrationId,
             String reason,
-            Integer managerId
+            String managerId
     ) {
         if (reason == null || reason.isBlank()) {
             throw new BusinessRuleException("CM confirmation reason is required");
@@ -121,7 +121,7 @@ public class PackageResumptionService {
     public HorsePackageResponse resumeOriginalPackage(
             Integer recoveryRegistrationId,
             String reason,
-            Integer managerId
+            String managerId
     ) {
         if (reason == null || reason.isBlank()) {
             throw new BusinessRuleException("CM confirmation reason is required");
@@ -213,7 +213,7 @@ public class PackageResumptionService {
     private HorsePackageResponse activatePreservedOriginal(
             HorsePackage original,
             Horse horse,
-            Integer managerId,
+            String managerId,
             String reason,
             String action
     ) {

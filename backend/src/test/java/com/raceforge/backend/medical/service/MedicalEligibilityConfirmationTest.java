@@ -40,10 +40,10 @@ class MedicalEligibilityConfirmationTest {
         Role role = new Role();
         role.setRoleName("VETERINARIAN");
         User vet = new User();
-        vet.setUserId(7);
+        vet.setUserId("7");
         vet.setRole(role);
         vet.setStatus("ACTIVE");
-        when(users.findDetailedById(7)).thenReturn(Optional.of(vet));
+        when(users.findDetailedById("7")).thenReturn(Optional.of(vet));
 
         Horse horse = new Horse();
         horse.setHorseId("HOR-001");
@@ -73,7 +73,7 @@ class MedicalEligibilityConfirmationTest {
     void fitDoesNotLockOrInventReason() {
         MedicalRecord record = draft("FIT", null, null, null,
                 MedicalEvaluationResult.EvaluationLevel.NORMAL);
-        service.confirmMedicalRecord("MED-000091", 7);
+        service.confirmMedicalRecord("MED-000091", "7");
         assertEquals(Boolean.TRUE, record.getTrainingEligible());
         assertNull(record.getEligibilityReason());
         assertEquals("CONFIRMED", record.getStatus());
@@ -85,7 +85,7 @@ class MedicalEligibilityConfirmationTest {
         MedicalRecord record = draft("FIT_WITH_MONITORING", null,
                 "Monitor respiration daily", null,
                 MedicalEvaluationResult.EvaluationLevel.WARNING);
-        service.confirmMedicalRecord("MED-000091", 7);
+        service.confirmMedicalRecord("MED-000091", "7");
         assertEquals(Boolean.TRUE, record.getTrainingEligible());
         assertEquals("Monitor respiration daily", record.getEligibilityReason());
         verifyNoInteractions(locks);
@@ -95,7 +95,7 @@ class MedicalEligibilityConfirmationTest {
     void notFitUsesLockReasonAndRequestsLock() {
         MedicalRecord record = draft("NOT_FIT", null, null,
                 "Vet confirms training must stop", MedicalEvaluationResult.EvaluationLevel.CRITICAL);
-        service.confirmMedicalRecord("MED-000091", 7);
+        service.confirmMedicalRecord("MED-000091", "7");
         assertEquals(Boolean.FALSE, record.getTrainingEligible());
         assertEquals("Vet confirms training must stop", record.getEligibilityReason());
         verify(locks).lockFromConfirmedExamination(
@@ -107,7 +107,7 @@ class MedicalEligibilityConfirmationTest {
     void fitDifferentFromSuggestionKeepsOverrideExplanation() {
         MedicalRecord record = draft("FIT", "Vet examined this case in detail", null, null,
                 MedicalEvaluationResult.EvaluationLevel.CRITICAL);
-        service.confirmMedicalRecord("MED-000091", 7);
+        service.confirmMedicalRecord("MED-000091", "7");
         assertEquals(Boolean.TRUE, record.getTrainingEligible());
         assertEquals("Vet examined this case in detail", record.getEligibilityReason());
         verifyNoInteractions(locks);

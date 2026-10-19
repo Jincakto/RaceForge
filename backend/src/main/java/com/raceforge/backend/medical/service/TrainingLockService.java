@@ -112,7 +112,7 @@ public class TrainingLockService {
     }
 
     @Transactional
-    public TrainingLock unlockHorse(String horseId, Integer veterinarianId, String reason) {
+    public TrainingLock unlockHorse(String horseId, String veterinarianId, String reason) {
         if (horseId == null || horseId.isBlank() || veterinarianId == null) {
             throw new IllegalArgumentException("Horse ID and veterinarian ID are required");
         }
@@ -160,7 +160,7 @@ public class TrainingLockService {
     /** Notify only currently assigned trainers. Do not delete Horse_Trainer or change ACCEPTED assignment rows. */
     private void notifyAssignedTrainers(Horse horse, String type, String message) {
         if (horse.getTrainers() == null) return;
-        Set<Integer> notified = new HashSet<>();
+        Set<String> notified = new HashSet<>();
         for (Trainer trainer : horse.getTrainers()) {
             if (trainer != null && trainer.getUser() != null
                     && trainer.getUser().getUserId() != null

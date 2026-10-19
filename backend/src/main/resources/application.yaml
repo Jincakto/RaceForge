@@ -36,15 +36,9 @@ spring:
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
     baseline-on-migrate: true
-<<<<<<< HEAD
-    baseline-version: 0
-=======
-    # Legacy pipeline retained in db/migration; not used for an existing INT IDENTITY database.
     locations: ${FLYWAY_LOCATIONS:classpath:db/string-migration}
     table: ${FLYWAY_HISTORY_TABLE:flyway_string_schema_history}
-    # Legacy: baseline-version: 0
-    baseline-version: ${FLYWAY_BASELINE_VERSION:0}
->>>>>>> 76de6e5 (luu code)
+    baseline-version: ${FLYWAY_BASELINE_VERSION:12}
 
 springdoc:
   override-with-generic-response: false

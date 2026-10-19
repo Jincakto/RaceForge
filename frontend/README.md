@@ -9,6 +9,7 @@ npm install
 npm run dev        # http://localhost:5173
 npm run build      # typecheck + build ra thư mục dist/
 npm run preview    # xem thử bản build, http://localhost:4173
+npm test           # kiểm tra dịch thuật và cập nhật giao diện động
 ```
 Yêu cầu Node.js >= 20.
 
@@ -19,3 +20,9 @@ Yêu cầu Node.js >= 20.
 - `src/data.ts` – dữ liệu mẫu; `src/ui.tsx` – component dùng chung
 - `src/englishUi.ts` + `translations.json` – lớp chuyển giao diện sang tiếng Anh
 - `src/imports/` – tài liệu yêu cầu và ảnh tham chiếu
+
+Lớp dịch dùng các cụm từ trong `translations.json`, ưu tiên cụm dài và nhận diện
+ranh giới từ Unicode. Nội dung chưa có bản dịch được giữ nguyên để không làm sai
+tên riêng, ghi chú y tế hoặc thông báo lỗi. Thêm bản dịch đầy đủ vào từ điển khi
+bổ sung giao diện; không thay bằng thông báo chung hoặc xóa dấu. Có thể đặt
+`data-ui-translate="off"` trên vùng cần giữ nguyên nội dung.

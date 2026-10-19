@@ -374,12 +374,12 @@ function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) => void; 
   const di = 'w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]';
 
   const handle = () => {
-    if (!email || !password) { setError('Vui lòng nhập email và mật khẩu'); return; }
+    if (!email || !password) { setError('Please enter your email and password'); return; }
     setLoading(true);
     setTimeout(() => {
       const u = users.find(u => u.email === email && u.password === password);
-      if (u) { if (!u.verified) { setError('Tài khoản chưa được xác thực email. Vui lòng kiểm tra hộp thư.'); setLoading(false); } else if (u.locked) { setError('Tài khoản đã bị khóa. Vui lòng liên hệ Quản trị viên.'); setLoading(false); } else onLogin(u); }
-      else { setError('Email hoặc mật khẩu không đúng'); setLoading(false); }
+      if (u) { if (!u.verified) { setError("Your email address has not been verified. Please check your inbox."); setLoading(false); } else if (u.locked) { setError("Your account is locked. Please contact an administrator."); setLoading(false); } else onLogin(u); }
+      else { setError("Incorrect email or password"); setLoading(false); }
     }, 400);
   };
 
@@ -388,24 +388,24 @@ function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) => void; 
       <div className="flex-1 flex flex-col items-center justify-center px-10 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 30% 50%, #c9973b 0%, transparent 60%)' }} />
         <div className="relative z-10 w-full max-w-sm">
-          <button onClick={() => navigate('home')} className="flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-8 transition-colors">← Trang chủ</button>
+          <button onClick={() => navigate('home')} className="flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-8 transition-colors">← Home</button>
           <div className="flex items-center gap-3 mb-8">
             <div className="w-10 h-10 rounded-xl bg-[#c9973b] flex items-center justify-center text-xl">🐎</div>
             <div><div className="text-white font-serif font-bold text-xl">RaceForce</div><div className="text-[#c9973b] text-xs">Horse Racing Management</div></div>
           </div>
-          <h2 className="text-white font-serif text-3xl font-bold mb-6">Đăng nhập</h2>
+          <h2 className="text-white font-serif text-3xl font-bold mb-6">Sign in</h2>
           <div className="space-y-4">
             <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@example.com" className={di} /></div>
-            <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Mật khẩu</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className={di} onKeyDown={e => e.key === 'Enter' && handle()} /></div>
+            <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className={di} onKeyDown={e => e.key === 'Enter' && handle()} /></div>
             {error && <div className="p-3 bg-red-900/30 border border-red-700/40 rounded-lg text-red-400 text-sm">{error}</div>}
-            <button onClick={handle} disabled={loading} className="w-full py-3 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all text-sm disabled:opacity-60">{loading ? 'Đang đăng nhập...' : 'Đăng nhập →'}</button>
+            <button onClick={handle} disabled={loading} className="w-full py-3 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all text-sm disabled:opacity-60">{loading ? "Signing in..." : "Sign in →"}</button>
           </div>
-          <p className="text-center text-gray-500 text-sm mt-5">Chưa có tài khoản? <button onClick={() => navigate('register')} className="text-[#c9973b] hover:underline font-medium">Đăng ký</button></p>
-          <p className="mt-2 text-center text-xs text-gray-500">Tài khoản nhân viên do quản trị viên cấp.</p>
+          <p className="text-center text-gray-500 text-sm mt-5">No account yet? <button onClick={() => navigate('register')} className="text-[#c9973b] hover:underline font-medium">Register</button></p>
+          <p className="mt-2 text-center text-xs text-gray-500">Staff accounts are issued by an administrator.</p>
 
           {/* Quick Login Demo */}
           <div className="mt-7 border-t border-white/10 pt-6">
-            <p className="text-gray-500 text-xs text-center mb-3 uppercase tracking-wider font-medium">Đăng nhập nhanh (demo)</p>
+            <p className="text-gray-500 text-xs text-center mb-3 uppercase tracking-wider font-medium">Quick sign-in (demo)</p>
             <div className="grid grid-cols-2 gap-2">
               {DEMO_ACCOUNTS.map(acc => (
                 <button key={acc.email} onClick={() => { setEmail(acc.email); setPassword(acc.password); setTimeout(() => { const u = users.find(u => u.email === acc.email); if (u) onLogin(u); }, 100); }}
@@ -422,8 +422,8 @@ function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) => void; 
         <img src="https://images.unsplash.com/photo-1598974357801-cbca100e65d3?w=800&h=1000&fit=crop&auto=format" alt="Horse" className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#0f1729] to-transparent" />
         <div className="absolute bottom-12 left-8 right-8">
-          <blockquote className="text-white font-serif text-xl font-bold leading-snug">"Mỗi buổi tập là một bước tiến<br />đến chiến thắng tiếp theo."</blockquote>
-          <p className="text-[#c9973b] text-sm mt-2">RaceForce · Nền tảng đua ngựa chuyên nghiệp</p>
+          <blockquote className="text-white font-serif text-xl font-bold leading-snug">"Every training session is a step<br />towards the next victory."</blockquote>
+          <p className="text-[#c9973b] text-sm mt-2">RaceForce · Professional racing platform</p>
         </div>
       </div>
     </div>
@@ -441,9 +441,9 @@ function RegisterPage({ navigate, onRegister }: { navigate: (p: Page) => void; o
   const di = 'w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]';
 
   const handleSubmit = () => {
-    if (!form.name || !form.email || !form.password) { setError('Vui lòng điền đầy đủ thông tin'); return; }
-    if (form.password !== form.confirm) { setError('Mật khẩu xác nhận không khớp'); return; }
-    if (form.password.length < 6) { setError('Mật khẩu tối thiểu 6 ký tự'); return; }
+    if (!form.name || !form.email || !form.password) { setError("Please complete all required fields"); return; }
+    if (form.password !== form.confirm) { setError("Passwords do not match"); return; }
+    if (form.password.length < 6) { setError("Password must contain at least 6 characters"); return; }
     otpCode.current = String(Math.floor(100000 + Math.random() * 900000));
     setError(''); setShowOtp(true);
   };
@@ -459,23 +459,23 @@ function RegisterPage({ navigate, onRegister }: { navigate: (p: Page) => void; o
       <div className="min-h-screen bg-[#0f1729] flex">
         <div className="flex-1 flex flex-col items-center justify-center px-10">
           <div className="w-full max-w-sm">
-            <button onClick={() => navigate('home')} className="flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-8 transition-colors">← Trang chủ</button>
+            <button onClick={() => navigate('home')} className="flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-8 transition-colors">← Home</button>
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl bg-[#c9973b] flex items-center justify-center text-xl">🐎</div>
               <div><div className="text-white font-serif font-bold text-xl">RaceForce</div><div className="text-[#c9973b] text-xs">Horse Racing Management</div></div>
             </div>
-            <h2 className="text-white font-serif text-3xl font-bold mb-2">Tạo tài khoản</h2>
-            <p className="text-gray-400 text-sm mb-6">Đăng ký dành cho <b className="text-[#c9973b]">Chủ ngựa</b>. Tài khoản nhân sự (Quản lý, Thú y, Huấn luyện viên, Nhân viên chăm sóc) do Quản trị viên cấp.</p>
+            <h2 className="text-white font-serif text-3xl font-bold mb-2">Create account</h2>
+            <p className="text-gray-400 text-sm mb-6">Registration is for <b className="text-[#c9973b]">Horse Owners</b>. Staff accounts are issued by an administrator.</p>
             <div className="space-y-4">
-              <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Họ và tên <span className="text-red-400">*</span></label><input value={form.name} onChange={e => set('name')(e.target.value)} placeholder="Nguyễn Văn A" className={di} /></div>
+              <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Full name <span className="text-red-400">*</span></label><input value={form.name} onChange={e => set('name')(e.target.value)} placeholder="Full name" className={di} /></div>
               <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Email <span className="text-red-400">*</span></label><input type="email" value={form.email} onChange={e => set('email')(e.target.value)} placeholder="you@example.com" className={di} /></div>
-              <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Số điện thoại</label><input value={form.phone} onChange={e => set('phone')(e.target.value)} placeholder="0912 345 678" className={di} /></div>
-              <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Mật khẩu <span className="text-red-400">*</span></label><input type="password" value={form.password} onChange={e => set('password')(e.target.value)} placeholder="Tối thiểu 6 ký tự" className={di} /></div>
-              <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Xác nhận mật khẩu <span className="text-red-400">*</span></label><input type="password" value={form.confirm} onChange={e => set('confirm')(e.target.value)} placeholder="Nhập lại" className={di} onKeyDown={e => e.key === 'Enter' && handleSubmit()} /></div>
+              <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Phone number</label><input value={form.phone} onChange={e => set('phone')(e.target.value)} placeholder="0912 345 678" className={di} /></div>
+              <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Password <span className="text-red-400">*</span></label><input type="password" value={form.password} onChange={e => set('password')(e.target.value)} placeholder="At least 6 characters" className={di} /></div>
+              <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Confirm password <span className="text-red-400">*</span></label><input type="password" value={form.confirm} onChange={e => set('confirm')(e.target.value)} placeholder="Enter again" className={di} onKeyDown={e => e.key === 'Enter' && handleSubmit()} /></div>
               {error && <p className="text-red-400 text-sm">{error}</p>}
-              <button onClick={handleSubmit} className="w-full py-3 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all text-sm">Gửi mã OTP →</button>
+              <button onClick={handleSubmit} className="w-full py-3 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all text-sm">Send OTP code →</button>
             </div>
-            <p className="text-center text-gray-500 text-sm mt-5">Đã có tài khoản? <button onClick={() => navigate('login')} className="text-[#c9973b] hover:underline font-medium">Đăng nhập</button></p>
+            <p className="text-center text-gray-500 text-sm mt-5">Already have an account? <button onClick={() => navigate('login')} className="text-[#c9973b] hover:underline font-medium">Sign in</button></p>
           </div>
         </div>
         <div className="w-[42%] relative hidden lg:block">
@@ -496,15 +496,15 @@ function OnboardingPage({ user, navigate, onLogout }: { user: AppUser; navigate:
       <div className="max-w-2xl w-full">
         <div className="text-center mb-10">
           <div className="w-16 h-16 rounded-2xl bg-[#c9973b] flex items-center justify-center text-3xl mx-auto mb-5">🐎</div>
-          <h2 className="text-white font-serif text-3xl font-bold mb-2">Chào mừng, {user.name.split(' ').pop()}!</h2>
-          <p className="text-gray-400">Tài khoản đã xác thực. Hãy tham gia một trung tâm huấn luyện.</p>
+          <h2 className="text-white font-serif text-3xl font-bold mb-2">Welcome, {user.name.split(' ').pop()}!</h2>
+          <p className="text-gray-400">Your account is verified. Join a training club to get started.</p>
         </div>
         <div className="max-w-md w-full">
           <button onClick={() => navigate('join-center')} className="w-full p-8 bg-white/5 hover:bg-white/10 border border-white/15 hover:border-[#c9973b]/50 rounded-2xl text-left transition-all">
             <div className="w-14 h-14 rounded-xl bg-emerald-900/40 border border-emerald-700/30 flex items-center justify-center text-2xl mb-5">🤝</div>
-            <h3 className="text-white font-serif text-xl font-bold mb-2">Tham gia trung tâm huấn luyện</h3>
-            <p className="text-gray-400 text-sm leading-relaxed mb-4">Tìm và gửi yêu cầu vào trung tâm. Quản lý sẽ xét duyệt và phân công vai trò cho bạn.</p>
-            <div className="text-emerald-400 text-sm font-semibold">Tìm trung tâm →</div>
+            <h3 className="text-white font-serif text-xl font-bold mb-2">Join a training club</h3>
+            <p className="text-gray-400 text-sm leading-relaxed mb-4">Find a club and send a membership request. The Club Manager will review your request and assign your role.</p>
+            <div className="text-emerald-400 text-sm font-semibold">Find a club →</div>
           </button>
         </div>
       </div>
@@ -523,23 +523,23 @@ function JoinCenterPage({ user, clubs, navigate, onJoinRequest, onLogout }:
     <div className="min-h-screen bg-[#0f1729] px-6 py-10 relative">
       <div className="absolute top-5 right-6 z-10"><UserAvatarDropdown user={user} onLogout={onLogout} /></div>
       <div className="max-w-2xl mx-auto">
-        <button onClick={() => navigate('onboarding')} className="flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-8">← Quay lại</button>
+        <button onClick={() => navigate('onboarding')} className="flex items-center gap-2 text-gray-400 hover:text-white text-sm mb-8">← Back</button>
         <div className="text-center mb-8">
           <div className="w-16 h-16 rounded-2xl bg-emerald-800/50 border border-emerald-700/30 flex items-center justify-center text-3xl mx-auto mb-4">🤝</div>
-          <h2 className="text-white font-serif text-3xl font-bold mb-2">Tham gia trung tâm</h2>
-          <p className="text-gray-400 text-sm">Gửi yêu cầu và chờ Quản lý phân công vai trò</p>
+          <h2 className="text-white font-serif text-3xl font-bold mb-2">Join a club</h2>
+          <p className="text-gray-400 text-sm">Send a request and wait for the Club Manager to assign your role</p>
         </div>
-        <div className="relative mb-6"><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Tìm tên trung tâm..." className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]" /><span className="absolute left-3.5 top-3.5 text-gray-400">🔍</span></div>
+        <div className="relative mb-6"><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search clubs by name..." className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]" /><span className="absolute left-3.5 top-3.5 text-gray-400">🔍</span></div>
         <div className="space-y-4">
           {filtered.map(club => {
             const sent = requested.has(club.id);
             return (
               <div key={club.id} className="bg-white/5 border border-white/15 rounded-xl p-5 flex items-start gap-4">
                 <div className="w-12 h-12 rounded-xl bg-[#1a2844] border border-white/10 flex items-center justify-center text-white font-serif font-bold text-lg">{club.logoLetter}</div>
-                <div className="flex-1"><div className="text-white font-semibold">{club.name}</div><div className="text-gray-400 text-xs mt-0.5">📍 {club.location} · 👥 {club.memberCount} thành viên · {club.founded}</div><div className="text-gray-500 text-xs mt-1">{club.description}</div></div>
+                <div className="flex-1"><div className="text-white font-semibold">{club.name}</div><div className="text-gray-400 text-xs mt-0.5">📍 {club.location} · 👥 {club.memberCount} members · {club.founded}</div><div className="text-gray-500 text-xs mt-1">{club.description}</div></div>
                 <button onClick={() => { if (!sent) { setRequested(p => new Set([...p, club.id])); onJoinRequest(club.id); } }}
                   className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-all ${sent ? 'bg-emerald-900/40 text-emerald-400 border border-emerald-700/30 cursor-default' : 'bg-[#c9973b] hover:bg-[#b8852a] text-white'}`}>
-                  {sent ? '✓ Đã gửi' : 'Gửi yêu cầu'}
+                  {sent ? "✓ Sent" : "Send request"}
                 </button>
               </div>
             );
@@ -547,9 +547,9 @@ function JoinCenterPage({ user, clubs, navigate, onJoinRequest, onLogout }:
         </div>
         {requested.size > 0 && (
           <div className="mt-8 p-5 bg-emerald-900/30 border border-emerald-700/30 rounded-xl text-center">
-            <div className="text-emerald-400 font-semibold mb-1">✓ Yêu cầu đã được gửi!</div>
-            <div className="text-emerald-600 text-sm">Quản lý sẽ xem xét và phân công vai trò.</div>
-            <button onClick={() => navigate('pending')} className="mt-4 px-5 py-2 bg-emerald-700/40 hover:bg-emerald-700/60 text-emerald-300 text-sm rounded-lg transition-all">Xem trạng thái →</button>
+            <div className="text-emerald-400 font-semibold mb-1">✓ Request sent!</div>
+            <div className="text-emerald-600 text-sm">The Club Manager will review your request and assign your role.</div>
+            <button onClick={() => navigate('pending')} className="mt-4 px-5 py-2 bg-emerald-700/40 hover:bg-emerald-700/60 text-emerald-300 text-sm rounded-lg transition-all">View status →</button>
           </div>
         )}
       </div>
@@ -567,22 +567,22 @@ function PendingPage({ user, clubs, navigate, memberRequests, onLogout }:
       <div className="absolute top-5 right-6 z-10"><UserAvatarDropdown user={user} onLogout={onLogout} /></div>
       <div className="max-w-md w-full text-center">
         <div className="w-20 h-20 rounded-2xl bg-amber-900/30 border border-amber-700/30 flex items-center justify-center text-4xl mx-auto mb-6">⏳</div>
-        <h2 className="text-white font-serif text-2xl font-bold mb-2">Đang chờ duyệt</h2>
-        <p className="text-gray-400 text-sm mb-8">Yêu cầu tham gia đang được Quản lý xem xét.</p>
+        <h2 className="text-white font-serif text-2xl font-bold mb-2">Awaiting approval</h2>
+        <p className="text-gray-400 text-sm mb-8">Your membership request is being reviewed by the Club Manager.</p>
         <div className="space-y-3 mb-8">
           {myReqs.map(r => {
             const club = clubs.find(c => c.id === r.clubId);
             return (
               <div key={r.id} className="bg-white/5 border border-white/10 rounded-xl p-4 flex items-center gap-3 text-left">
                 <div className="w-10 h-10 rounded-lg bg-[#1a2844] flex items-center justify-center text-white font-bold">{club?.logoLetter || '?'}</div>
-                <div className="flex-1"><div className="text-white text-sm font-medium">{club?.name}</div><div className="text-gray-500 text-xs">{r.requestedAt} · Hết hạn {r.expiresAt}</div></div>
+                <div className="flex-1"><div className="text-white text-sm font-medium">{club?.name}</div><div className="text-gray-500 text-xs">{r.requestedAt} · Expired {r.expiresAt}</div></div>
                 <Badge status={r.status} />
               </div>
             );
           })}
         </div>
         <div className="flex gap-3 justify-center">
-          <button onClick={() => navigate('join-center')} className="px-5 py-2.5 bg-white/10 hover:bg-white/15 text-white text-sm rounded-lg transition-all">Tìm trung tâm khác</button>
+          <button onClick={() => navigate('join-center')} className="px-5 py-2.5 bg-white/10 hover:bg-white/15 text-white text-sm rounded-lg transition-all">Find another club</button>
         </div>
       </div>
     </div>

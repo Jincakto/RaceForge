@@ -1,10 +1,11 @@
 package com.raceforge.backend.training.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 
 public record RecoveryApprovalRequest(
-        @NotBlank String recoveryPackageId,
+        @NotNull String recoveryPackageId,
         String reason
 ) {
 }

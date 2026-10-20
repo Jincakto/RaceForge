@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 @org.springframework.validation.annotation.Validated
 @RestController
 @RequestMapping("/api/admin/permissions")
-@PreAuthorize("hasAuthority('CLUB_MANAGER') and @permissionAccess.has(authentication, 'MANAGE_PERMISSION')")
+@PreAuthorize("hasAuthority('ADMIN') and @permissionAccess.has(authentication, 'MANAGE_PERMISSION')")
 @Tag(name = "Permissions")
 public class PermissionController {
 

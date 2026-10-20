@@ -82,10 +82,6 @@ public class TrainingPackageService {
         return mapper.toResponse(repository.saveAndFlush(entity));
     }
 
-    private String nextPackageId() {
-        return idAllocator.next("PKG");
-    }
-
     private TrainingPackage findById(String id) {
         return repository.findById(id).orElseThrow(
                 () -> new ResourceNotFoundException("Training package not found: " + id)

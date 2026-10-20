@@ -19,10 +19,12 @@ import org.springframework.stereotype.Component;
 @Component
 public class TrainingPlanHorseResolver {
 
+  @Autowired private TrainingWorkflowGuard workflowGuard;
   @Autowired
   private HorsePlanRepository horsePlanRepository;
 
   public void validateSchedule(TrainingPlan plan, String horseId, LocalDate date) {
+      workflowGuard.requirePlan(plan);workflowGuard.requirePackageDate(plan,horseId,date);
       HorsePlan link = horsePlanRepository.findById(new HorsePlanId(plan.getPlanId(), horseId))
               .orElseThrow(() -> new ResourceNotFoundException("Horse is not part of training plan"));
       if (!"ACTIVE".equals(plan.getStatus()) || !"ACTIVE".equals(link.getStatus())) {
@@ -34,7 +36,7 @@ public class TrainingPlanHorseResolver {
       }
   }
 
-  public Horse resolve(Integer planId, String horseId) {
+  public Horse resolve(String planId, String horseId) {
       if (horseId != null) {
           HorsePlan hp = horsePlanRepository.findById(new HorsePlanId(planId, horseId))
                   .orElseThrow(() -> new ResourceNotFoundException(

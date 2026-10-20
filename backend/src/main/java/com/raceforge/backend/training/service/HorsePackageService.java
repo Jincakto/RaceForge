@@ -29,6 +29,7 @@ import java.util.Locale;
 public class HorsePackageService {
     private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
 
+    @org.springframework.beans.factory.annotation.Autowired private TrainingWorkflowGuard workflowGuard;
     private final HorseRepository horseRepository;
     private final TrainingPackageRepository trainingPackageRepository;
     private final HorsePackageRepository horsePackageRepository;
@@ -79,6 +80,7 @@ public class HorsePackageService {
             throw new BusinessRuleException("This training package is not available");
         }
 
+        workflowGuard.requireHealthy(horse);
         HealthProfile profile = healthProfileRepository.findByHorse_HorseId(horse.getHorseId())
                 .orElseThrow(() -> new BusinessRuleException("Initial medical examination is required"));
         boolean initialConfirmed = medicalRecordRepository
@@ -170,6 +172,7 @@ public class HorsePackageService {
             return mapper.toResponse(failed);
         }
 
+        workflowGuard.requireHealthy(horse);
         if (Boolean.TRUE.equals(horse.getTrainingLocked()) || !"READY".equalsIgnoreCase(horse.getHealthStatus())) {
             throw new BusinessRuleException("Horse is no longer eligible for normal training");
         }
@@ -184,7 +187,7 @@ public class HorsePackageService {
         LocalDate today = LocalDate.now();
         int days = registration.getTrainingPackage().getDurationDays();
         registration.setPaymentStatus("PAID");
-        registration.setPaidAt(LocalDateTime.now());
+        // registration.setPaidAt(LocalDateTime.now()); // Retired in V5.
         registration.setStatus("ACTIVE");
         registration.setStartDate(today);
         registration.setEndDate(today.plusDays(days - 1L));
@@ -197,7 +200,7 @@ public class HorsePackageService {
         return mapper.toResponse(saved);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<HorsePackageResponse> history(String horseId, String ownerId) {
         requireOwnerId(ownerId);
         Horse horse = horseRepository.findById(horseId)

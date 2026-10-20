@@ -10,7 +10,7 @@ public class PermissionAuditLogMapper {
   public PermissionAuditLogResponse toResponse(PermissionAuditLog log, String roleName) {
       PermissionAuditLogResponse response = new PermissionAuditLogResponse();
 
-      response.setLogId(log.getAuditId());
+      response.setLogId(log.getAuditId() == null ? null : log.getAuditId().toString());
       response.setAction(log.getAction());
       response.setRoleName(roleName);
       response.setPermissionCode(log.getReason()); // reason holds the permission_name

@@ -2,13 +2,8 @@ package com.raceforge.backend.training.dto;
 
 public class TrainingPlanResponse {
 
-<<<<<<< HEAD
-  private Integer planId;
-  private @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId;
-=======
   private String planId;
   private String horseId;
->>>>>>> 76de6e5 (luu code)
   private String createdBy;
   private String planName;
   private String goal;
@@ -41,11 +36,7 @@ public class TrainingPlanResponse {
       return horseId;
   }
 
-<<<<<<< HEAD
-  public void setHorseId(@jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
-=======
   public void setHorseId(String horseId) {
->>>>>>> 76de6e5 (luu code)
       this.horseId = horseId;
   }
 

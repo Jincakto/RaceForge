@@ -5,6 +5,8 @@ import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.repository.HorseRepository;
 import com.raceforge.backend.training.dto.TrainingPlanCreateRequest;
 import com.raceforge.backend.training.dto.TrainingPlanResponse;
+import com.raceforge.backend.training.dto.TrainingPlanOptionResponse;
+import java.util.List;
 import com.raceforge.backend.training.entity.HorsePlan;
 import com.raceforge.backend.training.entity.HorsePlanId;
 import com.raceforge.backend.training.entity.TrainingPlan;
@@ -36,8 +38,6 @@ public class TrainingPlanService {
   @Autowired
   private TrainingPlanMapper trainingPlanMapper;
 
-<<<<<<< HEAD
-=======
   @Transactional(readOnly = true)
   public List<TrainingPlanOptionResponse> getPlansForHorse(String horseId) {
       if (!horseRepository.existsById(horseId)) {
@@ -51,7 +51,6 @@ public class TrainingPlanService {
               .toList();
   }
 
->>>>>>> 76de6e5 (luu code)
   @Transactional
   public TrainingPlanResponse createPlan(String horseId, TrainingPlanCreateRequest request, String actorId) {
       if (request.getStartDate() != null && request.getEndDate() != null

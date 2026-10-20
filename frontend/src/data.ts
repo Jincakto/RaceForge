@@ -1,10 +1,13 @@
 export type Role = 'admin' | 'manager' | 'head_trainer' | 'veterinarian' | 'groom' | 'owner';
 
 export interface AppUser {
+  apiRoleId?: number;
+  trainerProfileId?: string;
   id: string;
   name: string;
   email: string;
   password: string;
+  avatarUrl?: string;
   avatar: string;
   role: Role | null;
   clubId: string | null;
@@ -156,15 +159,17 @@ export type TrainerAssignStatus = 'unassigned' | 'pending' | 'confirmed';
 export interface AssignEntry { time: string; kind: 'assign' | 'replace' | 'confirm' | 'decline'; from: string | null; to: string; by: string; reason: string }
 
 export interface Enrollment {
+  directAssignmentId?: string;
+  assignmentId?: string;
   paymentStatus?: string;
-  backendStatus?: string;
+  apiStatus?: string;
   id: string;
   horseId: string;
   packageId: string;
   packageName: string;
   sessionsTotal: number;
   sessionsDone: number;
-  status: 'active' | 'paused' | 'completed' | 'pending' | 'cancelled';
+  status: 'active' | 'paused' | 'completed';
   trainerId: string;
   trainerName: string;
   trainerStatus: TrainerAssignStatus;
@@ -207,7 +212,10 @@ export function getLifecycle(h: Horse): Lifecycle {
 }
 
 export interface Horse {
-  backendAdmissionStatus?: string;
+  trainerIds?: string[];
+  vetAssignmentId?: string;
+  documentType?: string;
+  admissionStatus?: string;
   id: string;
   name: string;
   breed: string;
@@ -274,6 +282,8 @@ export interface HorseClubRequest {
 }
 
 export interface TrainingPlan {
+  horsePackageId?: string;
+  assignmentId?: string;
   id: string;
   horseId: string;
   phase: string;
@@ -297,6 +307,10 @@ export interface TrainingPlan {
 }
 
 export interface TrainingSession {
+  actualEnd?: string;
+  canStart?: boolean;
+  canStop?: boolean;
+  canComplete?: boolean;
   id: string;
   horseId: string;
   planId: string;
@@ -325,6 +339,7 @@ export interface TrainingSession {
 }
 
 export interface HealthRecord {
+  profileId?: string;
   id: string;
   horseId: string;
   date: string;
@@ -382,10 +397,12 @@ export interface HealthRecord {
 }
 
 // ── Training Plan Algorithm ────────────────────────────────────────────────────
-// Frontend heuristic for trainer review; this is not a validated veterinary prescription.
+// Based on: Seiler's 80/20 Polarized Training model + FEI equine science guidelines
 // Factors: health status, age, weight, resting heart rate, race history
 
 export interface TrainingSuggestion {
+  approvedIntensity?: 'LOW' | 'MODERATE' | 'HIGH';
+  sessionCount?: number;
   phase: string;
   intensityScore: number;
   weeklyKm: number;
@@ -442,12 +459,12 @@ export function computeTrainingSuggestion(horse: Horse, health?: HealthRecord): 
     const temp = Number(health.vitals.temperature);
     if (hr >= 28 && hr <= 36) {
       score += 15; rationale.push(`Nhịp tim nghỉ ${hr} bpm — tim mạch xuất sắc (nền tảng tốt cho tập hiệu suất cao)`);
-    } else if (hr >= 28 && hr <= 48) {
+    } else if (hr <= 44) {
       score += 8; rationale.push(`Nhịp tim nghỉ ${hr} bpm — bình thường`);
     } else {
       score -= 5; warnings.push(`Nhịp tim nghỉ ${hr} bpm cao — cần đánh giá lại tim mạch trước khi tăng tải`);
     }
-    if (temp > 38.3 || temp < 37.2) { score -= 10; warnings.push(`Nhiệt độ ${temp}°C ngoài khoảng tham chiếu lúc nghỉ — cần bác sĩ đánh giá trước khi tập.`); }
+    if (temp > 38.5) { score -= 10; warnings.push(`Nhiệt độ ${temp}°C — dấu hiệu viêm nhiễm, tạm ngưng tập luyện`); }
   } else {
     warnings.push('Chưa có dữ liệu sinh hiệu gần nhất — đề xuất khám trước khi bắt đầu chương trình');
   }

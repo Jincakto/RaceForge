@@ -3,22 +3,20 @@ import type { AppUser, Horse, HorseClubRequest, HealthRecord } from './data';
 import { Btn, Card, Select } from './ui';
 import { IdChip, ReasonDialog, Modal } from './admin';
 
-export const INTAKE_STEPS = ['Profile created', 'Administrative admission review', 'Veterinarian assignment', 'Veterinarian accepts case', 'Examination & training eligibility'];
+export const INTAKE_STEPS = ['Profile created', 'Club assigns veterinarian', 'Veterinarian accepts case', 'Examination & decision', 'Club admission decision'];
 
 export function vetVisible(h: Horse, user: AppUser): boolean {
   if (user.role !== 'veterinarian') return true;
-  if (h.backendAdmissionStatus !== undefined) return true; // Read access is scoped by the server; this is not assignment acceptance.
   return h.vetId === user.id && (h.vetAssign?.status ?? 'accepted') === 'accepted';
 }
 
 export function intakeStage(h: Horse | undefined, req: HorseClubRequest): number {
+  if (req.status === 'approved') return 5;
   if (req.status === 'rejected') return -1;
-  if (req.status === 'approved') {
-    if (h?.intakeExamId) return 5;
-    if (h?.vetAssign?.status === 'accepted') return 4;
-    if (h?.vetId) return 3;
-    return 2;
-  }
+  if (!h) return 1;
+  if (h.intakeExamId) return 4;
+  if (h.vetId && h.vetAssign?.status === 'accepted') return 3;
+  if (h.vetId && h.vetAssign?.status === 'pending') return 2;
   return 1;
 }
 
@@ -29,7 +27,7 @@ export function IntakeProgress({ stage, compact = false }: { stage: number; comp
       {INTAKE_STEPS.map((label, i) => {
         const done = !rejected && stage > i;
         const cur = !rejected && stage === i;
-        const fail = rejected && i === 1;
+        const fail = rejected && i === 4;
         return (
           <li key={label} className="flex flex-1 flex-col items-center text-center">
             <div className="flex w-full items-center">
@@ -70,17 +68,17 @@ export function AssignHistory({ horse, onClose }: { horse: Horse; onClose: () =>
 
 type Handlers = {
   onVerify: (horseId: string, verified: boolean) => void;
-  onAssign: (horseId: string, vetId: string, reason: string) => void;
-  onApprove: (reqId: string) => void;
-  onReject: (reqId: string, reason: string) => void;
+  onAssign: (horseId: string, vetId: string, reason: string) => Promise<unknown>;
+  onApprove: (reqId: string) => Promise<unknown>;
+  onReject: (reqId: string, reason: string) => Promise<unknown>;
   onOpenHorse: (id: string) => void;
 };
 
 export function IntakeBoardPage({ user, horses, requests, records, users, onVerify, onAssign, onApprove, onReject, onOpenHorse }:
   { user: AppUser; horses: Horse[]; requests: HorseClubRequest[]; records: HealthRecord[]; users: AppUser[] } & Handlers) {
   const mine = requests.filter(r => r.clubId === user.clubId);
-  const open = mine.filter(r => r.status === 'pending' || (r.status === 'approved' && intakeStage(horses.find(h => h.id === r.horseId), r) < 5));
-  const done = mine.filter(r => !open.includes(r));
+  const open = mine.filter(r => r.status === 'pending');
+  const done = mine.filter(r => r.status !== 'pending');
   const vets = users.filter(u => u.role === 'veterinarian' && u.clubId === user.clubId && !u.locked);
   const [filter, setFilter] = useState(0);
   const [pick, setPick] = useState<{ horse: Horse; vetId: string } | null>(null);
@@ -95,17 +93,17 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
   const shown = rows.filter(x => filter === 0 || x.st === filter);
   const count = (n: number) => rows.filter(x => x.st === n).length;
 
-  const choose = () => {
+  const choose = async () => {
     if (!pick) return;
     if (!pick.vetId) { setPickErr('Please select a veterinarian.'); return; }
     if (pick.horse.vetId && pick.vetId === pick.horse.vetId && pick.horse.vetAssign?.status !== 'declined') { setPickErr('This veterinarian is already assigned to the horse.'); return; }
     if (pick.horse.vetId && pick.horse.vetAssign?.status !== 'declined') { setReplace(pick); setPick(null); setPickErr(''); return; }
-    onAssign(pick.horse.id, pick.vetId, pick.horse.vetId ? 'Reassigned after the previous veterinarian declined' : 'Assigned for intake examination');
-    setPick(null); setPickErr('');
+    try { await onAssign(pick.horse.id, pick.vetId, pick.horse.vetId ? 'Reassigned after the previous veterinarian declined' : 'Assigned for intake examination');
+    setPick(null); setPickErr(''); } catch (e) { setPickErr((e as Error).message); }
   };
 
   const tryApprove = (r: HorseClubRequest, h?: Horse) => {
-    if (!h?.backendAdmissionStatus && !h?.identityVerified) { setWarn(w => ({ ...w, [r.id]: 'Verify the Identification Code before making an admission decision.' })); return; }
+    if (!h?.identityVerified) { setWarn(w => ({ ...w, [r.id]: 'Verify the Identification Code before making an admission decision.' })); return; }
     setWarn(w => ({ ...w, [r.id]: '' })); setApproveFor(r);
   };
 
@@ -113,10 +111,10 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
     <div className="space-y-5">
       <div>
         <h2 className="font-serif text-xl font-bold text-[#0f1729]">Horse intake</h2>
-        <p className="text-sm text-gray-500">Profile → administrative review → veterinarian assignment/acceptance → examination → training eligibility. Admission approval alone does not allow training.</p>
+        <p className="text-sm text-gray-500">Profile creation → veterinarian assignment → examination → Club admission decision.</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        {[[0, 'All', open.length], [1, 'Needs profile review', count(1)], [2, 'Needs veterinarian assignment', count(2)], [3, 'Awaiting veterinarian acceptance', count(3)], [4, 'Awaiting examination', count(4)]].map(([k, l, n]) => (
+        {[[0, 'All', open.length], [1, 'Needs assignment', count(1)], [2, 'Awaiting veterinarian', count(2)], [3, 'Awaiting examination', count(3)], [4, 'Awaiting my decision', count(4)]].map(([k, l, n]) => (
           <button key={k as number} onClick={() => setFilter(k as number)} className={`rounded-full border px-3 py-1 text-xs font-medium ${filter === k ? 'border-[#1a2844] bg-[#1a2844] text-white' : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`}>{l} ({n})</button>
         ))}
       </div>
@@ -139,11 +137,10 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
             <div className="mt-5"><IntakeProgress stage={st} /></div>
 
             <div className="mt-4 rounded-lg bg-gray-50 p-3 text-sm">
-              {st === 1 && <span>Awaiting administrative profile review. Approval creates the medical profile; it does not approve training.</span>}
-              {st === 2 && <span>{declined ? 'The previous veterinarian declined. A replacement is required.' : 'Profile approved. Veterinarian assignment is waiting for its API.'}</span>}
-              {st === 3 && <span>Assigned to <b>{h?.vetName}</b> — awaiting acceptance.</span>}
-              {st === 4 && <span><b>{h?.vetName}</b> accepted — awaiting examination and training decision.</span>}
-              {st === 5 && exam && (
+              {st === 1 && <span>{declined ? <>Veterinarian <b>{h?.vetName}</b> declined — assign another veterinarian.</> : 'No veterinarian has been assigned.'}</span>}
+              {st === 2 && <span>Assigned to <b>{h?.vetName}</b> — awaiting acceptance.</span>}
+              {st === 3 && <span><b>{h?.vetName}</b> accepted — awaiting examination and decision.</span>}
+              {st === 4 && exam && (
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2"><IdChip kind="MED" id={exam.id} /><span className="text-xs text-gray-500">Examined {exam.date} · {exam.vet}</span><span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${exam.decision === 'eligible' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : exam.decision === 'conditional' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-red-200 bg-red-50 text-red-700'}`}>{exam.decision === 'eligible' ? 'Eligible for training' : exam.decision === 'conditional' ? 'Eligible, but needs monitoring' : 'Not eligible — training locked'}</span></div>
                   <p className="text-gray-700">“{exam.conclusion || exam.diagnosis}”</p>
@@ -153,10 +150,10 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
             {warn[r.id] && <p className="mt-2 text-xs text-red-600">{warn[r.id]}</p>}
 
             <div className="mt-4 flex flex-wrap gap-2">
-              {h && !h.identityVerified && <Btn size="sm" variant="secondary" disabled>Verify identification — waiting for API</Btn>}
-              {h && st === 2 && <Btn size="sm" onClick={() => { setPickErr(''); setPick({ horse: h, vetId: '' }); }}>Assign veterinarian</Btn>}
-              {h && (st === 3 || st === 4) && <Btn size="sm" variant="secondary" onClick={() => { setPickErr(''); setPick({ horse: h, vetId: '' }); }}>Reassign</Btn>}
-              {st === 1 && r.status === 'pending' && <><Btn size="sm" variant="gold" onClick={() => tryApprove(r, h)}>Approve profile</Btn><Btn size="sm" variant="danger" onClick={() => setRejectFor(r)}>Reject</Btn></>}
+              {h && !h.identityVerified && <Btn size="sm" variant="secondary" onClick={() => onVerify(h.id, true)}>Verify identification</Btn>}
+              {h && st === 1 && <Btn size="sm" onClick={() => { setPickErr(''); setPick({ horse: h, vetId: '' }); }}>Assign veterinarian</Btn>}
+              {h && (st === 2 || st === 3) && <Btn size="sm" variant="secondary" onClick={() => { setPickErr(''); setPick({ horse: h, vetId: '' }); }}>Reassign</Btn>}
+              {st === 4 && <><Btn size="sm" variant="gold" onClick={() => tryApprove(r, h)}>Admit to club</Btn><Btn size="sm" variant="danger" onClick={() => setRejectFor(r)}>Reject</Btn></>}
               {h && (h.vetAssign?.history.length || 0) > 0 && <Btn size="sm" variant="ghost" onClick={() => setHistory(h)}>Assignment history</Btn>}
               {h && <Btn size="sm" variant="ghost" onClick={() => onOpenHorse(h.id)}>View horse profile</Btn>}
             </div>
@@ -182,23 +179,23 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
         <Modal title={pick.horse.vetId ? 'Reassign veterinarian' : 'Assign veterinarian'} onClose={() => setPick(null)}>
           <p className="mb-3 text-sm text-gray-600">Horse: <b>{pick.horse.name}</b>{pick.horse.vetName && <> · currently assigned to <b>{pick.horse.vetName}</b></>}</p>
           <Select label="Veterinarian" value={pick.vetId} error={pickErr} onChange={v => { setPick({ ...pick, vetId: v }); setPickErr(''); }} options={[{ value: '', label: '— Select a veterinarian —' }, ...vets.map(v => ({ value: v.id, label: v.name }))]} />
-          <p className="mt-3 text-sm text-amber-800">Waiting for veterinarian assignment, acceptance and replacement APIs. No assignment will be saved.</p><div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setPick(null)}>Cancel</Btn><Btn disabled>Assign — waiting for API</Btn></div>
+          <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setPick(null)}>Cancel</Btn><Btn onClick={choose}>{pick.horse.vetId && pick.horse.vetAssign?.status !== 'declined' ? 'Continue' : 'Assign'}</Btn></div>
         </Modal>
       )}
       {replace && (
         <ReasonDialog title="Reassignment reason" confirmLabel="Confirm reassignment" onClose={() => setReplace(null)}
           description={<p>Replace <b>{replace.horse.vetName}</b> with <b>{vets.find(v => v.id === replace.vetId)?.name}</b> for <b>{replace.horse.name}</b>. The assignment history will be retained.</p>}
-          onConfirm={reason => { onAssign(replace.horse.id, replace.vetId, reason); setReplace(null); }} />
+          onConfirm={async reason => { await onAssign(replace.horse.id, replace.vetId, reason); setReplace(null); }} />
       )}
       {rejectFor && (
         <ReasonDialog title="Reject horse admission" danger confirmLabel="Reject" onClose={() => setRejectFor(null)}
           description={<p>Reject <b>{rejectFor.horseName}</b>, owned by <b>{rejectFor.ownerName}</b>. The reason will be sent to the Horse Owner.</p>}
-          onConfirm={reason => { onReject(rejectFor.id, reason); setRejectFor(null); }} />
+          onConfirm={async reason => { await onReject(rejectFor.id, reason); setRejectFor(null); }} />
       )}
       {approveFor && (
         <Modal title="Confirm club admission" onClose={() => setApproveFor(null)}>
-          <p className="text-sm text-gray-600">Approve the administrative profile of <b>{approveFor.horseName}</b>? Core fields will be locked and a medical profile created. Training remains subject to a veterinarian's confirmed examination.</p>
-          <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setApproveFor(null)}>Cancel</Btn><Btn variant="gold" onClick={() => { onApprove(approveFor.id); setApproveFor(null); }}>Admit</Btn></div>
+          <p className="text-sm text-gray-600">Admit <b>{approveFor.horseName}</b> to the club? The horse will appear in the Horse List and its core profile fields will be locked.</p>
+          <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setApproveFor(null)}>Cancel</Btn><Btn variant="gold" onClick={async () => { try { await onApprove(approveFor.id); setApproveFor(null); } catch (e) { setWarn(w => ({ ...w, [approveFor.id]: (e as Error).message })); } }}>Admit</Btn></div>
         </Modal>
       )}
       {history && <AssignHistory horse={history} onClose={() => setHistory(null)} />}
@@ -208,7 +205,7 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
 
 export function VetAssignedPage({ user, horses, requests, onRespond, onExam, onOpenHorse }: {
   user: AppUser; horses: Horse[]; requests: HorseClubRequest[];
-  onRespond: (horseId: string, accept: boolean, reason: string) => void; onExam: (horseId: string) => void; onOpenHorse: (id: string) => void;
+  onRespond: (horseId: string, accept: boolean, reason: string) => Promise<unknown>; onExam: (horseId: string) => void; onOpenHorse: (id: string) => void;
 }) {
   const mine = horses.filter(h => h.vetId === user.id && h.vetAssign);
   const [respond, setRespond] = useState<{ horse: Horse; accept: boolean } | null>(null);
@@ -236,7 +233,7 @@ export function VetAssignedPage({ user, horses, requests, onRespond, onExam, onO
               </div>
               <div className="flex flex-wrap gap-2">
                 {status === 'pending' && <><Btn size="sm" onClick={() => setRespond({ horse: h, accept: true })}>Accept</Btn><Btn size="sm" variant="danger" onClick={() => setRespond({ horse: h, accept: false })}>Decline</Btn></>}
-                {status === 'accepted' && st === 4 && <Btn size="sm" variant="gold" onClick={() => onExam(h.id)}>Examine now</Btn>}
+                {status === 'accepted' && st === 3 && <Btn size="sm" variant="gold" onClick={() => onExam(h.id)}>Examine now</Btn>}
                 <Btn size="sm" variant="ghost" onClick={() => onOpenHorse(h.id)}>Profile</Btn>
                 <Btn size="sm" variant="ghost" onClick={() => setHistory(h)}>History</Btn>
               </div>
@@ -248,7 +245,7 @@ export function VetAssignedPage({ user, horses, requests, onRespond, onExam, onO
       {respond && (
         <ReasonDialog title={respond.accept ? 'Accept examination' : 'Decline examination'} danger={!respond.accept} confirmLabel={respond.accept ? 'Accept' : 'Decline'} onClose={() => setRespond(null)}
           description={<p>{respond.accept ? 'You will be responsible for the intake examination of' : 'The Club Manager must assign another veterinarian. You are declining'} <b>{respond.horse.name}</b>.</p>}
-          onConfirm={reason => { onRespond(respond.horse.id, respond.accept, reason); setRespond(null); }} />
+          onConfirm={async reason => { await onRespond(respond.horse.id, respond.accept, reason); setRespond(null); }} />
       )}
       {history && <AssignHistory horse={history} onClose={() => setHistory(null)} />}
     </div>

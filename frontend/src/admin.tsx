@@ -7,6 +7,7 @@ import { Badge, Btn, Card, Input, Select, Textarea } from './ui';
 export type IdKind = 'HRS' | 'USR' | 'MED' | 'PKG' | 'ENR' | 'PLN' | 'SES' | 'RCE';
 
 export function dispId(kind: IdKind, raw: string): string {
+  if (/^[A-Z]+-\d+$/.test(raw)) return raw;
   const digits = (raw.match(/\d+/g) || ['0']).join('');
   return `${kind}-${digits.slice(-6).padStart(6, '0')}`;
 }
@@ -127,7 +128,7 @@ export function NoPermission({ text = 'Bạn không có quyền truy cập chứ
 
 // ── Admin dashboard ───────────────────────────────────────────────────────────
 
-export function AdminDashboard({ users, audit, navigate }: { users: AppUser[]; audit: AuditEntry[]; navigate: (p: any) => void }) {
+export function AdminDashboard({ users, audit, navigate, dataAvailable = true }: { users: AppUser[]; audit: AuditEntry[]; navigate: (p: any) => void; dataAvailable?: boolean }) {
   const count = (r: Role) => users.filter(u => u.role === r).length;
   const locked = users.filter(u => u.locked).length;
   return (
@@ -141,7 +142,7 @@ export function AdminDashboard({ users, audit, navigate }: { users: AppUser[]; a
           { l: 'Tổng tài khoản', v: users.length }, { l: 'Nhân sự CLB', v: STAFF_ROLES.reduce((a, r) => a + count(r), 0) },
           { l: 'Chủ ngựa', v: count('owner') }, { l: 'Đang bị khóa', v: locked },
         ].map(s => (
-          <Card key={s.l} className="p-5"><div className="text-xs font-medium uppercase tracking-wider text-gray-500">{s.l}</div><div className="mt-1 font-serif text-3xl font-bold text-[#1a2844]">{s.v}</div></Card>
+          <Card key={s.l} className="p-5"><div className="text-xs font-medium uppercase tracking-wider text-gray-500">{s.l}</div><div className="mt-1 font-serif text-3xl font-bold text-[#1a2844]">{dataAvailable ? s.v : '—'}</div></Card>
         ))}
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
@@ -161,7 +162,7 @@ export function AdminDashboard({ users, audit, navigate }: { users: AppUser[]; a
             <span><b>{a.actor}</b> {a.action} <span className="text-gray-500">{a.target}</span></span>
           </div>
         ))}
-        {audit.length === 0 && <p className="text-sm text-gray-400">Chưa có hoạt động nào.</p>}
+        {audit.length === 0 && <p className="text-sm text-gray-400">{dataAvailable ? 'Chưa có hoạt động nào.' : 'Waiting for access to the admin audit API.'}</p>}
       </Card>
     </div>
   );
@@ -176,11 +177,12 @@ type AccountDialog =
 
 const PAGE_SIZE = 8;
 
-export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleLock, onResetPassword }: {
+export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleLock, onResetPassword, readOnly = false }: {
   actor: AppUser; users: AppUser[]; clubs: Club[];
   onCreate: (u: AppUser) => void;
   onToggleLock: (id: string, reason: string) => void;
   onResetPassword: (id: string, reason: string) => string;
+  readOnly?: boolean;
 }) {
   const [q, setQ] = useState('');
   const [roleF, setRoleF] = useState('all');
@@ -204,8 +206,8 @@ export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleL
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between">
-        <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">Quản lý tài khoản</h2><p className="text-sm text-gray-500">{filtered.length} tài khoản · Chủ ngựa tự đăng ký công khai; nhân sự do Admin tạo.</p></div>
-        <Btn onClick={() => setShowCreate(true)}>+ Tạo tài khoản nhân sự</Btn>
+        <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">Quản lý tài khoản</h2><p className="text-sm text-gray-500">{readOnly ? 'Account directory — waiting for Admin API' : `${filtered.length} tài khoản · Chủ ngựa tự đăng ký công khai; nhân sự do Admin tạo.`}</p></div>
+        <Btn disabled={readOnly} onClick={() => setShowCreate(true)}>{readOnly ? 'Create staff account — waiting for API' : '+ Tạo tài khoản nhân sự'}</Btn>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search by account name or ID…" aria-label="Search accounts by name or ID" className="w-72 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]" />
@@ -229,15 +231,15 @@ export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleL
                   <td className="px-5 py-3">
                     {self ? <span className="text-xs text-gray-400">Tài khoản của bạn</span> : (
                       <div className="flex flex-wrap gap-1.5">
-                        <Btn size="sm" variant="secondary" onClick={() => setDialog({ kind: 'reset', user: u })}>Đặt lại MK</Btn>
-                        <Btn size="sm" variant={u.locked ? 'secondary' : 'danger'} onClick={() => setDialog({ kind: 'lock', user: u })}>{u.locked ? 'Mở khóa' : 'Khóa'}</Btn>
+                        <Btn disabled={readOnly} size="sm" variant="secondary" onClick={() => setDialog({ kind: 'reset', user: u })}>Đặt lại MK</Btn>
+                        <Btn disabled={readOnly} size="sm" variant={u.locked ? 'secondary' : 'danger'} onClick={() => setDialog({ kind: 'lock', user: u })}>{u.locked ? 'Mở khóa' : 'Khóa'}</Btn>
                       </div>
                     )}
                   </td>
                 </tr>
               );
             })}
-            {rows.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-gray-400">Không có tài khoản phù hợp với bộ lọc.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-gray-400">{readOnly ? 'Waiting for access to the Admin account directory API.' : 'Không có tài khoản phù hợp với bộ lọc.'}</td></tr>}
           </tbody>
         </table>
         <div className="flex items-center justify-between border-t border-gray-100 px-5 py-3 text-xs text-gray-500">

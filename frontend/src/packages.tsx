@@ -80,10 +80,10 @@ export function PackageCatalogPage({ packages, enrollments, onSave, onToggle }: 
                 <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Đã đăng ký</div><div className="font-mono text-sm font-bold">{usage(p.id)}</div></div>
               </div>
               <div className="mt-4 flex gap-2">
-                <Btn size="sm" variant="secondary" onClick={() => { setEditing(p); setActionError(''); }}>Chỉnh sửa</Btn>
+                <Btn disabled size="sm" variant="secondary" onClick={() => { setEditing(p); setActionError(''); }}>Edit — waiting for API</Btn>
                 {p.active
-                  ? <Btn size="sm" variant="danger" onClick={() => setConfirmOff(p)}>Tắt áp dụng</Btn>
-                  : <Btn size="sm" variant="gold" onClick={async () => { const r = await onToggle(p.id, true); setActionError(r.ok ? '' : r.message); }}>Bật áp dụng</Btn>}
+                  ? <Btn disabled size="sm" variant="danger" onClick={() => setConfirmOff(p)}>Disable — waiting for API</Btn>
+                  : <Btn disabled size="sm" variant="gold" onClick={async () => { const r = await onToggle(p.id, true); setActionError(r.ok ? '' : r.message); }}>Enable — waiting for API</Btn>}
               </div>
             </Card>
           ))}

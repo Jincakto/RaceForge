@@ -72,12 +72,12 @@ export function Input({ label, value, onChange, type = 'text', placeholder = '',
   );
 }
 
-export function Select({ label, value, onChange, options, error = '', hint = '', required = false }:
-  { label?: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; error?: string; hint?: string; required?: boolean }) {
+export function Select({ label, value, onChange, options, error = '', hint = '', required = false, disabled = false }:
+  { label?: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; error?: string; hint?: string; required?: boolean; disabled?: boolean }) {
   return (
     <div>
       {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>}
-      <select aria-label={label} value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b] bg-white">
+      <select disabled={disabled} aria-label={label} value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b] bg-white">
         {options.map((o, index) => <option key={`${o.value}-${index}`} value={o.value}>{o.label}</option>)}
       </select>
       {error ? <p className="text-xs text-red-600 mt-0.5">{error}</p> : hint && <p className="text-xs text-gray-400 mt-0.5">{hint}</p>}

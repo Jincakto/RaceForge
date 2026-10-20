@@ -252,6 +252,7 @@ export interface Horse {
   trainerHistory?: { id: string; trainerId: string; name: string; from: string; to: string | null; note?: string }[];
   editRequests?: { id: string; field: string; oldValue: string; newValue: string; reason: string; status: 'pending' | 'approved' | 'rejected'; at: string; by: string; decisionReason?: string }[];
   changeLog?: { time: string; by: string; text: string }[];
+  registrationNumber?: string;
   microchip?: string;
   lock?: HorseLock | null;
   rehab?: HorseRehab | null;

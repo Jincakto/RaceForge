@@ -1,7 +1,7 @@
 export interface User {
-  userId: number; fullName: string; email: string; phone: string | null;
+  userId: number | string; fullName: string; email: string; phone: string | null;
   status: string; emailVerified: boolean; avatarUrl: string | null;
-  role: { roleId: number; roleName: string };
+  role: { roleId: number | string; roleName: string };
 }
 export interface AuthSession { accessToken: string; user: User; }
 export class ApiError extends Error {

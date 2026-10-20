@@ -5,15 +5,25 @@ import { dToIso, isoToD, type PackageDraft, type PlanDraft, type SessionDraft } 
 
 type Row = Record<string, any>;
 export const BACKEND_PENDING = 'Chờ API: backend hiện chưa hỗ trợ lưu dữ liệu hoặc thực hiện bước này. Không có dữ liệu nào được lưu cục bộ.';
-const roleMap: Record<string, Role> = { CLUB_MANAGER: 'manager', HEAD_TRAINER: 'head_trainer', VETERINARIAN: 'veterinarian', GROOM: 'groom', HORSE_OWNER: 'owner' };
-const code = (prefix: string, id: unknown) => `${prefix}-${String(id).padStart(6, '0')}`;
-export function backendId(id: string): number {
+const roleMap: Record<string, Role> = { ADMIN: 'admin', ADMINISTRATOR: 'admin', SYSTEM_ADMIN: 'admin', CLUB_MANAGER: 'manager', HEAD_TRAINER: 'head_trainer', VETERINARIAN: 'veterinarian', GROOM: 'groom', HORSE_OWNER: 'owner' };
+const serverIds = new Map<string, number | string>();
+const code = (prefix: string, id: unknown) => {
+  const alias = typeof id === 'string' && /^[A-Z]+-\d+$/.test(id) ? id : `${prefix}-${String(id).padStart(6, '0')}`;
+  if (typeof id === 'number' || typeof id === 'string') serverIds.set(alias, id);
+  return alias;
+};
+export function backendId(id: string): number | string {
+  if (serverIds.has(id)) return serverIds.get(id)!;
+  // N uses opaque business IDs (ADM-001, OWN-001, HRS-001...). Preserve them.
+  // Six-digit IDs are the UI adapter's legacy numeric aliases.
+  if (/^[A-Z]+-\d+$/.test(id) && !/^[A-Z]+-\d{6}$/.test(id)) return id;
   const value = Number(id.replace(/^[A-Z]+-/, ''));
   if (!Number.isInteger(value) || value <= 0) throw new Error('Mã dữ liệu không hợp lệ. Hãy tải lại dữ liệu từ server.');
   return value;
 }
 export function toAppUser(user: User): AppUser {
-  return { id: code('USR', user.userId), name: user.fullName, email: user.email, password: '', phone: user.phone || '', avatar: user.fullName.split(' ').map(w => w[0]).slice(-2).join('').toUpperCase(), role: roleMap[user.role.roleName] || null, clubId: 'c1', status: user.status === 'ACTIVE' ? 'active' : 'pending', locked: user.status === 'INACTIVE', verified: user.emailVerified };
+  const roleName = (user.role?.roleName || '').trim().toUpperCase().replace(/^ROLE_/, '');
+  return { id: code('USR', user.userId), name: user.fullName, email: user.email, password: '', phone: user.phone || '', avatar: user.fullName.split(' ').map(w => w[0]).slice(-2).join('').toUpperCase(), role: roleMap[roleName] || null, clubId: 'c1', status: user.status === 'ACTIVE' ? 'active' : 'pending', locked: user.status === 'INACTIVE', verified: user.emailVerified };
 }
 export function toHorse(row: Row, users: AppUser[] = []): Horse {
   const trainerId = row.headTrainerId ? code('USR', row.headTrainerId) : '';
@@ -22,7 +32,7 @@ export function toHorse(row: Row, users: AppUser[] = []): Horse {
   const health = row.healthStatus === 'READY' ? 'Eligible' : row.healthStatus === 'INJURED' || row.healthStatus === 'QUARANTINED' ? 'Injured' : 'Pending Vet';
   const name = (id: string) => users.find(u => u.id === id)?.name || id;
   return {
-    id: code('HRS', row.horseId), ownerId, name: row.horseName, breed: row.breed || '', age: row.dateOfBirth ? Math.max(0, Math.floor((Date.now() - new Date(row.dateOfBirth).getTime()) / 31557600000)) : 0,
+    registrationNumber: row.registrationNumber || '', identityEvidence: { url: '', fileUrl: row.documentUrl || '', note: row.documentType || '' }, id: code('HRS', row.horseId), ownerId, name: row.horseName, breed: row.breed || '', age: row.dateOfBirth ? Math.max(0, Math.floor((Date.now() - new Date(row.dateOfBirth).getTime()) / 31557600000)) : 0,
     birthDate: row.dateOfBirth ? isoToD(row.dateOfBirth) : '', color: row.coatColor || '', gender: row.gender || '', weight: row.weight ?? 0, height: row.height ?? 0, stable: '', stall: '',
     ownerName: name(ownerId), headTrainerId: trainerId, headTrainerName: trainerId ? name(trainerId) : '', vetId: '', vetName: '', groomId: '', groomName: '',
     clubId: approved || row.admissionStatus === 'PENDING' ? 'c1' : null, healthStatus: health, trainingStatus: 'Inactive', approvalStatus: row.admissionStatus === 'REJECTED' ? 'rejected' : approved ? 'approved' : 'pending',
@@ -39,7 +49,7 @@ export function toHorse(row: Row, users: AppUser[] = []): Horse {
 export function toHealth(row: Row, horseId: string, users: AppUser[]): HealthRecord {
   const vetId = code('USR', row.veterinarianId);
   const confirmed = row.status === 'CONFIRMED';
-  const decision = !confirmed ? undefined : row.healthStatus === 'READY' ? row.trainingNote?.includes('CAUTION') ? 'conditional' : 'eligible' : 'not-eligible';
+  const decision = !confirmed ? undefined : row.finalConclusion === 'FIT' ? 'eligible' : row.finalConclusion === 'FIT_WITH_MONITORING' ? 'conditional' : row.finalConclusion === 'NOT_FIT' ? 'not-eligible' : row.healthStatus === 'READY' ? row.trainingNote?.includes('CAUTION') ? 'conditional' : 'eligible' : 'not-eligible';
   const exams = row.clinicalExams || [];
   const regions: NonNullable<HealthRecord['regions']> = {};
   const areaMap: Record<string, string> = { EYES: 'eyes', RESPIRATORY: 'nose', GENERAL_CONDITION: 'general', MOVEMENT: 'movement', LEGS: 'legs', SKIN: 'skin' };
@@ -53,7 +63,7 @@ export function toEnrollment(row: Row, horse?: Horse): Enrollment {
   return { id: code('ENR', row.horsePackageId), horseId: code('HRS', row.horseId), packageId: code('PKG', row.packageId), packageName: row.packageName, sessionsTotal: 0, sessionsDone: 0, status: row.status === 'PAUSED' ? 'paused' : row.status === 'ACTIVE' ? 'active' : row.status === 'PENDING' ? 'pending' : row.status === 'CANCELLED' ? 'cancelled' : 'completed', trainerId: horse?.headTrainerId || '', trainerName: horse?.headTrainerName || '', trainerStatus: 'unassigned', assignHistory: [], startedAt: row.startDate ? isoToD(row.startDate) : '', expiresAt: row.endDate ? isoToD(row.endDate) : '', amount: Number(row.totalPrice), paidAt: row.paidAt || '', paymentMethod: 'Thanh toán mô phỏng', ownerName: horse?.ownerName || '', scheduleConfirmed: false, paymentStatus: row.paymentStatus, backendStatus: row.status };
 }
 export function toSession(row: Row): TrainingSession {
-  return { id: code('SES', row.sessionId), horseId: code('HRS', row.horseId), planId: code('PLN', row.planId), date: isoToD((row.scheduledStart || '').slice(0, 10)), time: (row.scheduledStart || '').slice(11, 16), type: row.notes || 'Buổi huấn luyện', trainerName: '', trainerId: '', assignedStaffIds: [], assignedStaffNames: [], status: row.status === 'COMPLETED' ? 'Completed' : row.status === 'MISSED' ? 'Not Performed' : row.actualStart ? 'In Progress' : 'Scheduled', distance: row.distance ? `${row.distance}m` : '', targetTime: '', notes: row.notes || '', conflictChecked: true, ...(row.status === 'COMPLETED' ? { result: { time: '', speed: String(row.avgSpeed ?? ''), heartRate: row.heartRate ?? 0, notes: row.evaluation || '', performanceScore: 0 } } : {}) };
+  return { id: code('SES', row.sessionId), horseId: code('HRS', row.horseId), planId: code('PLN', row.planId), date: isoToD((row.scheduledStart || '').slice(0, 10)), time: (row.scheduledStart || '').slice(11, 16), type: row.activityName || row.notes || 'Buổi huấn luyện', trainerName: '', trainerId: '', assignedStaffIds: [], assignedStaffNames: [], status: row.status === 'COMPLETED' ? 'Completed' : row.status === 'MISSED' ? 'Not Performed' : row.actualStart ? 'In Progress' : 'Scheduled', distance: row.distance ? `${row.distance}m` : '', targetTime: '', notes: row.notes || '', conflictChecked: true, ...(row.status === 'COMPLETED' ? { result: { time: '', speed: String(row.avgSpeed ?? ''), heartRate: row.heartRate ?? 0, notes: row.evaluation || '', performanceScore: 0 } } : {}) };
 }
 async function allPages(path: string): Promise<Row[]> {
   const first = await api<Row>(`${path}?page=0&size=100`);
@@ -63,17 +73,25 @@ async function allPages(path: string): Promise<Row[]> {
 export async function loadBackendState(user: User): Promise<Partial<AppState>> {
   const current = toAppUser(user);
   if (current.status !== 'active' || !current.role) return { user: current, users: [current] };
+  if (current.role === 'admin') {
+    // Admin authentication is valid independently of business API permissions.
+    // Admin data is loaded per page through adminApi.ts. Do not let business 403s block the Admin shell
+    // or present the signed-in account as a full system account directory.
+    return { user: current, users: [current], horses: [], healthRecords: [], trainingPlans: [], trainingSessions: [], enrollments: [], packages: [], notifications: [], horseClubRequests: [], memberRequests: [], auditLog: [], userPermissions: {}, rolePerms: {} };
+  }
   const [horseRows, packageRows, directory, notifications] = await Promise.all([
-    api<Row[]>('/api/horses'), api<Row[]>(user.role.roleName === 'CLUB_MANAGER' ? '/api/training-packages/all' : '/api/training-packages'),
+    api<Row[]>('/api/horses'), ['manager', 'owner', 'head_trainer'].includes(current.role) ? api<Row[]>(current.role === 'manager' ? '/api/training-packages/all' : '/api/training-packages') : Promise.resolve([]),
     user.role.roleName === 'CLUB_MANAGER' ? allPages('/api/users') : allPages('/api/trainers'), api<Row[]>('/api/notifications'),
   ]);
   const users: AppUser[] = user.role.roleName === 'CLUB_MANAGER' ? directory.map(row => toAppUser(row as User)) : [current, ...directory.filter(row => row.userId !== user.userId).map(row => ({ id: code('USR', row.userId), name: row.fullName, email: '', password: '', avatar: row.fullName.slice(0, 2), role: 'head_trainer' as const, clubId: 'c1', status: 'active' as const, verified: true }))];
   const horses = horseRows.map(row => toHorse(row, users));
+  const assignedTrainers = await Promise.all(horses.map(h => api<Row[]>('/api/horses/' + backendId(h.id) + '/trainers')));
+  horses.forEach((h, i) => { h.trainerHistory = assignedTrainers[i].map(t => ({ id: String(t.userId), trainerId: code('USR', t.userId), name: t.fullName, from: '', to: null })); });
   // Keep failed sections visible as errors instead of silently supplying seed data.
-  const healthRecords = (await Promise.all(horses.map(h => api<Row[]>(`/api/medical/horses/${backendId(h.id)}/records`).then(rows => rows.map(row => toHealth(row, h.id, users)))))).flat();
+  const healthRecords = !['manager', 'owner', 'veterinarian'].includes(current.role) ? [] : (await Promise.all(horses.map(h => api<Row[]>(`/api/medical/horses/${backendId(h.id)}/records`).then(rows => rows.map(row => toHealth(row, h.id, users)))))).flat();
   horses.forEach(h => { h.intakeExamId = healthRecords.find(r => r.horseId === h.id && r.type === 'Khám tiếp nhận' && r.status === 'confirmed')?.id; });
-  const trainingSessions = (await Promise.all(horses.map(h => api<Row[]>(`/api/training-sessions/horse/${backendId(h.id)}`).then(rows => rows.map(toSession))))).flat();
-  const enrollments = current.role === 'owner' ? (await Promise.all(horses.map(h => api<Row[]>(`/api/horse-packages/horse/${backendId(h.id)}`).then(rows => rows.map(row => toEnrollment(row, h)))))).flat() : [];
+  const trainingSessions = !['manager', 'owner', 'head_trainer'].includes(current.role) ? [] : (await Promise.all(horses.map(h => api<Row[]>(`/api/training-sessions/horse/${backendId(h.id)}`).then(rows => rows.map(toSession))))).flat();
+  const enrollments = ['owner', 'manager'].includes(current.role) ? (await Promise.all(horses.map(h => api<Row[]>(`/api/horse-packages/${current.role === 'manager' ? 'manage/' : ''}horse/${backendId(h.id)}`).then(rows => rows.map(row => toEnrollment(row, h)))))).flat() : [];
   const races = await Promise.all(horses.map(h => api<Row[]>(`/api/horses/${backendId(h.id)}/race-history`)));
   horses.forEach((h, i) => {
     h.raceHistory = races[i].map(r => ({ id: code('RCE', r.raceHistoryId), date: r.raceDate ? isoToD(r.raceDate) : '', raceName: r.raceName, distance: r.distance ? `${r.distance}m` : '', position: r.finishPosition, totalHorses: 0, time: r.completionTime || '', venue: r.racecourse || '', jockey: r.jockeyName || '', prize: String(r.prize ?? '') }));

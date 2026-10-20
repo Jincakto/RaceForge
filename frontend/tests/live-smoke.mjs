@@ -23,9 +23,11 @@ async function scenario(role, run, authenticated = true) {
     const response = await fetch(route.request().url());
     await route.fulfill({ status: response.status, contentType: response.headers.get('content-type') || 'text/plain', body: Buffer.from(await response.arrayBuffer()) });
   });
+  let staff = { userId: 'USR-002', fullName: 'Invited vet', email: 'vet@example.com', status: 'INVITED', emailVerified: false, role: { roleId: 'ROL-003', roleName: 'VETERINARIAN' } };
+  let grant = false;
   let record = null;
   let membershipRequest = null;
-  const user = { userId: role === 'HORSE_OWNER' ? 5 : role === 'VETERINARIAN' ? 3 : 2, fullName: 'Test user', email: 'test@example.com', status: 'ACTIVE', emailVerified: true, role: { roleId: 5, roleName: role } };
+  const user = { userId: role === 'ADMIN' ? 'USR-001' : role === 'HORSE_OWNER' ? 5 : role === 'VETERINARIAN' ? 3 : 2, fullName: role === 'ADMIN' ? 'RaceForge Admin' : 'Test user', email: role === 'ADMIN' ? 'admin@gmail.com' : 'test@example.com', status: 'ACTIVE', emailVerified: true, role: { roleId: role === 'ADMIN' ? 'ROL-007' : 5, roleName: role } };
   page.on('pageerror', error => failures.push(error.message));
   await page.route('**/api/**', async route => {
     const req = route.request(); const url = new URL(req.url()); const p = url.pathname;
@@ -68,14 +70,19 @@ async function scenario(role, run, authenticated = true) {
     else if (p === '/api/medical/records/13') data = record;
     else if (p === '/api/medical/records/13/draft') { record = { ...record, ...body }; data = record; }
     else if (p === '/api/medical/records/13/confirm') { record = { ...record, status: 'CONFIRMED' }; data = record; }
-    else if (p === '/api/users') data = { content: [user], totalPages: 2, totalElements: 21 };
+    else if (p === '/api/users') data = role === 'ADMIN' ? { content: [user, staff], totalPages: 1, totalElements: 2 } : { content: [user], totalPages: 1, totalElements: 1 };
+    else if (p === '/api/admin/users') { staff = { ...staff, fullName: body.fullName, email: body.email }; data = staff; }
+    else if (p === '/api/admin/users/USR-002/invitation') data = { message: 'Invitation sent' };
+    else if (p === '/api/users/USR-002/status') { staff = { ...staff, status: body.status }; data = staff; }
+    else if (p === '/api/auth/staff/set-password') data = { message: 'Staff account activated' };
     else if (p === '/api/registration-requests') data = { content: [{ requestId: 1, user, requestedRole: { roleName: 'GROOM' }, status: 'PENDING' }], totalPages: 1 };
     else if (p === '/api/registration-requests/1') data = { requestId: 1, user, status: 'PENDING' };
     else if (p === '/api/registration-requests/1/approve') data = { requestId: 1, status: 'APPROVED' };
     else if (p === '/api/admin/permissions/catalog') data = [{ permissionName: 'MANAGE_TRAINING', description: 'Manage training' }];
     else if (p.endsWith('/audit-log')) data = [];
-    else if (p === '/api/admin/permissions/revoke') data = null;
-    else if (p.startsWith('/api/admin/permissions/')) data = ['MANAGE_TRAINING'];
+    else if (p === '/api/admin/permissions/grant') { grant = true; data = null; }
+    else if (p === '/api/admin/permissions/revoke') { grant = false; data = null; }
+    else if (p.startsWith('/api/admin/permissions/')) data = grant ? ['MANAGE_TRAINING'] : [];
     else { failures.push(`Unexpected request ${method} ${p}`); return route.fulfill({ status: 500, json: { message: 'Unexpected test endpoint' } }); }
     await route.fulfill({ json: { success: true, data } });
   });
@@ -95,6 +102,44 @@ async function waitForCall(requests, path, method) {
   assert.fail('Expected request ' + path);
 }
 try {
+  await scenario('ADMIN', async (page, requests) => {
+    await page.getByRole('heading', { name: 'Administrator', exact: true }).waitFor();
+    await waitForCall(requests, '/api/users', 'GET');
+    await nav(page, /Account management|Quản lý tài khoản/i);
+    await page.getByText('Invited vet', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Create staff account', exact: true }).click();
+    const modal = page.getByRole('dialog');
+    await modal.getByLabel('Full name', { exact: true }).fill('New vet');
+    await modal.getByLabel('Email', { exact: true }).fill('new-vet@example.com');
+    assert.equal(await modal.locator('input[type=password]').count(), 0);
+    await modal.getByRole('button', { name: 'Send invitation', exact: true }).click();
+    await page.getByText('New vet', { exact: true }).waitFor();
+    const created = requests.find(r => r.p === '/api/admin/users' && r.method === 'POST');
+    assert.equal(created.body.roleId, 'ROL-003'); assert.equal(created.body.password, undefined);
+    await page.getByRole('button', { name: 'Resend invitation', exact: true }).click();
+    await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+    await waitForCall(requests, '/api/admin/users/USR-002/invitation', 'POST');
+    await nav(page, /Permissions|Phân quyền/i);
+    const toggle = page.getByRole('switch', { name: 'MANAGE_TRAINING — HEAD_TRAINER', exact: true });
+    await toggle.waitFor(); await toggle.click();
+    await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('[aria-label="MANAGE_TRAINING — HEAD_TRAINER"]')?.getAttribute('aria-checked') === 'true');
+    assert.equal(requests.find(r => r.p.endsWith('/grant')).body.roleName, 'HEAD_TRAINER');
+    await toggle.click(); await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+    await waitForCall(requests, '/api/admin/permissions/revoke', 'DELETE');
+    assert(!requests.some(r => ['/api/horses', '/api/training-packages', '/api/trainers'].includes(r.p)));
+
+  });
+  await scenario('ADMIN', async (page, requests) => {
+    await page.getByRole('button', { name: 'Sign in', exact: true }).first().click();
+    await page.getByPlaceholder('email@example.com').fill('admin@gmail.com');
+    await page.getByPlaceholder('••••••••').fill('Test-only-password');
+    await page.getByRole('button', { name: 'Sign in →', exact: true }).click();
+    await page.getByRole('heading', { name: 'Administrator', exact: true }).waitFor();
+    assert.equal(requests.filter(r => r.p === '/api/auth/login').length, 1);
+    assert(!requests.some(r => ['/api/horses', '/api/training-packages', '/api/trainers', '/api/notifications'].includes(r.p)));
+    assert.equal(await page.getByRole('heading', { name: /Hồ sơ chủ ngựa đang chờ duyệt/ }).count(), 0);
+  }, false);
   await scenario('USER', async (page, requests) => {
     await page.getByRole('button', { name: 'Register', exact: true }).click();
     assert.equal(await page.getByRole('combobox').count(), 0);
@@ -106,7 +151,7 @@ try {
     await page.getByPlaceholder('000000').fill('123456');
     await page.getByRole('button', { name: /Xác nhận|Confirm/ }).click();
     await waitForCall(requests, '/api/auth/verify-email', 'POST');
-    assert.equal(requests.find(r => r.p === '/api/auth/register').body.requestedRoleId, 5);
+    assert.equal(requests.find(r => r.p === '/api/auth/register').body.requestedRoleId, undefined);
     assert.equal(requests.find(r => r.p === '/api/auth/verify-email').body.otp, '123456');
   }, false);
   await scenario('HORSE_OWNER', async (page, requests) => {

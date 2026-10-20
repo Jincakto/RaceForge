@@ -4,6 +4,10 @@ import { IntakeBoardPage, VetAssignedPage, IntakeProgress, IdentityBadge, intake
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { api, login, logout, restoreSession, type User } from './api';
 import { loadBackendState, toAppUser, backendId, makeBackendHandlers, BACKEND_PENDING } from './backendBridge';
+import { MedicalServerPage } from './medicalServer';
+import { TrainingServerPage } from './trainingServer';
+import { RecoveryServerPage } from './recoveryServer';
+import { AdminServerPage, StaffActivationPage, PasswordRecoveryPage } from './adminServer';
 import { TODAY } from './today';
 import { PendingNotice, StaffCreationDesign, ApprovedEditRequest } from './pendingUi';
 import { makeTrainingHandlers } from './trainingLogic';
@@ -394,6 +398,7 @@ function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) => void; 
             {error && <div className="p-3 bg-red-900/30 border border-red-700/40 rounded-lg text-red-400 text-sm">{error}</div>}
             <button onClick={handle} disabled={loading} className="w-full py-3 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all text-sm disabled:opacity-60">{loading ? "Signing in..." : "Sign in →"}</button>
           </div>
+          <p className="mt-4 text-center text-sm text-[#c9973b]"><a href="/reset-password">Forgot password?</a></p>
           <p className="text-center text-gray-500 text-sm mt-5">No account yet? <button onClick={() => navigate('register')} className="text-[#c9973b] hover:underline font-medium">Register</button></p>
           <p className="mt-2 text-center text-xs text-gray-500">Staff accounts are issued by an administrator.</p>
 
@@ -428,7 +433,7 @@ function RegisterPage({ navigate, onRegister }: { navigate: (p: Page) => void; o
     if (form.password !== form.confirm) { setError("Passwords do not match"); return; }
     if (form.password.length < 8) { setError("Password must contain at least 8 characters"); return; }
     setBusy(true); setError('');
-    try { await api('/api/auth/register', 'POST', { fullName: form.name.trim(), email: form.email.trim(), phone: form.phone, password: form.password, requestedRoleId: 5 }); setShowOtp(true); }
+    try { await api('/api/auth/register', 'POST', { fullName: form.name.trim(), email: form.email.trim(), phone: form.phone, password: form.password }); setShowOtp(true); }
     catch (error) { setError(error instanceof Error ? error.message : 'Registration failed'); }
     finally { setBusy(false); }
   };
@@ -1369,7 +1374,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
 
 function HorseCreatePage({ user, state, navigate, onCreateHorse }:
   { user: AppUser; state: AppState; navigate: (p: Page) => void; onCreateHorse: (h: Horse) => void }) {
-  const [form, setForm] = useState({ name: '', microchip: '', breed: 'Thoroughbred', birthDate: '', color: '', gender: 'Male', height: '', weight: '', imageUrl: '', evidenceUrl: '', evidenceFileUrl: '', evidenceNote: '' });
+  const [form, setForm] = useState({ name: '', registrationNumber: '', microchip: '', breed: 'Thoroughbred', birthDate: '', color: '', gender: 'Male', height: '', weight: '', imageUrl: '', evidenceUrl: '', evidenceFileUrl: '', evidenceNote: '' });
   const [raceHistory, setRaceHistory] = useState<RaceHistoryEntry[]>([]);
   const [showRaceForm, setShowRaceForm] = useState(false);
   const [newRace, setNewRace] = useState({ date: '', raceName: '', distance: '1200m', position: '1', totalHorses: '10', time: '', venue: '', jockey: '', prize: '' });
@@ -1403,8 +1408,12 @@ function HorseCreatePage({ user, state, navigate, onCreateHorse }:
     else if (form.birthDate < '1996-01-01') e.birthDate = 'Ngày sinh không hợp lý (trước năm 1996).';
     if (!form.color.trim()) e.color = 'Vui lòng nhập màu lông.'; else if (form.color.length > 30) e.color = 'Tối đa 30 ký tự.';
     const h = numOf(form.height);
-    const weight = numOf(form.weight);
-    if (!Number.isFinite(weight) || weight <= 0) e.weight = 'Nhập cân nặng lớn hơn 0 kg.';
+    const weight = 0;
+    if (!/^[0-9]{3}[a-zA-Z0-9]{12}$/.test(form.registrationNumber.trim())) e.registrationNumber = 'UELN requires 15 characters: 3 country digits and 12 letters/digits.';
+    if (!form.evidenceFileUrl.trim()) e.evidenceFileUrl = 'Document URL is required.';
+    if (!form.evidenceNote.trim()) e.evidenceNote = 'Document type is required.';
+    if (!form.imageUrl.trim()) e.imageUrl = 'Horse image URL is required.';
+
     if (form.imageUrl && (!/^https?:\/\//.test(form.imageUrl) || form.imageUrl.length > 500)) e.imageUrl = 'URL ảnh http/https tối đa 500 ký tự.';
     if (isNaN(h)) e.height = 'Vui lòng nhập chiều cao (số).'; else if (h < 100 || h > 200) e.height = 'Chiều cao hợp lệ từ 100 đến 200 cm.';
     setErrors(e);
@@ -1412,7 +1421,7 @@ function HorseCreatePage({ user, state, navigate, onCreateHorse }:
     const id = previewId;
     const age = Math.max(0, Math.floor((new Date(todayIso).getTime() - new Date(form.birthDate).getTime()) / 31557600000));
     onCreateHorse({
-      id, name, breed: form.breed, age, birthDate: toDDMMYYYY(form.birthDate), microchip: form.microchip || undefined, color: form.color.trim(), gender: form.gender,
+      id, name, registrationNumber: form.registrationNumber.trim(), breed: form.breed, age, birthDate: toDDMMYYYY(form.birthDate), microchip: form.microchip || undefined, color: form.color.trim(), gender: form.gender,
       weight, height: h, stable: '', stall: '', clubId: null,
       ownerId: user.id, ownerName: user.name, headTrainerId: '', headTrainerName: '',
       vetId: '', vetName: '', groomId: '', groomName: '',
@@ -1434,12 +1443,10 @@ function HorseCreatePage({ user, state, navigate, onCreateHorse }:
 
       <Card className="p-6 space-y-4">
         <div className="flex items-center justify-between"><h3 className="font-semibold text-[#0f1729]">Định danh ngựa</h3><IdentityBadge verified={false} /></div>
-        <PendingNotice>Mã hồ sơ HRS do backend tạo sau khi lưu. Microchip, ảnh/file minh chứng và xác minh định danh đang chờ API; không tự sinh mã định danh thay backend.</PendingNotice>
-        <fieldset disabled className="grid grid-cols-2 gap-4 opacity-60">
-          <Input label="Microchip — chờ API" value={form.microchip} onChange={() => {}} placeholder="15 digits" hint="Chưa có API lưu microchip" />
-          <div className="col-span-2"><Input label="Evidence image URL" value={form.evidenceUrl} onChange={set('evidenceUrl')} placeholder="https://..." error={errors.evidenceUrl} /></div>
+        <PendingNotice>Horse ID is issued by the backend. Enter the UELN registration number and identification document. Weight is measured during the veterinary examination.</PendingNotice>
+        <fieldset className="grid grid-cols-2 gap-4">
+          <Input label="UELN registration number" required value={form.registrationNumber} onChange={set('registrationNumber')} error={errors.registrationNumber} placeholder="15 alphanumeric characters" />
           <div className="col-span-2"><Input label="Evidence file URL" value={form.evidenceFileUrl} onChange={set('evidenceFileUrl')} placeholder="https://..." error={errors.evidenceFileUrl} /></div>
-          {form.evidenceUrl.trim() && /^https?:\/\//.test(form.evidenceUrl.trim()) && <div className="col-span-2"><img src={form.evidenceUrl.trim()} alt="Xem trước minh chứng" className="h-32 rounded-lg border border-gray-200 object-cover bg-gray-50" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div>}
           <div className="col-span-2"><Input label="Document Type" value={form.evidenceNote} onChange={set('evidenceNote')} placeholder="Example: Identification certificate" error={errors.evidenceNote} /></div>
         </fieldset>
       </Card>
@@ -1453,7 +1460,6 @@ function HorseCreatePage({ user, state, navigate, onCreateHorse }:
           <Input label="Ngày sinh" value={form.birthDate} onChange={set('birthDate')} type="date" max={todayIso} required error={errors.birthDate} />
           <Input label="Màu lông" value={form.color} onChange={set('color')} placeholder="Bay, Grey, Chestnut..." required maxLength={30} error={errors.color} />
           <Input label="Chiều cao (cm)" value={form.height} onChange={set('height')} type="number" placeholder="160" required error={errors.height} />
-          <Input label="Cân nặng (kg)" value={form.weight} onChange={set('weight')} type="number" required error={errors.weight} />
           <Input label="Ảnh ngựa (URL)" value={form.imageUrl} onChange={set('imageUrl')} error={errors.imageUrl} />
         </div>
         {Object.values(errors).some(Boolean) && <p className="text-red-600 text-sm">Vui lòng sửa các trường được đánh dấu đỏ.</p>}
@@ -3060,7 +3066,7 @@ export default function App() {
   const submitAdmission = (id: string) => { void callBackend(async () => { await api(`/api/horses/${backendId(id)}/admission`, 'POST'); await refreshBackend(); }); };
   const reviewAdmission = (id: string, approve: boolean, note = '') => { void callBackend(async () => { await api(`/api/horses/${backendId(id)}/admission/${approve ? 'approve' : 'reject'}`, 'POST', { note }); await refreshBackend(); }); };
   const createHorseOnServer = (horse: Horse) => { void callBackend(async () => {
-    const created = await api<{ horseId: number }>(`/api/horses?ownerId=${backendId(stateRef.current.user!.id)}`, 'POST', { horseName: horse.name, dateOfBirth: toISO(horse.birthDate || ''), breed: horse.breed, coatColor: horse.color, gender: horse.gender, height: horse.height, weight: horse.weight, imageUrl: horse.imageUrl, background: horse.biography, declaredMedicalHistory: horse.medicalHistory });
+    const created = await api<{ horseId: number }>(`/api/horses?ownerId=${backendId(stateRef.current.user!.id)}`, 'POST', { horseName: horse.name, dateOfBirth: toISO(horse.birthDate || ''), breed: horse.breed, coatColor: horse.color, gender: horse.gender, height: horse.height, registrationNumber: horse.registrationNumber, documentType: horse.identityEvidence?.note, documentUrl: horse.identityEvidence?.fileUrl, imageUrl: horse.imageUrl, declaredMedicalHistory: horse.medicalHistory });
     try {
       for (const race of horse.raceHistory) await api(`/api/horses/${created.horseId}/race-history`, 'POST', { raceName: race.raceName, raceDate: toISO(race.date), distance: Number(race.distance.replace(/[^\d.]/g, '')) || null, finishPosition: race.position, completionTime: race.time, racecourse: race.venue, jockeyName: race.jockey, prize: Number(race.prize.replace(/[^\d.]/g, '')) || 0 });
     } catch (error) {
@@ -3084,7 +3090,7 @@ export default function App() {
     }
     if (previous.approvalStatus === 'approved') throw new Error('Hồ sơ sau duyệt đã khóa; API yêu cầu sửa đang chờ.');
     if (JSON.stringify(horse.achievements) !== JSON.stringify(previous.achievements) || JSON.stringify(horse.photos) !== JSON.stringify(previous.photos) || JSON.stringify(horse.trainerHistory) !== JSON.stringify(previous.trainerHistory) || horse.microchip !== previous.microchip || JSON.stringify(horse.identityEvidence) !== JSON.stringify(previous.identityEvidence)) throw new Error(BACKEND_PENDING);
-    await api(`/api/horses/${backendId(horse.id)}`, 'PUT', { horseName: horse.name, dateOfBirth: toISO(horse.birthDate || ''), breed: horse.breed, coatColor: horse.color, gender: horse.gender, height: horse.height, weight: horse.weight, background: horse.biography, declaredMedicalHistory: horse.medicalHistory, imageUrl: horse.imageUrl }); await refreshBackend();
+    await api(`/api/horses/${backendId(horse.id)}`, 'PUT', { horseName: horse.name, dateOfBirth: toISO(horse.birthDate || ''), breed: horse.breed, coatColor: horse.color, gender: horse.gender, height: horse.height, registrationNumber: horse.registrationNumber, documentType: horse.identityEvidence?.note, documentUrl: horse.identityEvidence?.fileUrl, declaredMedicalHistory: horse.medicalHistory, imageUrl: horse.imageUrl }); await refreshBackend();
   }); };
 
   const nowStamp = () => { const d = new Date(); return { at: `${TODAY} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`, ts: Date.now() }; };
@@ -3437,6 +3443,10 @@ export default function App() {
     return null;
   }, [reject, showSuccess]);
 
+  if (new URLSearchParams(window.location.search).get('invitation') === 'true') return <StaffActivationPage />;
+
+  if (window.location.pathname === '/reset-password') return <PasswordRecoveryPage />;
+
   // Public pages
   if (loadingBackend) return <div className="min-h-screen bg-[#0f1729] text-white flex items-center justify-center" role="status">Đang tải phiên và dữ liệu từ backend…</div>;
   if (!state.user || ['home', 'login', 'register'].includes(state.page)) {
@@ -3463,16 +3473,17 @@ export default function App() {
   const renderPage = (): React.ReactNode => {
     if (loadError) return <Card className="p-6 space-y-3"><p role="alert" className="text-red-700">{loadError}</p><Btn onClick={() => { setLoadingBackend(true); void refreshBackend().then(() => setLoadError('')).catch(error => setLoadError(error.message)).finally(() => setLoadingBackend(false)); }}>Tải lại dữ liệu</Btn></Card>;
     if (['performance', 'reports'].includes(state.page)) return <PendingNotice>Chưa có API báo cáo/phân tích cho màn hình này. Không hiển thị biểu đồ mẫu như dữ liệu thật.</PendingNotice>;
-    if (['inventory', 'inventory-log', 'care-hub', 'rehab-center'].includes(state.page)) return <PendingNotice>Luồng này cần API nghiệp vụ tương ứng và dữ liệu phân công. Các thao tác cục bộ của bản UI cũ đã được khóa.</PendingNotice>;
+    if (['inventory', 'inventory-log', 'care-hub'].includes(state.page)) return <PendingNotice>Luồng này cần API nghiệp vụ tương ứng và dữ liệu phân công. Các thao tác cục bộ của bản UI cũ đã được khóa.</PendingNotice>;
     const role = state.user!.role!;
     const adminOnly: Page[] = ['accounts', 'permissions', 'audit-log'];
     if (adminOnly.includes(state.page) && role !== 'admin') return <NoPermission text="Chỉ Quản trị viên mới truy cập chức năng này." />;
     if (role === 'admin' && !adminOnly.concat(['dashboard', 'notifications', 'profile']).includes(state.page)) return <NoPermission text="Quản trị viên không thao tác nghiệp vụ huấn luyện. Hãy dùng các mục quản trị ở menu bên trái." />;
     if (role !== 'admin' && FEATURES.some(f => f.page === state.page) && !(state.rolePerms[role] || []).includes(state.page) && !(state.userPermissions[state.user!.id] || []).includes(state.page)) return <NoPermission text="Vai trò của bạn chưa được cấp quyền cho chức năng này." />;
+    if (['trainer-assign','training-hub'].includes(state.page)) return ['manager','head_trainer'].includes(role) ? <TrainingServerPage key={state.page} state={state} refresh={refreshBackend} /> : <NoPermission />;
+    if (['vet-assign','vet-health-form','post-exam'].includes(state.page)) return ['manager','veterinarian'].includes(role) ? <MedicalServerPage key={state.page} state={state} refresh={refreshBackend} /> : <NoPermission />;
+    if (state.page === 'rehab-center') return ['manager','veterinarian','head_trainer','owner'].includes(role) ? <RecoveryServerPage state={state} refresh={refreshBackend} /> : <NoPermission />;
     switch (state.page) {
-      case 'accounts': return <AccountManagementPage actor={state.user!} users={state.users} clubs={state.clubs} onCreate={handleCreateAccount} onToggleLock={handleToggleLock} onResetPassword={handleResetPassword} />;
-      case 'permissions': return <PermissionMatrixPage rolePerms={state.rolePerms} audit={state.auditLog} onToggle={handleTogglePerm} />;
-      case 'audit-log': return <AuditLogPage audit={state.auditLog} />;
+      case 'accounts': case 'permissions': case 'audit-log': return <AdminServerPage key={state.page} page={state.page} actor={state.user!} navigate={navigate} />;
       case 'dashboard': {
         const r = state.user!.role;
         if (r === 'manager') return <ManagerDashboard state={state} navigate={navigate} />;
@@ -3480,7 +3491,7 @@ export default function App() {
         if (r === 'veterinarian') return <VetDashboard state={state} navigate={navigate} />;
         if (r === 'groom') return <GroomDashboard state={state} navigate={navigate} />;
         if (r === 'owner') return <OwnerDashboard state={state} navigate={navigate} />;
-        if (r === 'admin') return <AdminDashboard users={state.users} audit={state.auditLog} navigate={navigate as (p: string) => void} />;
+        if (r === 'admin') return <AdminServerPage key="admin-dashboard" page="dashboard" actor={state.user!} navigate={navigate} />;
         return null;
       }
       case 'horse-list': return <HorseListPage navigate={navigate} horses={state.user!.role === 'veterinarian' ? state.horses.filter(h => vetVisible(h, state.user!)) : state.horses} role={state.user!.role!} clubId={state.user!.clubId} onSelectHorse={id => setState(s => ({ ...s, selectedHorseId: id }))} />;
@@ -3496,7 +3507,7 @@ export default function App() {
       case 'trainer-profile': return <TrainerProfilePage state={state} navigate={navigate} trainerId={state.viewTrainerId || ''} onApproveRequest={handleApproveRequest} />;
       case 'center-requests':
         if (state.user!.role !== 'manager') return <NoAccess text="Chỉ Quản lý CLB mới tiếp nhận ngựa" />;
-        return <><PendingNotice>API hiện có duyệt hồ sơ hành chính rồi tạo health profile để khám. API định danh/minh chứng, phân công/nhận ca/thay bác sĩ đang chờ. Duyệt hồ sơ không đồng nghĩa đủ điều kiện tập; cần kết luận khám riêng.</PendingNotice><IntakeBoardPage user={state.user!} horses={state.horses} requests={state.horseClubRequests} records={state.healthRecords} users={state.users} onVerify={pendingAction} onAssign={pendingAction} onApprove={id => reviewAdmission(id, true)} onReject={(id, note) => reviewAdmission(id, false, note)} onOpenHorse={id => setState(s => ({ ...s, selectedHorseId: id, page: 'horse-detail' }))} /></>;
+        return <><PendingNotice>Review admission here. Open Veterinary assignments to assign or replace a doctor; the doctor accepts the case before examination. Admission approval does not establish training fitness.</PendingNotice><IntakeBoardPage user={state.user!} horses={state.horses} requests={state.horseClubRequests} records={state.healthRecords} users={state.users} onVerify={pendingAction} onAssign={() => navigate('vet-assign')} onApprove={id => reviewAdmission(id, true)} onReject={(id, note) => reviewAdmission(id, false, note)} onOpenHorse={id => setState(s => ({ ...s, selectedHorseId: id, page: 'horse-detail' }))} /></>;
       case 'health-records': return <HealthRecordsPage state={state} navigate={navigate} />;
       case 'vet-health-form':
         if (state.user!.role !== 'veterinarian') return <HealthRecordsPage state={state} navigate={navigate} />;
@@ -3514,14 +3525,13 @@ export default function App() {
       case 'post-exam':
         if (state.user!.role !== 'veterinarian') return <NoAccess text="Chỉ Thú y mới truy cập trang này" />;
         return <><PendingNotice>Chờ API phân công bác sĩ và liên kết lần khám với buổi tập; không tạo hồ sơ khám giả.</PendingNotice><PostExamPage state={state} navigate={navigate} onSave={() => {}} onPostExam={() => BACKEND_PENDING} onUnlock={() => BACKEND_PENDING} onManualLock={() => BACKEND_PENDING} /></>;
-      case 'rehab-center':
         if (state.user!.role !== 'manager') return <NoAccess text="Chỉ Quản lý mới kích hoạt gói phục hồi" />;
         return <RehabCenterPage state={state} onActivate={handleActivateRehab} />;
       case 'performance': return <PerformancePage />;
       case 'race-results': return <RaceResultsPage horses={state.horses.filter(h => h.clubId === state.user!.clubId)} />;
       case 'reports': return <ReportsPage />;
       case 'staff': return <><StaffCreationDesign /><StaffPage state={state} navigate={navigate} onUpdatePermissions={pendingAction} /></>;
-      case 'notifications': return <NotificationsPage notifications={visibleNotifications(state.notifications, state.user!)} onMarkRead={id => { void callBackend(async () => { await api(`/api/notifications/${id}/read`, 'PATCH'); await refreshBackend(); }); }} onOpen={() => {}} />;
+      case 'notifications': return state.user!.role === 'admin' ? <PendingNotice>API thông báo hiện bị giới hạn bởi BUSINESS_ROLES trong backend; cần cấp quyền Admin trước khi đọc thông báo.</PendingNotice> : <NotificationsPage notifications={visibleNotifications(state.notifications, state.user!)} onMarkRead={id => { void callBackend(async () => { await api(`/api/notifications/${id}/read`, 'PATCH'); await refreshBackend(); }); }} onOpen={() => {}} />;
       case 'profile': return <ProfilePage user={state.user!} state={state} navigate={navigate} onLogout={handleLogout} onSave={(_msg, name) => { void callBackend(async () => { const user = await api<User>('/api/users/me', 'PUT', { fullName: name, phone: state.user?.phone || null, avatarUrl: backendUser.current?.avatarUrl || null }); backendUser.current = user; await refreshBackend(); }); }} />;
       default: return <ManagerDashboard state={state} navigate={navigate} />;
     }

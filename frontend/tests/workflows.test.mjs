@@ -67,6 +67,22 @@ test('staff roles come from backend and a regular manager is never promoted to a
   const user = bridge.toAppUser({ userId: 1, fullName: 'Manager', email: 'm@example.com', role: { roleName: 'CLUB_MANAGER' }, status: 'ACTIVE', emailVerified: true });
   assert.equal(user.role, 'manager'); assert.equal(user.password, '');
 });
+test('SQL Admin role 7 maps to the Admin UI by its API role name', () => {
+  for (const roleName of ['ADMIN', 'Admin', ' admin ', 'ROLE_ADMIN', 'ADMINISTRATOR', 'SYSTEM_ADMIN']) {
+    const user = bridge.toAppUser({ userId: 1, fullName: 'RaceForge Admin', email: 'admin@gmail.com', role: { roleId: 7, roleName }, status: 'ACTIVE', emailVerified: true });
+    assert.equal(user.role, 'admin', roleName); assert.equal(user.status, 'active'); assert.equal(user.id, 'USR-000001');
+  }
+  const normalUser = bridge.toAppUser({ userId: 1, fullName: 'RaceForge Admin', email: 'admin@gmail.com', role: { roleId: 7, roleName: 'USER' }, status: 'ACTIVE', emailVerified: true });
+  assert.equal(normalUser.role, null, 'Do not infer admin privileges from an email, name or hardcoded database ID');
+});
+test('Admin session bootstrap skips business APIs that reject Admin with 403', async () => {
+  let calls = 0;
+  const scoped = compile('backendBridge.ts', { './trainingLogic': logic, './api': { api: async () => { calls++; throw new Error('403: business API rejects Admin'); } } });
+  const result = await scoped.loadBackendState({ userId: 1, fullName: 'RaceForge Admin', email: 'admin@gmail.com', role: { roleId: 7, roleName: 'ADMIN' }, status: 'ACTIVE', emailVerified: true });
+  assert.equal(result.user.role, 'admin'); assert.equal(calls, 0);
+  assert.equal(result.users.length, 1); assert.equal(result.horses.length, 0); assert.equal(result.auditLog.length, 0);
+  assert.deepEqual(plain(result.rolePerms), {});
+});
 test('plan creation and generated sessions use real server IDs and preserve activity details', async () => {
   const calls = [];
   const apiBridge = compile('backendBridge.ts', { './trainingLogic': logic, './api': { api: async (path, method, body) => {

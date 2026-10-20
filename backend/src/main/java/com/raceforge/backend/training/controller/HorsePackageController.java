@@ -30,7 +30,7 @@ public class HorsePackageController {
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<HorsePackageResponse>> register(
             @Valid @RequestBody HorsePackageRegisterRequest request,
-            @AuthenticationPrincipal(expression = "userId") Integer ownerId
+            @AuthenticationPrincipal(expression = "userId") String ownerId
     ) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Registration created", service.register(request, ownerId)));
@@ -39,9 +39,9 @@ public class HorsePackageController {
     @PreAuthorize("hasAuthority('HORSE_OWNER')")
     @PostMapping("/{id}/simulate-payment")
     public ResponseEntity<ApiResponse<HorsePackageResponse>> simulatePayment(
-            @PathVariable Integer id,
+            @PathVariable String id,
             @Valid @RequestBody HorsePackagePaymentRequest request,
-            @AuthenticationPrincipal(expression = "userId") Integer ownerId
+            @AuthenticationPrincipal(expression = "userId") String ownerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Payment simulation processed",
@@ -49,11 +49,22 @@ public class HorsePackageController {
         ));
     }
 
+    /** CM oversight: unlike Owner history, this endpoint has no ownership filter. */
+    @PreAuthorize("hasAuthority('CLUB_MANAGER')")
+    @GetMapping("/manage/horse/{horseId}")
+    public ResponseEntity<ApiResponse<List<HorsePackageResponse>>> managerHistory(
+            @PathVariable String horseId
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                "Horse package history for Club Manager", service.historyForManager(horseId)
+        ));
+    }
+
     @PreAuthorize("hasAuthority('HORSE_OWNER')")
     @GetMapping("/horse/{horseId}")
     public ResponseEntity<ApiResponse<List<HorsePackageResponse>>> history(
-            @PathVariable Integer horseId,
-            @AuthenticationPrincipal(expression = "userId") Integer ownerId
+            @PathVariable String horseId,
+            @AuthenticationPrincipal(expression = "userId") String ownerId
     ) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Horse package history retrieved", service.history(horseId, ownerId)

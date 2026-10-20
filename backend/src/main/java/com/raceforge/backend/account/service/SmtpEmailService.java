@@ -92,6 +92,18 @@ public class SmtpEmailService implements EmailService {
         mailSender.send(message);
     }
 
+    @Override
+    public void sendStaffInvitation(String to, String setupLink) {
+        ensureConfigured();
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(authProperties.getMail().getFrom());
+        message.setTo(to);
+        message.setSubject("RaceForge staff account invitation");
+        message.setText("An administrator created your RaceForge staff account. Set your password using this single-use link: "
+                + setupLink + "\nThis link expires in " + authProperties.getPasswordReset().getMinutes() + " minutes.");
+        mailSender.send(message);
+    }
+
     private void ensureConfigured() {
         if (mailSender == null || mailHost == null || mailHost.isBlank()) {
             throw new ApiException(

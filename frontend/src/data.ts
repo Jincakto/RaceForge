@@ -1,10 +1,13 @@
 export type Role = 'admin' | 'manager' | 'head_trainer' | 'veterinarian' | 'groom' | 'owner';
 
 export interface AppUser {
+  apiRoleId?: number;
+  trainerProfileId?: string;
   id: string;
   name: string;
   email: string;
   password: string;
+  avatarUrl?: string;
   avatar: string;
   role: Role | null;
   clubId: string | null;
@@ -108,6 +111,7 @@ export interface HorseRehab {
 }
 
 export interface TrainingPackage {
+  packageType?: string;
   id: string;
   name: string;
   description: string;
@@ -155,6 +159,10 @@ export type TrainerAssignStatus = 'unassigned' | 'pending' | 'confirmed';
 export interface AssignEntry { time: string; kind: 'assign' | 'replace' | 'confirm' | 'decline'; from: string | null; to: string; by: string; reason: string }
 
 export interface Enrollment {
+  directAssignmentId?: string;
+  assignmentId?: string;
+  paymentStatus?: string;
+  apiStatus?: string;
   id: string;
   horseId: string;
   packageId: string;
@@ -204,6 +212,10 @@ export function getLifecycle(h: Horse): Lifecycle {
 }
 
 export interface Horse {
+  trainerIds?: string[];
+  vetAssignmentId?: string;
+  documentType?: string;
+  admissionStatus?: string;
   id: string;
   name: string;
   breed: string;
@@ -270,6 +282,8 @@ export interface HorseClubRequest {
 }
 
 export interface TrainingPlan {
+  horsePackageId?: string;
+  assignmentId?: string;
   id: string;
   horseId: string;
   phase: string;
@@ -293,6 +307,10 @@ export interface TrainingPlan {
 }
 
 export interface TrainingSession {
+  actualEnd?: string;
+  canStart?: boolean;
+  canStop?: boolean;
+  canComplete?: boolean;
   id: string;
   horseId: string;
   planId: string;
@@ -321,6 +339,7 @@ export interface TrainingSession {
 }
 
 export interface HealthRecord {
+  profileId?: string;
   id: string;
   horseId: string;
   date: string;
@@ -382,6 +401,8 @@ export interface HealthRecord {
 // Factors: health status, age, weight, resting heart rate, race history
 
 export interface TrainingSuggestion {
+  approvedIntensity?: 'LOW' | 'MODERATE' | 'HIGH';
+  sessionCount?: number;
   phase: string;
   intensityScore: number;
   weeklyKm: number;

@@ -68,9 +68,9 @@ export function AssignHistory({ horse, onClose }: { horse: Horse; onClose: () =>
 
 type Handlers = {
   onVerify: (horseId: string, verified: boolean) => void;
-  onAssign: (horseId: string, vetId: string, reason: string) => void;
-  onApprove: (reqId: string) => void;
-  onReject: (reqId: string, reason: string) => void;
+  onAssign: (horseId: string, vetId: string, reason: string) => Promise<unknown>;
+  onApprove: (reqId: string) => Promise<unknown>;
+  onReject: (reqId: string, reason: string) => Promise<unknown>;
   onOpenHorse: (id: string) => void;
 };
 
@@ -93,13 +93,13 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
   const shown = rows.filter(x => filter === 0 || x.st === filter);
   const count = (n: number) => rows.filter(x => x.st === n).length;
 
-  const choose = () => {
+  const choose = async () => {
     if (!pick) return;
     if (!pick.vetId) { setPickErr('Please select a veterinarian.'); return; }
     if (pick.horse.vetId && pick.vetId === pick.horse.vetId && pick.horse.vetAssign?.status !== 'declined') { setPickErr('This veterinarian is already assigned to the horse.'); return; }
     if (pick.horse.vetId && pick.horse.vetAssign?.status !== 'declined') { setReplace(pick); setPick(null); setPickErr(''); return; }
-    onAssign(pick.horse.id, pick.vetId, pick.horse.vetId ? 'Reassigned after the previous veterinarian declined' : 'Assigned for intake examination');
-    setPick(null); setPickErr('');
+    try { await onAssign(pick.horse.id, pick.vetId, pick.horse.vetId ? 'Reassigned after the previous veterinarian declined' : 'Assigned for intake examination');
+    setPick(null); setPickErr(''); } catch (e) { setPickErr((e as Error).message); }
   };
 
   const tryApprove = (r: HorseClubRequest, h?: Horse) => {
@@ -185,17 +185,17 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
       {replace && (
         <ReasonDialog title="Reassignment reason" confirmLabel="Confirm reassignment" onClose={() => setReplace(null)}
           description={<p>Replace <b>{replace.horse.vetName}</b> with <b>{vets.find(v => v.id === replace.vetId)?.name}</b> for <b>{replace.horse.name}</b>. The assignment history will be retained.</p>}
-          onConfirm={reason => { onAssign(replace.horse.id, replace.vetId, reason); setReplace(null); }} />
+          onConfirm={async reason => { await onAssign(replace.horse.id, replace.vetId, reason); setReplace(null); }} />
       )}
       {rejectFor && (
         <ReasonDialog title="Reject horse admission" danger confirmLabel="Reject" onClose={() => setRejectFor(null)}
           description={<p>Reject <b>{rejectFor.horseName}</b>, owned by <b>{rejectFor.ownerName}</b>. The reason will be sent to the Horse Owner.</p>}
-          onConfirm={reason => { onReject(rejectFor.id, reason); setRejectFor(null); }} />
+          onConfirm={async reason => { await onReject(rejectFor.id, reason); setRejectFor(null); }} />
       )}
       {approveFor && (
         <Modal title="Confirm club admission" onClose={() => setApproveFor(null)}>
           <p className="text-sm text-gray-600">Admit <b>{approveFor.horseName}</b> to the club? The horse will appear in the Horse List and its core profile fields will be locked.</p>
-          <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setApproveFor(null)}>Cancel</Btn><Btn variant="gold" onClick={() => { onApprove(approveFor.id); setApproveFor(null); }}>Admit</Btn></div>
+          <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setApproveFor(null)}>Cancel</Btn><Btn variant="gold" onClick={async () => { try { await onApprove(approveFor.id); setApproveFor(null); } catch (e) { setWarn(w => ({ ...w, [approveFor.id]: (e as Error).message })); } }}>Admit</Btn></div>
         </Modal>
       )}
       {history && <AssignHistory horse={history} onClose={() => setHistory(null)} />}
@@ -205,7 +205,7 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
 
 export function VetAssignedPage({ user, horses, requests, onRespond, onExam, onOpenHorse }: {
   user: AppUser; horses: Horse[]; requests: HorseClubRequest[];
-  onRespond: (horseId: string, accept: boolean, reason: string) => void; onExam: (horseId: string) => void; onOpenHorse: (id: string) => void;
+  onRespond: (horseId: string, accept: boolean, reason: string) => Promise<unknown>; onExam: (horseId: string) => void; onOpenHorse: (id: string) => void;
 }) {
   const mine = horses.filter(h => h.vetId === user.id && h.vetAssign);
   const [respond, setRespond] = useState<{ horse: Horse; accept: boolean } | null>(null);
@@ -245,7 +245,7 @@ export function VetAssignedPage({ user, horses, requests, onRespond, onExam, onO
       {respond && (
         <ReasonDialog title={respond.accept ? 'Accept examination' : 'Decline examination'} danger={!respond.accept} confirmLabel={respond.accept ? 'Accept' : 'Decline'} onClose={() => setRespond(null)}
           description={<p>{respond.accept ? 'You will be responsible for the intake examination of' : 'The Club Manager must assign another veterinarian. You are declining'} <b>{respond.horse.name}</b>.</p>}
-          onConfirm={reason => { onRespond(respond.horse.id, respond.accept, reason); setRespond(null); }} />
+          onConfirm={async reason => { await onRespond(respond.horse.id, respond.accept, reason); setRespond(null); }} />
       )}
       {history && <AssignHistory horse={history} onClose={() => setHistory(null)} />}
     </div>

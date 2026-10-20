@@ -9,13 +9,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuditLogService {
     private final AuditLogRepository repository;
 
-    public AuditLogService(AuditLogRepository repository) {
-        this.repository = repository;
-    }
+    public AuditLogService(AuditLogRepository repository) { this.repository = repository; }
 
+    /** Temporary bridge: callers still use both Integer and String IDs during migration.
+     *  The final schema stores user_id, horse_id, entity_id as VARCHAR(20).
+     */
     @Transactional
-    public AuditLog record(Integer actorId, Integer horseId, String entityType,
-                           Integer entityId, String action, String result, String reason) {
+    public AuditLog record(Object actorId, Object horseId, String entityType,
+                           Object entityId, String action, String result, String reason) {
         AuditLog log = new AuditLog();
         log.setUserId(actorId);
         log.setHorseId(horseId);

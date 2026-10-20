@@ -8,7 +8,7 @@ import { money, purchaseBlockReason, enrollmentTerm, isCurrent, EXPIRY_WARN_DAYS
 interface Props {
   state: { user: AppUser | null; horses: Horse[]; enrollments: Enrollment[]; packages: TrainingPackage[]; healthRecords: HealthRecord[] };
   navigate: (p: string) => void;
-  onPurchase: (horseId: string, packageId: string, renewOfId?: string) => Res<Enrollment>;
+  onPurchase: (horseId: string, packageId: string, renewOfId?: string, successful?: boolean) => Promise<Res<Enrollment>>;
 }
 
 const STEPS = ['Chọn gói', 'Chọn ngựa', 'Xem lại', 'Thanh toán', 'Biên lai'];
@@ -91,7 +91,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
     if (step === 0 && !pkg) { setFieldError('Vui lòng chọn một gói huấn luyện.'); return; }
     if (step === 1) {
       if (!horse) { setFieldError('Vui lòng chọn ngựa.'); return; }
-      const r = purchaseBlockReason(horse, state.enrollments, state.healthRecords, !!renewOf);
+      const r = purchaseBlockReason(horse, state.enrollments, state.healthRecords, !!renewOf, pkg?.packageType);
       if (r) { setFieldError(`Ngựa "${horse.name}" không thể đăng ký: ${r}.`); return; }
     }
     setStep(s => s + 1);
@@ -99,13 +99,16 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
 
   const pay = () => {
     if (paying) return;
+    const blocked = horse ? purchaseBlockReason(horse, state.enrollments, state.healthRecords, !!renewOf, pkg?.packageType) : 'Vui lòng chọn ngựa.';
+    if (blocked) { setPayMsg({ kind: 'error', text: blocked }); return; }
     setPayMsg(null); setPaying(true);
-    timer.current = window.setTimeout(() => {
+    timer.current = window.setTimeout(async () => {
+
+      if (scenario === 'cancel') { setPaying(false); setPayMsg({ kind: 'cancel', text: 'Bạn đã hủy thanh toán. Chưa tạo đăng ký — bạn có thể thử lại bất cứ lúc nào.' }); return; }
+      const r = await onPurchase(horseId, pkgId, renewOf?.id, scenario === 'success');
       setPaying(false);
-      if (scenario === 'fail') { setPayMsg({ kind: 'fail', text: 'Thanh toán thất bại: ngân hàng từ chối giao dịch mô phỏng. Chưa có khoản tiền nào bị trừ và chưa tạo đăng ký.' }); return; }
-      if (scenario === 'cancel') { setPayMsg({ kind: 'cancel', text: 'Bạn đã hủy thanh toán. Chưa tạo đăng ký — bạn có thể thử lại bất cứ lúc nào.' }); return; }
-      const r = onPurchase(horseId, pkgId, renewOf?.id);
       if (!r.ok) { setPayMsg({ kind: 'error', text: r.message }); return; }
+      if (r.data.paymentStatus !== 'PAID') { setPayMsg({ kind: 'fail', text: 'BE đã ghi nhận thanh toán mô phỏng thất bại. Chưa kích hoạt gói.' }); return; }
       setReceipt(r.data); setStep(4);
     }, 1200);
   };
@@ -206,7 +209,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
           <p className="text-sm text-gray-500">Chọn ngựa <span className="text-red-500">*</span> · Ngựa cần theo dõi vẫn có thể đăng ký với cường độ phù hợp</p>
           {horsesToShow.length === 0 && <Card className="p-8 text-center text-sm text-gray-500">Bạn chưa có ngựa nào.</Card>}
           {horsesToShow.map(h => {
-            const reason = purchaseBlockReason(h, state.enrollments, state.healthRecords, !!renewOf);
+            const reason = purchaseBlockReason(h, state.enrollments, state.healthRecords, !!renewOf, pkg?.packageType);
             const sel = horseId === h.id;
             const exam = state.healthRecords.filter(r => r.horseId === h.id).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))[0];
             const watch = exam?.decision === 'conditional' || exam?.trainingEligibility === 'conditional';

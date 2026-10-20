@@ -12,20 +12,15 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "[User]")
-public class User {
+public class User extends com.raceforge.backend.common.id.AssignedBusinessEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "user_id")
-    private Integer userId;
+    @Column(name = "user_id", length = 20, updatable = false)
+    private String userId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id", nullable = false)
     private Role role;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "requested_role_id")
-    private Role requestedRole;
 
     @Column(name = "full_name", nullable = false, length = 150)
     private String fullName;
@@ -48,11 +43,11 @@ public class User {
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
 
-    public Integer getUserId() {
+    public String getUserId() {
         return userId;
     }
 
-    public void setUserId(Integer userId) {
+    public void setUserId(String userId) {
         this.userId = userId;
     }
 
@@ -62,14 +57,6 @@ public class User {
 
     public void setRole(Role role) {
         this.role = role;
-    }
-
-    public Role getRequestedRole() {
-        return requestedRole;
-    }
-
-    public void setRequestedRole(Role requestedRole) {
-        this.requestedRole = requestedRole;
     }
 
     public String getFullName() {
@@ -127,4 +114,5 @@ public class User {
     public void setAvatarUrl(String avatarUrl) {
         this.avatarUrl = avatarUrl;
     }
+    @Override public String getId() { return userId; }
 }

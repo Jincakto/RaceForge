@@ -7,24 +7,30 @@ import java.util.List;
 import java.util.Optional;
 
 public interface MedicalRecordRepository
-        extends JpaRepository<MedicalRecord, Integer> {
+        extends JpaRepository<MedicalRecord, String> {
 
     List<MedicalRecord>
         findByHealthProfile_ProfileIdOrderByExaminedAtDesc(
-            Integer profileId
+            String profileId
         );
 
     List<MedicalRecord>
         findByVeterinarian_UserIdOrderByExaminedAtDesc(
-            Integer veterinarianId
+            String veterinarianId
         );
 
     List<MedicalRecord>
         findByStatus(String status);
+
+    // Used when the Club Manager issues a new veterinary assignment.
+    // MedicalRecord -> HealthProfile -> Horse (String horseId).
+    List<MedicalRecord> findByHealthProfile_Horse_HorseIdAndStatus(
+            String horseId, String status);
                 
     Optional<MedicalRecord>
         findFirstByHealthProfile_ProfileIdAndStatusOrderByExaminedAtDesc(
-                Integer profileId,
+                String profileId,
                 String status
         );
+
 }

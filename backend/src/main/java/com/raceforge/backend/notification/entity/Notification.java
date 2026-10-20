@@ -18,7 +18,7 @@ public class Notification {
     private Integer notificationId;
 
     @Column(name = "user_id", nullable = false, length = 20)
-    private Integer userId;
+    private String userId;
 
     @Column(name = "notification_type", nullable = false, length = 50)
     private String notificationType;
@@ -43,11 +43,11 @@ public class Notification {
         this.notificationId = notificationId;
     }
 
-    public Integer getUserId() {
+    public String getUserId() {
         return userId;
     }
 
-    public void setUserId(Integer userId) {
+    public void setUserId(String userId) {
         this.userId = userId;
     }
 

@@ -1,4 +1,6 @@
-import { useMemo, useState } from 'react';
+import { recommendationFor, recommendationView } from './recommendations';
+import { request } from './api';
+import { useEffect, useMemo, useState } from 'react';
 import {
   computeTrainingSuggestion, isHeavySession,
   type Horse, type HealthRecord, type TrainingPlan, type TrainingSession, type Res, type TrainingSuggestion, type Enrollment,
@@ -19,13 +21,14 @@ type ResultT = NonNullable<TrainingSession['result']>;
 interface HubProps {
   state: HubState;
   navigate: (p: string) => void;
-  onCreatePlan: (d: PlanDraft) => Res<TrainingPlan>;
-  onGenerate: (horseId: string, planId: string, drafts: SessionDraft[]) => Res<TrainingSession[]>;
-  onCheckIn: (id: string, present: boolean, note: string) => Res<null>;
-  onRespond: (enrId: string, accept: boolean, reason: string) => Res<null>;
-  onStartSession: (id: string) => string | null;
-  onCompleteSession: (id: string, r: ResultT) => string | null;
-  onConfirmSchedule: (horseId: string, note: string, restoreIds: string[]) => string | null;
+  onCreatePlan: (d: PlanDraft) => Promise<Res<TrainingPlan>>;
+  onGenerate: (horseId: string, planId: string, drafts: SessionDraft[]) => Promise<Res<TrainingSession[]>>;
+  onCheckIn: (id: string, present: boolean, note: string) => Promise<Res<null>>;
+  onRespond: (enrId: string, accept: boolean, reason: string) => Promise<Res<null>>;
+  onStopSession: (id: string) => Promise<Res<null>>;
+  onStartSession: (id: string) => string | null | Promise<string | null>;
+  onCompleteSession: (id: string, r: ResultT) => string | null | Promise<string | null>;
+  onConfirmSchedule: (horseId: string, note: string, restoreIds: string[]) => string | null | Promise<string | null>;
 }
 
 // ── Small helpers ────────────────────────────────────────────────────────────
@@ -207,7 +210,7 @@ export function TrainingHubPage(props: HubProps) {
                             <div className="text-sm font-medium text-amber-800">Thú y đã gỡ khóa. Lịch cũ chưa chạy lại — hãy điều chỉnh và xác nhận lịch tập.</div>
                             {voided.length > 0 && <div className="space-y-1">{voided.map(v => <label key={v.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!skipRestore.has(v.id)} onChange={() => setSkipRestore(p => { const n = new Set(p); if (n.has(v.id)) n.delete(v.id); else n.add(v.id); return n; })} />Khôi phục: {v.type} · {v.distance} · {v.date}</label>)}</div>}
                             {isTrainer && <><Textarea label="Điều chỉnh lộ trình (cường độ, cự ly, ghi chú)" value={confirmNote[e.horseId] || ''} onChange={v => setConfirmNote(p => ({ ...p, [e.horseId]: v }))} rows={2} placeholder="VD: Giảm 20% cường độ tuần đầu, tăng dần theo nhịp tim" />
-                              <Btn variant="gold" onClick={() => setActionError(props.onConfirmSchedule(e.horseId, confirmNote[e.horseId] || '', voided.filter(v => !skipRestore.has(v.id)).map(v => v.id)) || '')}>✓ Xác nhận lịch tập</Btn></>}
+                              <Btn variant="gold" onClick={async () => setActionError(await props.onConfirmSchedule(e.horseId, confirmNote[e.horseId] || '', voided.filter(v => !skipRestore.has(v.id)).map(v => v.id)) || '')}>✓ Xác nhận lịch tập</Btn></>}
                           </div>
                         )}
                       </div>
@@ -259,14 +262,14 @@ export function TrainingHubPage(props: HubProps) {
                     {s.status === 'Scheduled' && isTrainer && s.date === TODAY && s.attendance?.status === 'present' && <div className="mt-1 text-xs text-emerald-700">Đã điểm danh — có thể bắt đầu buổi tập.</div>}
                   </div>
                   <div className="flex shrink-0 flex-col gap-2">
-                    {canCheckIn && <><Btn size="sm" variant="primary" onClick={() => { const r = props.onCheckIn(s.id, true, ''); setActionError(r.ok ? '' : r.message); }}>Điểm danh: có mặt</Btn><Btn size="sm" variant="secondary" onClick={() => setAbsentFor(s)}>Vắng mặt</Btn></>}
-                    {isTrainer && s.status === 'Scheduled' && s.attendance?.status === 'present' && <Btn size="sm" variant="gold" onClick={() => setActionError(props.onStartSession(s.id) || '')}>▶ Bắt đầu</Btn>}
+                    {canCheckIn && <><Btn size="sm" variant="primary" onClick={async () => { const r = await props.onCheckIn(s.id, true, ''); setActionError(r.ok ? '' : r.message); }}>Bắt đầu buổi tập</Btn><Btn size="sm" variant="secondary" onClick={() => setAbsentFor(s)}>Vắng mặt</Btn></>}
+                    {isTrainer && s.status === 'Scheduled' && s.canStart && <Btn size="sm" variant="gold" onClick={async () => setActionError(await props.onStartSession(s.id) || '')}>▶ Bắt đầu</Btn>}
                     {isTrainer && s.status === 'Scheduled' && !s.attendance && s.date !== TODAY && <span className="text-[11px] text-gray-400">Điểm danh vào ngày tập</span>}
-                    {isTrainer && (s.status === 'In Progress' || s.status === 'Scheduled') && completing !== s.id && <Btn size="sm" variant="primary" onClick={() => { setCompleting(s.id); setActionError(''); }}>Confirm training completed</Btn>}
+                    {isTrainer && (s.canStop || s.canComplete) && completing !== s.id && <Btn size="sm" variant="primary" onClick={async () => { setActionError(''); if (s.canStop) { const stopped = await props.onStopSession(s.id); if (!stopped.ok) { setActionError(stopped.message); return; } } setCompleting(s.id); }}>{s.canStop ? 'Stop exercise & record recovery' : 'Record recovery results'}</Btn>}
                   </div>
                 </div>
-                {completing === s.id && <ResultForm onCancel={() => setCompleting(null)} onSubmit={r => { const err = props.onCompleteSession(s.id, r); setActionError(err || ''); if (!err) setCompleting(null); return err; }} />}
-                {s.result && <div className="mt-3 grid grid-cols-4 gap-3 border-t border-gray-100 pt-3">{[['Thời gian', s.result.time], ['Tốc độ', `${s.result.speed} km/h`], ['Nhịp tim', `${s.result.heartRate} bpm`], ['Điểm', `${s.result.performanceScore}/100`]].map(([k, v]) => <div key={k} className="rounded-lg bg-gray-50 p-2 text-center"><div className="text-xs text-gray-500">{k}</div><div className="font-mono text-sm font-bold">{v}</div></div>)}</div>}
+                {completing === s.id && <ResultForm onCancel={() => setCompleting(null)} onSubmit={async r => { const err = await props.onCompleteSession(s.id, r); setActionError(err || ''); if (!err) setCompleting(null); return err; }} />}
+                {s.result && <div className="mt-3 grid grid-cols-4 gap-3 border-t border-gray-100 pt-3">{[['Thời gian (giây)', s.result.time], ['Tốc độ', `${s.result.speed} km/h`], ['Nhịp tim', `${s.result.heartRate} bpm`], ['Nhịp hồi phục 2 phút', `${s.result.performanceScore} bpm`]].map(([k, v]) => <div key={k} className="rounded-lg bg-gray-50 p-2 text-center"><div className="text-xs text-gray-500">{k}</div><div className="font-mono text-sm font-bold">{v}</div></div>)}</div>}
               </Card>
             );
           })}
@@ -298,12 +301,12 @@ export function TrainingHubPage(props: HubProps) {
 
       {tab === 'results' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-4"><Stat label="Buổi tập hoàn thành" value={mySessions.filter(s => s.status === 'Completed').length} /><Stat label="Tốc độ TB" value={avgSpeed === '—' ? '—' : `${avgSpeed} km/h`} tone="gold" /><Stat label="Điểm TB" value={done.length ? `${avgScore}/100` : '—'} tone="green" /></div>
+          <div className="grid grid-cols-3 gap-4"><Stat label="Buổi tập hoàn thành" value={mySessions.filter(s => s.status === 'Completed').length} /><Stat label="Tốc độ TB" value={avgSpeed === '—' ? '—' : `${avgSpeed} km/h`} tone="gold" /><Stat label="Nhịp hồi phục TB" value={done.length ? `${avgScore} bpm` : '—'} tone="green" /></div>
           {done.length === 0 && <Card className="p-8 text-center text-sm text-gray-500">Chưa có kết quả. Hãy điểm danh, bắt đầu một buổi tập rồi ghi chỉ số ở tab Buổi tập.</Card>}
           {done.map(s => (
             <Card key={s.id} className="p-5">
               <div className="mb-1 flex items-center gap-2"><IdChip kind="SES" id={s.id} /><span className="font-semibold">{s.type} · {s.distance} · {s.date} — {hn(s.horseId)}</span></div>
-              <div className="mt-3 grid grid-cols-4 gap-3">{[['Thời gian', s.result!.time], ['Tốc độ', `${s.result!.speed} km/h`], ['Nhịp tim', `${s.result!.heartRate} bpm`], ['Điểm', `${s.result!.performanceScore}/100`]].map(([k, v]) => <div key={k} className="rounded-lg bg-gray-50 p-3 text-center"><div className="text-xs text-gray-500">{k}</div><div className="mt-0.5 font-mono text-sm font-bold">{v}</div></div>)}</div>
+              <div className="mt-3 grid grid-cols-4 gap-3">{[['Thời gian (giây)', s.result!.time], ['Tốc độ', `${s.result!.speed} km/h`], ['Nhịp tim', `${s.result!.heartRate} bpm`], ['Nhịp hồi phục 2 phút', `${s.result!.performanceScore} bpm`]].map(([k, v]) => <div key={k} className="rounded-lg bg-gray-50 p-3 text-center"><div className="text-xs text-gray-500">{k}</div><div className="mt-0.5 font-mono text-sm font-bold">{v}</div></div>)}</div>
               {s.result!.notes && <p className="mt-3 text-sm italic text-gray-600">"{s.result!.notes}"</p>}
             </Card>
           ))}
@@ -313,11 +316,11 @@ export function TrainingHubPage(props: HubProps) {
       {accepting && (
         <Modal title="Xác nhận nhận huấn luyện?" onClose={() => setAccepting(null)}>
           <p className="text-sm text-gray-600">Bạn sẽ chịu trách nhiệm huấn luyện <strong>{hn(accepting.horseId)}</strong> theo gói {accepting.packageName} đến {accepting.expiresAt}.</p>
-          <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setAccepting(null)}>Hủy</Btn><Btn variant="gold" onClick={() => { const r = props.onRespond(accepting.id, true, ''); setActionError(r.ok ? '' : r.message); setAccepting(null); }}>Xác nhận</Btn></div>
+          <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setAccepting(null)}>Hủy</Btn><Btn variant="gold" onClick={async () => { const r = await props.onRespond(accepting.id, true, ''); setActionError(r.ok ? '' : r.message); setAccepting(null); }}>Xác nhận</Btn></div>
         </Modal>
       )}
-      {decline && <ReasonDialog title="Từ chối phân công" description={<>Từ chối huấn luyện <strong>{hn(decline.horseId)}</strong>? Quản lý sẽ được báo để phân công người khác.</>} confirmLabel="Từ chối phân công" danger onClose={() => setDecline(null)} onConfirm={reason => { const r = props.onRespond(decline.id, false, reason); setActionError(r.ok ? '' : r.message); setDecline(null); }} />}
-      {absentFor && <ReasonDialog title="Ghi nhận vắng mặt" description={<>Buổi <strong>{absentFor.type}</strong> của {hn(absentFor.horseId)} sẽ chuyển sang "Không thực hiện".</>} confirmLabel="Ghi nhận vắng" danger onClose={() => setAbsentFor(null)} onConfirm={reason => { const r = props.onCheckIn(absentFor.id, false, reason); setActionError(r.ok ? '' : r.message); setAbsentFor(null); }} />}
+      {decline && <ReasonDialog title="Từ chối phân công" description={<>Từ chối huấn luyện <strong>{hn(decline.horseId)}</strong>? Quản lý sẽ được báo để phân công người khác.</>} confirmLabel="Từ chối phân công" danger onClose={() => setDecline(null)} onConfirm={async reason => { const r = await props.onRespond(decline.id, false, reason); setActionError(r.ok ? '' : r.message); setDecline(null); }} />}
+      {absentFor && <ReasonDialog title="Ghi nhận vắng mặt" description={<>Buổi <strong>{absentFor.type}</strong> của {hn(absentFor.horseId)} sẽ chuyển sang "Không thực hiện".</>} confirmLabel="Ghi nhận vắng" danger onClose={() => setAbsentFor(null)} onConfirm={async reason => { const r = await props.onCheckIn(absentFor.id, false, reason); setActionError(r.ok ? '' : r.message); setAbsentFor(null); }} />}
       {gen && <SessionGenerator state={state} horseId={gen.horseId} planId={gen.planId} init={gen.init} onClose={() => setGen(null)} onGenerate={props.onGenerate} onDone={() => { setGen(null); setTab('sessions'); }} />}
       {single && <SingleSessionForm state={state} onClose={() => setSingle(false)} onGenerate={props.onGenerate} />}
     </div>
@@ -326,34 +329,34 @@ export function TrainingHubPage(props: HubProps) {
 
 // ── Result form ──────────────────────────────────────────────────────────────
 
-function ResultForm({ onSubmit, onCancel }: { onSubmit: (r: ResultT) => string | null; onCancel: () => void }) {
+function ResultForm({ onSubmit, onCancel }: { onSubmit: (r: ResultT) => string | null | Promise<string | null>; onCancel: () => void }) {
   const [f, setF] = useState({ time: '', speed: '', hr: '', score: '', notes: '' });
   const [e, setE] = useState<Record<string, string>>({});
   const [err, setErr] = useState('');
   const set = (k: keyof typeof f) => (v: string) => { setF(p => ({ ...p, [k]: v })); setE(p => ({ ...p, [k]: '' })); };
-  const submit = () => {
+  const submit = async () => {
     const x: Record<string, string> = {};
-    if (!f.time.trim()) x.time = 'Bắt buộc nhập thời gian thực tế.';
+    if (!/^\d+(?:[.,]\d{1,2})?$/.test(f.time.trim())) x.time = 'Nhập cự ly thực tế bằng km, tối đa 2 chữ số thập phân.';
     const sp = Number(f.speed);
     if (f.speed.trim() === '' || isNaN(sp) || sp < 0 || sp > 100) x.speed = 'Tốc độ từ 0 đến 100 km/h.';
     const hr = Number(f.hr);
     if (f.hr.trim() === '' || !Number.isInteger(hr) || hr < 20 || hr > 250) x.hr = 'Nhịp tim là số nguyên từ 20 đến 250 bpm.';
     const sc = Number(f.score);
-    if (f.score.trim() === '' || !Number.isInteger(sc) || sc < 0 || sc > 100) x.score = 'Điểm là số nguyên từ 0 đến 100.';
+    if (f.score.trim() === '' || !Number.isInteger(sc) || sc < 20 || sc > 250) x.score = 'Nhịp tim hồi phục phải từ 20 đến 250 bpm.';
     if (f.notes.length > 300) x.notes = 'Nhận xét tối đa 300 ký tự.';
     setE(x);
     if (Object.keys(x).length) return;
-    const r = onSubmit({ time: f.time.trim(), speed: String(sp), heartRate: hr, notes: f.notes.trim(), performanceScore: sc });
+    const r = await onSubmit({ time: f.time.trim(), speed: String(sp), heartRate: hr, notes: f.notes.trim(), performanceScore: sc });
     if (r) setErr(r);
   };
   return (
     <div className="mt-4 border-t border-gray-100 pt-4">
       <h4 className="mb-3 text-sm font-semibold">Ghi chỉ số buổi tập</h4>
       <div className="grid grid-cols-2 gap-4">
-        <Input label="Thời gian thực tế" required value={f.time} onChange={set('time')} placeholder="VD: 73.8s" hint="Thời gian hoàn thành bài tập" error={e.time} />
-        <Input label="Tốc độ cao nhất (km/h)" required type="number" value={f.speed} onChange={set('speed')} placeholder="VD: 58.6" hint="0–100" error={e.speed} />
-        <Input label="Nhịp tim tối đa (bpm)" required type="number" value={f.hr} onChange={set('hr')} placeholder="VD: 188" hint="20–250" error={e.hr} />
-        <Input label="Điểm hiệu suất" required type="number" value={f.score} onChange={set('score')} placeholder="VD: 85" hint="0–100" error={e.score} />
+        <Input label="Cự ly thực tế (km)" required value={f.time} onChange={set('time')} placeholder="VD: 1.2" hint="Cự ly đã hoàn thành, tối đa 2 chữ số thập phân" error={e.time} />
+        <Input label="Tốc độ trung bình (km/h)" required type="number" value={f.speed} onChange={set('speed')} placeholder="VD: 58.6" hint="0–100" error={e.speed} />
+        <Input label="Nhịp tim cuối bài (bpm)" required type="number" value={f.hr} onChange={set('hr')} placeholder="VD: 188" hint="20–250" error={e.hr} />
+        <Input label="Nhịp tim sau hồi phục 2 phút (bpm)" required type="number" value={f.score} onChange={set('score')} placeholder="VD: 85" hint="Đo ít nhất 2 phút sau khi dừng bài; 20–250 bpm" error={e.score} />
         <div className="col-span-2"><Textarea label="Nhận xét" value={f.notes} onChange={set('notes')} rows={2} placeholder="Phong độ, kỹ thuật, tiến bộ..." hint={`${f.notes.length}/300`} />{e.notes && <p className="text-xs text-red-600">{e.notes}</p>}</div>
       </div>
       {err && <div className="mt-3"><ErrorBox text={err} /></div>}
@@ -376,7 +379,7 @@ function SessionGenerator({ state, horseId, planId, init, onClose, onDone, onGen
   const horse = state.horses.find(h => h.id === horseId)!;
   const plan = state.trainingPlans.find(p => p.id === planId)!;
   const en = currentEnrollment(state.enrollments, horseId);
-  const sug = useMemo(() => computeTrainingSuggestion(horse, latestRecord(state.healthRecords, horseId)), [horse, state.healthRecords, horseId]);
+  const sug: TrainingSuggestion | null = null;
   const [weekdays, setWeekdays] = useState<number[]>(init?.weekdays ?? []);
   const [time, setTime] = useState(init?.time ?? '07:30');
   const [weeks, setWeeks] = useState(String(init?.weeks ?? 2));
@@ -386,25 +389,22 @@ function SessionGenerator({ state, horseId, planId, init, onClose, onDone, onGen
   const [confirm, setConfirm] = useState(false);
   const [serverErr, setServerErr] = useState('');
 
-  const build = () => {
-    const x: Record<string, string> = {};
-    if (weekdays.length < 1 || weekdays.length > 6) x.weekdays = 'Chọn từ 1 đến 6 ngày trong tuần.';
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) x.time = 'Giờ không hợp lệ.';
-    const w = Number(weeks);
-    if (!Number.isInteger(w) || w < 1 || w > 12) x.weeks = 'Số tuần từ 1 đến 12.';
-    const sd = isoToD(start);
-    if (!validDate(sd)) x.start = 'Chọn ngày bắt đầu.'; else if (diffDays(TODAY, sd) < 0) x.start = 'Ngày bắt đầu không được ở quá khứ.';
-    setFormErr(x); setServerErr('');
-    if (Object.keys(x).length) return;
-    const out: SessionDraft[] = [];
-    for (let i = 0; i < w * 7; i++) {
-      const d = addDays(sd, i);
-      const dow = parseD(d).getDay();
-      if (!weekdays.includes(dow)) continue;
-      const c = contentFor(sug, dow);
-      out.push({ date: d, time, type: c.type, distance: c.distance, targetTime: c.target, notes: `Theo lộ trình ${plan.phase}` });
-    }
-    setRows(out);
+  const build = async () => {
+    setServerErr('');
+    try {
+      const stages = await request<any[]>(`/training-plans/${encodeURIComponent(planId)}/stages`);
+      const output: SessionDraft[] = [];
+      const dayKeys = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+      const startDate = en?.startedAt || plan.startDate;
+      for (const stage of stages) {
+        const days: string[] = typeof stage.weekdays_json === 'string' ? JSON.parse(stage.weekdays_json) : stage.daysOfWeek || [];
+        for (let day = Number(stage.start_day || stage.startDay); day <= Number(stage.end_day || stage.endDay); day++) {
+          const date = addDays(startDate, day-1);
+          if (days.includes(dayKeys[parseD(date).getDay()])) output.push({ date, time: String(stage.session_time || stage.sessionTime).slice(0,5), type: stage.activity_name || stage.activityName, distance: 'Theo phác đồ', targetTime: '', notes: stage.objective || '' });
+        }
+      }
+      setRows(output);
+    } catch (e) { setServerErr((e as Error).message); }
   };
 
   const chk = rows ? checkSessionDrafts({ sessions: state.trainingSessions, enrollments: state.enrollments, horseId, trainerId: me.id }, rows) : null;
@@ -459,7 +459,7 @@ function SessionGenerator({ state, horseId, planId, init, onClose, onDone, onGen
       {confirm && rows && (
         <Modal title="Xác nhận tạo buổi tập?" onClose={() => setConfirm(false)}>
           <p className="text-sm text-gray-600">Tạo <strong>{rows.length}</strong> buổi tập cho <strong>{horse.name}</strong> từ {rows[0].date} đến {rows[rows.length - 1].date}.</p>
-          <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setConfirm(false)}>Quay lại</Btn><Btn variant="gold" onClick={() => { const r = onGenerate(horseId, planId, rows); setConfirm(false); if (!r.ok) setServerErr(r.message); else onDone(); }}>Xác nhận tạo</Btn></div>
+          <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setConfirm(false)}>Quay lại</Btn><Btn variant="gold" onClick={async () => { const r = await onGenerate(horseId, planId, rows); setConfirm(false); if (!r.ok) setServerErr(r.message); else onDone(); }}>Xác nhận tạo</Btn></div>
         </Modal>
       )}
     </Modal>
@@ -482,7 +482,7 @@ function SingleSessionForm({ state, onClose, onGenerate }: { state: HubState; on
   const set = (k: keyof typeof f) => (v: string) => { setF(p => ({ ...p, [k]: v })); setE(p => ({ ...p, [k]: '' })); setErr(''); };
   const plan = state.trainingPlans.find(p => p.horseId === f.horseId && p.status === 'Active');
 
-  const submit = () => {
+  const submit = async () => {
     const x: Record<string, string> = {};
     if (!f.horseId) x.horseId = 'Chưa có ngựa hợp lệ để lập buổi tập.';
     const d = isoToD(f.date);
@@ -498,7 +498,7 @@ function SingleSessionForm({ state, onClose, onGenerate }: { state: HubState; on
     }
     setE(x);
     if (Object.keys(x).length) return;
-    const r = onGenerate(f.horseId, plan!.id, [{ date: d, time: f.time, type: f.type, distance: f.distance.trim(), targetTime: f.targetTime.trim() || '—', notes: f.notes }]);
+    const r = await onGenerate(f.horseId, plan!.id, [{ date: d, time: f.time, type: f.type, distance: f.distance.trim(), targetTime: f.targetTime.trim() || '—', notes: f.notes }]);
     if (!r.ok) setErr(r.message); else onClose();
   };
 
@@ -547,27 +547,41 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
 
   const horse = mine.find(h => h.id === horseId);
   const rec = horse ? latestRecord(state.healthRecords, horse.id) : undefined;
-  const sug = useMemo(() => horse ? computeTrainingSuggestion(horse, rec) : null, [horse, rec]);
+  const [sug, setSug] = useState<TrainingSuggestion | null>(null);
   const en = horse ? currentEnrollment(state.enrollments, horse.id) : undefined;
+  useEffect(() => {
+    let active = true; setSug(null); setSubmitErr('');
+    if (!en?.assignmentId || en.trainerStatus !== 'confirmed') return;
+    void recommendationFor(en.id, en.assignmentId).then(value => {
+      if (!active) return;
+      setSug(recommendationView(value));
+      setF(p => ({ ...p, start: dToIso(en.startedAt), weeks: String(Math.ceil(diffDays(en.startedAt, en.expiresAt)/7)) }));
+      setWeekdays([...new Set<number>((value.stages || []).flatMap((s: any) => s.daysOfWeek.map((day: string) => ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'].indexOf(day))))]);
+      setTime(value.stages?.[0]?.sessionTime?.slice(0,5) || '07:30');
+    }).catch(e => { if (active) setSubmitErr((e as Error).message); });
+    return () => { active = false; };
+  }, [en?.id, en?.assignmentId, en?.trainerStatus]);
   const decision = rec ? (rec.decision === 'not-eligible' || rec.trainingEligibility === 'not-eligible' ? 'not-eligible' : rec.trainingEligibility === 'conditional' ? 'conditional' : 'eligible') : null;
   const sugLevel = sug ? suggestedLevel(sug) : 0;
   const level = f.level || INTENSITY_LEVELS[sugLevel];
   const phase = f.phase || sug?.phase || PHASES[0];
   const weeks = Number(f.weeks);
   const startD = isoToD(f.start);
-  const endD = validDate(startD) && Number.isInteger(weeks) ? addDays(startD, weeks * 7 - 1) : '';
+  const endD = en?.expiresAt || (validDate(startD) && Number.isInteger(weeks) ? addDays(startD, weeks * 7 - 1) : '');
   const total = weekdays.length * (Number.isInteger(weeks) ? weeks : 0);
-  const remain = en ? en.sessionsTotal - en.sessionsDone : 0;
+  const remain = en && en.sessionsTotal > 0 ? en.sessionsTotal - en.sessionsDone : (sug?.sessionCount || 0);
 
   const set = (k: keyof typeof f) => (v: string) => { setF(p => ({ ...p, [k]: v })); setErrs(p => ({ ...p, [k]: '' })); };
 
   const validate = (): boolean => {
     const x: Record<string, string> = {};
     if (step === 0) {
+      if (!sug && horse) x.horse = 'Chưa có phác đồ hợp lệ từ BE. Kiểm tra thông báo lỗi bên dưới.';
       if (!horse) x.horse = 'Vui lòng chọn ngựa.';
       else { const b = trainerPlanBlockReason(horse, state.enrollments, me.id); if (b) x.horse = `Không thể chọn "${horse.name}": ${b}.`; }
     }
     if (step === 1) {
+      if (!sug) x.health = 'Chưa tải được đề xuất BE. Kiểm tra phác đồ đã được bác sĩ phê duyệt.';
       if (!rec) x.health = 'Ngựa chưa có hồ sơ khám — cần Thú y khám trước khi lập lộ trình.';
       else if (decision === 'not-eligible') x.health = 'Kết luận khám gần nhất: KHÔNG đủ điều kiện huấn luyện. Không thể lập lộ trình.';
     }
@@ -588,10 +602,10 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
   };
   const next = () => { if (validate()) setStep(s => s + 1); };
 
-  const submit = () => {
+  const submit = async () => {
     if (!horse || !sug || busy) return;
     setBusy(true);
-    const r = onCreatePlan({ horseId: horse.id, phase, startDate: startD, endDate: endD, distance: f.distance, workload: WORKLOAD_OF[level], surface: 'Cỏ', goals: f.goal.trim(), suggestion: sug });
+    const r = await onCreatePlan({ horseId: horse.id, phase, startDate: startD, endDate: endD, distance: f.distance, workload: WORKLOAD_OF[level], surface: 'Cỏ', goals: f.goal.trim(), suggestion: sug, weekdays, time });
     setBusy(false);
     if (!r.ok) { setSubmitErr(r.message); return; }
     onDone(r.data, { weekdays, time, weeks });
@@ -636,8 +650,8 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
             </div>
           ) : <ErrorBox text="Ngựa chưa có hồ sơ khám." />}
           <div className="rounded-xl border border-[#c9973b]/30 bg-[#c9973b]/5 p-4 text-sm">
-            <div className="font-semibold text-[#8a6420]">Đề xuất cường độ: {INTENSITY_LEVELS[sugLevel]} · giai đoạn {sug.phase} · điểm {sug.intensityScore}/100</div>
-            <div className="mt-1 text-gray-600">{sug.weeklyKm} km/tuần · {sug.sessionsPerWeek} buổi/tuần · {sug.restDaysPerWeek} ngày nghỉ</div>
+            <div className="font-semibold text-[#8a6420]">Đề xuất cường độ: {INTENSITY_LEVELS[sugLevel]} · giai đoạn {sug.phase} · phác đồ đã được BE chọn</div>
+            <div className="mt-1 text-gray-600">{sug.sessionsPerWeek} buổi/tuần · {sug.restDaysPerWeek} ngày nghỉ</div>
             {sug.warnings.map(w => <div key={w} className="mt-1 text-xs text-amber-700">⚠ {w}</div>)}
           </div>
           {errs.health && <ErrorBox text={errs.health} />}
@@ -648,7 +662,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
         <Card className="space-y-4 p-6">
           <h3 className="font-serif text-lg font-bold">Đặt mục tiêu</h3>
           <div className="grid gap-4 md:grid-cols-2">
-            <Select label="Giai đoạn" required value={phase} onChange={set('phase')} options={PHASES.map(v => ({ value: v, label: v }))} hint={`Đề xuất: ${sug.phase}`} />
+            <Select label="Giai đoạn" required value={phase} onChange={set('phase')} options={[...new Set([phase, ...PHASES])].map(v => ({ value: v, label: v }))} hint={`Đề xuất: ${sug.phase}`} />
             <Select label="Cự ly chính" required value={f.distance} onChange={set('distance')} options={DISTANCES.map(v => ({ value: v, label: v }))} />
             <Input label="Số tuần" required type="number" value={f.weeks} onChange={set('weeks')} hint="Từ 1 đến 12 tuần" error={errs.weeks} />
             <Input label="Ngày bắt đầu" required type="date" value={f.start} min={dToIso(TODAY)} onChange={set('start')} hint="Từ hôm nay trở đi" error={errs.start} />
@@ -664,7 +678,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
       {step === 3 && sug && (
         <Card className="space-y-4 p-6">
           <h3 className="font-serif text-lg font-bold">Chọn lịch tập</h3>
-          <WeekdayPicker value={weekdays} max={sug.sessionsPerWeek} onChange={v => { setWeekdays(v); setErrs(p => ({ ...p, weekdays: '' })); }} error={errs.weekdays} />
+          <WeekdayPicker value={weekdays} max={6} onChange={v => { setWeekdays(v); setErrs(p => ({ ...p, weekdays: '' })); }} error={errs.weekdays} />
           <div className="max-w-xs"><Input label="Giờ tập" required type="time" value={time} onChange={v => { setTime(v); setErrs(p => ({ ...p, time: '' })); }} error={errs.time} /></div>
           {weekdays.length > sug.sessionsPerWeek && <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Bạn chọn {weekdays.length} buổi/tuần, cao hơn mức đề xuất {sug.sessionsPerWeek} buổi/tuần cho tình trạng hiện tại.</div>}
         </Card>
@@ -697,7 +711,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
         </Card>
       )}
 
-      {errs.horse && <ErrorBox text={errs.horse} />}
+      {submitErr && step !== 5 && <ErrorBox text={submitErr} />}{errs.horse && <ErrorBox text={errs.horse} />}
 
       <div className="flex justify-between">
         <Btn variant="secondary" disabled={step === 0} onClick={() => { setErrs({}); setSubmitErr(''); setStep(s => s - 1); }}>← Quay lại</Btn>

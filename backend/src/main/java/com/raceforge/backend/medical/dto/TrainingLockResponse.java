@@ -4,11 +4,11 @@ import com.raceforge.backend.medical.entity.TrainingLock;
 import java.time.LocalDateTime;
 
 public class TrainingLockResponse {
-    private Integer lockId;
-    private Integer horseId;
-    private Integer medicalRecordId;
-    private Integer lockedById;
-    private Integer unlockedById;
+    private String lockId;
+    private String horseId;
+    private String medicalRecordId;
+    private String lockedById;
+    private String unlockedById;
     private LocalDateTime lockedAt;
     private String lockReason;
     private LocalDateTime unlockedAt;
@@ -28,23 +28,23 @@ public class TrainingLockResponse {
         return result;
     }
     
-    public Integer getLockId() {
+    public String getLockId() {
          return lockId; 
     }
 
-    public Integer getHorseId() { 
+    public String getHorseId() { 
         return horseId; 
     }
 
-    public Integer getMedicalRecordId() { 
+    public String getMedicalRecordId() { 
         return medicalRecordId; 
     }
 
-    public Integer getLockedById() { 
+    public String getLockedById() { 
         return lockedById; 
     }
 
-    public Integer getUnlockedById() { 
+    public String getUnlockedById() { 
         return unlockedById; 
     }
 

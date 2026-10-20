@@ -22,5 +22,5 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
             set t.usedAt = :now
             where t.user.userId = :userId and t.usedAt is null
             """)
-    int markAllUnusedForUserUsed(@Param("userId") Integer userId, @Param("now") Instant now);
+    int markAllUnusedForUserUsed(@Param("userId") String userId, @Param("now") Instant now);
 }

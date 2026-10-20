@@ -5,16 +5,27 @@ import java.util.List;
 
 public class MedicalRecordResponse {
 
-    private Integer medicalRecordId;
+    private String medicalRecordId;
 
-    private Integer profileId;
-    private Integer veterinarianId;
-    private Integer correctionOfId;
+    private String profileId;
+    private String veterinarianId;
+    private String correctionOfId;
 
     private String examType;
     private LocalDateTime examinedAt;
 
     private String healthStatus;
+
+    // Derived after confirmation; null while the record is a draft.
+    private Boolean trainingEligible;
+    private String eligibilityReason;
+
+    private String suggestedConclusion;
+    private String finalConclusion;
+    private String overrideReason;
+    private String monitoringNote;
+    private String trainingLockReason;
+
 
     private String diagnosis;
     private String treatment;
@@ -38,35 +49,35 @@ public class MedicalRecordResponse {
     public MedicalRecordResponse() {
     }
 
-    public Integer getMedicalRecordId() {
+    public String getMedicalRecordId() {
         return medicalRecordId;
     }
 
-    public void setMedicalRecordId(Integer medicalRecordId) {
+    public void setMedicalRecordId(String medicalRecordId) {
         this.medicalRecordId = medicalRecordId;
     }
 
-    public Integer getProfileId() {
+    public String getProfileId() {
         return profileId;
     }
 
-    public void setProfileId(Integer profileId) {
+    public void setProfileId(String profileId) {
         this.profileId = profileId;
     }
 
-    public Integer getVeterinarianId() {
+    public String getVeterinarianId() {
         return veterinarianId;
     }
 
-    public void setVeterinarianId(Integer veterinarianId) {
+    public void setVeterinarianId(String veterinarianId) {
         this.veterinarianId = veterinarianId;
     }
 
-    public Integer getCorrectionOfId() {
+    public String getCorrectionOfId() {
         return correctionOfId;
     }
 
-    public void setCorrectionOfId(Integer correctionOfId) {
+    public void setCorrectionOfId(String correctionOfId) {
         this.correctionOfId = correctionOfId;
     }
 
@@ -197,4 +208,62 @@ public class MedicalRecordResponse {
     public void setClinicalExams(List<MedicalClinicalExamResponse> clinicalExams) {
         this.clinicalExams = clinicalExams;
     }
+
+    public Boolean getTrainingEligible() {
+        return trainingEligible;
+    }
+
+    public void setTrainingEligible(Boolean trainingEligible) {
+        this.trainingEligible = trainingEligible;
+    }
+
+    public String getEligibilityReason() {
+        return eligibilityReason;
+    }
+
+    public void setEligibilityReason(String eligibilityReason) {
+        this.eligibilityReason = eligibilityReason;
+    }
+
+    public String getSuggestedConclusion() {
+        return suggestedConclusion;
+    }
+
+    public void setSuggestedConclusion(String suggestedConclusion) {
+        this.suggestedConclusion = suggestedConclusion;
+    }
+
+    public String getFinalConclusion() {
+        return finalConclusion;
+    }
+
+    public void setFinalConclusion(String finalConclusion) {
+        this.finalConclusion = finalConclusion;
+    }
+
+    public String getOverrideReason() {
+        return overrideReason;
+    }
+
+    public void setOverrideReason(String overrideReason) {
+        this.overrideReason = overrideReason;
+    }
+
+    public String getMonitoringNote() {
+        return monitoringNote;
+    }
+
+    public void setMonitoringNote(String monitoringNote) {
+        this.monitoringNote = monitoringNote;
+    }
+
+    public String getTrainingLockReason() {
+        return trainingLockReason;
+    }
+
+    public void setTrainingLockReason(String trainingLockReason) {
+        this.trainingLockReason = trainingLockReason;
+    }
+
+
 }

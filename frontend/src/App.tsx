@@ -1,7 +1,15 @@
+import { TrainingProtocolsPage } from './trainingProtocolsPage';
+import { TrainerProfileForm } from './trainerProfileForm';
+import { permissionForPage } from './permissionApi';
+import { clearRecommendations } from './recommendations';
+import { passwordSetupLink, createPasswordSetupSubmitter, passwordSetupError, requestPasswordReset, restoreSessionForLocation } from './passwordSetup';
+import { auth, request, ApiError } from './api';
+import { loadRemote, userFromApi, CENTER } from './remote';
+import { makeRemoteActions } from './remoteActions';
 import { VetHealthFormPage, nextMedId, REGION_DEFS } from './vetForm';
 import { HealthRecordsPage } from './healthRecords';
 import { IntakeBoardPage, VetAssignedPage, IntakeProgress, IdentityBadge, intakeStage, vetVisible } from './intake';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { makeTrainingHandlers } from './trainingLogic';
 import { PackageCatalogPage, TrainerAssignPage } from './packages';
 import { TrainingRegisterPage } from './trainingRegister';
@@ -174,10 +182,16 @@ function UserAvatarDropdown({ user, onLogout }: { user: AppUser; onLogout: () =>
 
 // ── OTP Modal ─────────────────────────────────────────────────────────────────
 
-function OTPModal({ email, code, onVerify, onClose }: { email: string; code: string; onVerify: () => void; onClose: () => void }) {
+function OTPModal({ email, code, onVerify, onClose }: { email: string; code: string; onVerify: () => void | Promise<void>; onClose: () => void }) {
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
-  const verify = () => { if (input === code) onVerify(); else setError('Mã OTP không đúng. Vui lòng thử lại.'); };
+  const [busy, setBusy] = useState(false);
+  const verify = async () => {
+    if (busy) return;
+    if (!/^\d{6}$/.test(input)) { setError('Nhập mã OTP gồm 6 chữ số.'); return; }
+    setBusy(true); setError('');
+    try { await auth.verify(email, input); await onVerify(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
@@ -188,8 +202,8 @@ function OTPModal({ email, code, onVerify, onClose }: { email: string; code: str
           <p className="text-gray-500 text-sm mt-1">Mã đã gửi đến <strong className="text-[#0f1729]">{email}</strong></p>
         </div>
         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-center">
-          <div className="text-xs text-amber-600 font-medium mb-1">🔐 Mã OTP (demo mode)</div>
-          <div className="font-mono text-2xl font-bold text-[#c9973b] tracking-[0.4em]">{code}</div>
+          <div className="text-xs text-amber-600 font-medium mb-1">🔐 Mã xác thực trong email</div>
+          <div className="font-mono text-2xl font-bold text-[#c9973b] tracking-[0.4em]"><button type="button" onClick={async () => { try { await auth.resend(email); setError('Đã gửi lại mã OTP.'); } catch (e) { setError((e as Error).message); } }}>Gửi lại mã</button></div>
         </div>
         <div className="space-y-4">
           <input value={input} onChange={e => setInput(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="000000" maxLength={6}
@@ -371,16 +385,38 @@ function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) => void; 
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [forgot, setForgot] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [setup, setSetup] = useState(() => passwordSetupLink(window.location.search));
+  const submitSetup = useMemo(() => setup ? createPasswordSetupSubmitter(setup) : null, [setup]);
+  const submitting = useRef(false);
   const di = 'w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]';
 
-  const handle = () => {
-    if (!email || !password) { setError('Please enter your email and password'); return; }
-    setLoading(true);
-    setTimeout(() => {
-      const u = users.find(u => u.email === email && u.password === password);
-      if (u) { if (!u.verified) { setError("Your email address has not been verified. Please check your inbox."); setLoading(false); } else if (u.locked) { setError("Your account is locked. Please contact an administrator."); setLoading(false); } else onLogin(u); }
-      else { setError("Incorrect email or password"); setLoading(false); }
-    }, 400);
+  const handle = async () => {
+    if (submitting.current) return;
+    if (setup && password !== confirmPassword) { setError('Mật khẩu xác nhận không khớp.'); return; }
+    if (!setup && !forgot && (!email.trim() || !password)) { setError('Please enter your email and password'); return; }
+    submitting.current = true;
+    setLoading(true); setError(''); setNotice('');
+    try {
+      if (forgot && !setup) {
+        await requestPasswordReset(email);
+        setNotice('Nếu email có tài khoản đã đặt mật khẩu, hệ thống đã gửi liên kết. Vui lòng kiểm tra hộp thư và thư rác. Tài khoản chưa kích hoạt cần dùng email mời của admin.');
+        return;
+      }
+      if (setup && submitSetup) {
+        await submitSetup(password);
+        window.history.replaceState({}, '', '/');
+        setSetup(null); setPassword(''); setConfirmPassword(''); setEmail('');
+        setNotice('Đã đặt mật khẩu. Vui lòng đăng nhập bằng email của tài khoản và mật khẩu mới.');
+        navigate('login');
+        return;
+      }
+      onLogin(userFromApi(await auth.login(email.trim(), password)));
+    }
+    catch (e) { setError(setup ? passwordSetupError(e, setup.invitation) : (e as Error).message); }
+    finally { submitting.current = false; setLoading(false); }
   };
 
   return (
@@ -393,13 +429,16 @@ function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) => void; 
             <div className="w-10 h-10 rounded-xl bg-[#c9973b] flex items-center justify-center text-xl">🐎</div>
             <div><div className="text-white font-serif font-bold text-xl">RaceForce</div><div className="text-[#c9973b] text-xs">Horse Racing Management</div></div>
           </div>
-          <h2 className="text-white font-serif text-3xl font-bold mb-6">Sign in</h2>
+          <h2 className="text-white font-serif text-3xl font-bold mb-6">{setup ? (setup.invitation ? 'Activate staff account' : 'Đặt mật khẩu mới') : forgot ? 'Forgot password' : 'Sign in'}</h2>
           <div className="space-y-4">
-            <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email@example.com" className={di} /></div>
-            <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Password</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className={di} onKeyDown={e => e.key === 'Enter' && handle()} /></div>
+            <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Email</label><input type="email" value={email} disabled={!!setup} onChange={e => setEmail(e.target.value)} placeholder={setup ? 'Tài khoản được xác định bằng liên kết email' : 'email@example.com'} className={di} /></div>
+            {!forgot && (<div><label className="block text-sm font-medium text-gray-300 mb-1.5">{setup ? 'Mật khẩu mới' : 'Password'}</label><input type="password" value={password} disabled={loading} autoComplete={setup ? 'new-password' : 'current-password'} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className={di} onKeyDown={e => e.key === 'Enter' && handle()} /></div>)}
+            {setup && <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Nhập lại mật khẩu mới</label><input type="password" value={confirmPassword} disabled={loading} autoComplete="new-password" onChange={e => setConfirmPassword(e.target.value)} placeholder="Nhập lại mật khẩu mới" className={di} onKeyDown={e => e.key === 'Enter' && handle()} /></div>}
             {error && <div className="p-3 bg-red-900/30 border border-red-700/40 rounded-lg text-red-400 text-sm">{error}</div>}
-            <button onClick={handle} disabled={loading} className="w-full py-3 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all text-sm disabled:opacity-60">{loading ? "Signing in..." : "Sign in →"}</button>
+            {notice && <div className="p-3 bg-emerald-900/30 border border-emerald-700/40 rounded-lg text-emerald-300 text-sm" role="status">{notice}</div>}
+            <button onClick={handle} disabled={loading} className="w-full py-3 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all text-sm disabled:opacity-60">{setup ? (loading ? 'Đang đặt mật khẩu...' : 'Đặt mật khẩu') : forgot ? (loading ? 'Đang gửi...' : 'Gửi liên kết qua email') : (loading ? 'Signing in...' : 'Sign in →')}</button>
           </div>
+          {!setup && <button disabled={loading} onClick={() => { setForgot(!forgot); setPassword(''); setConfirmPassword(''); setError(''); setNotice(''); }} className="mt-4 text-[#c9973b] hover:underline text-sm">{forgot ? 'Quay lại đăng nhập' : 'Forgot password?'}</button>}
           <p className="text-center text-gray-500 text-sm mt-5">No account yet? <button onClick={() => navigate('register')} className="text-[#c9973b] hover:underline font-medium">Register</button></p>
           <p className="mt-2 text-center text-xs text-gray-500">Staff accounts are issued by an administrator.</p>
 
@@ -408,7 +447,7 @@ function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) => void; 
             <p className="text-gray-500 text-xs text-center mb-3 uppercase tracking-wider font-medium">Quick sign-in (demo)</p>
             <div className="grid grid-cols-2 gap-2">
               {DEMO_ACCOUNTS.map(acc => (
-                <button key={acc.email} onClick={() => { setEmail(acc.email); setPassword(acc.password); setTimeout(() => { const u = users.find(u => u.email === acc.email); if (u) onLogin(u); }, 100); }}
+                <button key={acc.email} disabled={!!setup || forgot || loading} onClick={() => { setEmail(acc.email); setPassword(''); setError('Enter the password for this server account.'); }}
                   className="flex items-center gap-2 p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all text-left">
                   <span className={`w-7 h-7 rounded-lg ${acc.color} flex items-center justify-center text-white text-sm flex-shrink-0`}>{acc.icon}</span>
                   <div className="min-w-0"><div className="text-white text-xs font-medium truncate">{acc.role}</div></div>
@@ -440,17 +479,15 @@ function RegisterPage({ navigate, onRegister }: { navigate: (p: Page) => void; o
   const set = (k: string) => (v: string) => setForm(f => ({ ...f, [k]: v }));
   const di = 'w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]';
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!form.name || !form.email || !form.password) { setError("Please complete all required fields"); return; }
     if (form.password !== form.confirm) { setError("Passwords do not match"); return; }
-    if (form.password.length < 6) { setError("Password must contain at least 6 characters"); return; }
-    otpCode.current = String(Math.floor(100000 + Math.random() * 900000));
-    setError(''); setShowOtp(true);
+    if (form.password.length < 8) { setError('Password must contain at least 8 characters'); return; }
+    try { await auth.register({ fullName: form.name.trim(), email: form.email.trim(), password: form.password, phone: form.phone.trim() }); setError(''); setShowOtp(true); } catch (e) { setError((e as Error).message); }
   };
 
-  const handleVerified = () => {
-    const initials = form.name.trim().split(' ').map(w => w[0]).slice(-2).join('').toUpperCase();
-    onRegister({ id: `u${Date.now()}`, name: form.name, email: form.email, password: form.password, avatar: initials, role: 'owner', clubId: null, status: 'active', phone: form.phone, verified: true });
+  const handleVerified = async () => {
+    onRegister(userFromApi(await auth.login(form.email.trim(), form.password)));
   };
 
   return (
@@ -470,7 +507,7 @@ function RegisterPage({ navigate, onRegister }: { navigate: (p: Page) => void; o
               <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Full name <span className="text-red-400">*</span></label><input value={form.name} onChange={e => set('name')(e.target.value)} placeholder="Full name" className={di} /></div>
               <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Email <span className="text-red-400">*</span></label><input type="email" value={form.email} onChange={e => set('email')(e.target.value)} placeholder="you@example.com" className={di} /></div>
               <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Phone number</label><input value={form.phone} onChange={e => set('phone')(e.target.value)} placeholder="0912 345 678" className={di} /></div>
-              <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Password <span className="text-red-400">*</span></label><input type="password" value={form.password} onChange={e => set('password')(e.target.value)} placeholder="At least 6 characters" className={di} /></div>
+              <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Password <span className="text-red-400">*</span></label><input type="password" value={form.password} onChange={e => set('password')(e.target.value)} placeholder="At least 8 characters" className={di} /></div>
               <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Confirm password <span className="text-red-400">*</span></label><input type="password" value={form.confirm} onChange={e => set('confirm')(e.target.value)} placeholder="Enter again" className={di} onKeyDown={e => e.key === 'Enter' && handleSubmit()} /></div>
               {error && <p className="text-red-400 text-sm">{error}</p>}
               <button onClick={handleSubmit} className="w-full py-3 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all text-sm">Send OTP code →</button>
@@ -780,7 +817,7 @@ function ManagerDashboard({ state, navigate }: { state: AppState; navigate: (p: 
         </Card>
         <Card className="p-5">
           <h3 className="font-semibold mb-4">Performance — Thunder King</h3>
-          <ResponsiveContainer width="100%" height={200}><LineChart data={PERFORMANCE_DATA}><CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip /><Line type="monotone" dataKey="speed" stroke="#c9973b" strokeWidth={2} dot={false} name="Speed km/h" /><Line type="monotone" dataKey="fitness" stroke="#1a4a3a" strokeWidth={2} dot={false} name="Fitness %" /></LineChart></ResponsiveContainer>
+          <ResponsiveContainer width="100%" height={200}><LineChart data={state.trainingSessions.filter(s => s.result).map(s => ({ month: s.date, speed: Number(s.result?.speed) }))}><CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip /><Line type="monotone" dataKey="speed" stroke="#c9973b" strokeWidth={2} dot={false} name="Speed km/h" /><Line type="monotone" dataKey="fitness" stroke="#1a4a3a" strokeWidth={2} dot={false} name="Fitness %" /></LineChart></ResponsiveContainer>
         </Card>
       </div>
     </div>
@@ -953,7 +990,7 @@ function HorseListPage({ navigate, horses, role, clubId, onSelectHorse }:
   const PER = 6;
   const q = search.trim().toLowerCase();
   const list = (clubId ? horses.filter(h => h.clubId === clubId) : horses).filter(h => {
-    const ms = !q || h.name.toLowerCase().includes(q) || h.id.toLowerCase().includes(q);
+    const ms = !q || h.name.toLowerCase().includes(q) || h.id.toLowerCase().includes(q) || (h.microchip || '').toLowerCase().includes(q);
     const mf = filter === 'Tất cả' || h.healthStatus === filter || h.trainingStatus === filter;
     const mg = gender === 'Tất cả' || (GENDER_LABEL[h.gender] || h.gender) === gender;
     return ms && mf && mg;
@@ -968,14 +1005,14 @@ function HorseListPage({ navigate, horses, role, clubId, onSelectHorse }:
         <div><h2 className="text-xl font-serif font-bold text-[#0f1729]">Ngựa trong trung tâm</h2><p className="text-sm text-gray-500">{list.length} ngựa</p></div>
       </div>
       <div className="space-y-2">
-        <div className="relative max-w-sm"><input value={search} onChange={e => { setSearch(e.target.value); setPageNo(1); }} placeholder="Tìm theo tên hoặc mã HRS…" className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b] bg-white" /><span className="absolute left-2.5 top-2.5 text-gray-400 text-sm">🔍</span></div>
+        <div className="relative max-w-sm"><input value={search} onChange={e => { setSearch(e.target.value); setPageNo(1); }} placeholder="Tìm theo tên, mã ngựa hoặc UELN…" className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b] bg-white" /><span className="absolute left-2.5 top-2.5 text-gray-400 text-sm">🔍</span></div>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-gray-500 w-20">Trạng thái</span>
           {[['Tất cả', 'Tất cả'], ['Eligible', 'Đủ điều kiện'], ['Monitor', 'Cần theo dõi'], ['Injured', 'Chấn thương'], ['Active', 'Đang tập'], ['Resting', 'Nghỉ ngơi'], ['Inactive', 'Chưa tập']].map(([f, l]) => <button key={f} onClick={() => { setFilter(f); setPageNo(1); }} className={chip(filter === f)}>{l}</button>)}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-gray-500 w-20">Giới tính</span>
-          {['Tất cả', 'Đực', 'Cái'].map(f => <button key={f} onClick={() => { setGender(f); setPageNo(1); }} className={chip(gender === f)}>{f}</button>)}
+          {['Tất cả', 'Stallion', 'Mare', 'Gelding'].map(f => <button key={f} onClick={() => { setGender(f); setPageNo(1); }} className={chip(gender === f)}>{f}</button>)}
         </div>
       </div>
       <Card className="overflow-hidden">
@@ -1009,10 +1046,13 @@ function HorseListPage({ navigate, horses, role, clubId, onSelectHorse }:
 
 // ── Horse Detail ──────────────────────────────────────────────────────────────
 
-function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudit }:
-  { state: AppState; navigate: (p: Page) => void; onUpdateHorse: (h: Horse) => void; onShowSuccess: (m: string) => void; onAudit: (a: string, t: string, r?: string) => void }) {
+function HorseDetailPage({ state, navigate, onUpdateHorse, onActivateHorse, onShowSuccess, onAudit }:
+  { state: AppState; navigate: (p: Page) => void; onUpdateHorse: (h: Horse) => Promise<unknown>; onActivateHorse: (id: string) => Promise<unknown>; onShowSuccess: (m: string) => void; onAudit: (a: string, t: string, r?: string) => void }) {
   const user = state.user!;
   const horse = state.horses.find(h => h.id === state.selectedHorseId) || state.horses[0];
+  const [activating, setActivating] = useState(false);
+  const activationFlight = useRef(false);
+  const [activationError, setActivationError] = useState('');
   const [tab, setTab] = useState('overview');
   const [editMode, setEditMode] = useState(false);
   const [editForm, setEditForm] = useState({ name: horse.name, height: String(horse.height), stable: horse.stable, stall: horse.stall, microchip: horse.microchip || '', evidenceUrl: horse.identityEvidence?.url || '', evidenceFileUrl: horse.identityEvidence?.fileUrl || '', evidenceNote: horse.identityEvidence?.note || '' });
@@ -1020,15 +1060,15 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
   const [showAchForm, setShowAchForm] = useState(false);
   const isOwner = user.role === 'owner' && horse.ownerId === user.id;
   const intakeRequest = state.horseClubRequests.find(r => r.horseId === horse.id && r.status === 'pending');
-  const ownerCanEdit = isOwner && (!intakeRequest || intakeStage(horse, intakeRequest) < 3);
+  const ownerCanEdit = isOwner && horse.approvalStatus !== 'approved' && (!intakeRequest || intakeStage(horse, intakeRequest) < 3);
 
   const [editErr, setEditErr] = useState<Record<string, string>>({});
-  const saveEdit = () => {
+  const saveEdit = async () => {
     const e: Record<string, string> = {};
     const hh = numOf(editForm.height);
     if (editForm.name.trim().length < 2 || editForm.name.length > 40) e.name = 'Tên ngựa từ 2 đến 40 ký tự.';
     if (isNaN(hh) || hh < 100 || hh > 200) e.height = 'Chiều cao hợp lệ từ 100 đến 200 cm.';
-    if (!editForm.microchip) e.microchip = 'Vui lòng nhập số microchip.'; else if (!/^\d{15}$/.test(editForm.microchip)) e.microchip = 'Số microchip gồm đúng 15 chữ số.';
+    if (!editForm.microchip) e.microchip = 'Vui lòng nhập số microchip.'; else if (!/^[0-9]{3}[a-zA-Z0-9]{12}$/.test(editForm.microchip)) e.microchip = 'UELN gồm 3 chữ số và 12 chữ/số.';
     else if (state.horses.some(x => x.id !== horse.id && x.microchip === editForm.microchip)) e.microchip = 'Số microchip này đã tồn tại trong hệ thống.';
     if (editForm.evidenceUrl.trim() && !/^https?:\/\/\S+\.\S+/.test(editForm.evidenceUrl.trim())) e.evidenceUrl = 'URL ảnh phải bắt đầu bằng http:// hoặc https://.';
     if (editForm.evidenceFileUrl.trim() && !/^https?:\/\/\S+/.test(editForm.evidenceFileUrl.trim())) e.evidenceFileUrl = 'File URL must begin with http:// or https://.';
@@ -1039,8 +1079,8 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
     if (editForm.name !== horse.name) diffs.push(`tên "${horse.name}"→"${editForm.name}"`);
     const next: Horse = { ...horse, name: editForm.name.trim(), height: hh, stable: editForm.stable, stall: editForm.stall,
       microchip: editForm.microchip, identityVerified: editForm.microchip === horse.microchip ? horse.identityVerified : false, identityEvidence: { url: editForm.evidenceUrl.trim(), fileUrl: editForm.evidenceFileUrl.trim(), note: editForm.evidenceNote.trim() } };
-    onUpdateHorse(diffs.length ? { ...next, changeLog: logChange(horse, user.name, `cập nhật ${diffs.join(', ')}`) } : next);
-    setEditMode(false); onShowSuccess('Đã cập nhật hồ sơ ngựa!');
+    try { await onUpdateHorse(diffs.length ? { ...next, changeLog: logChange(horse, user.name, `cập nhật ${diffs.join(', ')}`) } : next);
+    setEditMode(false); } catch (err) { setEditErr({ name: (err as Error).message }); }
   };
 
   const [achErr, setAchErr] = useState<Record<string, string>>({});
@@ -1054,16 +1094,16 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
     if (Object.keys(e).length) return;
     const item = { id: editAchId || `a${Date.now()}`, title: newAch.title.trim(), date: toDDMMYYYY(newAch.date), description: newAch.description, prize: newAch.prize, position: Number(newAch.position), doc: newAch.doc || undefined };
     const list = editAchId ? horse.achievements.map(a => a.id === editAchId ? item : a) : [...horse.achievements, item];
-    onUpdateHorse({ ...horse, achievements: list }); setShowAchForm(false); setEditAchId(null); setNewAch({ title: '', date: '', description: '', prize: '', position: '1', doc: '' }); onShowSuccess(editAchId ? 'Đã cập nhật thành tích!' : 'Đã thêm thành tích!');
+    void onUpdateHorse({ ...horse, achievements: list }).catch(() => {});
   };
   const [raceFormOpen, setRaceFormOpen] = useState(false);
   const [editRaceId, setEditRaceId] = useState<string | null>(null);
   const [raceF, setRaceF] = useState({ date: '', raceName: '', distance: '1200m', position: '1', totalHorses: '10', time: '', venue: '', jockey: '', prize: '' });
   const [raceE, setRaceE] = useState<Record<string, string>>({});
-  const saveRace = () => {
+  const saveRace = async () => {
     const e: Record<string, string> = {};
     if (!raceF.raceName.trim()) e.raceName = 'Nhập tên giải đua.';
-    if (!raceF.date) e.date = 'Chọn ngày đua.'; else if (raceF.date > '2026-09-25') e.date = 'Ngày đua không được ở tương lai.';
+    if (!raceF.date) e.date = 'Chọn ngày đua.'; else if (raceF.date > toISO(TODAY)) e.date = 'Ngày đua không được ở tương lai.';
     const tot = Number(raceF.totalHorses);
     if (!Number.isInteger(tot) || tot < 2 || tot > 20) e.totalHorses = 'Số ngựa tham dự từ 2 đến 20.';
     else if (Number(raceF.position) > tot) e.position = 'Hạng không thể lớn hơn số ngựa tham dự.';
@@ -1072,8 +1112,8 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
     if (Object.keys(e).length) return;
     const item: RaceHistoryEntry = { id: editRaceId || `rh${Date.now()}`, ...raceF, date: toDDMMYYYY(raceF.date), position: Number(raceF.position), totalHorses: tot, prize: raceF.prize || '0 VND' };
     const list = editRaceId ? horse.raceHistory.map(r => r.id === editRaceId ? item : r) : [item, ...horse.raceHistory];
-    onUpdateHorse({ ...horse, raceHistory: list, totalRaces: list.length, wins: list.filter(r => r.position === 1).length });
-    setRaceFormOpen(false); setEditRaceId(null); onShowSuccess(editRaceId ? 'Đã cập nhật kết quả đua!' : 'Đã thêm kết quả đua!');
+    try { await onUpdateHorse({ ...horse, raceHistory: list, totalRaces: list.length, wins: list.filter(r => r.position === 1).length });
+    setRaceFormOpen(false); setEditRaceId(null); } catch (err) { setRaceE({ raceName: (err as Error).message }); }
   };
 
   const horseHealthRecords = sortHealthRecords(state.healthRecords.filter(r => r.horseId === horse.id));
@@ -1111,11 +1151,18 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
                 )}
               </div>
             )}
+            {user.role === 'manager' && isApproved && horse.trainingStatus !== 'Active' && <Btn variant="gold" disabled={activating} onClick={async () => {
+              if (activationFlight.current) return;
+              activationFlight.current = true; setActivating(true); setActivationError('');
+              try { await onActivateHorse(horse.id); } catch (e) { setActivationError((e as Error).message); }
+              finally { activationFlight.current = false; setActivating(false); }
+            }}>{activating ? 'Đang kích hoạt...' : 'Kích hoạt ngựa'}</Btn>}
             {user.role === 'veterinarian' && <Btn variant="gold" onClick={() => navigate('vet-health-form')}>🏥 Nhập khám</Btn>}
             {user.role === 'head_trainer' && <Btn variant="gold" onClick={() => navigate('training-hub')}>📋 Giáo án</Btn>}
           </div>
         </div>
       </div>
+      {activationError && <p role="alert" className="text-sm text-red-600">{activationError}</p>}
       {isOwner && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Horse information cannot be changed after Step 3</p>}
       {horse.approvalStatus === 'approved' && <Card className="p-3"><LifecycleStepper horse={horse} /></Card>}
       {horse.lock && (
@@ -1139,7 +1186,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
       {tab === 'overview' && isApproved && (
         <Card className="flex items-start gap-3 border-l-4 border-[#1a2844] bg-slate-50 p-4">
           <span className="text-2xl">🔒</span>
-          <div className="text-sm"><div className="font-semibold text-[#0f1729]">Thông tin hồ sơ đã được khóa</div><div className="text-gray-600">Lý do: ngựa đã được duyệt nhận vào câu lạc bộ ngày {horse.approvedAt}, dữ liệu gốc dùng để đối chiếu nên không được sửa. Bạn chỉ có thể cập nhật <b>thành tích</b> và <b>ảnh minh chứng</b> ở thẻ “Cập nhật”.</div></div>
+          <div className="text-sm"><div className="font-semibold text-[#0f1729]">Thông tin hồ sơ đã được khóa</div><div className="text-gray-600">Ngựa đã được duyệt nhận vào câu lạc bộ; BE khóa dữ liệu đăng ký gốc. Kết quả đua và giải thưởng được cập nhật tại tab lịch sử đua.</div></div>
         </Card>
       )}
       {tab === 'overview' && !isApproved && (() => { const rq = state.horseClubRequests.find(r => r.horseId === horse.id && r.status !== 'expired'); return rq ? <Card className="p-5"><div className="mb-3 text-sm font-semibold text-[#0f1729]">Tiến trình tiếp nhận vào câu lạc bộ</div><IntakeProgress stage={intakeStage(horse, rq)} />{rq.status === 'rejected' && rq.reviewNote && <p className="mt-3 text-sm text-red-600">Lý do từ chối: {rq.reviewNote}</p>}</Card> : null; })()}
@@ -1156,7 +1203,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
                     <Input label="Chuồng" value={editForm.stable} onChange={v => setEditForm(f => ({ ...f, stable: v }))} />
                     <Input label="Ô" value={editForm.stall} onChange={v => setEditForm(f => ({ ...f, stall: v }))} />
                   </div>
-                  <Input label="Identification Code" value={editForm.microchip} maxLength={15} error={editErr.microchip} hint="Changing the identification code resets verification status." onChange={v => setEditForm(f => ({ ...f, microchip: v.replace(/\D/g, '') }))} />
+                  <Input label="UELN" value={editForm.microchip} maxLength={15} error={editErr.microchip} hint="Changing the identification code resets verification status." onChange={v => setEditForm(f => ({ ...f, microchip: v.replace(/[^a-zA-Z0-9]/g, '') }))} />
                   <Input label="Evidence image URL" value={editForm.evidenceUrl} error={editErr.evidenceUrl} onChange={v => setEditForm(f => ({ ...f, evidenceUrl: v }))} />
                   <Input label="Evidence file URL" value={editForm.evidenceFileUrl} error={editErr.evidenceFileUrl} onChange={v => setEditForm(f => ({ ...f, evidenceFileUrl: v }))} />
                   <Input label="Document Type" value={editForm.evidenceNote} onChange={v => setEditForm(f => ({ ...f, evidenceNote: v }))} />
@@ -1250,7 +1297,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
       {tab === 'training' && !isVetRole && (
         <div className="space-y-6">
           <TrainerHistoryTab horse={horse} trainers={state.users.filter(u => u.role === 'head_trainer' && u.clubId === horse.clubId && !u.locked)} canEdit={user.role === 'manager' && horse.clubId === user.clubId} today={TODAY}
-            onChange={(list, text, reason) => { onUpdateHorse({ ...horse, trainerHistory: list, changeLog: logChange(horse, user.name, text) }); onAudit(`Huấn luyện viên phụ trách: ${text}`, `${horse.name} (${dispId('HRS', horse.id)})`, reason); onShowSuccess('Đã cập nhật huấn luyện viên phụ trách!'); }} />
+            onChange={async (list, text, reason) => { try { await onUpdateHorse({ ...horse, trainerHistory: list, changeLog: logChange(horse, user.name, text) }); onAudit(`Huấn luyện viên phụ trách: ${text}`, `${horse.name} (${dispId('HRS', horse.id)})`, reason); } catch {} }} />
           <div className="space-y-3">
             <div className="flex items-center justify-between"><h3 className="font-semibold">Lộ trình huấn luyện</h3>{(user.role === 'head_trainer' || user.role === 'manager') && <Btn variant="secondary" size="sm" onClick={() => navigate('training-hub')}>Mở trang huấn luyện →</Btn>}</div>
             {state.trainingPlans.filter(p => p.horseId === horse.id).map(p => (
@@ -1331,7 +1378,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
               <div className="flex items-start gap-4">
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold flex-shrink-0 ${a.position === 1 ? 'bg-[#c9973b] text-white' : a.position === 2 ? 'bg-gray-400 text-white' : 'bg-amber-700 text-white'}`}>#{a.position}</div>
                 <div className="flex-1"><div className="font-semibold">{a.title}</div><div className="text-sm text-gray-500">{a.date}</div><div className="text-sm text-gray-600 mt-1">{a.description}</div>{a.prize && <div className="text-emerald-600 text-sm font-medium mt-1">🏆 {a.prize}</div>}{a.doc && <div className="text-xs text-blue-600 mt-1">📎 {a.doc}</div>}</div>
-                {isOwner && <div className="flex gap-1.5"><Btn size="sm" variant="secondary" onClick={() => { const [d, m, y] = a.date.split('/'); setNewAch({ title: a.title, date: `${y}-${m}-${d}`, description: a.description, prize: a.prize || '', position: String(a.position || 1), doc: a.doc || '' }); setEditAchId(a.id); setShowAchForm(true); }}>Sửa</Btn><Btn size="sm" variant="danger" onClick={() => { if (window.confirm(`Xóa thành tích "${a.title}"?`)) onUpdateHorse({ ...horse, achievements: horse.achievements.filter(x => x.id !== a.id) }); }}>Xóa</Btn></div>}
+                {isOwner && <div className="flex gap-1.5"><Btn size="sm" variant="secondary" onClick={() => { const [d, m, y] = a.date.split('/'); setNewAch({ title: a.title, date: `${y}-${m}-${d}`, description: a.description, prize: a.prize || '', position: String(a.position || 1), doc: a.doc || '' }); setEditAchId(a.id); setShowAchForm(true); }}>Sửa</Btn><Btn size="sm" variant="danger" onClick={() => { if (window.confirm(`Xóa thành tích "${a.title}"?`)) void onUpdateHorse({ ...horse, achievements: horse.achievements.filter(x => x.id !== a.id) }).catch(() => {}); }}>Xóa</Btn></div>}
               </div>
             </Card>
           ))}
@@ -1369,14 +1416,14 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
                   <div className="text-xs text-gray-400 mt-0.5">Jockey: {r.jockey || '—'} · {r.totalHorses} ngựa tham dự{r.time && ` · TG: ${r.time}`}</div>
                 </div>
                 <div className="text-right">{r.prize !== '0 VND' && <div className="text-xs text-emerald-600">{r.prize}</div>}</div>
-                {isOwner && <div className="flex gap-1.5"><Btn size="sm" variant="secondary" onClick={() => { const [d, m, y] = r.date.split('/'); setRaceF({ date: `${y}-${m}-${d}`, raceName: r.raceName, distance: r.distance, position: String(r.position), totalHorses: String(r.totalHorses), time: r.time, venue: r.venue, jockey: r.jockey, prize: r.prize }); setEditRaceId(r.id); setRaceE({}); setRaceFormOpen(true); }}>Sửa</Btn><Btn size="sm" variant="danger" onClick={() => { if (window.confirm(`Xóa kết quả "${r.raceName}"?`)) { const list = horse.raceHistory.filter(x => x.id !== r.id); onUpdateHorse({ ...horse, raceHistory: list, totalRaces: list.length, wins: list.filter(x => x.position === 1).length }); } }}>Xóa</Btn></div>}
+                {isOwner && <div className="flex gap-1.5"><Btn size="sm" variant="secondary" onClick={() => { const [d, m, y] = r.date.split('/'); setRaceF({ date: `${y}-${m}-${d}`, raceName: r.raceName, distance: r.distance, position: String(r.position), totalHorses: String(r.totalHorses), time: r.time, venue: r.venue, jockey: r.jockey, prize: r.prize }); setEditRaceId(r.id); setRaceE({}); setRaceFormOpen(true); }}>Sửa</Btn><Btn size="sm" variant="danger" onClick={() => { if (window.confirm(`Xóa kết quả "${r.raceName}"?`)) { const list = horse.raceHistory.filter(x => x.id !== r.id); void onUpdateHorse({ ...horse, raceHistory: list, totalRaces: list.length, wins: list.filter(x => x.position === 1).length }).catch(() => {}); } }}>Xóa</Btn></div>}
               </div>
             </Card>
           ))}
         </div>
       )}
 
-      {tab === 'updates' && <PhotosTab horse={horse} canEdit={isOwner || (user.role === 'manager' && horse.clubId === user.clubId)} onChange={photos => onUpdateHorse({ ...horse, photos, changeLog: logChange(horse, user.name, `cập nhật ảnh minh chứng (${photos.length} ảnh)`) })} />}
+      {tab === 'updates' && <PhotosTab horse={horse} canEdit={isOwner || (user.role === 'manager' && horse.clubId === user.clubId)} onChange={photos => void onUpdateHorse({ ...horse, photos, changeLog: logChange(horse, user.name, `cập nhật ảnh minh chứng (${photos.length} ảnh)`) }).catch(() => {})} />}
 
     </div>
   );
@@ -1385,7 +1432,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
 // ── Horse Create ──────────────────────────────────────────────────────────────
 
 function HorseCreatePage({ user, state, navigate, onCreateHorse }:
-  { user: AppUser; state: AppState; navigate: (p: Page) => void; onCreateHorse: (h: Horse) => void }) {
+  { user: AppUser; state: AppState; navigate: (p: Page) => void; onCreateHorse: (h: Horse) => Promise<unknown> }) {
   const [form, setForm] = useState({ name: '', microchip: '', breed: 'Thoroughbred', birthDate: '', color: '', gender: 'Stallion', height: '', evidenceUrl: '', evidenceFileUrl: '', evidenceNote: '' });
   const [raceHistory, setRaceHistory] = useState<RaceHistoryEntry[]>([]);
   const [showRaceForm, setShowRaceForm] = useState(false);
@@ -1393,7 +1440,7 @@ function HorseCreatePage({ user, state, navigate, onCreateHorse }:
   const [raceErr, setRaceErr] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const todayIso = toISO(TODAY);
-  const previewId = nextSeq('HRS', state.horses.map(h => h.id));
+  const previewId = 'Mã do BE cấp';
   const set = (k: string) => (v: string) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: '' })); };
 
   const addRace = () => {
@@ -1407,16 +1454,17 @@ function HorseCreatePage({ user, state, navigate, onCreateHorse }:
     setShowRaceForm(false);
   };
 
-  const handle = () => {
+  const handle = async () => {
     const e: Record<string, string> = {};
     const name = form.name.trim();
     if (!name) e.name = 'Vui lòng nhập tên ngựa.'; else if (name.length < 2 || name.length > 40) e.name = 'Tên ngựa từ 2 đến 40 ký tự.';
-    if (!form.microchip) e.microchip = 'Vui lòng nhập số microchip.'; else if (!/^\d{15}$/.test(form.microchip)) e.microchip = 'Số microchip gồm đúng 15 chữ số (chuẩn ISO 11784).';
+    if (!form.microchip) e.microchip = 'Vui lòng nhập số microchip.'; else if (!/^[0-9]{3}[a-zA-Z0-9]{12}$/.test(form.microchip)) e.microchip = 'UELN gồm 15 ký tự: 3 chữ số quốc gia và 12 chữ/số.';
     else if (state.horses.some(x => x.microchip === form.microchip)) e.microchip = 'Số microchip này đã tồn tại trong hệ thống.';
-    if (form.evidenceUrl.trim() && !/^https?:\/\/\S+\.\S+/.test(form.evidenceUrl.trim())) e.evidenceUrl = 'URL ảnh phải bắt đầu bằng http:// hoặc https://.';
+    if (!form.evidenceUrl.trim()) e.evidenceUrl = 'Vui lòng nhập URL ảnh minh chứng.';
+    else if (!/^https?:\/\/\S+\.\S+/.test(form.evidenceUrl.trim())) e.evidenceUrl = 'URL ảnh phải bắt đầu bằng http:// hoặc https://.';
     if (form.evidenceFileUrl.trim() && !/^https?:\/\/\S+/.test(form.evidenceFileUrl.trim())) e.evidenceFileUrl = 'File URL must begin with http:// or https://.';
     if (form.evidenceNote.length > 300) e.evidenceNote = 'Ghi chú tối đa 300 ký tự.';
-    if (!form.birthDate) e.birthDate = 'Vui lòng chọn ngày sinh.'; else if (form.birthDate > todayIso) e.birthDate = 'Ngày sinh không được ở tương lai.';
+    if (!form.birthDate) e.birthDate = 'Vui lòng chọn ngày sinh.'; else if (form.birthDate >= todayIso) e.birthDate = 'Ngày sinh không được ở tương lai.';
     else if (form.birthDate < '1996-01-01') e.birthDate = 'Ngày sinh không hợp lý (trước năm 1996).';
     if (!form.color.trim()) e.color = 'Vui lòng nhập màu lông.'; else if (form.color.length > 30) e.color = 'Tối đa 30 ký tự.';
     const h = numOf(form.height);
@@ -1425,7 +1473,7 @@ function HorseCreatePage({ user, state, navigate, onCreateHorse }:
     if (Object.keys(e).length) return;
     const id = previewId;
     const age = Math.max(0, Math.floor((new Date(todayIso).getTime() - new Date(form.birthDate).getTime()) / 31557600000));
-    onCreateHorse({
+    try { await onCreateHorse({
       id, name, breed: form.breed, age, birthDate: toDDMMYYYY(form.birthDate), microchip: form.microchip || undefined, color: form.color.trim(), gender: form.gender,
       weight: 0, height: h, stable: '', stall: '', clubId: null,
       ownerId: user.id, ownerName: user.name, headTrainerId: '', headTrainerName: '',
@@ -1433,9 +1481,9 @@ function HorseCreatePage({ user, state, navigate, onCreateHorse }:
       healthStatus: 'Pending Vet', trainingStatus: 'Pending Approval', approvalStatus: 'pending',
       registrationDate: TODAY, approvedAt: null, totalRaces: raceHistory.length,
       wins: raceHistory.filter(r => r.position === 1).length,
-      vetClearance: false, biography: '', imageUrl: '', achievements: [], raceHistory,
+      vetClearance: false, biography: '', imageUrl: form.evidenceUrl.trim(), achievements: [], raceHistory,
       lifecycle: 'pending', identityVerified: false, identityEvidence: { url: form.evidenceUrl.trim(), fileUrl: form.evidenceFileUrl.trim(), note: form.evidenceNote.trim() }, medicalHistory: '',
-    });
+    }); } catch (err) { setErrors({ name: (err as Error).message }); }
   };
 
   return (
@@ -1448,9 +1496,9 @@ function HorseCreatePage({ user, state, navigate, onCreateHorse }:
 
       <Card className="p-6 space-y-4">
         <div className="flex items-center justify-between"><h3 className="font-semibold text-[#0f1729]">Định danh ngựa</h3><IdentityBadge verified={false} /></div>
-        <p className="text-xs text-gray-500">Số microchip gồm đúng 15 chữ số, không được trùng và sẽ được Quản lý đối chiếu với minh chứng khi tiếp nhận.</p>
+        <p className="text-xs text-gray-500">UELN có 15 ký tự (3 chữ số quốc gia và 12 chữ/số), duy nhất trong hệ thống; Quản lý đối chiếu với minh chứng khi tiếp nhận.</p>
         <div className="grid grid-cols-2 gap-4">
-          <Input label="Identification Code" value={form.microchip} onChange={v => set('microchip')(v.replace(/\D/g, '').slice(0, 15))} placeholder="15 digits" required hint={`${form.microchip.length}/15 digits entered`} error={errors.microchip} />
+          <Input label="UELN" value={form.microchip} onChange={v => set('microchip')(v.replace(/[^a-zA-Z0-9]/g, '').slice(0, 15))} placeholder="3 country digits + 12 letters/digits" required hint={`${form.microchip.length}/15 characters entered`} error={errors.microchip} />
           <div className="col-span-2"><Input label="Evidence image URL" value={form.evidenceUrl} onChange={set('evidenceUrl')} placeholder="https://..." error={errors.evidenceUrl} /></div>
           <div className="col-span-2"><Input label="Evidence file URL" value={form.evidenceFileUrl} onChange={set('evidenceFileUrl')} placeholder="https://..." error={errors.evidenceFileUrl} /></div>
           {form.evidenceUrl.trim() && /^https?:\/\//.test(form.evidenceUrl.trim()) && <div className="col-span-2"><img src={form.evidenceUrl.trim()} alt="Xem trước minh chứng" className="h-32 rounded-lg border border-gray-200 object-cover bg-gray-50" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div>}
@@ -2340,14 +2388,18 @@ function sortHealthRecords(records: HealthRecord[]): HealthRecord[] {
 
 // ── Other pages ───────────────────────────────────────────────────────────────
 
-function PerformancePage() {
-  const radar = [{ subject: 'Tốc độ', A: 92 }, { subject: 'Sức bền', A: 85 }, { subject: 'Sức mạnh', A: 80 }, { subject: 'Nhanh nhẹn', A: 87 }, { subject: 'Phục hồi', A: 94 }, { subject: 'Tập trung', A: 78 }];
+function PerformancePage({ state }: { state: AppState }) {
+  const horse = state.horses.find(h => h.id === state.selectedHorseId);
+  const sessions = state.trainingSessions.filter(s => s.horseId === horse?.id && s.result);
+  const performance = sessions.map(s => ({ month: s.date, speed: Number(s.result?.speed) }));
+  const topSpeed = performance.length ? `${Math.max(...performance.map(s => s.speed))} km/h` : '—';
+  const radar: { subject: string; A: number }[] = [];
   return (
     <div className="space-y-5">
-      <div><h2 className="text-xl font-serif font-bold">Hiệu suất — Thunder King</h2></div>
-      <div className="grid grid-cols-4 gap-4"><StatCard label="Tốc độ đỉnh" value="58.6 km/h" sub="Kỷ lục cá nhân 23/09" color="gold" /><StatCard label="Thể lực" value="87%" sub="↑ 6% tháng 9" color="green" /><StatCard label="Điểm AI" value="88/100" sub="Chuẩn bị thi đấu" color="navy" /><StatCard label="Tỷ lệ thắng" value="58%" sub="7/12 lần đua" color="navy" /></div>
+      <div><h2 className="text-xl font-serif font-bold">Hiệu suất — {horse?.name || 'Chưa có dữ liệu'}</h2></div>
+      <div className="grid grid-cols-4 gap-4"><StatCard label="Tốc độ đỉnh" value={topSpeed} color="gold" /><StatCard label="Thể lực" value="—" sub="BE chưa cung cấp chỉ số thể lực" color="green" /><StatCard label="Điểm AI" value="—" sub="BE chưa cung cấp điểm AI" color="navy" /><StatCard label="Tỷ lệ thắng" value={horse?.totalRaces ? `${Math.round(horse.wins / horse.totalRaces * 100)}%` : '—'} color="navy" /></div>
       <div className="grid grid-cols-3 gap-5">
-        <div className="col-span-2"><Card className="p-5"><h3 className="font-semibold mb-4">Tốc độ & Thể lực theo tháng</h3><ResponsiveContainer width="100%" height={250}><LineChart data={PERFORMANCE_DATA}><CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /><XAxis dataKey="month" tick={{ fontSize: 12 }} /><YAxis tick={{ fontSize: 12 }} /><Tooltip /><Legend /><Line type="monotone" dataKey="speed" stroke="#c9973b" strokeWidth={2.5} dot={{ r: 4 }} name="Tốc độ (km/h)" /><Line type="monotone" dataKey="fitness" stroke="#1a4a3a" strokeWidth={2.5} dot={{ r: 4 }} name="Thể lực %" /></LineChart></ResponsiveContainer></Card></div>
+        <div className="col-span-2"><Card className="p-5"><h3 className="font-semibold mb-4">Tốc độ & Thể lực theo tháng</h3><ResponsiveContainer width="100%" height={250}><LineChart data={performance}><CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /><XAxis dataKey="month" tick={{ fontSize: 12 }} /><YAxis tick={{ fontSize: 12 }} /><Tooltip /><Legend /><Line type="monotone" dataKey="speed" stroke="#c9973b" strokeWidth={2.5} dot={{ r: 4 }} name="Tốc độ (km/h)" /><Line type="monotone" dataKey="fitness" stroke="#1a4a3a" strokeWidth={2.5} dot={{ r: 4 }} name="Thể lực %" /></LineChart></ResponsiveContainer></Card></div>
         <Card className="p-5"><h3 className="font-semibold mb-4">Năng lực tổng thể</h3><ResponsiveContainer width="100%" height={250}><RadarChart data={radar}><PolarGrid stroke="#e5e7eb" /><PolarAngleAxis dataKey="subject" tick={{ fontSize: 10 }} /><Radar dataKey="A" stroke="#c9973b" fill="#c9973b" fillOpacity={0.25} strokeWidth={2} /></RadarChart></ResponsiveContainer></Card>
       </div>
     </div>
@@ -2388,16 +2440,16 @@ function RaceResultsPage({ horses }: { horses: Horse[] }) {
   );
 }
 
-function ReportsPage() {
+function ReportsPage({ onUnavailable }: { onUnavailable: () => void }) {
   return (
     <div className="space-y-5">
       <div><h2 className="text-xl font-serif font-bold">Báo cáo</h2></div>
       <div className="grid grid-cols-2 gap-5">
         {[{ title: 'Báo cáo hiệu suất tháng 9/2026', icon: '📈', type: 'Performance' }, { title: 'Báo cáo y tế & thú y', icon: '🏥', type: 'Health' }, { title: 'Kế hoạch tập luyện tháng', icon: '📋', type: 'Training' }, { title: 'Tổng kết mùa đua 2026', icon: '🏆', type: 'Racing' }].map(r => (
-          <Card key={r.title} className="p-5 cursor-pointer hover:border-[#c9973b]"><div className="flex items-start gap-4"><div className="w-12 h-12 rounded-xl bg-[#1a2844]/10 flex items-center justify-center text-2xl">{r.icon}</div><div className="flex-1"><div className="font-semibold">{r.title}</div></div></div><div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100"><Badge status={r.type} /><Btn variant="secondary">⬇ Tải PDF</Btn></div></Card>
+          <Card key={r.title} className="p-5 cursor-pointer hover:border-[#c9973b]"><div className="flex items-start gap-4"><div className="w-12 h-12 rounded-xl bg-[#1a2844]/10 flex items-center justify-center text-2xl">{r.icon}</div><div className="flex-1"><div className="font-semibold">{r.title}</div></div></div><div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100"><Badge status={r.type} /><Btn variant="secondary" onClick={onUnavailable}>⬇ Tải PDF</Btn></div></Card>
         ))}
       </div>
-      <Card className="p-5"><h3 className="font-semibold mb-4">Tổng quan mùa giải 2026</h3><ResponsiveContainer width="100%" height={220}><BarChart data={PERFORMANCE_DATA}><CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /><XAxis dataKey="month" tick={{ fontSize: 12 }} /><YAxis tick={{ fontSize: 12 }} /><Tooltip /><Legend /><Bar dataKey="fitness" fill="#1a4a3a" name="Thể lực %" radius={[3, 3, 0, 0]} /><Bar dataKey="speed" fill="#c9973b" name="Tốc độ km/h" radius={[3, 3, 0, 0]} /></BarChart></ResponsiveContainer></Card>
+      <Card className="p-5"><h3 className="font-semibold mb-4">Tổng quan mùa giải 2026</h3><ResponsiveContainer width="100%" height={220}><BarChart data={[]}><CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /><XAxis dataKey="month" tick={{ fontSize: 12 }} /><YAxis tick={{ fontSize: 12 }} /><Tooltip /><Legend /><Bar dataKey="fitness" fill="#1a4a3a" name="Thể lực %" radius={[3, 3, 0, 0]} /><Bar dataKey="speed" fill="#c9973b" name="Tốc độ km/h" radius={[3, 3, 0, 0]} /></BarChart></ResponsiveContainer></Card>
     </div>
   );
 }
@@ -2516,8 +2568,8 @@ function NotificationsPage({ notifications, onMarkRead, onOpen }: { notification
   );
 }
 
-function ProfilePage({ user, state, navigate, onLogout, onSave }:
-  { user: AppUser; state: AppState; navigate: (p: Page) => void; onLogout: () => void; onSave: (msg: string) => void }) {
+function ProfilePage({ user, state, navigate, onLogout, onSave, onError }:
+  { user: AppUser; state: AppState; navigate: (p: Page) => void; onLogout: () => void; onSave: (msg: string) => void; onError: (msg: string) => void }) {
   const [name, setName] = useState(user.name);
   const myClub = state.clubs.find(c => c.id === user.clubId);
   return (
@@ -2529,8 +2581,10 @@ function ProfilePage({ user, state, navigate, onLogout, onSave }:
         {user.bio && <div className="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-gray-600 italic">"{user.bio}"</div>}
         {user.experience && <div className="mt-3"><div className="text-xs font-semibold text-gray-500 uppercase mb-1">Experience</div><div className="text-sm text-gray-700">{user.experience}</div></div>}
         {user.certifications && <div className="mt-3"><div className="text-xs font-semibold text-gray-500 uppercase mb-1">Certifications</div><div className="text-sm text-gray-700">{user.certifications}</div></div>}
-        <Btn variant="gold" className="mt-4" onClick={() => onSave('Profile updated successfully.')}>Save</Btn>
+        <Btn variant="gold" className="mt-4" onClick={async () => { try { await request('/users/me', 'PUT', { fullName: name.trim(), phone: user.phone || '', avatarUrl: user.avatarUrl || null }); onSave('Profile updated successfully.'); } catch (e) { onError((e as Error).message); } }}>Save</Btn>
       </Card>
+      {user.role === 'veterinarian' && <TrainingProtocolsPage />}
+      {user.role === 'head_trainer' && <TrainerProfileForm key={user.id} user={state.users.find(u => u.id === user.id) || user} />}
       {myClub && user.role !== 'manager' && <Card className="p-5"><h3 className="font-semibold mb-3">My Club</h3><div className="flex items-center gap-3"><div className="w-12 h-12 rounded-xl bg-[#1a2844] text-white flex items-center justify-center font-serif font-bold text-lg">{myClub.logoLetter}</div><div><div className="font-semibold">{myClub.name}</div><div className="text-sm text-gray-500">📍 {myClub.location} · Founded {myClub.founded}</div></div></div></Card>}
       <Btn variant="danger" onClick={onLogout}>Sign out</Btn>
     </div>
@@ -2543,8 +2597,8 @@ function ProfilePage({ user, state, navigate, onLogout, onSave }:
 
 function PostExamPage({ state, navigate, onSave, onPostExam, onUnlock, onManualLock }:
   { state: AppState; navigate: (p: Page) => void; onSave: (msg: string) => void;
-    onPostExam: (sessionId: string, rec: HealthRecord) => string | null;
-    onUnlock: (horseId: string, note: string) => string | null;
+    onPostExam: (sessionId: string, rec: HealthRecord) => string | null | Promise<string | null>;
+    onUnlock: (horseId: string, note: string) => string | null | Promise<string | null>;
     onManualLock: (horseId: string, reason: string) => string | null }) {
   const horses = state.horses.filter(h => h.clubId === state.user!.clubId);
   const awaiting = horses.filter(h => getLifecycle(h) === 'awaiting_vet' && h.approvalStatus === 'approved');
@@ -2560,13 +2614,14 @@ function PostExamPage({ state, navigate, onSave, onPostExam, onUnlock, onManualL
   const activeSession = state.trainingSessions.find(x => x.id === activeId);
 
   if (activeSession) {
-    return <VetHealthFormPage key={activeSession.id} state={state} navigate={navigate} onSave={onSave} onSaveRecord={() => {}} today={TODAY} postSession={activeSession} onPostSubmit={onPostExam} onBack={() => setActiveId(null)} />;
+    return <VetHealthFormPage key={activeSession.id} state={state} navigate={navigate} onSave={onSave} onSaveRecord={async rec => rec} today={TODAY} postSession={activeSession} onPostSubmit={onPostExam} onBack={() => setActiveId(null)} />;
   }
 
   return (
     <div className="space-y-6 max-w-4xl">
       <div><h2 className="text-xl font-serif font-bold text-[#0f1729]">Khám sau tập & Khóa huấn luyện</h2><p className="text-sm text-gray-500">Chỉ Thú y mới có quyền kích hoạt và gỡ KHÓA HUẤN LUYỆN</p></div>
 
+      <TrainingProtocolsPage />
       <section className="space-y-3">
         <h3 className="font-semibold flex items-center gap-2">🩺 Chờ khám trước huấn luyện <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">{awaiting.length}</span></h3>
         {awaiting.length === 0 && <Card className="p-5 text-sm text-gray-400 text-center">Không có ngựa nào đang chờ khám</Card>}
@@ -2637,7 +2692,7 @@ function PostExamPage({ state, navigate, onSave, onPostExam, onUnlock, onManualL
         <ReasonDialog title={`Gỡ khóa huấn luyện — ${uh.name}`} confirmLabel="Xác nhận gỡ khóa"
           description="Gỡ khóa cho phép ngựa quay lại tập luyện. Hãy nêu rõ căn cứ (kết quả khám, chỉ số, thời gian hồi phục). Lý do được ghi vào nhật ký thay đổi."
           onClose={() => setUnlockFor(null)}
-          onConfirm={reason => { const err = onUnlock(uh.id, reason); setErrors(e => ({ ...e, [uh.id]: err || '' })); setUnlockFor(null); }} />
+          onConfirm={async reason => { const err = await onUnlock(uh.id, reason); setErrors(e => ({ ...e, [uh.id]: err || '' })); setUnlockFor(null); }} />
       ) : null; })()}
     </div>
   );
@@ -2646,7 +2701,7 @@ function PostExamPage({ state, navigate, onSave, onPostExam, onUnlock, onManualL
 // ── Rehab Center (Manager) ────────────────────────────────────────────────────
 
 function RehabCenterPage({ state, onActivate }:
-  { state: AppState; onActivate: (horseId: string, packageId: string) => string | null }) {
+  { state: AppState; onActivate: (horseId: string, packageId: string) => Promise<string | null> }) {
   const horses = state.horses.filter(h => h.clubId === state.user!.clubId);
   const waiting = horses.filter(h => h.lock && !h.rehab);
   const active = horses.filter(h => h.lock && h.rehab);
@@ -2666,16 +2721,16 @@ function RehabCenterPage({ state, onActivate }:
               <div className="p-3 bg-red-50 rounded-lg text-sm text-red-800 mb-3"><strong>Chẩn đoán Thú y:</strong> {h.lock!.reason}{h.lock!.notes ? ` — ${h.lock!.notes}` : ''}</div>
               {en && <div className="text-xs text-gray-500 mb-3">Gói huấn luyện "{en.packageName}": <Badge status="Paused" /> · Giữ {en.sessionsDone}/{en.sessionsTotal} buổi</div>}
               <div className="grid grid-cols-3 gap-3">
-                {REHAB_PACKAGES.map(p => (
+                {state.packages.filter(p => p.active && p.packageType === 'RECOVERY').map(p => (
                   <button key={p.id} onClick={() => setChoice(c => ({ ...c, [h.id]: p.id }))} className={`text-left p-3 rounded-xl border-2 bg-white transition-all ${choice[h.id] === p.id ? 'border-[#c9973b] bg-[#c9973b]/5' : 'border-gray-200 hover:border-[#c9973b]/50'}`}>
-                    <div className="font-semibold text-sm">{p.name}</div><div className="text-xs text-[#c9973b] font-medium mb-1">{p.weeks} tuần</div>
+                    <div className="font-semibold text-sm">{p.name}</div><div className="text-xs text-[#c9973b] font-medium mb-1">{p.durationDays} ngày</div>
                     <div className="text-xs text-gray-500 mb-2">{p.description}</div>
-                    <ul className="space-y-0.5">{p.items.map(i => <li key={i} className="text-[11px] text-gray-600">• {i}</li>)}</ul>
+                    <ul className="space-y-0.5">{[].map((i: string) => <li key={i} className="text-[11px] text-gray-600">• {i}</li>)}</ul>
                   </button>
                 ))}
               </div>
               {errors[h.id] && <div className="text-sm text-red-600 mt-2">{errors[h.id]}</div>}
-              <Btn variant="gold" className="mt-3" disabled={!choice[h.id]} onClick={() => setErrors(e => ({ ...e, [h.id]: onActivate(h.id, choice[h.id]) || '' }))}>Kích hoạt gói phục hồi →</Btn>
+              <Btn variant="gold" className="mt-3" disabled={!choice[h.id]} onClick={async () => { const message = await onActivate(h.id, choice[h.id]); setErrors(e => ({ ...e, [h.id]: message || '' })); }}>Kích hoạt gói phục hồi →</Btn>
             </Card>
           );
         })}
@@ -2705,7 +2760,7 @@ const PAGE_TITLES: Partial<Record<Page, string>> = {
   'training-register': 'Training registration', 'vet-assign': 'Assigned horses', 'post-exam': 'Post-training exams & locks', 'rehab-center': 'Rehabilitation packages', inventory: 'My inventory', 'inventory-log': 'Inventory history',
 };
 
-const TODAY = '25/09/2026';
+const TODAY = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Bangkok', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date());
 
 function newNotif(n: Omit<AppNotification, 'id' | 'time' | 'read'>): AppNotification {
   return { ...n, id: `n${Date.now()}${Math.random().toString(36).slice(2, 6)}`, time: 'Vừa xong', read: false };
@@ -2739,18 +2794,14 @@ function NoAccess({ text }: { text: string }) {
 
 export default function App() {
   const [state, setState] = useState<AppState>({
-    user: null, page: 'home',
-    users: SEED_USERS, clubs: SEED_CLUBS, memberRequests: SEED_REQUESTS,
-    horses: HORSES, horseClubRequests: SEED_HORSE_CLUB_REQUESTS, examHorseId: null,
-    healthRecords: [...INTAKE_RECORDS, ...MEDICAL_RECORDS], trainingPlans: TRAINING_PLANS, trainingSessions: TRAINING_SESSIONS,
-    inventory: SEED_INVENTORY, invLogs: SEED_INV_LOGS, careRecords: [], incidents: [], notifications: NOTIFICATIONS, enrollments: SEED_ENROLLMENTS, errorMsg: null,
-    selectedHorseId: 'HRS-000001', packages: TRAINING_PACKAGES, viewTrainerId: null, showSuccess: null,
+    user: null, page: new URLSearchParams(window.location.search).has('token') ? 'login' : 'home',
+    users: [], clubs: [{ id: CENTER, name: 'RaceForge', location: '', description: '', managerId: '', managerName: '', memberCount: 0, founded: '', logoLetter: 'R' }], memberRequests: [],
+    horses: [], horseClubRequests: [], examHorseId: null,
+    healthRecords: [], trainingPlans: [], trainingSessions: [],
+    inventory: [], invLogs: [], careRecords: [], incidents: [], notifications: [], enrollments: [], errorMsg: null,
+    selectedHorseId: '', packages: [], viewTrainerId: null, showSuccess: null,
     userPermissions: {}, rolePerms: DEFAULT_ROLE_PERMS,
-    auditLog: [
-      { id: 'au3', time: '24/09/2026 16:40', actor: 'Quản trị hệ thống', actorRole: 'Quản trị viên', action: 'Tạo tài khoản', target: 'Dr. Le Thi An (USR-000004) — Bác sĩ thú y', reason: 'Nhân sự mới theo hợp đồng ngày 20/09/2026' },
-      { id: 'au2', time: '22/09/2026 09:15', actor: 'Nguyen Van Binh', actorRole: 'Quản lý CLB', action: 'Duyệt hồ sơ ngựa', target: 'Thunder King (HRS-000001)', reason: 'Hồ sơ đầy đủ, giấy tờ nguồn gốc hợp lệ' },
-      { id: 'au1', time: '21/09/2026 14:02', actor: 'Dr. Le Thi An', actorRole: 'Bác sĩ thú y', action: 'Khóa tập luyện', target: 'Storm Wreck (HRS-000002)', reason: 'Tổn thương dây chằng chân phải trước độ II' },
-    ],
+    auditLog: [],
   });
 
   const stateRef = useRef(state);
@@ -2778,626 +2829,63 @@ export default function App() {
     });
   }, []);
 
-  const handleAssignVet = useCallback((horseId: string, vetId: string, reason: string) => {
-    const s0 = stateRef.current;
-    const horse = s0.horses.find(h => h.id === horseId);
-    const vet = s0.users.find(u => u.id === vetId);
-    if (!horse || !vet) return;
-    const now = `${TODAY}`;
-    const entry = { time: now, from: horse.vetId ? horse.vetName : null, to: vet.name, by: s0.user?.name || '', reason };
-    setState(s => ({ ...s, horses: s.horses.map(h => h.id === horseId ? { ...h, vetId, vetName: vet.name, vetAssign: { status: 'pending' as const, history: [...(h.vetAssign?.history || []), entry] } } : h),
-      notifications: [newNotif({ type: 'health', message: `Bạn được phân công khám ngựa "${horse.name}" — vui lòng nhận hoặc từ chối`, toUserIds: [vetId], action: 'vet-assign' }), ...s.notifications] }));
-    logAudit(entry.from ? 'Thay thế bác sĩ phụ trách' : 'Phân công bác sĩ', `${horse.name} (${dispId('HRS', horse.id)}): ${entry.from ? entry.from + ' → ' : ''}${vet.name}`, reason);
-  }, [logAudit]);
-
-  const handleRespondVet = useCallback((horseId: string, accept: boolean, reason: string) => {
-    const s0 = stateRef.current;
-    const horse = s0.horses.find(h => h.id === horseId);
-    if (!horse) return;
-    setState(s => ({ ...s, horses: s.horses.map(h => h.id === horseId ? { ...h, vetAssign: { status: accept ? 'accepted' as const : 'declined' as const, history: [...(h.vetAssign?.history || []), { time: TODAY, from: h.vetName, to: h.vetName, by: s0.user?.name || '', reason: (accept ? 'Nhận: ' : 'Từ chối: ') + reason }] } } : h) }));
-    logAudit(accept ? 'Bác sĩ nhận phân công' : 'Bác sĩ từ chối phân công', `${horse.name} (${dispId('HRS', horse.id)})`, reason);
-  }, [logAudit]);
-
-  const userTag = (u: AppUser) => `${u.name} (${dispId('USR', u.id)})`;
-
-  const handleCreateAccount = useCallback((u: AppUser) => {
-    setState(s => ({ ...s, users: [...s.users, u] }));
-    logAudit('Tạo tài khoản', `${userTag(u)} — ${ROLE_LABELS[u.role!]}`, 'Admin tạo tài khoản nhân sự');
-    showSuccess(`Đã tạo tài khoản cho ${u.name}.`);
-  }, [logAudit, showSuccess]);
-
-  const handleToggleLock = useCallback((id: string, reason: string) => {
-    const u = stateRef.current.users.find(x => x.id === id);
-    if (!u) return;
-    setState(s => ({ ...s, users: s.users.map(x => x.id === id ? { ...x, locked: !x.locked } : x) }));
-    logAudit(u.locked ? 'Mở khóa tài khoản' : 'Khóa tài khoản', userTag(u), reason);
-    showSuccess(u.locked ? `Đã mở khóa ${u.name}.` : `Đã khóa tài khoản ${u.name}.`);
-  }, [logAudit, showSuccess]);
-
-  const handleResetPassword = useCallback((id: string, reason: string): string => {
-    const u = stateRef.current.users.find(x => x.id === id);
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-    const pwd = Array.from({ length: 10 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-    if (u) {
-      setState(s => ({ ...s, users: s.users.map(x => x.id === id ? { ...x, password: pwd, mustChangePassword: true } : x) }));
-      logAudit('Đặt lại mật khẩu', userTag(u), reason);
+  const loadVersion = useRef(0);
+  const verifiedHorses = useRef(new Set<string>());
+  const reloadRemote = useCallback(async () => {
+    const user = stateRef.current.user;
+    if (!user) return;
+    const version = ++loadVersion.current;
+    let data: Awaited<ReturnType<typeof loadRemote>>;
+    try { data = await loadRemote(user, showError); }
+    catch (e) {
+      if (version === loadVersion.current && stateRef.current.user?.id === user.id) showError((e as Error).message);
+      return;
     }
-    return pwd;
-  }, [logAudit]);
-
-  const handleTogglePerm = useCallback((role: Role, page: string, on: boolean, reason: string) => {
-    setState(s => ({ ...s, rolePerms: { ...s.rolePerms, [role]: on ? [...(s.rolePerms[role] || []), page] : (s.rolePerms[role] || []).filter(p => p !== page) } }));
-    logAudit(`Phân quyền: ${on ? 'cấp' : 'thu hồi'}`, `${FEATURES.find(f => f.page === page)?.label} — ${ROLE_LABELS[role]}`, reason);
-    showSuccess(on ? 'Đã cấp quyền.' : 'Đã thu hồi quyền.');
-  }, [logAudit, showSuccess]);
+    if (version !== loadVersion.current || stateRef.current.user?.id !== user.id) return;
+    if (data.serverPermissions) {
+      const rolePerms: Record<string, string[]> = {};
+      for (const [role, pages] of Object.entries(DEFAULT_ROLE_PERMS)) {
+        const codes = data.serverPermissions[role] || [];
+        rolePerms[role] = pages.filter(page => { const code = permissionForPage(role as Role, page); return !code || codes.includes(code); });
+      }
+      setState(s => ({ ...s, rolePerms, auditLog: data.permissionAudit || [] }));
+    }
+    data.horses.forEach(h => { if (verifiedHorses.current.has(h.id)) h.identityVerified = true; });
+    setState(s => ({ ...s, ...data, selectedHorseId: data.horses.some(h => h.id === s.selectedHorseId) ? s.selectedHorseId : data.horses[0]?.id || '' }));
+  }, [showError]);
+  useEffect(() => { if (state.user?.id) void reloadRemote(); }, [state.user?.id, state.page, reloadRemote]);
+  useEffect(() => {
+    let active = true;
+    const expired = () => { loadVersion.current++; setState(s => ({ ...s, user: null, page: 'login', users: [], horses: [], healthRecords: [], enrollments: [], trainingPlans: [], trainingSessions: [], notifications: [] })); };
+    window.addEventListener('raceforge:session-expired', expired);
+    void restoreSessionForLocation(() => window.location.search, w => { if (active) { const user = userFromApi(w); setState(s => ({ ...s, user, page: 'dashboard' })); } }).catch(e => { if (active && !(e instanceof ApiError && e.status === 401)) showError((e as Error).message); });
+    return () => { active = false; window.removeEventListener('raceforge:session-expired', expired); };
+  }, [showError]);
+  const remote = makeRemoteActions({ getState: () => stateRef.current, reload: reloadRemote, success: showSuccess, error: showError, navigate: p => navigate(p as Page) });
+  const background = (p: Promise<unknown>) => { void p.catch(() => {}); };
 
   const handleLogin = useCallback((user: AppUser) => {
     setState(s => ({ ...s, user, page: 'dashboard' }));
   }, []);
 
   const handleRegister = useCallback((user: AppUser) => {
-    setState(s => {
-      const ready = { ...user, clubId: user.clubId || s.clubs[0]?.id || null };
-      return { ...s, users: [...s.users, ready], user: ready, page: 'dashboard' };
-    });
-    showSuccess(`Chào mừng ${user.name.split(' ').pop()}! OTP xác thực thành công.`);
+    setState(s => ({ ...s, user, page: 'dashboard' }));
+    showSuccess('Đã xác thực email và đăng nhập tài khoản Chủ ngựa.');
   }, [showSuccess]);
-
-  const handleJoinRequest = useCallback((clubId: string) => {
-    setState(s => {
-      if (!s.user) return s;
-      const existing = s.memberRequests.find(r => r.userId === s.user!.id && r.clubId === clubId);
-      if (existing?.status === 'approved') return s;
-
-      const requestedAt = new Date().toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      const req: MemberRequest = { id: existing?.id ?? `req${crypto.randomUUID()}`, userId: s.user.id, userName: s.user.name, userEmail: s.user.email, userAvatar: s.user.avatar, userRole: s.user.role, clubId, requestedAt, expiresAt: addWeeks(requestedAt, 1), status: 'pending', assignedRole: null };
-      // Replace the existing request and remove any older duplicates for this user and club.
-      const memberRequests = s.memberRequests.filter(r => r.userId !== req.userId || r.clubId !== clubId || r === existing).map(r => r === existing ? req : r);
-      return { ...s, memberRequests: existing ? memberRequests : [...memberRequests, req] };
-    });
-  }, []);
-
-  const handleApproveRequest = useCallback((reqId: string, role: Role) => {
-    setState(s => {
-      const req = s.memberRequests.find(r => r.id === reqId);
-      if (!req) return s;
-      return {
-        ...s,
-        memberRequests: s.memberRequests.map(r => r.id === reqId ? { ...r, status: 'approved' as const, assignedRole: role } : r),
-        users: s.users.map(u => u.id === req.userId ? { ...u, role: u.role === 'owner' ? 'owner' as const : role, clubId: req.clubId } : u),
-        clubs: s.clubs.map(c => c.id === req.clubId ? { ...c, memberCount: c.memberCount + 1 } : c),
-      };
-    });
-    showSuccess('Đã duyệt và phân công vai trò!');
-  }, [showSuccess]);
-
-  const handleRejectRequest = useCallback((reqId: string) => {
-    setState(s => ({ ...s, memberRequests: s.memberRequests.map(r => r.id === reqId ? { ...r, status: 'rejected' as const } : r) }));
-    showSuccess('Đã từ chối yêu cầu.');
-  }, [showSuccess]);
-
-  const handleCreateHorse = useCallback((horse: Horse) => {
-    setState(s => {
-      const clubId = s.user!.clubId;
-      const req: HorseClubRequest | null = clubId ? { id: `hcr${Date.now()}`, horseId: horse.id, horseName: horse.name, horseBreed: horse.breed, horseImageUrl: horse.imageUrl, ownerId: s.user!.id, ownerName: s.user!.name, clubId, submittedAt: TODAY, expiresAt: '', status: 'pending', reviewNote: '' } : null;
-      return {
-        ...s, horses: [...s.horses, horse], page: 'my-horses',
-        horseClubRequests: req ? [...s.horseClubRequests, req] : s.horseClubRequests,
-        notifications: clubId ? [newNotif({ type: 'approval', message: `Chủ ngựa ${s.user!.name} gửi đăng ký ngựa "${horse.name}" — cần phân công thú y khám tiếp nhận`, toRoles: ['manager'], clubId, action: 'center-requests' }), ...s.notifications] : s.notifications,
-      };
-    });
-    showSuccess(`Hồ sơ "${horse.name}" đã gửi cho Quản lý duyệt!`);
-  }, [showSuccess]);
-
-  const handleUpdateHorse = useCallback((updated: Horse) => {
-    setState(s => ({ ...s, horses: s.horses.map(h => h.id === updated.id ? updated : h) }));
-  }, []);
-
-  const handleSubmitToCenter = useCallback((horseId: string) => {
-    setState(s => {
-      const horse = s.horses.find(h => h.id === horseId);
-      if (!horse || !s.user!.clubId) return s;
-      const req: HorseClubRequest = { id: `hcr${Date.now()}`, horseId, horseName: horse.name, horseBreed: horse.breed, horseImageUrl: horse.imageUrl, ownerId: s.user!.id, ownerName: s.user!.name, clubId: s.user!.clubId, submittedAt: '25/09/2026', expiresAt: '', status: 'pending', reviewNote: '' };
-      return {
-        ...s, horseClubRequests: [...s.horseClubRequests, req],
-        horses: s.horses.map(h => h.id === horseId ? { ...h, approvalStatus: 'pending' as const, lifecycle: 'pending' as const } : h),
-        notifications: [newNotif({ type: 'approval', message: `Chủ ngựa ${s.user!.name} gửi đăng ký ngựa "${horse.name}" — chờ bạn duyệt vào nhóm`, toRoles: ['manager'], clubId: s.user!.clubId!, action: 'center-requests' }), ...s.notifications],
-      };
-    });
-    showSuccess('Đã nộp đơn đăng ký ngựa!');
-  }, [showSuccess]);
-
-  const handleVerifyIdentity = useCallback((horseId: string, verified: boolean) => {
-    const horse = stateRef.current.horses.find(h => h.id === horseId);
-    setState(s => ({ ...s, horses: s.horses.map(h => h.id === horseId ? { ...h, identityVerified: verified } : h) }));
-    if (horse) logAudit(verified ? 'Xác thực định danh ngựa' : 'Hủy xác thực định danh', `${horse.name} (${dispId('HRS', horse.id)})`);
-    showSuccess('Đã xác thực định danh ngựa.');
-  }, [showSuccess, logAudit]);
-
-  const handleApproveHorse = useCallback((reqId: string) => {
-    const s0 = stateRef.current;
-    const req = s0.horseClubRequests.find(r => r.id === reqId);
-    const horse = req && s0.horses.find(h => h.id === req.horseId);
-    if (!req || !horse) return;
-    const exam = s0.healthRecords.find(r => r.id === horse.intakeExamId);
-    const ok = exam?.decision === 'eligible' || exam?.decision === 'conditional';
-    setState(s => ({
-      ...s,
-      horseClubRequests: s.horseClubRequests.map(r => r.id === reqId ? { ...r, status: 'approved' as const } : r),
-      horses: s.horses.map(h => h.id === req.horseId ? { ...h, clubId: req.clubId, approvalStatus: 'approved' as const, approvedAt: TODAY,
-        lifecycle: ok ? 'ready' as const : 'awaiting_vet' as const, healthStatus: exam?.decision === 'conditional' ? 'Monitor' as const : ok ? 'Eligible' as const : 'Injured' as const, trainingStatus: 'Inactive' as const, vetClearance: ok } : h),
-      notifications: [newNotif({ type: 'approval', message: `Ngựa "${req.horseName}" đã được nhận vào câu lạc bộ${ok ? ' — có thể đăng ký gói huấn luyện' : ' — chưa đủ điều kiện huấn luyện, cần khám lại'}`, toUserIds: [req.ownerId], clubId: req.clubId, action: 'my-horses' }), ...s.notifications],
-    }));
-    logAudit('Duyệt nhận ngựa vào CLB', `${req.horseName} (${dispId('HRS', req.horseId)})`, exam?.conclusion);
-    showSuccess('Ngựa đã được nhận vào câu lạc bộ!');
-  }, [showSuccess, logAudit]);
-
-  const handleRejectHorse = useCallback((reqId: string, note: string) => {
-    const req = stateRef.current.horseClubRequests.find(r => r.id === reqId);
-    if (!req) return;
-    setState(s => ({
-      ...s,
-      horseClubRequests: s.horseClubRequests.map(r => r.id === reqId ? { ...r, status: 'rejected' as const, reviewNote: note } : r),
-      horses: s.horses.map(h => h.id === req.horseId ? { ...h, approvalStatus: 'rejected' as const } : h),
-      notifications: [newNotif({ type: 'approval', message: `Hồ sơ ngựa "${req.horseName}" bị từ chối: ${note}`, toUserIds: [req.ownerId], clubId: req.clubId, action: 'my-horses' }), ...s.notifications],
-    }));
-    logAudit('Từ chối nhận ngựa', `${req.horseName} (${dispId('HRS', req.horseId)})`, note);
-    showSuccess('Đã từ chối hồ sơ ngựa.');
-  }, [showSuccess, logAudit]);
 
   const handleLogout = useCallback(() => {
-    setState(s => ({ ...s, user: null, page: 'home' }));
-  }, []);
+    loadVersion.current++; verifiedHorses.current.clear(); clearRecommendations();
+    void auth.logout().catch(e => showError((e as Error).message));
+    setState(s => ({ ...s, user: null, page: 'home', users: [], horses: [], healthRecords: [], notifications: [], enrollments: [], trainingPlans: [], trainingSessions: [] }));
+  }, [showError]);
 
-  const handleFirstPasswordChange = useCallback((password: string) => {
-    setState(s => {
-      if (!s.user) return s;
-      const user = { ...s.user, password, mustChangePassword: false };
-      return { ...s, user, users: s.users.map(u => u.id === user.id ? user : u) };
-    });
-    showSuccess('Đã đổi mật khẩu. Chào mừng bạn vào RaceForce.');
-  }, [showSuccess]);
-
-  const handleUpdatePermissions = useCallback((userId: string, pages: Page[]) => {
-    setState(s => ({ ...s, userPermissions: { ...s.userPermissions, [userId]: pages } }));
-  }, []);
-
-  const handleViewTrainer = useCallback((uid: string) => {
-    setState(s => ({ ...s, viewTrainerId: uid, page: 'trainer-profile' }));
-  }, []);
-
-  const handleSaveHealthRecord = useCallback((rec: HealthRecord) => {
-    setState(s => {
-      const ih = s.horses.find(h => h.id === rec.horseId);
-      const ireq = s.horseClubRequests.find(r => r.horseId === rec.horseId && r.status === 'pending');
-      if (ih && ireq && ih.vetAssign?.status === 'accepted' && !ih.intakeExamId) {
-        const ir: HealthRecord = { ...rec, intake: true, type: 'Khám tiếp nhận' };
-        return {
-          ...s,
-          healthRecords: [...s.healthRecords, ir],
-          horses: s.horses.map(h => h.id === ih.id ? { ...h, intakeExamId: ir.id } : h),
-          notifications: [
-            newNotif({ type: 'health', message: `Thú y ${ir.vet} đã khám tiếp nhận "${ih.name}" (${ir.id}): ${ir.decision === 'eligible' ? 'ĐỦ ĐIỀU KIỆN' : ir.decision === 'conditional' ? 'ĐỦ ĐIỀU KIỆN NHƯNG CẦN THEO DÕI' : 'KHÔNG ĐỦ ĐIỀU KIỆN'}. Vui lòng xem xét duyệt vào CLB.`, toRoles: ['manager'], clubId: ireq.clubId, action: 'center-requests', horseId: ih.id }),
-            ...s.notifications,
-          ],
-        };
-      }
-      const allRecords = [...s.healthRecords, rec];
-      const latest = sortHealthRecords(allRecords.filter(r => r.horseId === rec.horseId))[0];
-      const notifications = [...s.notifications];
-      const examinedHorse = s.horses.find(h => h.id === rec.horseId);
-      const injurySummary = rec.regions ? REGION_DEFS.filter(d => rec.regions![d.key] && !rec.regions![d.key].ok).map(d => `${d.label}: ${rec.regions![d.key].note}`).join(', ') : Object.values(rec.injuryDetails || {}).map(d => `${d.issue} (${d.severity === 'severe' ? 'nặng' : d.severity === 'moderate' ? 'vừa' : 'nhẹ'})`).join(', ');
-      const shouldLock = !!examinedHorse && getLifecycle(examinedHorse) === 'training' && rec.trainingEligibility === 'not-eligible';
-      const lockReason = rec.diagnosis?.trim() || injurySummary || rec.trainingReasons?.join('; ') || 'Không đủ điều kiện huấn luyện';
-      if (examinedHorse && injurySummary) {
-        notifications.unshift(
-          newNotif({ type: 'health', message: `Phát hiện chấn thương ở "${examinedHorse.name}": ${injurySummary}.`, toUserIds: [examinedHorse.ownerId], clubId: examinedHorse.clubId || undefined, action: 'horse-detail', horseId: examinedHorse.id }),
-          newNotif({ type: 'health', message: `Hồ sơ mới của "${examinedHorse.name}": ${injurySummary}. ${shouldLock ? 'Ngựa đã bị khóa huấn luyện.' : 'Cần điều chỉnh và theo dõi trong các buổi tập.'}`, ...trainerTarget(examinedHorse), clubId: examinedHorse.clubId || undefined, action: 'health-records', horseId: examinedHorse.id }),
-        );
-      }
-      if (shouldLock && examinedHorse && s.user) {
-        const voidedCount = s.trainingSessions.filter(x => x.horseId === examinedHorse.id && x.status === 'Scheduled' && isHeavySession(x.type)).length;
-        notifications.unshift(
-          newNotif({ type: 'lock', message: `KHÓA HUẤN LUYỆN: "${examinedHorse.name}" — ${lockReason}. ${voidedCount} buổi tập nặng chuyển sang "Không thực hiện".`, toUserIds: [examinedHorse.ownerId], clubId: examinedHorse.clubId || undefined, action: 'horse-detail', horseId: examinedHorse.id }),
-          newNotif({ type: 'lock', message: `KHÓA HUẤN LUYỆN: "${examinedHorse.name}" — ${lockReason}. Hãy rà soát lại lịch tập.`, ...trainerTarget(examinedHorse), clubId: examinedHorse.clubId || undefined, action: 'training-hub', horseId: examinedHorse.id }),
-          newNotif({ type: 'lock', message: `"${examinedHorse.name}" cần kích hoạt gói phục hồi (${lockReason}).`, toRoles: ['manager'], clubId: examinedHorse.clubId || undefined, action: 'rehab-center', horseId: examinedHorse.id }),
-        );
-      }
-      const horses = s.horses.map(h => {
-        if (h.id !== rec.horseId) return h;
-        const lc0 = getLifecycle(h);
-        if (lc0 === 'locked' || lc0 === 'rehab') return h;
-        if (shouldLock) return {
-          ...h, healthStatus: 'Injured' as const, trainingStatus: 'Inactive' as const, vetClearance: false, lifecycle: 'locked' as const,
-          lock: { reason: lockReason, notes: rec.notes, lockedAt: TODAY, lockedById: s.user!.id, lockedByName: s.user!.name },
-          recoveryBadge: null,
-        };
-        let next: Horse = h;
-        if (latest.trainingEligibility === 'eligible')
-          next = { ...h, vetClearance: true, healthStatus: 'Eligible' as const, trainingStatus: 'Active' as const };
-        else if (latest.trainingEligibility === 'conditional')
-          next = { ...h, healthStatus: 'Monitor' as const, trainingStatus: 'Active' as const };
-        else if (latest.trainingEligibility === 'not-eligible')
-          next = { ...h, vetClearance: false, healthStatus: 'Injured' as const, trainingStatus: 'Inactive' as const };
-        let lc: Lifecycle = lc0;
-        if ((lc0 === 'awaiting_vet' || lc0 === 'ready') && latest.trainingEligibility === 'eligible') lc = 'ready';
-        else if (lc0 === 'ready') lc = 'awaiting_vet';
-        if (lc !== 'training') next = { ...next, trainingStatus: 'Inactive' as const };
-        if (lc0 === 'awaiting_vet' && lc === 'ready')
-          notifications.unshift(newNotif({ type: 'health', message: `Ngựa "${h.name}" đã được Thú y xác nhận ĐỦ ĐIỀU KIỆN HUẤN LUYỆN — trạng thái: Sẵn sàng huấn luyện. Hãy chọn gói huấn luyện.`, toUserIds: [h.ownerId], clubId: h.clubId || undefined, action: 'training-register' }));
-        return { ...next, lifecycle: lc };
-      });
-      return {
-        ...s,
-        healthRecords: allRecords,
-        horses,
-        notifications,
-        enrollments: shouldLock ? s.enrollments.map(e => e.horseId === rec.horseId && e.status === 'active' ? { ...e, status: 'paused' as const, pausedAt: TODAY, pauseReason: lockReason, scheduleConfirmed: false } : e) : s.enrollments,
-        trainingPlans: shouldLock ? s.trainingPlans.map(p => p.horseId === rec.horseId && p.status === 'Active' ? { ...p, status: 'Paused' as const } : p) : s.trainingPlans,
-        trainingSessions: shouldLock ? s.trainingSessions.map(x => x.horseId === rec.horseId && x.status === 'Scheduled' && isHeavySession(x.type) ? { ...x, status: 'Not Performed' as const, voidedByLock: true } : x) : s.trainingSessions,
-      };
-    });
-  }, []);
-
-  const reject = useCallback((msg: string) => { showError(msg); return msg; }, [showError]);
-
-  const TH = makeTrainingHandlers({ getState: () => stateRef.current, setState: (f) => setState(f), toast: showSuccess, reject, audit: logAudit, notif: newNotif });
-
-  const nowStamp = () => { const d = new Date(); return { at: `${TODAY} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`, ts: Date.now() }; };
-  const mkLog = (item: InvItem, u: AppUser, p: Partial<InvLog> & Pick<InvLog, 'kind' | 'delta' | 'balance'>): InvLog => {
-    const { at, ts } = nowStamp();
-    return { id: `il${ts}${Math.random().toString(36).slice(2, 6)}`, clubId: item.clubId, itemId: item.id, itemName: item.name, unit: item.unit, byId: u.id, byName: u.name, date: TODAY, at, ts, ...p };
-  };
-  const lowNotif = (before: InvItem | undefined, after: InvItem): AppNotification[] =>
-    isLow(after) && (!before || !isLow(before) || after.qty < before.qty)
-      ? [newNotif({ type: 'inventory', message: `Sắp hết: "${after.name}" còn ${fmtQty(after.qty)} ${after.unit} (ngưỡng ${fmtQty(after.threshold)}). Hãy nhập thêm vào kho.`, toRoles: ['groom'], clubId: after.clubId, action: 'inventory' })] : [];
-
-  const invAddItem = useCallback((f: { name: string; category: InvCategory; foodKind: FoodKind; unit: InvUnit; qty: number; threshold: number }): string | null => {
-    const s = stateRef.current; const u = s.user;
-    if (!u || u.role !== 'groom' || !u.clubId) return reject('Chỉ Nhân viên chăm sóc mới quản lý kho.');
-    const name = f.name.trim();
-    if (!name) return reject('Vui lòng nhập tên vật tư.');
-    if (!(f.qty >= 0) || !(f.threshold >= 0)) return reject('Số lượng và ngưỡng phải là số không âm.');
-    if (s.inventory.some(i => i.clubId === u.clubId && i.name.toLowerCase() === name.toLowerCase())) return reject('Vật tư này đã có trong kho. Hãy dùng "Nhập" để thêm số lượng.');
-    const item: InvItem = { id: `inv${Date.now()}`, clubId: u.clubId, name, category: f.category, foodKind: f.category === 'food' ? f.foodKind : undefined, unit: f.unit, qty: f.qty, threshold: f.threshold };
-    setState(st => ({ ...st, inventory: [...st.inventory, item], invLogs: [...st.invLogs, mkLog(item, u, { kind: 'in', delta: item.qty, balance: item.qty, reason: 'Thêm vật tư mới / tồn đầu' })], notifications: [...lowNotif(undefined, item), ...st.notifications] }));
-    showSuccess(`Đã thêm "${name}" vào kho`);
-    return null;
-  }, [reject, showSuccess]);
-
-  const invReceive = useCallback((itemId: string, qty: number, dateISO: string): string | null => {
-    const s = stateRef.current; const u = s.user;
-    const item = s.inventory.find(i => i.id === itemId);
-    if (!u || u.role !== 'groom' || !item) return reject('Không tìm thấy vật tư.');
-    if (!(qty > 0)) return reject('Số lượng nhập phải lớn hơn 0.');
-    if (!dateISO) return reject('Vui lòng chọn ngày nhập.');
-    setState(st => {
-      const cur = st.inventory.find(i => i.id === itemId); if (!cur) return st;
-      const next = { ...cur, qty: Math.round((cur.qty + qty) * 100) / 100 };
-      return { ...st, inventory: st.inventory.map(i => i.id === itemId ? next : i), invLogs: [...st.invLogs, mkLog(cur, u, { kind: 'in', delta: qty, balance: next.qty, date: toDDMMYYYY(dateISO), reason: 'Nhập hàng' })] };
-    });
-    showSuccess(`Đã nhập ${fmtQty(qty)} ${item.unit} ${item.name}`);
-    return null;
-  }, [reject, showSuccess]);
-
-  const invEdit = useCallback((itemId: string, f: { name: string; category: InvCategory; foodKind: FoodKind; unit: InvUnit; threshold: number }): string | null => {
-    const s = stateRef.current; const u = s.user;
-    const item = s.inventory.find(i => i.id === itemId);
-    if (!u || u.role !== 'groom' || !item) return reject('Không tìm thấy vật tư.');
-    const name = f.name.trim();
-    if (!name) return reject('Vui lòng nhập tên vật tư.');
-    if (!(f.threshold >= 0)) return reject('Ngưỡng cảnh báo phải là số không âm.');
-    if (s.inventory.some(i => i.id !== itemId && i.clubId === item.clubId && i.name.toLowerCase() === name.toLowerCase())) return reject('Đã có vật tư khác trùng tên.');
-    const next: InvItem = { ...item, name, category: f.category, foodKind: f.category === 'food' ? f.foodKind : undefined, unit: f.unit, threshold: f.threshold };
-    setState(st => ({ ...st, inventory: st.inventory.map(i => i.id === itemId ? next : i), invLogs: [...st.invLogs, mkLog(next, u, { kind: 'edit', delta: 0, balance: next.qty, reason: `Sửa thông tin (từ "${item.name}", ngưỡng ${fmtQty(item.threshold)} ${item.unit} → "${name}", ngưỡng ${fmtQty(next.threshold)} ${next.unit})` })], notifications: [...lowNotif(item, next), ...st.notifications] }));
-    showSuccess('Đã cập nhật vật tư');
-    return null;
-  }, [reject, showSuccess]);
-
-  const invAdjust = useCallback((itemId: string, qty: number, reason: string): string | null => {
-    const s = stateRef.current; const u = s.user;
-    const item = s.inventory.find(i => i.id === itemId);
-    if (!u || u.role !== 'groom' || !item) return reject('Không tìm thấy vật tư.');
-    if (!(qty >= 0)) return reject('Số tồn thực tế phải là số không âm.');
-    if (!reason.trim()) return reject('Vui lòng nhập lý do điều chỉnh.');
-    if (qty === item.qty) return reject('Số tồn không thay đổi.');
-    const next = { ...item, qty };
-    setState(st => ({ ...st, inventory: st.inventory.map(i => i.id === itemId ? next : i), invLogs: [...st.invLogs, mkLog(item, u, { kind: 'adjust', delta: Math.round((qty - item.qty) * 100) / 100, balance: qty, reason: reason.trim() })], notifications: [...lowNotif(item, next), ...st.notifications] }));
-    showSuccess('Đã kiểm kê và cập nhật số tồn');
-    return null;
-  }, [reject, showSuccess]);
-
-  const invDelete = useCallback((itemId: string): string | null => {
-    const s = stateRef.current; const u = s.user;
-    const item = s.inventory.find(i => i.id === itemId);
-    if (!u || u.role !== 'groom' || !item) return reject('Không tìm thấy vật tư.');
-    setState(st => ({ ...st, inventory: st.inventory.filter(i => i.id !== itemId), invLogs: [...st.invLogs, mkLog(item, u, { kind: 'edit', delta: 0, balance: 0, reason: `Xóa vật tư (tồn lúc xóa: ${fmtQty(item.qty)} ${item.unit})` })] }));
-    showSuccess(`Đã xóa "${item.name}"`);
-    return null;
-  }, [reject, showSuccess]);
-
-  const completeCare = useCallback((horseId: string, taskKey: string, supplies: SupplyLine[]): CareResult => {
-    const s = stateRef.current; const u = s.user;
-    const horse = s.horses.find(h => h.id === horseId);
-    const fail = (message: string): CareResult => { reject(message); return { ok: false, message, shortages: [] }; };
-    if (!u || u.role !== 'groom' || !horse || horse.clubId !== u.clubId) return fail('Không thể thực hiện thao tác này.');
-    if (s.careRecords.some(r => r.horseId === horseId && r.date === TODAY && r.taskKey === taskKey)) return fail('Việc này đã được đánh dấu hoàn thành hôm nay.');
-    const inv = s.inventory.filter(i => i.clubId === u.clubId);
-    const needs = new Map<string, number>();
-    const add = (id: string, q: number) => needs.set(id, (needs.get(id) || 0) + q);
-    if (taskKey.startsWith('feed-')) {
-      const meal = RATIONS[horseId]?.meals.find(m => `feed-${m.meal}` === taskKey);
-      if (!meal) return fail(`"${horse.name}" chưa có khẩu phần được duyệt cho bữa này.`);
-      const lines: [FoodKind, number, string][] = [['grain', meal.grain, 'ngũ cốc'], ['hay', meal.hay, 'cỏ'], ['vitamin', meal.vitamin, 'vitamin']];
-      for (const [kind, q, label] of lines) {
-        if (!(q > 0)) continue;
-        const it = inv.find(i => i.foodKind === kind);
-        if (!it) return fail(`Kho chưa có vật tư loại ${label}. Hãy thêm vật tư này vào "Kho của tôi" (nhóm Thức ăn, loại ${label}).`);
-        add(it.id, q);
-      }
-    } else for (const l of supplies) add(l.itemId, l.qty);
-    const shortages = Array.from(needs.entries()).map(([id, need]) => { const it = inv.find(i => i.id === id); return { itemId: id, name: it?.name || '?', have: it?.qty || 0, need, unit: it?.unit || '', ok: !!it && it.qty >= need }; }).filter(x => !x.ok);
-    if (shortages.length) {
-      const message = shortages.map(x => `Không đủ ${x.name}: còn ${fmtQty(x.have)} ${x.unit}, cần ${fmtQty(x.need)} ${x.unit}`).join('; ');
-      reject(message);
-      return { ok: false, message, shortages: shortages.map(({ ok: _o, ...r }) => r) };
-    }
-    const { at, ts } = nowStamp();
-    const label = CARE_LABELS[taskKey] || taskKey;
-    setState(st => {
-      let inventory = st.inventory; const logs: InvLog[] = []; const notes: AppNotification[] = []; const deductions: CareRecord['deductions'] = [];
-      needs.forEach((q, id) => {
-        const cur = inventory.find(i => i.id === id)!;
-        const next = { ...cur, qty: Math.round((cur.qty - q) * 100) / 100 };
-        inventory = inventory.map(i => i.id === id ? next : i);
-        deductions.push({ itemId: id, itemName: cur.name, unit: cur.unit, qty: q });
-        logs.push(mkLog(cur, u, { kind: 'out', delta: -q, balance: next.qty, horseId, horseName: horse.name, task: label }));
-        notes.push(...lowNotif(cur, next));
-      });
-      const rec: CareRecord = { id: `cr${ts}${Math.random().toString(36).slice(2, 5)}`, clubId: u.clubId!, horseId, date: TODAY, taskKey, taskLabel: label, doneAt: at, byName: u.name, deductions };
-      return { ...st, inventory, invLogs: [...st.invLogs, ...logs], careRecords: [...st.careRecords, rec], notifications: [...notes, ...st.notifications] };
-    });
-    showSuccess(`${horse.name}: đã hoàn thành "${label}"`);
-    return { ok: true };
-  }, [reject, showSuccess]);
-
-  const undoCare = useCallback((recordId: string): string | null => {
-    const s = stateRef.current; const u = s.user;
-    const rec = s.careRecords.find(r => r.id === recordId);
-    if (!u || u.role !== 'groom' || !rec) return reject('Không tìm thấy bản ghi.');
-    const horse = s.horses.find(h => h.id === rec.horseId);
-    setState(st => {
-      let inventory = st.inventory; const logs: InvLog[] = [];
-      for (const d of rec.deductions) {
-        const cur = inventory.find(i => i.id === d.itemId); if (!cur) continue;
-        const next = { ...cur, qty: Math.round((cur.qty + d.qty) * 100) / 100 };
-        inventory = inventory.map(i => i.id === d.itemId ? next : i);
-        logs.push(mkLog(cur, u, { kind: 'refund', delta: d.qty, balance: next.qty, horseId: rec.horseId, horseName: horse?.name, task: `Hủy "${rec.taskLabel}"` }));
-      }
-      return { ...st, inventory, invLogs: [...st.invLogs, ...logs], careRecords: st.careRecords.filter(r => r.id !== recordId) };
-    });
-    showSuccess('Đã hủy hoàn thành và hoàn lại vật tư vào kho');
-    return null;
-  }, [reject, showSuccess]);
-
-  const reportIncident = useCallback((f: { horseId: string; type: string; description: string; imageUrl: string }): string | null => {
-    const s = stateRef.current; const u = s.user;
-    const horse = s.horses.find(h => h.id === f.horseId);
-    if (!u || u.role !== 'groom' || !horse) return reject('Vui lòng chọn ngựa.');
-    if (!f.description.trim()) return reject('Vui lòng nhập mô tả sự cố.');
-    const { at } = nowStamp();
-    const inc: Incident = { id: `inc${Date.now()}`, clubId: horse.clubId || u.clubId!, horseId: horse.id, horseName: horse.name, type: f.type, description: f.description.trim(), imageUrl: f.imageUrl, reportedById: u.id, reportedByName: u.name, at, date: TODAY };
-    setState(st => ({ ...st, incidents: [inc, ...st.incidents], notifications: [
-      newNotif({ type: 'incident', message: `SỰ CỐ: "${horse.name}" — ${f.type}. ${inc.description} (báo cáo bởi ${u.name})`, toRoles: ['veterinarian'], clubId: inc.clubId, action: 'health-records', horseId: horse.id }),
-      newNotif({ type: 'incident', message: `Nhân viên chăm sóc ${u.name} báo sự cố "${f.type}" của "${horse.name}" — đã gửi Thú y`, toRoles: ['manager'], clubId: inc.clubId, action: 'horse-detail', horseId: horse.id }),
-      ...st.notifications] }));
-    showSuccess('Đã gửi báo cáo sự cố cho Thú y và Quản lý');
-    return null;
-  }, [reject, showSuccess]);
-
-  const handleStartSession = useCallback((sessionId: string): string | null => {
-    const s = stateRef.current;
-    const session = s.trainingSessions.find(x => x.id === sessionId);
-    const horse = session && s.horses.find(h => h.id === session.horseId);
-    if (!session || !horse) return reject('Không tìm thấy buổi tập.');
-    if (horse.lock) return reject(lockMessage(horse, 'bắt đầu buổi tập'));
-    const en = s.enrollments.find(e => e.horseId === horse.id && e.status !== 'completed');
-    if (session.attendance?.status !== 'present') return reject('Cần điểm danh "có mặt" trước khi bắt đầu buổi tập.');
-    if (en && !en.scheduleConfirmed) return reject(`Lịch tập của "${horse.name}" chưa được Huấn luyện viên điều chỉnh và xác nhận lại sau khi gỡ khóa — lịch cũ không tự động chạy lại.`);
-    if (getLifecycle(horse) !== 'training') return reject(`Ngựa "${horse.name}" đang ở trạng thái "${LIFECYCLE_LABEL[getLifecycle(horse)]}", chưa thể bắt đầu buổi tập.`);
-    setState(st => ({ ...st, trainingSessions: st.trainingSessions.map(x => x.id === sessionId ? { ...x, status: 'In Progress' as const } : x) }));
-    showSuccess('Đã bắt đầu buổi tập!');
-    return null;
-  }, [reject, showSuccess]);
-
-  const handleCompleteSession = useCallback((sessionId: string, result: NonNullable<TrainingSession['result']>): string | null => {
-    const st0 = stateRef.current;
-    const session = st0.trainingSessions.find(x => x.id === sessionId);
-    const horse = session && st0.horses.find(h => h.id === session.horseId);
-    if (!session || !horse) return reject('Không tìm thấy buổi tập.');
-    if (st0.user?.role !== 'head_trainer') return reject('Chỉ Huấn luyện viên mới ghi nhận kết quả buổi tập.');
-    if (session.status !== 'In Progress' && session.status !== 'Scheduled') return reject('Only scheduled or in-progress training sessions can be completed.');
-    if (!result.time.trim()) return reject('Vui lòng nhập thời gian thực tế của buổi tập.');
-    setState(st => ({
-      ...st,
-      trainingSessions: st.trainingSessions.map(x => x.id === sessionId ? { ...x, status: 'Completed' as const, result } : x),
-      enrollments: st.enrollments.map(e => e.horseId === horse.id && e.status === 'active' ? { ...e, sessionsDone: Math.min(e.sessionsTotal, e.sessionsDone + 1) } : e),
-      trainingPlans: st.trainingPlans.map(p => p.horseId === horse.id && p.status === 'Active' ? { ...p, progress: Math.min(100, p.progress + 3) } : p),
-      notifications: [newNotif({ type: 'health', message: `Buổi tập ${session.type} của "${horse.name}" đã hoàn thành — Thú y cần khám lại sau buổi tập`, toRoles: ['veterinarian'], clubId: horse.clubId || undefined, action: 'post-exam' }), ...st.notifications],
-    }));
-    showSuccess('Buổi tập hoàn thành — đã báo Thú y khám lại.');
-    return null;
-  }, [reject, showSuccess]);
-
-  const handlePostExam = useCallback((sessionId: string, form: HealthRecord): string | null => {
-    const s = stateRef.current;
-    const session = s.trainingSessions.find(x => x.id === sessionId);
-    const horse = session && s.horses.find(h => h.id === session.horseId);
-    if (!session || !horse || !s.user) return reject('Không tìm thấy buổi tập.');
-    if (s.user.role !== 'veterinarian') return reject('Chỉ Thú y mới ghi kết quả khám sau buổi tập.');
-    if (session.postExamDone) return reject('Buổi tập này đã được khám sau tập.');
-    const elig = form.trainingEligibility;
-    if (!elig) return reject('Vui lòng nhập đủ sinh hiệu (nhiệt độ + nhịp tim) để hệ thống đánh giá.');
-    const club = s.clubs.find(c => c.id === horse.clubId);
-    const problem = elig === 'not-eligible';
-    const diagnosis = form.diagnosis?.trim() || form.trainingReasons?.join('; ') || 'Không đủ điều kiện sau buổi tập';
-    const rec: HealthRecord = { ...form, id: form.id || nextMedId(s.healthRecords), date: TODAY, type: 'Khám sau buổi tập', vet: s.user.name, isPostTraining: true, diagnosis, ownerId: horse.ownerId, headTrainerId: horse.headTrainerId, managerId: club?.managerId, createdAt: Date.now() };
-    if (!problem) {
-      const cond = elig === 'conditional';
-      setState(st => ({
-        ...st,
-        healthRecords: [...st.healthRecords, rec],
-        horses: cond ? st.horses.map(h => h.id === horse.id ? { ...h, healthStatus: 'Monitor' as const } : h) : st.horses,
-        trainingSessions: st.trainingSessions.map(x => x.id === sessionId ? { ...x, postExamDone: true } : x),
-        notifications: [
-          newNotif({ type: 'health', message: cond ? `Khám sau tập "${horse.name}": ĐƯỢC HUẤN LUYỆN CÓ ĐIỀU KIỆN. ${rec.trainingAdjustments?.join(' ') || ''}` : `Khám sau tập "${horse.name}": đủ điều kiện, không phát hiện bất thường.`, ...trainerTarget(horse), clubId: horse.clubId || undefined, action: 'health-records' }),
-          ...(cond ? [newNotif({ type: 'health', message: `Sau buổi tập, "${horse.name}" cần theo dõi thêm (huấn luyện có điều kiện) — xem hồ sơ y tế`, toUserIds: [horse.ownerId], clubId: horse.clubId || undefined, action: 'horse-detail', horseId: horse.id })] : []),
-          ...st.notifications,
-        ],
-      }));
-      showSuccess(`Đã lưu hồ sơ khám sau tập: ${horse.name} ${cond ? 'huấn luyện có điều kiện' : 'đạt chuẩn'}.`);
-      return null;
-    }
-    const voidedCount = s.trainingSessions.filter(x => x.horseId === horse.id && x.status === 'Scheduled' && isHeavySession(x.type)).length;
-    const notes = form.notes || '';
-    setState(st => ({
-      ...st,
-      healthRecords: [...st.healthRecords, { ...rec, trainingNote: `${rec.trainingNote || ''}\n\nKHÓA HUẤN LUYỆN được kích hoạt sau buổi tập.`.trim() }],
-      horses: st.horses.map(h => h.id === horse.id ? { ...h, healthStatus: 'Injured' as const, trainingStatus: 'Inactive' as const, vetClearance: false, lifecycle: h.rehab ? 'rehab' as const : 'locked' as const, recoveryBadge: null, lock: { reason: diagnosis, notes, lockedAt: TODAY, lockedById: st.user!.id, lockedByName: st.user!.name } } : h),
-      enrollments: st.enrollments.map(e => e.horseId === horse.id && e.status === 'active' ? { ...e, status: 'paused' as const, pausedAt: TODAY, pauseReason: diagnosis, scheduleConfirmed: false } : e),
-      trainingPlans: st.trainingPlans.map(p => p.horseId === horse.id && p.status === 'Active' ? { ...p, status: 'Paused' as const } : p),
-      trainingSessions: st.trainingSessions.map(x => x.id === sessionId ? { ...x, postExamDone: true } : x.horseId === horse.id && x.status === 'Scheduled' && isHeavySession(x.type) ? { ...x, status: 'Not Performed' as const, voidedByLock: true } : x),
-      notifications: [
-        newNotif({ type: 'lock', message: `KHÓA HUẤN LUYỆN: "${horse.name}" — ${diagnosis}. Gói tạm dừng, ${voidedCount} buổi tập nặng đã xếp bị đánh dấu "Không thực hiện".`, ...trainerTarget(horse), clubId: horse.clubId || undefined, action: 'training-hub' }),
-        newNotif({ type: 'lock', message: `Ngựa "${horse.name}" bị chấn thương / không đủ điều kiện sau tập (${diagnosis}) và đã bị khóa huấn luyện.`, toUserIds: [horse.ownerId], clubId: horse.clubId || undefined, action: 'horse-detail', horseId: horse.id }),
-        newNotif({ type: 'lock', message: `Ngựa "${horse.name}" bị khóa huấn luyện (${diagnosis}). Cần chọn và kích hoạt gói phục hồi chức năng.`, toRoles: ['manager'], clubId: horse.clubId || undefined, action: 'rehab-center' }),
-        ...st.notifications,
-      ],
-    }));
-    showSuccess(`Đã KHÓA HUẤN LUYỆN cho ${horse.name}. Gói tạm dừng, đã thông báo HLV, nhân viên chăm sóc và Quản lý.`);
-    return null;
-  }, [reject, showSuccess]);
-
-  const handleManualLock = useCallback((horseId: string, reason: string): string | null => {
-    const s = stateRef.current;
-    const horse = s.horses.find(h => h.id === horseId);
-    if (!horse || !s.user) return reject('Không tìm thấy ngựa.');
-    if (s.user.role !== 'veterinarian') return reject('Chỉ Thú y mới có quyền khóa huấn luyện.');
-    if (horse.lock) return reject('Ngựa này đang bị khóa huấn luyện.');
-    if (reason.trim().length < 10) return reject('Lý do khóa thủ công cần tối thiểu 10 ký tự.');
-    const voidedCount = s.trainingSessions.filter(x => x.horseId === horse.id && x.status === 'Scheduled' && isHeavySession(x.type)).length;
-    const club = s.clubs.find(c => c.id === horse.clubId);
-    const record: HealthRecord = {
-      id: nextMedId(s.healthRecords), horseId, date: TODAY, type: 'Khóa huấn luyện thủ công', vet: s.user.name,
-      notes: reason.trim(), result: 'Injured', medications: '', isPostTraining: false, vetClearanceGranted: false,
-      diagnosis: reason.trim(), autoEvaluation: 'fail', trainingEligibility: 'not-eligible',
-      trainingReasons: [reason.trim()], trainingAdjustments: ['Tạm ngưng huấn luyện ngay lập tức.', 'Tái khám trước khi quay lại tập.'],
-      trainingNote: 'Khóa thủ công theo chỉ định của Thú y.',
-      ownerId: horse.ownerId, headTrainerId: horse.headTrainerId, managerId: club?.managerId, createdAt: Date.now(),
-    };
-    setState(st => ({
-      ...st,
-      healthRecords: [...st.healthRecords, record],
-      horses: st.horses.map(h => h.id === horseId ? {
-        ...h, changeLog: logChange(h, st.user!.name, `khóa huấn luyện thủ công — lý do: ${reason.trim()}`), healthStatus: 'Injured' as const, trainingStatus: 'Inactive' as const, vetClearance: false,
-        lifecycle: 'locked' as const, recoveryBadge: null,
-        lock: { reason: reason.trim(), notes: 'Khóa thủ công bởi Thú y', lockedAt: TODAY, lockedById: st.user!.id, lockedByName: st.user!.name },
-      } : h),
-      enrollments: st.enrollments.map(e => e.horseId === horseId && e.status === 'active' ? { ...e, status: 'paused' as const, pausedAt: TODAY, pauseReason: reason.trim(), scheduleConfirmed: false } : e),
-      trainingPlans: st.trainingPlans.map(p => p.horseId === horseId && p.status === 'Active' ? { ...p, status: 'Paused' as const } : p),
-      trainingSessions: st.trainingSessions.map(x => x.horseId === horseId && x.status === 'Scheduled' && isHeavySession(x.type) ? { ...x, status: 'Not Performed' as const, voidedByLock: true } : x),
-      notifications: [
-        newNotif({ type: 'lock', message: `Thú y đã KHÓA THỦ CÔNG "${horse.name}": ${reason.trim()}. ${voidedCount} buổi nặng chuyển sang "Không thực hiện".`, ...trainerTarget(horse), clubId: horse.clubId || undefined, action: 'training-hub', horseId }),
-        newNotif({ type: 'lock', message: `Ngựa "${horse.name}" đã bị Thú y khóa huấn luyện: ${reason.trim()}.`, toUserIds: [horse.ownerId], clubId: horse.clubId || undefined, action: 'horse-detail', horseId }),
-        newNotif({ type: 'lock', message: `"${horse.name}" bị khóa thủ công và cần gói phục hồi.`, toRoles: ['manager'], clubId: horse.clubId || undefined, action: 'rehab-center', horseId }),
-        ...st.notifications,
-      ],
-    }));
-    logAudit('Khóa huấn luyện (thủ công)', `${horse.name} (${dispId('HRS', horse.id)})`, reason);
-    showSuccess(`Đã khóa thủ công ${horse.name}.`);
-    return null;
-  }, [reject, showSuccess]);
-
-  const handleActivateRehab = useCallback((horseId: string, packageId: string): string | null => {
-    const s = stateRef.current;
-    const horse = s.horses.find(h => h.id === horseId);
-    const pkg = REHAB_PACKAGES.find(p => p.id === packageId);
-    if (!horse || !pkg || !s.user) return 'Không tìm thấy ngựa hoặc gói phục hồi.';
-    if (s.user.role !== 'manager') return reject('Chỉ Quản lý mới kích hoạt gói phục hồi.');
-    if (!horse.lock) return 'Ngựa này không bị khóa huấn luyện.';
-    if (horse.rehab) return 'Ngựa đã có gói phục hồi đang chạy.';
-    const en = s.enrollments.find(e => e.horseId === horseId && e.status !== 'completed');
-    setState(st => ({
-      ...st,
-      horses: st.horses.map(h => h.id === horseId ? { ...h, lifecycle: 'rehab' as const, trainingStatus: 'Resting' as const, rehab: { packageId, name: pkg.name, durationWeeks: pkg.weeks, activatedAt: TODAY, activatedBy: st.user!.name } } : h),
-      notifications: [
-        newNotif({ type: 'rehab', message: `Gói huấn luyện${en ? ` "${en.packageName}"` : ''} của "${horse.name}" vừa được TẠM DỪNG. Gói phục hồi "${pkg.name}" (${pkg.weeks} tuần) đã được kích hoạt. Tình trạng hiện tại (chẩn đoán Thú y): ${horse.lock!.reason}`, toUserIds: [horse.ownerId], clubId: horse.clubId || undefined, action: 'horse-detail', horseId }),
-        newNotif({ type: 'rehab', message: `Gói phục hồi "${pkg.name}" đã kích hoạt cho "${horse.name}". Cập nhật sức khỏe và gỡ khóa khi ngựa đủ điều kiện.`, toRoles: ['veterinarian'], clubId: horse.clubId || undefined, action: 'post-exam' }),
-        newNotif({ type: 'rehab', message: `"${horse.name}" bắt đầu gói phục hồi "${pkg.name}" — thực hiện chăm sóc phục hồi theo lịch`, toRoles: ['groom'], clubId: horse.clubId || undefined, action: 'care-hub' }),
-        ...st.notifications,
-      ],
-    }));
-    showSuccess(`Đã kích hoạt gói phục hồi "${pkg.name}" cho ${horse.name}.`);
-    return null;
-  }, [reject, showSuccess]);
-
-  const handleUnlock = useCallback((horseId: string, note: string): string | null => {
-    const s = stateRef.current;
-    const horse = s.horses.find(h => h.id === horseId);
-    if (!horse || !s.user) return 'Không tìm thấy ngựa.';
-    if (s.user.role !== 'veterinarian') return reject('Chỉ Thú y mới có quyền gỡ khóa huấn luyện.');
-    if (!horse.lock) return 'Ngựa này không bị khóa.';
-    if (note.trim().length < 10) return 'Cần nêu lý do gỡ khóa (tối thiểu 10 ký tự) để ghi vào nhật ký.';
-    const club = s.clubs.find(c => c.id === horse.clubId);
-    const rec: HealthRecord = {
-      id: nextMedId(s.healthRecords), horseId, date: TODAY, type: 'Cập nhật sức khỏe — gỡ khóa', vet: s.user.name, notes: note, result: 'Eligible',
-      medications: '', isPostTraining: false, vetClearanceGranted: true, diagnosis: note, autoEvaluation: 'pass', trainingEligibility: 'eligible',
-      trainingNote: 'Gỡ KHÓA HUẤN LUYỆN — Huấn luyện viên cần điều chỉnh và xác nhận lại lịch tập.',
-      ownerId: horse.ownerId, headTrainerId: horse.headTrainerId, managerId: club?.managerId, createdAt: Date.now(),
-    };
-    setState(st => ({
-      ...st,
-      healthRecords: [...st.healthRecords, rec],
-      horses: st.horses.map(h => h.id === horseId ? { ...h, changeLog: logChange(h, st.user!.name, `gỡ khóa huấn luyện — lý do: ${note.trim()}`), lock: null, rehab: null, lifecycle: 'training' as const, healthStatus: 'Eligible' as const, trainingStatus: 'Active' as const, vetClearance: true, recoveryBadge: { date: TODAY, note } } : h),
-      enrollments: st.enrollments.map(e => e.horseId === horseId && e.status === 'paused' ? { ...e, status: 'active' as const, pausedAt: undefined, pauseReason: undefined, scheduleConfirmed: false } : e),
-      notifications: [
-        newNotif({ type: 'training', message: `Thú y đã gỡ khóa cho "${horse.name}" và đánh dấu ĐÃ HỒI PHỤC. Hãy điều chỉnh và XÁC NHẬN LẠI lịch tập — lịch cũ sẽ không tự chạy lại.`, ...trainerTarget(horse), clubId: horse.clubId || undefined, action: 'training-hub', horseId }),
-        newNotif({ type: 'health', message: `"${horse.name}" đã đủ điều kiện và được gỡ khóa huấn luyện. Chờ Huấn luyện viên xác nhận lại lịch tập.`, toUserIds: [horse.ownerId], clubId: horse.clubId || undefined, action: 'horse-detail', horseId }),
-        newNotif({ type: 'health', message: `"${horse.name}" kết thúc phục hồi và được gỡ khóa huấn luyện`, toRoles: ['manager'], clubId: horse.clubId || undefined }),
-        ...st.notifications,
-      ],
-    }));
-    logAudit('Gỡ khóa huấn luyện', `${horse.name} (${dispId('HRS', horse.id)})`, note);
-    showSuccess(`Đã gỡ khóa huấn luyện cho ${horse.name}.`);
-    return null;
-  }, [reject, showSuccess]);
-
-  const handleConfirmSchedule = useCallback((horseId: string, note: string, restoreIds: string[]): string | null => {
-    const s = stateRef.current;
-    const horse = s.horses.find(h => h.id === horseId);
-    if (!horse || !s.user) return 'Không tìm thấy ngựa.';
-    if (s.user.role !== 'head_trainer') return reject('Chỉ Huấn luyện viên mới xác nhận lịch tập.');
-    if (horse.lock) return reject(lockMessage(horse, 'xác nhận lịch tập'));
-    setState(st => ({
-      ...st,
-      enrollments: st.enrollments.map(e => e.horseId === horseId && e.status === 'active' ? { ...e, scheduleConfirmed: true } : e),
-      trainingPlans: st.trainingPlans.map(p => p.horseId === horseId && p.status === 'Paused' ? { ...p, status: 'Active' as const } : p),
-      trainingSessions: st.trainingSessions.map(x => restoreIds.includes(x.id) ? { ...x, status: 'Scheduled' as const, voidedByLock: false, notes: `${x.notes}${note ? ` [Điều chỉnh sau khóa: ${note}]` : ''}` } : x),
-      notifications: [
-        newNotif({ type: 'training', message: `Huấn luyện viên đã xác nhận lại lịch tập cho "${horse.name}"${note ? ` — điều chỉnh: ${note}` : ''}. Ngựa tiếp tục chương trình huấn luyện.`, toUserIds: [horse.ownerId], clubId: horse.clubId || undefined }),
-        newNotif({ type: 'training', message: `Lịch tập của "${horse.name}" đã được xác nhận lại — có thể đưa ngựa ra tập`, toRoles: ['veterinarian'], clubId: horse.clubId || undefined }),
-        ...st.notifications,
-      ],
-    }));
-    showSuccess('Đã xác nhận lịch tập!');
-    return null;
-  }, [reject, showSuccess]);
 
   // Public pages
   if (!state.user || ['home', 'login', 'register'].includes(state.page)) {
     return (
       <>
         {state.showSuccess && <SuccessToast message={state.showSuccess} />}
+        {state.errorMsg && <ErrorToast message={state.errorMsg} />}
         {state.page === 'home' && <HomePage navigate={navigate} />}
         {state.page === 'login' && <LoginPage navigate={navigate} users={state.users} onLogin={handleLogin} />}
         {state.page === 'register' && <RegisterPage navigate={navigate} onRegister={handleRegister} />}
@@ -3412,7 +2900,6 @@ export default function App() {
     return null;
   }
   if (!state.user.role) return <NoPermission text="Tài khoản chưa được gán vai trò. Vui lòng liên hệ Quản trị viên." />;
-  if (state.user.mustChangePassword) return <FirstPasswordChange user={state.user} onSave={handleFirstPasswordChange} />;
 
   const renderPage = (): React.ReactNode => {
     const role = state.user!.role!;
@@ -3421,8 +2908,8 @@ export default function App() {
     if (role === 'admin' && !adminOnly.concat(['dashboard', 'notifications', 'profile']).includes(state.page)) return <NoPermission text="Quản trị viên không thao tác nghiệp vụ huấn luyện. Hãy dùng các mục quản trị ở menu bên trái." />;
     if (role !== 'admin' && FEATURES.some(f => f.page === state.page) && !(state.rolePerms[role] || []).includes(state.page) && !(state.userPermissions[state.user!.id] || []).includes(state.page)) return <NoPermission text="Vai trò của bạn chưa được cấp quyền cho chức năng này." />;
     switch (state.page) {
-      case 'accounts': return <AccountManagementPage actor={state.user!} users={state.users} clubs={state.clubs} onCreate={handleCreateAccount} onToggleLock={handleToggleLock} onResetPassword={handleResetPassword} />;
-      case 'permissions': return <PermissionMatrixPage rolePerms={state.rolePerms} audit={state.auditLog} onToggle={handleTogglePerm} />;
+      case 'accounts': return <AccountManagementPage actor={state.user!} users={state.users} clubs={state.clubs} onCreate={remote.createAccount} onCreateTrainerProfile={remote.createTrainerProfile} onToggleLock={remote.toggleLock} />;
+      case 'permissions': return <PermissionMatrixPage rolePerms={state.rolePerms} audit={state.auditLog} onToggle={remote.togglePermission} />;
       case 'audit-log': return <AuditLogPage audit={state.auditLog} />;
       case 'dashboard': {
         const r = state.user!.role;
@@ -3435,45 +2922,45 @@ export default function App() {
         return null;
       }
       case 'horse-list': return <HorseListPage navigate={navigate} horses={state.user!.role === 'veterinarian' ? state.horses.filter(h => vetVisible(h, state.user!)) : state.horses} role={state.user!.role!} clubId={state.user!.clubId} onSelectHorse={id => setState(s => ({ ...s, selectedHorseId: id }))} />;
-      case 'horse-detail': return <HorseDetailPage state={state} navigate={navigate} onUpdateHorse={handleUpdateHorse} onShowSuccess={showSuccess} onAudit={logAudit} />;
-      case 'horse-create': return <HorseCreatePage user={state.user!} state={state} navigate={navigate} onCreateHorse={handleCreateHorse} />;
-      case 'my-horses': return <MyHorsesPage user={state.user!} state={state} navigate={navigate} onSubmitToCenter={handleSubmitToCenter} onSelectHorse={id => setState(s => ({ ...s, selectedHorseId: id }))} />;
+      case 'horse-detail': return state.horses.length === 0 ? <NoAccess text="Chưa có dữ liệu ngựa để hiển thị." /> : <HorseDetailPage state={state} navigate={navigate} onUpdateHorse={remote.updateHorse} onActivateHorse={remote.activateHorse} onShowSuccess={showSuccess} onAudit={logAudit} />;
+      case 'horse-create': return <HorseCreatePage user={state.user!} state={state} navigate={navigate} onCreateHorse={remote.createHorse} />;
+      case 'my-horses': return <MyHorsesPage user={state.user!} state={state} navigate={navigate} onSubmitToCenter={id => background(remote.submitHorse(id))} onSelectHorse={id => setState(s => ({ ...s, selectedHorseId: id }))} />;
       case 'package-catalog':
         if (state.user!.role !== 'manager') return <NoAccess text="Chỉ Quản lý mới quản lý danh mục gói" />;
-        return <PackageCatalogPage packages={state.packages} enrollments={state.enrollments} onSave={TH.savePackage} onToggle={TH.togglePackage} />;
+        return <PackageCatalogPage packages={state.packages} enrollments={state.enrollments} onSave={remote.savePackage} onToggle={remote.togglePackage} />;
       case 'trainer-assign':
         if (state.user!.role !== 'manager') return <NoAccess text="Chỉ Quản lý mới phân công huấn luyện viên" />;
-        return <TrainerAssignPage user={state.user!} users={state.users} horses={state.horses} enrollments={state.enrollments} onAssign={TH.assignTrainer} />;
-      case 'trainer-profile': return <TrainerProfilePage state={state} navigate={navigate} trainerId={state.viewTrainerId || ''} onApproveRequest={handleApproveRequest} />;
+        return <TrainerAssignPage user={state.user!} users={state.users} horses={state.horses} enrollments={state.enrollments} onAssign={remote.assignTrainer} />;
+      case 'trainer-profile': return <TrainerProfilePage state={state} navigate={navigate} trainerId={state.viewTrainerId || ''} onApproveRequest={() => remote.unavailable('quản lý cấp vai trò; chỉ admin được tạo tài khoản nhân sự')} />;
       case 'center-requests':
         if (state.user!.role !== 'manager') return <NoAccess text="Chỉ Quản lý CLB mới tiếp nhận ngựa" />;
-        return <IntakeBoardPage user={state.user!} horses={state.horses} requests={state.horseClubRequests} records={state.healthRecords} users={state.users} onVerify={handleVerifyIdentity} onAssign={handleAssignVet} onApprove={handleApproveHorse} onReject={handleRejectHorse} onOpenHorse={id => setState(s => ({ ...s, selectedHorseId: id, page: 'horse-detail' }))} />;
+        return <IntakeBoardPage user={state.user!} horses={state.horses} requests={state.horseClubRequests} records={state.healthRecords} users={state.users} onVerify={(id, verified) => { if (verified) verifiedHorses.current.add(id); else verifiedHorses.current.delete(id); setState(s => ({ ...s, horses: s.horses.map(h => h.id === id ? { ...h, identityVerified: verified } : h) })); }} onAssign={remote.assignVet} onApprove={remote.approveHorse} onReject={remote.rejectHorse} onOpenHorse={id => setState(s => ({ ...s, selectedHorseId: id, page: 'horse-detail' }))} />;
       case 'health-records': return <HealthRecordsPage state={state} navigate={navigate} />;
       case 'vet-health-form':
         if (state.user!.role !== 'veterinarian') return <HealthRecordsPage state={state} navigate={navigate} />;
-        return <VetHealthFormPage state={state} navigate={navigate} onSave={showSuccess} onSaveRecord={handleSaveHealthRecord} today={TODAY} onConsumeExamHorse={() => setState(s => ({ ...s, examHorseId: null }))} />;
-      case 'training-hub': return <TrainingHubPage state={state} navigate={navigate as (p: string) => void} onCreatePlan={TH.createPlan} onGenerate={TH.generateSessions} onCheckIn={TH.checkIn} onRespond={TH.respondAssign} onStartSession={handleStartSession} onCompleteSession={handleCompleteSession} onConfirmSchedule={handleConfirmSchedule} />;
-      case 'care-hub': return state.user!.role === 'groom' ? <CareHubPage state={state} navigate={navigate} onComplete={completeCare} onUndo={undoCare} onReceive={invReceive} onReport={reportIncident} /> : null;
-      case 'inventory': return state.user!.role === 'groom' ? <InventoryPage state={state} navigate={navigate} onAdd={invAddItem} onReceive={invReceive} onEdit={invEdit} onAdjust={invAdjust} onDelete={invDelete} /> : null;
-      case 'inventory-log': return state.user!.role === 'groom' ? <InventoryLogPage state={state} navigate={navigate} /> : null;
+        return <VetHealthFormPage state={state} navigate={navigate} onSave={showSuccess} onSaveRecord={remote.saveHealth} today={TODAY} onConsumeExamHorse={() => setState(s => ({ ...s, examHorseId: null }))} />;
+      case 'training-hub': return <TrainingHubPage state={state} navigate={navigate as (p: string) => void} onCreatePlan={remote.createPlan} onGenerate={remote.generateSessions} onCheckIn={remote.checkIn} onRespond={remote.respondAssign} onStartSession={remote.startSession} onCompleteSession={remote.completeSession} onStopSession={remote.stopSession} onConfirmSchedule={() => 'Lịch tập được sinh và xác nhận qua API lộ trình.'} />;
+      case 'care-hub': return <CareHubPage state={state} navigate={navigate} onComplete={() => ({ ok: false, message: 'BE chưa có API chăm sóc.', shortages: [] })} onUndo={() => 'BE chưa có API chăm sóc.'} onReceive={() => 'BE chưa có API kho.'} onReport={() => 'BE chưa có API sự cố.'} />;
+      case 'inventory': return <InventoryPage state={state} navigate={navigate} onAdd={() => 'BE chưa có API kho.'} onReceive={() => 'BE chưa có API kho.'} onEdit={() => 'BE chưa có API kho.'} onAdjust={() => 'BE chưa có API kho.'} onDelete={() => 'BE chưa có API kho.'} />;
+      case 'inventory-log': return <InventoryLogPage state={state} navigate={navigate} />;
       case 'training-register':
         if (state.user!.role !== 'owner') return <NoAccess text="Chỉ Chủ ngựa mới đăng ký huấn luyện" />;
-        return <TrainingRegisterPage state={state} navigate={navigate as (p: string) => void} onPurchase={TH.purchasePackage} />;
+        return <TrainingRegisterPage state={state} navigate={navigate as (p: string) => void} onPurchase={remote.purchasePackage} />;
       case 'vet-assign':
         if (state.user!.role !== 'veterinarian') return <NoAccess text="Chỉ Thú y mới truy cập trang này" />;
-        return <VetAssignedPage user={state.user!} horses={state.horses} requests={state.horseClubRequests} onRespond={handleRespondVet} onExam={id => setState(s => ({ ...s, examHorseId: id, page: 'vet-health-form' }))} onOpenHorse={id => setState(s => ({ ...s, selectedHorseId: id, page: 'horse-detail' }))} />;
+        return <VetAssignedPage user={state.user!} horses={state.horses} requests={state.horseClubRequests} onRespond={remote.respondVet} onExam={id => setState(s => ({ ...s, examHorseId: id, page: 'vet-health-form' }))} onOpenHorse={id => setState(s => ({ ...s, selectedHorseId: id, page: 'horse-detail' }))} />;
       case 'post-exam':
         if (state.user!.role !== 'veterinarian') return <NoAccess text="Chỉ Thú y mới truy cập trang này" />;
-        return <PostExamPage state={state} navigate={navigate} onSave={showSuccess} onPostExam={handlePostExam} onUnlock={handleUnlock} onManualLock={handleManualLock} />;
+        return <PostExamPage state={state} navigate={navigate} onSave={showSuccess} onPostExam={remote.postExam} onUnlock={async (...args) => { const r = await remote.unlock(...args); return r.ok ? null : r.message; }} onManualLock={() => 'Hãy khám và xác nhận kết luận NOT_FIT để khóa huấn luyện qua BE.'} />;
       case 'rehab-center':
         if (state.user!.role !== 'manager') return <NoAccess text="Chỉ Quản lý mới kích hoạt gói phục hồi" />;
-        return <RehabCenterPage state={state} onActivate={handleActivateRehab} />;
-      case 'performance': return <PerformancePage />;
+        return <RehabCenterPage state={state} onActivate={remote.activateRecovery} />;
+      case 'performance': return <PerformancePage state={state} />;
       case 'race-results': return <RaceResultsPage horses={state.horses.filter(h => h.clubId === state.user!.clubId)} />;
-      case 'reports': return <ReportsPage />;
-      case 'staff': return <StaffPage state={state} navigate={navigate} onUpdatePermissions={handleUpdatePermissions} />;
-      case 'notifications': return <NotificationsPage notifications={visibleNotifications(state.notifications, state.user!)} onMarkRead={id => setState(s => ({ ...s, notifications: s.notifications.map(n => n.id === id ? { ...n, read: true } : n) }))} onOpen={n => { if (n.action) setState(s => ({ ...s, page: n.action as Page, selectedHorseId: n.horseId || s.selectedHorseId })); }} />;
-      case 'profile': return <ProfilePage user={state.user!} state={state} navigate={navigate} onLogout={handleLogout} onSave={showSuccess} />;
+      case 'reports': return <ReportsPage onUnavailable={() => remote.unavailable('xuất báo cáo PDF')} />;
+      case 'staff': return <StaffPage state={state} navigate={navigate} onUpdatePermissions={() => remote.unavailable('quyền truy cập riêng từng người')} />;
+      case 'notifications': return <NotificationsPage notifications={visibleNotifications(state.notifications, state.user!)} onMarkRead={id => background(request(`/notifications/${encodeURIComponent(id)}/read`, 'PATCH').then(() => reloadRemote()).catch(e => { showError((e as Error).message); throw e; }))} onOpen={n => { if (n.action) setState(s => ({ ...s, page: n.action as Page, selectedHorseId: n.horseId || s.selectedHorseId })); }} />;
+      case 'profile': return <ProfilePage user={state.user!} state={state} navigate={navigate} onLogout={handleLogout} onSave={message => { showSuccess(message); background(request('/users/me').then(w => setState(s => ({ ...s, user: userFromApi(w) })))); }} onError={showError} />;
       default: return <ManagerDashboard state={state} navigate={navigate} />;
     }
   };

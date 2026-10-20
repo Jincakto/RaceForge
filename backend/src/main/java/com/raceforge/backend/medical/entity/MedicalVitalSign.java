@@ -8,9 +8,8 @@ import java.math.BigDecimal;
 public class MedicalVitalSign {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "vital_sign_id", length = 20)
-    private Integer vitalSignId;
+    private String vitalSignId;
 
     @OneToOne
     @JoinColumn(
@@ -29,14 +28,18 @@ public class MedicalVitalSign {
     @Column(name = "resting_respiratory_rate")
     private Integer restingRespiratoryRate;
 
+    // Optional actual measured weight at this examination (kilograms).
+    @Column(name = "weight", precision = 7, scale = 2)
+    private BigDecimal weight;
+
     public MedicalVitalSign() {
     }
 
-    public Integer getVitalSignId() {
+    public String getVitalSignId() {
         return vitalSignId;
     }
 
-    public void setVitalSignId(Integer vitalSignId) {
+    public void setVitalSignId(String vitalSignId) {
         this.vitalSignId = vitalSignId;
     }
 
@@ -70,5 +73,13 @@ public class MedicalVitalSign {
 
     public void setRestingRespiratoryRate(Integer restingRespiratoryRate) {
         this.restingRespiratoryRate = restingRespiratoryRate;
+    }
+
+    public BigDecimal getWeight() {
+        return weight;
+    }
+
+    public void setWeight(BigDecimal weight) {
+        this.weight = weight;
     }
 }

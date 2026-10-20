@@ -10,13 +10,13 @@ import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
 import java.util.Optional;
 
-public interface TrainingSessionRepository extends JpaRepository<TrainingSession, Integer> {
+public interface TrainingSessionRepository extends JpaRepository<TrainingSession, String> {
 
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select s from TrainingSession s where s.sessionId = :id")
-  Optional<TrainingSession> findByIdForUpdate(@Param("id") Integer id);
+  Optional<TrainingSession> findByIdForUpdate(@Param("id") String id);
 
-  List<TrainingSession> findByHorse_HorseIdOrderByScheduledStartAsc(Integer horseId);
+  List<TrainingSession> findByHorse_HorseIdOrderByScheduledStartAsc(String horseId);
 
-  boolean existsByHorse_HorseIdAndScheduledStart(Integer horseId, LocalDateTime scheduledStart);
+  boolean existsByHorse_HorseIdAndScheduledStart(String horseId, LocalDateTime scheduledStart);
 }

@@ -5,23 +5,28 @@ import jakarta.persistence.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "Horse")
 public class Horse {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "horse_id", length = 20)
-    private Integer horseId;
+    @Column(name = "horse_id", length = 20, nullable = false, updatable = false)
+    private String horseId;
 
     @ManyToOne
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
 
-    @ManyToOne
-    @JoinColumn(name = "head_trainer_id")
-    private User headTrainer;
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+            name = "Horse_Trainer",
+            joinColumns = @JoinColumn(name = "horse_id"),
+            inverseJoinColumns = @JoinColumn(name = "trainer_id")
+    )
+    private Set<Trainer> trainers = new LinkedHashSet<>();
 
     @Column(name = "horse_name", nullable = false)
     private String horseName;
@@ -44,23 +49,23 @@ public class Horse {
     @Column(name = "dam")
     private String dam;
 
-    @Column(name = "dam_sire")
-    private String damSire;
-
-    @Column(name = "weight")
-    private BigDecimal weight;
-
     @Column(name = "height")
     private BigDecimal height;
-
-    @Column(name = "background")
-    private String background;
 
     @Column(name = "declared_medical_history")
     private String declaredMedicalHistory;
 
-    @Column(name = "image_url")
+    @Column(name = "image_url", length = 500)
     private String imageUrl;
+
+    @Column(name = "registration_number", length = 100)
+    private String registrationNumber;
+
+    @Column(name = "document_type", length = 50)
+    private String documentType;
+
+    @Column(name = "document_url", length = 500)
+    private String documentUrl;
 
     @Column(name = "health_status")
     private String healthStatus;
@@ -71,21 +76,49 @@ public class Horse {
     @Column(name = "status", nullable = false)
     private String status;
 
-    @Column(name = "admission_status", nullable = false, length = 20)
-    private String admissionStatus = "NOT_SUBMITTED";
-    @Column(name = "admission_note", length = 500)
-    private String admissionNote;
-    public String getAdmissionStatus() { return admissionStatus; }
-    public void setAdmissionStatus(String value) { admissionStatus = value; }
-    public String getAdmissionNote() { return admissionNote; }
-    public void setAdmissionNote(String value) { admissionNote = value; }
+    @OneToOne(mappedBy = "horse", cascade = CascadeType.ALL, orphanRemoval = true,
+              fetch = FetchType.LAZY)
+    private HorseAdmission admission;
+
+    public HorseAdmission getAdmission() { return admission; }
+
+    public void setAdmission(HorseAdmission admission) {
+        this.admission = admission;
+        if (admission != null) admission.setHorse(this);
+    }
+
+    private HorseAdmission ensureAdmission() {
+        if (admission == null) {
+            HorseAdmission created = new HorseAdmission();
+            setAdmission(created);
+        }
+        return admission;
+    }
+
+    // Convenience accessors used by existing HorseMapper/HorseService.
+    // The only persistent admission status is Horse_Admission.status.
+    public String getAdmissionStatus() {
+        return admission == null ? "NOT_SUBMITTED" : admission.getStatus();
+    }
+
+    public void setAdmissionStatus(String status) {
+        ensureAdmission().setStatus(status);
+    }
+
+    public String getAdmissionNote() {
+        return admission == null ? null : admission.getDecisionReason();
+    }
+
+    public void setAdmissionNote(String note) {
+        ensureAdmission().setDecisionReason(note);
+    }
 
 
-    public Integer getHorseId() {
+    public String getHorseId() {
         return horseId;
     }
 
-    public void setHorseId(Integer horseId) {
+    public void setHorseId(String horseId) {
         this.horseId = horseId;
     }
 
@@ -97,12 +130,12 @@ public class Horse {
         this.owner = owner;
     }
 
-    public User getHeadTrainer() {
-        return headTrainer;
+    public Set<Trainer> getTrainers() {
+        return trainers;
     }
 
-    public void setHeadTrainer(User headTrainer) {
-        this.headTrainer = headTrainer;
+    public void setTrainers(Set<Trainer> trainers) {
+        this.trainers = trainers;
     }
 
     public String getHorseName() {
@@ -161,36 +194,12 @@ public class Horse {
         this.dam = dam;
     }
 
-    public String getDamSire() {
-        return damSire;
-    }
-
-    public void setDamSire(String damSire) {
-        this.damSire = damSire;
-    }
-
-    public BigDecimal getWeight() {
-        return weight;
-    }
-
-    public void setWeight(BigDecimal weight) {
-        this.weight = weight;
-    }
-
     public BigDecimal getHeight() {
         return height;
     }
 
     public void setHeight(BigDecimal height) {
         this.height = height;
-    }
-
-    public String getBackground() {
-        return background;
-    }
-
-    public void setBackground(String background) {
-        this.background = background;
     }
 
     public String getDeclaredMedicalHistory() {
@@ -207,6 +216,30 @@ public class Horse {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public String getRegistrationNumber() {
+        return registrationNumber;
+    }
+
+    public void setRegistrationNumber(String registrationNumber) {
+        this.registrationNumber = registrationNumber;
+    }
+
+    public String getDocumentType() {
+        return documentType;
+    }
+
+    public void setDocumentType(String documentType) {
+        this.documentType = documentType;
+    }
+
+    public String getDocumentUrl() {
+        return documentUrl;
+    }
+
+    public void setDocumentUrl(String documentUrl) {
+        this.documentUrl = documentUrl;
     }
 
     public String getHealthStatus() {

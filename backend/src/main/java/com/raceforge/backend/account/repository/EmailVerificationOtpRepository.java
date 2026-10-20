@@ -8,9 +8,9 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface EmailVerificationOtpRepository extends JpaRepository<EmailVerificationOtp, Integer> {
+public interface EmailVerificationOtpRepository extends JpaRepository<EmailVerificationOtp, String> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from EmailVerificationOtp o where o.userId = :userId")
-    Optional<EmailVerificationOtp> findByUserIdForUpdate(@Param("userId") Integer userId);
+    Optional<EmailVerificationOtp> findByUserIdForUpdate(@Param("userId") String userId);
 }

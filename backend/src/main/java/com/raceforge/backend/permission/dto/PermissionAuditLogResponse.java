@@ -4,21 +4,21 @@ import java.time.LocalDateTime;
 
 public class PermissionAuditLogResponse {
 
-  private Integer logId;
+  private String logId;
   private String action;
   private String roleName;
   private String permissionCode;
-  private Integer performedBy;
+  private String performedBy;
   private LocalDateTime performedAt;
 
   public PermissionAuditLogResponse() {
   }
 
-  public Integer getLogId() {
+  public String getLogId() {
       return logId;
   }
 
-  public void setLogId(Integer logId) {
+  public void setLogId(String logId) {
       this.logId = logId;
   }
 
@@ -46,11 +46,11 @@ public class PermissionAuditLogResponse {
       this.permissionCode = permissionCode;
   }
 
-  public Integer getPerformedBy() {
+  public String getPerformedBy() {
       return performedBy;
   }
 
-  public void setPerformedBy(Integer performedBy) {
+  public void setPerformedBy(String performedBy) {
       this.performedBy = performedBy;
   }
 

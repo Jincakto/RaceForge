@@ -36,11 +36,7 @@ spring:
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
     baseline-on-migrate: true
-    # Legacy pipeline retained in db/migration; not used for an existing INT IDENTITY database.
-    locations: ${FLYWAY_LOCATIONS:classpath:db/identity-migration}
-    table: ${FLYWAY_HISTORY_TABLE:flyway_identity_schema_history}
-    # Legacy: baseline-version: 0
-    baseline-version: ${FLYWAY_BASELINE_VERSION:7}
+    baseline-version: 0
 
 springdoc:
   override-with-generic-response: false
@@ -52,6 +48,10 @@ springdoc:
     tags-sorter: alpha
 
 raceforge:
+  bootstrap-admin:
+    enabled: ${BOOTSTRAP_ADMIN_ENABLED:false}
+    email: ${BOOTSTRAP_ADMIN_EMAIL:}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:}
   jwt:
     secret: ${JWT_SECRET:change-this-dev-secret-to-at-least-32-bytes-long}
     issuer: ${JWT_ISSUER:raceforge}

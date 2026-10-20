@@ -6,10 +6,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface MedicalClinicalExamRepository
-        extends JpaRepository<MedicalClinicalExam, Integer> {
+        extends JpaRepository<MedicalClinicalExam, String> {
 
     List<MedicalClinicalExam>
         findByMedicalRecord_MedicalRecordId(
-            Integer medicalRecordId
+            String medicalRecordId
         );
 }

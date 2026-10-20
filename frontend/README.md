@@ -26,3 +26,16 @@ ranh giới từ Unicode. Nội dung chưa có bản dịch được giữ nguy�
 tên riêng, ghi chú y tế hoặc thông báo lỗi. Thêm bản dịch đầy đủ vào từ điển khi
 bổ sung giao diện; không thay bằng thông báo chung hoặc xóa dấu. Có thể đặt
 `data-ui-translate="off"` trên vùng cần giữ nguyên nội dung.
+
+## Kết nối backend
+
+FE gọi API BE hiện có qua `/api`; Vite chuyển tiếp tới `http://localhost:8080`.
+Xem `.env.example` và [API_INTEGRATION.md](API_INTEGRATION.md) để biết ánh xạ API theo tab,
+cách chạy, kiểm thử và các giới hạn của BE/UI hiện tại. Public registration chỉ dành cho
+HORSE_OWNER; GROOM cùng các vai trò nhân sự khác do admin tạo và cấp quyền.
+
+FE dùng cố định `http://localhost:5173` để khớp link đặt mật khẩu trong email.
+Nếu cổng 5173 đang bận, Vite sẽ báo lỗi và dừng; hãy dừng phiên FE trùng trước
+khi chạy lại. Link mời nhân sự mở màn hình đặt mật khẩu dù trình duyệt đang có
+phiên đăng nhập khác. Sau khi đặt mật khẩu thành công, đăng nhập bằng email
+nhân sự và mật khẩu mới; role vẫn do BE quản lý.

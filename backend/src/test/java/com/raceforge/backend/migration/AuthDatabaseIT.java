@@ -43,6 +43,7 @@ class AuthDatabaseIT {
 
     @Autowired MockMvc mvc;
     @Autowired UserRepository users;
+    @Autowired com.raceforge.backend.account.repository.RoleRepository roles;
     @Autowired EmailVerificationOtpRepository emailOtps;
     @Autowired PasswordEncoder passwords;
     @Autowired JwtService jwt;
@@ -51,14 +52,14 @@ class AuthDatabaseIT {
     @MockitoBean GoogleTokenVerifier google;
 
     @Test
-    void registrationOtpAndBasicUserPermissionsPersistInSqlServer() throws Exception {
+    void registrationOtpAndOwnerPermissionsPersistInSqlServer() throws Exception {
         String email = "auth-it-" + UUID.randomUUID() + "@example.com";
         mvc.perform(post("/api/auth/register").contentType(MediaType.APPLICATION_JSON).content("""
-                {"fullName":"API Test","email":"%s","password":"StrongPass123!","phone":"0900123456"}
+                {"fullName":"API Test","email":"%s","password":"StrongPass123!","phone":"0900123456","roleId":7,"requestedRoleId":3}
                 """.formatted(email))).andExpect(status().is2xxSuccessful());
         User user = users.findByEmail(email).orElseThrow();
         assertNotNull(user.getUserId());
-        assertEquals(6, user.getRole().getRoleId());
+        assertEquals(5, user.getRole().getRoleId());
         assertEquals("0900123456", user.getPhone());
         assertTrue(passwords.matches("StrongPass123!", user.getPassword()));
         assertNotEquals("StrongPass123!", user.getPassword());
@@ -77,8 +78,8 @@ class AuthDatabaseIT {
         mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content("""
                 {"email":"%s","password":"StrongPass123!"}
                 """.formatted(email))).andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.user.userId").isNumber())
-                .andExpect(jsonPath("$.data.user.role.roleId").value(6))
+                .andExpect(jsonPath("$.data.user.userId").isString())
+                .andExpect(jsonPath("$.data.user.role.roleId").value(5))
                 .andExpect(jsonPath("$.data.user.password").doesNotExist())
                 .andExpect(jsonPath("$.data.user.otpHash").doesNotExist());
         String bearer = "Bearer " + jwt.createAccessToken(users.findDetailedById(user.getUserId()).orElseThrow());
@@ -87,9 +88,9 @@ class AuthDatabaseIT {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"fullName\":\"Updated Name\",\"phone\":\"0012345678\"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.phone").value("0012345678"));
-        mvc.perform(get("/api/horses").header("Authorization", bearer)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/horses").header("Authorization", bearer)).andExpect(status().isOk());
         mvc.perform(get("/api/users").header("Authorization", bearer)).andExpect(status().isForbidden());
-        mvc.perform(get("/api/registration-requests").header("Authorization", bearer)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/registration-requests").header("Authorization", bearer)).andExpect(status().isNotFound());
         mvc.perform(post("/api/auth/logout").header("Authorization", bearer)).andExpect(status().isOk());
     }
 
@@ -104,7 +105,7 @@ class AuthDatabaseIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.passwordSetupRequired").value(true))
                 .andExpect(jsonPath("$.data.accessToken").isEmpty())
-                .andExpect(jsonPath("$.data.user.role.roleId").value(6))
+                .andExpect(jsonPath("$.data.user.role.roleId").value(5))
                 .andReturn().getResponse().getContentAsString();
         String setupToken = objectMapper.readTree(body).get("data").get("passwordSetupToken").asText();
         User user = users.findByEmail(email).orElseThrow();
@@ -119,6 +120,61 @@ class AuthDatabaseIT {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.accessToken").isNotEmpty());
         assertTrue(passwords.matches("GooglePassword123!", users.findByEmail(email).orElseThrow().getPassword()));
+    }
+
+    @Test
+    void adminInvitationActivatesStaffAndIsSingleUseInSqlServer() throws Exception {
+        String suffix = UUID.randomUUID().toString();
+        User admin = new User();
+        admin.setEmail("admin-" + suffix + "@example.com");
+        admin.setFullName("Test Admin"); admin.setStatus("ACTIVE"); admin.setEmailVerified(true);
+        admin.setRole(roles.findById(7).orElseThrow());
+        users.saveAndFlush(admin);
+        String email = "staff-" + suffix + "@example.com";
+        mvc.perform(post("/api/admin/users").header("Authorization", "Bearer " + jwt.createAccessToken(admin))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("fullName", "Test Vet", "email", email, "roleId", 3))))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.status").value("INVITED"));
+        User staff = users.findByEmail(email).orElseThrow();
+        assertNull(staff.getPassword());
+        ArgumentCaptor<String> link = ArgumentCaptor.forClass(String.class);
+        verify(emailService).sendStaffInvitation(eq(email), link.capture());
+        String token = link.getValue().split("token=")[1];
+        mvc.perform(post("/api/admin/users/" + staff.getUserId() + "/invitation")
+                .header("Authorization", "Bearer " + jwt.createAccessToken(admin))).andExpect(status().isOk());
+        mvc.perform(post("/api/auth/staff/set-password").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("token", token, "newPassword", "StaffPassword123!"))))
+                .andExpect(status().isBadRequest());
+        verify(emailService, times(2)).sendStaffInvitation(eq(email), link.capture());
+        token = link.getValue().split("token=")[1];
+        String body = objectMapper.writeValueAsString(Map.of("token", token, "newPassword", "StaffPassword123!"));
+        mvc.perform(post("/api/auth/reset-password").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/auth/staff/set-password").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/auth/staff/set-password").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+        staff = users.findByEmail(email).orElseThrow();
+        assertEquals("ACTIVE", staff.getStatus());
+        assertEquals(3, staff.getRole().getRoleId());
+        assertTrue(staff.isEmailVerified());
+        assertTrue(passwords.matches("StaffPassword123!", staff.getPassword()));
+    }
+
+    @Test
+    void emailFailureRollsBackInvitedAccountInSqlServer() throws Exception {
+        User admin = new User();
+        admin.setEmail("rollback-admin-" + UUID.randomUUID() + "@example.com");
+        admin.setFullName("Test Admin"); admin.setStatus("ACTIVE"); admin.setEmailVerified(true);
+        admin.setRole(roles.findById(7).orElseThrow()); users.saveAndFlush(admin);
+        String email = "rollback-staff-" + UUID.randomUUID() + "@example.com";
+        doThrow(new org.springframework.mail.MailSendException("Simulated delivery failure"))
+                .when(emailService).sendStaffInvitation(eq(email), anyString());
+        mvc.perform(post("/api/admin/users").header("Authorization", "Bearer " + jwt.createAccessToken(admin))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("fullName", "Test Vet", "email", email, "roleId", 3))))
+                .andExpect(status().isServiceUnavailable());
+        assertFalse(users.existsByEmail(email));
     }
 
     private void verifyOtp(String email, String code, int status) throws Exception {

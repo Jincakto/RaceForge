@@ -5,19 +5,19 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public record HorsePackageResponse(
-        Integer horsePackageId,
-        Integer horseId,
-        Integer packageId,
+        String horsePackageId,
+        String horseId,
+        String packageId,
         String packageName,
         String packageType,
         String status,
         String paymentStatus,
         BigDecimal totalPrice,
         LocalDateTime registeredAt,
-        LocalDateTime paidAt,
+        // LocalDateTime paidAt, // Removed from the API in V5.
         LocalDate startDate,
         LocalDate endDate,
         Integer remainingDays,
-        Integer replacedHorsePackageId
+        String replacedHorsePackageId
 ) {
 }

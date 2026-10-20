@@ -14,6 +14,14 @@ import java.time.Instant;
 @Entity
 @Table(name = "Password_Reset_Token")
 public class PasswordResetToken {
+    public static final String PASSWORD_RESET = "PASSWORD_RESET";
+    public static final String STAFF_INVITATION = "STAFF_INVITATION";
+
+    @Column(name = "purpose", nullable = false, length = 30)
+    private String purpose = PASSWORD_RESET;
+
+    public String getPurpose() { return purpose; }
+    public void setPurpose(String purpose) { this.purpose = purpose; }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

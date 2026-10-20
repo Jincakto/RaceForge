@@ -1,3 +1,4 @@
+import { permissionForPage } from './permissionApi';
 import React, { useMemo, useState } from 'react';
 import type { AppUser, Club, Role } from './data';
 import { Badge, Btn, Card, Input, Select, Textarea } from './ui';
@@ -7,8 +8,7 @@ import { Badge, Btn, Card, Input, Select, Textarea } from './ui';
 export type IdKind = 'HRS' | 'USR' | 'MED' | 'PKG' | 'ENR' | 'PLN' | 'SES' | 'RCE';
 
 export function dispId(kind: IdKind, raw: string): string {
-  const digits = (raw.match(/\d+/g) || ['0']).join('');
-  return `${kind}-${digits.slice(-6).padStart(6, '0')}`;
+  return raw || '—';
 }
 
 export function IdChip({ kind, id, className = '' }: { kind: IdKind; id: string; className?: string }) {
@@ -81,14 +81,14 @@ export function Modal({ title, children, onClose, wide = false }: { title: strin
 }
 
 export function ReasonDialog({ title, description, confirmLabel, danger = false, onConfirm, onClose }:
-  { title: string; description: React.ReactNode; confirmLabel: string; danger?: boolean; onConfirm: (reason: string) => void; onClose: () => void }) {
+  { title: string; description: React.ReactNode; confirmLabel: string; danger?: boolean; onConfirm: (reason: string) => void | Promise<unknown>; onClose: () => void }) {
   const [reason, setReason] = useState('');
   const [err, setErr] = useState('');
-  const submit = () => {
+  const submit = async () => {
     const r = reason.trim();
     if (r.length < 10) { setErr('The reason must contain at least 10 characters.'); return; }
     if (r.length > 300) { setErr('The reason cannot exceed 300 characters.'); return; }
-    onConfirm(r);
+    try { await onConfirm(r); } catch (e) { setErr((e as Error).message); }
   };
   return (
     <Modal title={title} onClose={onClose}>
@@ -146,7 +146,7 @@ export function AdminDashboard({ users, audit, navigate }: { users: AppUser[]; a
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
         {[
-          { p: 'accounts', t: 'Quản lý tài khoản', d: 'Create staff accounts, lock or unlock access, and reset passwords.' },
+          { p: 'accounts', t: 'Quản lý tài khoản', d: 'Create staff accounts and lock or unlock access.' },
           { p: 'permissions', t: 'Phân quyền', d: 'Ma trận vai trò × chức năng, bật/tắt quyền có ghi lý do.' },
           { p: 'audit-log', t: 'Nhật ký thay đổi', d: 'Ai, lúc nào, làm gì — toàn bộ thao tác nhạy cảm.' },
         ].map(c => (
@@ -171,17 +171,18 @@ export function AdminDashboard({ users, audit, navigate }: { users: AppUser[]; a
 
 type AccountDialog =
   | { kind: 'lock'; user: AppUser }
-  | { kind: 'reset'; user: AppUser }
   | null;
 
 const PAGE_SIZE = 8;
 
-export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleLock, onResetPassword }: {
+export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleLock, onCreateTrainerProfile }: {
   actor: AppUser; users: AppUser[]; clubs: Club[];
-  onCreate: (u: AppUser) => void;
-  onToggleLock: (id: string, reason: string) => void;
-  onResetPassword: (id: string, reason: string) => string;
+  onCreate: (u: AppUser) => Promise<unknown>;
+  onToggleLock: (id: string, reason: string) => Promise<unknown>;
+  onCreateTrainerProfile: (id: string) => Promise<unknown>;
 }) {
+  const [profilePending, setProfilePending] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState('');
   const [q, setQ] = useState('');
   const [roleF, setRoleF] = useState('all');
   const [statusF, setStatusF] = useState('all');
@@ -212,6 +213,7 @@ export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleL
         <div className="w-48"><Select value={roleF} onChange={v => { setRoleF(v); setPage(1); }} options={[{ value: 'all', label: 'Mọi vai trò' }, ...(Object.keys(ROLE_NAME) as Role[]).map(r => ({ value: r, label: ROLE_NAME[r] }))]} /></div>
         <div className="w-40"><Select value={statusF} onChange={v => { setStatusF(v); setPage(1); }} options={[{ value: 'all', label: 'Mọi trạng thái' }, { value: 'active', label: 'Đang hoạt động' }, { value: 'locked', label: 'Đã khóa' }]} /></div>
       </div>
+      {profileError && <p role="alert" className="text-sm text-red-600">{profileError}</p>}
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
           <thead><tr className="border-b border-gray-200 bg-gray-50">{['Mã', 'Người dùng', 'Vai trò', 'Trung tâm', 'Trạng thái', 'Thao tác'].map(h => <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{h}</th>)}</tr></thead>
@@ -221,7 +223,7 @@ export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleL
               const self = u.id === actor.id;
               return (
                 <tr key={u.id} className="border-b border-gray-100 last:border-0">
-                  <td className="px-5 py-3"><IdChip kind="USR" id={u.id} /></td>
+                  <td className="px-5 py-3"><IdChip kind="USR" id={u.id} />{u.trainerProfileId && <div className="mt-1 text-xs text-gray-500">Hồ sơ: {u.trainerProfileId}</div>}</td>
                   <td className="px-5 py-3"><div className="font-medium text-[#0f1729]">{u.name}</div><div className="text-xs text-gray-500">{u.email}</div></td>
                   <td className="px-5 py-3">{u.role ? <Badge status={u.role} /> : <span className="text-xs text-gray-400">Chưa có vai trò</span>}</td>
                   <td className="px-5 py-3 text-xs text-gray-600">{club?.name || '—'}</td>
@@ -229,7 +231,11 @@ export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleL
                   <td className="px-5 py-3">
                     {self ? <span className="text-xs text-gray-400">Tài khoản của bạn</span> : (
                       <div className="flex flex-wrap gap-1.5">
-                        <Btn size="sm" variant="secondary" onClick={() => setDialog({ kind: 'reset', user: u })}>Đặt lại MK</Btn>
+                        {u.role === 'head_trainer' && !u.trainerProfileId && <Btn size="sm" variant="secondary" disabled={!!profilePending || u.status !== 'active' || !!u.locked} onClick={async () => {
+                          setProfilePending(u.id); setProfileError('');
+                          try { await onCreateTrainerProfile(u.id); } catch (e) { setProfileError((e as Error).message); }
+                          finally { setProfilePending(null); }
+                        }}>{profilePending === u.id ? 'Đang tạo...' : 'Tạo hồ sơ Trainer'}</Btn>}
                         <Btn size="sm" variant={u.locked ? 'secondary' : 'danger'} onClick={() => setDialog({ kind: 'lock', user: u })}>{u.locked ? 'Mở khóa' : 'Khóa'}</Btn>
                       </div>
                     )}
@@ -246,17 +252,12 @@ export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleL
         </div>
       </Card>
 
-      {showCreate && <CreateAccountModal users={users} clubs={clubs} onClose={() => setShowCreate(false)} onCreate={u => { onCreate(u); setShowCreate(false); setNewPwd({ name: u.name, pwd: u.password }); }} />}
+      {showCreate && <CreateAccountModal users={users} clubs={clubs} onClose={() => setShowCreate(false)} onCreate={async u => { await onCreate(u); setShowCreate(false); }} />}
 
       {dialog?.kind === 'lock' && (
         <ReasonDialog title={dialog.user.locked ? 'Mở khóa tài khoản' : 'Khóa tài khoản'} danger={!dialog.user.locked} confirmLabel={dialog.user.locked ? 'Mở khóa' : 'Khóa tài khoản'} onClose={() => setDialog(null)}
           description={<p>{dialog.user.locked ? 'Người dùng sẽ đăng nhập lại được.' : 'Người dùng sẽ không thể đăng nhập cho đến khi được mở khóa.'} Tài khoản: <b>{dialog.user.name}</b>.</p>}
-          onConfirm={reason => { onToggleLock(dialog.user.id, reason); setDialog(null); }} />
-      )}
-      {dialog?.kind === 'reset' && (
-        <ReasonDialog title="Đặt lại mật khẩu" confirmLabel="Đặt lại" onClose={() => setDialog(null)}
-          description={<p>Hệ thống sinh mật khẩu tạm thời cho <b>{dialog.user.name}</b>. Hãy chuyển cho người dùng qua kênh an toàn.</p>}
-          onConfirm={reason => { const pwd = onResetPassword(dialog.user.id, reason); setNewPwd({ name: dialog.user.name, pwd }); setDialog(null); }} />
+          onConfirm={async reason => { await onToggleLock(dialog.user.id, reason); setDialog(null); }} />
       )}
       {newPwd && (
         <Modal title="Mật khẩu tạm thời" onClose={() => setNewPwd(null)}>
@@ -274,12 +275,12 @@ function genPassword() {
   return Array.from({ length: 10 }, () => c[Math.floor(Math.random() * c.length)]).join('');
 }
 
-function CreateAccountModal({ users, clubs, onCreate, onClose }: { users: AppUser[]; clubs: Club[]; onCreate: (u: AppUser) => void; onClose: () => void }) {
-  const [f, setF] = useState({ name: '', email: '', phone: '', role: 'veterinarian' as Role, clubId: clubs[0]?.id || '', password: genPassword() });
+function CreateAccountModal({ users, clubs, onCreate, onClose }: { users: AppUser[]; clubs: Club[]; onCreate: (u: AppUser) => Promise<unknown>; onClose: () => void }) {
+  const [f, setF] = useState({ name: '', email: '', phone: '', role: 'veterinarian' as Role, clubId: clubs[0]?.id || '', password: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const set = (k: string) => (v: string) => { setF(p => ({ ...p, [k]: v })); setErrors(e => ({ ...e, [k]: '' })); };
 
-  const submit = () => {
+  const submit = async () => {
     const e: Record<string, string> = {};
     const name = f.name.trim();
     if (!name) e.name = 'Vui lòng nhập họ tên.'; else if (name.length < 2 || name.length > 60) e.name = 'Họ tên từ 2 đến 60 ký tự.';
@@ -288,11 +289,10 @@ function CreateAccountModal({ users, clubs, onCreate, onClose }: { users: AppUse
     else if (users.some(u => u.email.toLowerCase() === f.email.trim().toLowerCase())) e.email = 'Email này đã được sử dụng.';
     if (f.phone && !/^0\d{9}$/.test(f.phone.replace(/\s/g, ''))) e.phone = 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 0.';
     if (!f.clubId) e.clubId = 'Vui lòng chọn trung tâm.';
-    if (f.password.length < 8) e.password = 'Mật khẩu tối thiểu 8 ký tự.';
     setErrors(e);
     if (Object.keys(e).length) return;
     const initials = name.split(/\s+/).map(w => w[0]).slice(-2).join('').toUpperCase();
-    onCreate({ id: `u${Date.now()}`, name, email: f.email.trim().toLowerCase(), password: f.password, avatar: initials, role: f.role, clubId: f.clubId, status: 'active', phone: f.phone, verified: true, mustChangePassword: true });
+    try { await onCreate({ id: `u${Date.now()}`, name, email: f.email.trim().toLowerCase(), password: f.password, avatar: initials, role: f.role, clubId: f.clubId, status: 'active', phone: f.phone, verified: false, mustChangePassword: false }); } catch (err) { setErrors({ email: (err as Error).message }); }
   };
 
   return (
@@ -307,8 +307,8 @@ function CreateAccountModal({ users, clubs, onCreate, onClose }: { users: AppUse
           <Field label="Vai trò" required><Select value={f.role} onChange={set('role')} options={STAFF_ROLES.map(r => ({ value: r, label: ROLE_NAME[r] }))} /></Field>
           <Field label="Trung tâm" required error={errors.clubId}><Select value={f.clubId} onChange={set('clubId')} options={clubs.map(c => ({ value: c.id, label: c.name }))} /></Field>
         </div>
-        <Field label="Mật khẩu tạm thời" required error={errors.password} hint="Người dùng nên đổi mật khẩu ở lần đăng nhập đầu tiên.">
-          <div className="flex gap-2"><div className="flex-1"><Input value={f.password} onChange={set('password')} /></div><Btn variant="secondary" onClick={() => set('password')(genPassword())}>Tạo lại</Btn></div>
+        <Field label="Đặt mật khẩu" hint="BE gửi email mời. Nhân sự tự đặt mật khẩu qua liên kết trong email.">
+          <Input value="Gửi lời mời qua email" onChange={() => {}} />
         </Field>
       </div>
       <div className="mt-6 flex justify-end gap-2"><Btn variant="secondary" onClick={onClose}>Hủy</Btn><Btn onClick={submit}>Tạo tài khoản</Btn></div>
@@ -320,7 +320,7 @@ function CreateAccountModal({ users, clubs, onCreate, onClose }: { users: AppUse
 
 export function PermissionMatrixPage({ rolePerms, audit, onToggle }: {
   rolePerms: Record<string, string[]>; audit: AuditEntry[];
-  onToggle: (role: Role, page: string, on: boolean, reason: string) => void;
+  onToggle: (role: Role, page: string, on: boolean, reason: string) => Promise<unknown>;
 }) {
   const [pending, setPending] = useState<{ role: Role; page: string; on: boolean } | null>(null);
   const groups = Array.from(new Set(FEATURES.map(f => f.group)));
@@ -349,7 +349,7 @@ export function PermissionMatrixPage({ rolePerms, audit, onToggle }: {
                       const on = (rolePerms[r] || []).includes(f.page);
                       return (
                         <td key={r} className="px-3 py-2.5 text-center">
-                          <button role="switch" aria-checked={on} aria-label={`${f.label} — ${ROLE_NAME[r]}`} onClick={() => setPending({ role: r, page: f.page, on: !on })}
+                          <button role="switch" disabled={!permissionForPage(r, f.page)} title={permissionForPage(r, f.page) || 'BE quy định trực tiếp theo vai trò'} aria-checked={on} aria-label={`${f.label} — ${ROLE_NAME[r]}`} onClick={() => setPending({ role: r, page: f.page, on: !on })}
                             className={`relative h-5 w-9 rounded-full transition-colors ${on ? 'bg-emerald-500' : 'bg-gray-300'}`}>
                             <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${on ? 'left-[18px]' : 'left-0.5'}`} />
                           </button>
@@ -372,7 +372,7 @@ export function PermissionMatrixPage({ rolePerms, audit, onToggle }: {
       {pending && feat && (
         <ReasonDialog title={pending.on ? 'Cấp quyền' : 'Thu hồi quyền'} danger={!pending.on} confirmLabel="Xác nhận" onClose={() => setPending(null)}
           description={<p>{pending.on ? 'Cấp' : 'Thu hồi'} quyền <b>{feat.label}</b> {pending.on ? 'cho' : 'của'} vai trò <b>{ROLE_NAME[pending.role]}</b>.</p>}
-          onConfirm={reason => { onToggle(pending.role, pending.page, pending.on, reason); setPending(null); }} />
+          onConfirm={async reason => { await onToggle(pending.role, pending.page, pending.on, reason); setPending(null); }} />
       )}
     </div>
   );

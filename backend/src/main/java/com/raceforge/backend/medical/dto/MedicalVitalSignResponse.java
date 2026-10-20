@@ -4,19 +4,20 @@ import java.math.BigDecimal;
 
 public class MedicalVitalSignResponse {
 
-    private Integer vitalSignId;
+    private String vitalSignId;
     private BigDecimal bodyTemperature;
     private Integer restingHeartRate;
     private Integer restingRespiratoryRate;
+    private BigDecimal weight;
 
     public MedicalVitalSignResponse() {
     }
 
-    public Integer getVitalSignId() {
+    public String getVitalSignId() {
         return vitalSignId;
     }
 
-    public void setVitalSignId(Integer vitalSignId) {
+    public void setVitalSignId(String vitalSignId) {
         this.vitalSignId = vitalSignId;
     }
 
@@ -43,4 +44,13 @@ public class MedicalVitalSignResponse {
     public void setRestingRespiratoryRate(Integer restingRespiratoryRate) {
         this.restingRespiratoryRate = restingRespiratoryRate;
     }
+
+    public BigDecimal getWeight() {
+        return weight;
+    }
+
+    public void setWeight(BigDecimal weight) {
+        this.weight = weight;
+    }
+
 }

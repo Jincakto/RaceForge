@@ -9,12 +9,12 @@ import java.util.Optional;
 
 public interface NotificationRepository extends JpaRepository<Notification, Integer> {
 
-    List<Notification> findByUserIdOrderByCreatedAtDesc(Integer userId);
+    List<Notification> findByUserIdOrderByCreatedAtDesc(String userId);
 
     Optional<Notification> findByNotificationIdAndUserId(
             Integer notificationId,
-            Integer userId
+            String userId
     );
 
-    long countByUserIdAndReadFalse(Integer userId);
+    long countByUserIdAndReadFalse(String userId);
 }

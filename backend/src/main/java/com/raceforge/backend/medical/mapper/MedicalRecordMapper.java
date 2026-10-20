@@ -31,6 +31,13 @@ public class MedicalRecordMapper {
         response.setExamType(record.getExamType());
         response.setExaminedAt(record.getExaminedAt());
         response.setHealthStatus(record.getHealthStatus());
+        response.setTrainingEligible(record.getTrainingEligible());
+        response.setEligibilityReason(record.getEligibilityReason());
+        response.setSuggestedConclusion(record.getSuggestedConclusion());
+        response.setFinalConclusion(record.getFinalConclusion());
+        response.setOverrideReason(record.getOverrideReason());
+        response.setMonitoringNote(record.getMonitoringNote());
+        response.setTrainingLockReason(record.getTrainingLockReason());
         response.setDiagnosis(record.getDiagnosis());
         response.setTreatment(record.getTreatment());
         response.setMedication(record.getMedication());
@@ -38,6 +45,8 @@ public class MedicalRecordMapper {
         response.setNotes(record.getNotes());
         response.setSystemNote(record.getSystemNote());
         response.setTrainingNote(record.getTrainingNote());
+        response.setTrainingEligible(record.getTrainingEligible());
+        response.setEligibilityReason(record.getEligibilityReason());
         response.setStatus(record.getStatus());
         response.setConfirmedAt(record.getConfirmedAt());
         response.setCreatedAt(record.getCreatedAt());

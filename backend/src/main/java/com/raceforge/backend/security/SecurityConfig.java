@@ -28,7 +28,9 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, tools.jackson.databind.ObjectMapper mapper) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, tools.jackson.databind.ObjectMapper mapper,
+            @org.springframework.beans.factory.annotation.Qualifier("requestMappingHandlerMapping")
+            org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping apiHandlers) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
                 .cors(withDefaults())
@@ -69,10 +71,21 @@ public class SecurityConfig {
                                 "/api/auth/forgot-password",
                                 "/api/auth/reset-password"
                         ).permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/staff/set-password").permitAll()
+                        // Let MVC return 404 for missing API routes without granting access to any real endpoint.
+                        .requestMatchers(request -> {
+                            if (!request.getRequestURI().startsWith(request.getContextPath() + "/api/")) return false;
+                            try {
+                                return apiHandlers.getHandler(request) == null;
+                            } catch (Exception exception) {
+                                return false;
+                            }
+                        }).authenticated()
+                        .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
                         .requestMatchers("/api/users/me/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
-                        .requestMatchers("/api/users/**").hasAuthority("CLUB_MANAGER")
-                        .requestMatchers("/api/registration-requests/**").hasAuthority("CLUB_MANAGER")
+                        .requestMatchers(HttpMethod.GET, "/api/users/**").hasAnyAuthority("ADMIN", "CLUB_MANAGER")
+                        .requestMatchers("/api/users/**").hasAuthority("ADMIN")
                         .anyRequest().access((authentication, context) -> {
                             Object principal = authentication.get().getPrincipal();
                             boolean active = principal instanceof AuthenticatedUser user

@@ -14,8 +14,6 @@ public class MedicalClinicalExamMapper {
         response.setClinicalExamId(entity.getClinicalExamId());
         response.setExaminationArea(entity.getExaminationArea());
         response.setConditionStatus(entity.getConditionStatus());
-        response.setAbnormalityType(entity.getAbnormalityType());
-        response.setSeverity(entity.getSeverity());
         response.setNotes(entity.getNotes());
         return response;
     }

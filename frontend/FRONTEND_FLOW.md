@@ -1,41 +1,25 @@
-# UI cũ và luồng điều chỉnh
+# Frontend workflows connected to backend branch N
 
-Giao diện chính đã khôi phục về `src/App.tsx`: sidebar, dashboard, danh sách/
-chi tiết ngựa, hồ sơ khám, wizard đăng ký gói và wizard lộ trình cũ. Không dùng
-giao diện thay thế `src/live`. Không sửa backend, không commit/push.
+The frontend calls the contracts present in backend branch `N`; IDs and role names come from API responses. The existing visual system remains in use. Only frontend files were changed.
 
-Theo lựa chọn của người dùng, phần chưa có API chỉ dựng UI và ghi **Chờ API**.
-Không tạo bản xem trước lưu cục bộ, không dùng seed làm fallback khi server lỗi.
-
-| Yêu cầu | Đã làm ở frontend | Còn chờ backend |
+| Workflow | Frontend integration | Backend API limitation |
 | --- | --- | --- |
-| Đăng ký và nhân sự | Đăng ký công khai chỉ gửi requestedRoleId=5 (chủ ngựa), OTP và login thật; giữ role từ server, không biến manager thành admin. Dựng biểu mẫu Admin tạo nhân sự, nút tạo bị khóa. | Quyền Admin trong API tạo/gửi lời mời nhân sự, đổi mật khẩu lần đầu và phân quyền dành riêng Admin. Quy tắc cấm nhân sự tự đăng ký vẫn cần backend enforce, UI không thể thay đổi bảo mật server. |
-| Mô hình ngựa | Payload chỉ chứa trường API hỗ trợ; cân nặng/chiều cao được nhập thật. Bỏ chuồng/ô khỏi form hồ sơ. Giới tính Male/Female, tương ứng đực/cái; dữ liệu Stallion/Mare/Gelding cũ hiển thị theo hai giới tính. UI bảng HLV và lịch sử thể hiện một ngựa/nhiều HLV. | API quan hệ nhiều HLV. API hiện chỉ trả một headTrainerId; không tự tạo thêm HLV hay trạng thái nhận việc. |
-| Tìm kiếm, mã, minh chứng, thành tích | Tìm theo tên, mã HRS và microchip nếu có; mã HRS được định dạng từ ID thật backend. Có UI microchip, URL ảnh/file minh chứng, album và biểu mẫu thành tích/giải thưởng. Ảnh đại diện và lịch sử đua dùng API thật. | Lưu/kiểm chứng microchip, upload/lưu minh chứng và album, thành tích/giải thưởng riêng. Các thao tác chưa có API không được lưu. |
-| Duyệt và sửa hồ sơ | Tách duyệt hành chính khỏi kết luận khám. Khóa sửa trực tiếp khi đang duyệt/sau duyệt. Dựng yêu cầu sửa gồm trường, giá trị hiện tại/mới, lý do và minh chứng; nút gửi bị khóa. | API yêu cầu sửa và duyệt/từ chối thay đổi, phân công/nhận/từ chối/thay bác sĩ, lịch sử và xác minh định danh. |
-| Ngưỡng và nhập chỉ số | Đối chiếu Rutgers FS1262 cho ngựa trưởng thành lúc nghỉ: 37,2–38,3°C, tim 28–48/phút, thở 8–14/phút; hiển thị khoảng và liên kết nguồn. Chặn chữ, số âm, nhịp tim/thở thập phân, dữ liệu ngoài giới hạn kỹ thuật; cảnh báo ngoài khoảng tham chiếu. Không tự phân loại nặng/nhẹ bằng công thức 10% không có nguồn. | Quy tắc đánh giá trong backend không thay đổi; cần thống nhất nguồn/quy tắc khi hoàn thiện API khám. |
-| Thứ tự và kết luận khám | Theo khả năng hiện có của BE: hồ sơ → duyệt hành chính/tạo health profile → phân công/nhận ca → khám → bác sĩ kết luận đủ/cần theo dõi/không đủ điều kiện tập. Màn khám hiển thị ngựa thật; nút lưu chờ API phân công, không giả xác nhận đã được giao khám. | API phân công để mở lưu trong luồng yêu cầu mới. Không coi duyệt hành chính là được phép tập. |
-| Lịch sử khám | Đọc hồ sơ thật theo ngựa, giữ veterinarianId, tên bác sĩ nếu API được phép trả; nếu không dùng mã bác sĩ. Hiển thị chỉ số, xem chi tiết nhiều hồ sơ, lọc và so sánh. Lần khám trước lấy hồ sơ đã xác nhận; xét ngày khám trước rồi thời điểm tạo. | API chi tiết phân công và danh bạ bác sĩ đầy đủ. Không suy tên bác sĩ từ người đang đăng nhập. |
-| Đăng ký gói | Giữ wizard chọn gói → chọn ngựa → xem lại → xác nhận → thanh toán mô phỏng → biên lai. Chỉ chọn ngựa của mình, đã duyệt, có kết luận khám cho phép, không khóa, không có gói hiệu lực. Đăng ký và thanh toán gọi API riêng; hiệu lực lấy startDate/endDate từ server, phân biệt pending/cancelled/active. | Phân công/nhận/thay nhiều HLV và đọc lịch sử gói với quyền quản lý/HLV. Số buổi cố định không có trong API gói hiện tại; không tự đặt hạn mức giả. |
-| Lộ trình và sinh buổi | Giữ wizard tình trạng ngựa → mục tiêu → cường độ/lịch → xem trước → xác nhận. Gợi ý là quy tắc frontend để HLV xem xét. Lưu planName/goal/startDate/endDate và ghi chú thật; dùng plan ID server trả. Sinh buổi bằng API recurring với ngày/giờ/nội dung, lưu cự ly/mục tiêu vào nội dung vì BE chưa có trường riêng. Nếu batch lỗi giữa chừng báo số buổi đã lưu và tải lại. | GET danh sách/chi tiết lộ trình, trường cấu trúc cho cự ly/cường độ/mặt sân, phân công và kiểm tra gói đầy đủ theo quyền HLV. |
+| Sign in and registration | Login, owner-only public registration, OTP, Google auth, refresh/logout and password recovery use `/api/auth`. Staff activation uses the emailed single-use token. | Owner-only registration is also enforced by the backend. |
+| Admin and staff | Admin lists accounts, invites manager/trainer/vet/groom, resends invitations, activates/deactivates accounts, grants/revokes permissions and reads permission audit history. Admin account bootstrap skips business endpoints that reject Admin. | The API has no permission-catalog endpoint; the UI uses the permission codes seeded by branch N and unions them with codes returned for roles. There is no staff role-change endpoint. |
+| Horse registration and review | Owner creates and edits the API-supported profile fields, submits for admission, and can view manager approval/rejection. Horse ID, UELN, image URL, document URL/type and race history use server data. Search uses horse name, ID or registration number. | The API has no microchip verification, file upload, photo album, separate achievement CRUD, or post-approval change-request workflow. Unsupported edits are not saved locally. |
+| Multiple trainers | Manager creates a horse-level assignment request; trainer sees and accepts/declines it. Package-level assignments support manager assignment, trainer response, replacement/end and history. Accepted trainers are read from the horse trainer relation. | A pending request does not become an active trainer until the trainer accepts, as enforced by N. |
+| Veterinary workflow | Manager assigns/reassigns a veterinarian; veterinarian accepts/declines. The examination form sends a non-persisting evaluation preview before saving a draft, then confirms the record. Medical history, previous exam, lock history and unlock use API responses. | The API requires an accepted assignment before examination. The frontend keeps the server's recommendation visible and requires an override reason when the veterinarian chooses a different conclusion. |
+| Packages and payment | Owner registers a horse for an eligible package, reviews the pending registration, then simulates success/failure. Dates and payment status come from the server. Manager and owner package histories are loaded from their respective endpoints. | Branch N exposes package creation and read APIs but no package edit/status endpoints; those controls stay disabled. |
+| Training roadmap and sessions | Head trainer loads paid-package medical context, generates and confirms a recommendation, creates/edits a staged plan, generates sessions, then records start/stop/attendance/adjustment/results and feedback. Vet protocols can be drafted, approved or retired. | The server validates eligibility, package window, stages, and session completion. Roadmap generation is through the plan endpoint; no local session records are fabricated. |
+| Recovery | Manager approves recovery package registration and resumes an original package; owner simulates recovery payment. Vet manages recovery protocols. | Recovery actions require the backend's package and medical preconditions. |
+| Notifications | Reads backend notifications, displays unread state and marks items read through the API. | Admin notification access is not exposed by the current business-role security rules. |
 
-Nguồn chỉ số: [Rutgers Equine Science Center, FS1262](https://njaes.rutgers.edu/fs1262/).
-Khoảng tham chiếu áp dụng lúc nghỉ; trường hợp sau vận động/ngựa non được ghi
-rõ cần bác sĩ đánh giá riêng. Các giới hạn nhập liệu kỹ thuật không được mô tả
-là ngưỡng chẩn đoán hay giới hạn sinh tồn.
+Medical reference ranges shown in the examination UI are for adult horses at rest: temperature 37.2–38.3 °C, resting heart rate 28–48 bpm and respiratory rate 8–14/min, sourced from [Rutgers Equine Science Center FS1262](https://njaes.rutgers.edu/fs1262/). The backend evaluation preview remains authoritative for its decision rules.
 
-## Chạy và kiểm tra
+## Validation
 
-Chạy backend hiện có, sau đó chạy `npm run dev` trong frontend. `/api` được Vite
-proxy tới localhost:8080. Xem `.env.example` nếu dùng origin backend khác.
-Đăng nhập bằng tài khoản backend; không có đăng nhập demo hoặc lưu localStorage.
+Run the backend from branch `N`, then run `npm run dev` in this directory. Vite proxies `/api` to `localhost:8080`; set `VITE_API_BASE_URL` when the backend uses another origin.
 
-- `npm run build`: TypeScript và build production.
-- `npm test`: HTTP client, phiên đăng nhập, nguồn/ngưỡng chỉ số, mapping dữ liệu,
-  vai trò và trạng thái thanh toán, cùng kiểm tra dịch thuật sẵn có.
-- `node tests/live-smoke.mjs`: cần Playwright/Chrome; kiểm tra UI cũ với toàn bộ
-  `/api` được giả lập trong bài test. Không sửa tài khoản/database thật.
-
-OTP/email, quyền server, quy tắc nghiệp vụ và giao dịch với database thật cần
-kiểm tra trên môi trường backend đang chạy. Test giả lập không xác nhận các
-phần này đã hoạt động end-to-end.
+- `npm run typecheck` and `npm run build` check TypeScript and production bundling.
+- `npm test` covers the HTTP client, session lifecycle, medical ranges, mapping, roles, package status and roadmap IDs.
+- `node tests/live-smoke.mjs` exercises the existing UI against a mocked API; it does not verify mail delivery, database migrations, permissions or real backend transactions.

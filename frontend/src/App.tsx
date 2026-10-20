@@ -3066,19 +3066,26 @@ export default function App() {
   const submitAdmission = (id: string) => { void callBackend(async () => { await api(`/api/horses/${backendId(id)}/admission`, 'POST'); await refreshBackend(); }); };
   const reviewAdmission = (id: string, approve: boolean, note = '') => { void callBackend(async () => { await api(`/api/horses/${backendId(id)}/admission/${approve ? 'approve' : 'reject'}`, 'POST', { note }); await refreshBackend(); }); };
   const createHorseOnServer = (horse: Horse) => { void callBackend(async () => {
-    const created = await api<{ horseId: number }>(`/api/horses?ownerId=${backendId(stateRef.current.user!.id)}`, 'POST', { horseName: horse.name, dateOfBirth: toISO(horse.birthDate || ''), breed: horse.breed, coatColor: horse.color, gender: horse.gender, height: horse.height, registrationNumber: horse.registrationNumber, documentType: horse.identityEvidence?.note, documentUrl: horse.identityEvidence?.fileUrl, imageUrl: horse.imageUrl, declaredMedicalHistory: horse.medicalHistory });
+    const created = await api<{ horseId: string }>('/api/horses', 'POST', { horseName: horse.name, dateOfBirth: toISO(horse.birthDate || ''), breed: horse.breed, coatColor: horse.color, gender: horse.gender, height: horse.height, registrationNumber: horse.registrationNumber, documentType: horse.identityEvidence?.note, documentUrl: horse.identityEvidence?.fileUrl, imageUrl: horse.imageUrl, declaredMedicalHistory: horse.medicalHistory });
     try {
       for (const race of horse.raceHistory) await api(`/api/horses/${created.horseId}/race-history`, 'POST', { raceName: race.raceName, raceDate: toISO(race.date), distance: Number(race.distance.replace(/[^\d.]/g, '')) || null, finishPosition: race.position, completionTime: race.time, racecourse: race.venue, jockeyName: race.jockey, prize: Number(race.prize.replace(/[^\d.]/g, '')) || 0 });
     } catch (error) {
       await refreshBackend(); setState(s => ({ ...s, page: 'my-horses' }));
       throw new Error(`Đã tạo ngựa #${created.horseId}, nhưng chưa lưu hết lịch sử đua. ${error instanceof Error ? error.message : 'API error'}`);
     }
-    await refreshBackend(); setState(s => ({ ...s, page: 'my-horses', selectedHorseId: `HRS-${String(created.horseId).padStart(6, '0')}` }));
+    await refreshBackend(); setState(s => ({ ...s, page: 'my-horses', selectedHorseId: created.horseId }));
   }); };
   const updateHorseOnServer = (horse: Horse) => { void callBackend(async () => {
     const previous = stateRef.current.horses.find(h => h.id === horse.id);
     if (!previous) throw new Error('Không tìm thấy ngựa.');
-    if (JSON.stringify(horse.raceHistory) !== JSON.stringify(previous.raceHistory)) {
+    const racesChanged = JSON.stringify(horse.raceHistory) !== JSON.stringify(previous.raceHistory);
+    const activeTrainers = (list: Horse['trainerHistory'] = []) => list.filter(t => !t.to).map(t => t.trainerId);
+    const oldTrainers = activeTrainers(previous.trainerHistory || []), newTrainers = activeTrainers(horse.trainerHistory || []);
+    const trainersChanged = JSON.stringify(oldTrainers.slice().sort()) !== JSON.stringify(newTrainers.slice().sort());
+    const profileChanged = ['name','birthDate','breed','color','gender','height','registrationNumber','medicalHistory','imageUrl'].some(key => (horse as any)[key] !== (previous as any)[key]) || horse.identityEvidence?.note !== previous.identityEvidence?.note || horse.identityEvidence?.fileUrl !== previous.identityEvidence?.fileUrl;
+    if (previous.approvalStatus === 'approved' && profileChanged) throw new Error('Hồ sơ đã duyệt không cho sửa thông tin đăng ký trực tiếp.');
+    if (JSON.stringify(horse.achievements) !== JSON.stringify(previous.achievements) || JSON.stringify(horse.photos) !== JSON.stringify(previous.photos) || horse.microchip !== previous.microchip || horse.identityEvidence?.url !== previous.identityEvidence?.url || horse.identityVerified !== previous.identityVerified) throw new Error(BACKEND_PENDING);
+    if (racesChanged) {
       for (const race of previous.raceHistory.filter(r => !horse.raceHistory.some(next => next.id === r.id))) await api(`/api/horses/race-history/${backendId(race.id)}`, 'DELETE');
       for (const race of horse.raceHistory) {
         const old = previous.raceHistory.find(r => r.id === race.id);
@@ -3086,11 +3093,16 @@ export default function App() {
         const body = { raceName: race.raceName, raceDate: toISO(race.date), distance: Number(race.distance.replace(/[^\d.]/g, '')) || null, finishPosition: race.position, completionTime: race.time, racecourse: race.venue, jockeyName: race.jockey, prize: Number(race.prize.replace(/[^\d.]/g, '')) || 0 };
         await api(old ? `/api/horses/race-history/${backendId(race.id)}` : `/api/horses/${backendId(horse.id)}/race-history`, old ? 'PUT' : 'POST', body);
       }
-      await refreshBackend(); return;
     }
-    if (previous.approvalStatus === 'approved') throw new Error('Hồ sơ sau duyệt đã khóa; API yêu cầu sửa đang chờ.');
-    if (JSON.stringify(horse.achievements) !== JSON.stringify(previous.achievements) || JSON.stringify(horse.photos) !== JSON.stringify(previous.photos) || JSON.stringify(horse.trainerHistory) !== JSON.stringify(previous.trainerHistory) || horse.microchip !== previous.microchip || JSON.stringify(horse.identityEvidence) !== JSON.stringify(previous.identityEvidence)) throw new Error(BACKEND_PENDING);
-    await api(`/api/horses/${backendId(horse.id)}`, 'PUT', { horseName: horse.name, dateOfBirth: toISO(horse.birthDate || ''), breed: horse.breed, coatColor: horse.color, gender: horse.gender, height: horse.height, registrationNumber: horse.registrationNumber, documentType: horse.identityEvidence?.note, documentUrl: horse.identityEvidence?.fileUrl, declaredMedicalHistory: horse.medicalHistory, imageUrl: horse.imageUrl }); await refreshBackend();
+    if (trainersChanged) {
+      const horseId = backendId(horse.id);
+      for (const id of oldTrainers.filter(id => !newTrainers.includes(id)))
+        await api(`/api/horses/${horseId}/trainers/${backendId(id)}`, 'DELETE');
+      for (const id of newTrainers.filter(id => !oldTrainers.includes(id)))
+        await api(`/api/horses/${horseId}/trainers`, 'POST', { trainerId: backendId(id) });
+    }
+    if (profileChanged) await api(`/api/horses/${backendId(horse.id)}`, 'PUT', { horseName: horse.name, dateOfBirth: toISO(horse.birthDate || ''), breed: horse.breed, coatColor: horse.color, gender: horse.gender, height: horse.height, registrationNumber: horse.registrationNumber, documentType: horse.identityEvidence?.note, documentUrl: horse.identityEvidence?.fileUrl, declaredMedicalHistory: horse.medicalHistory, imageUrl: horse.imageUrl });
+    if (profileChanged || racesChanged || trainersChanged) await refreshBackend();
   }); };
 
   const nowStamp = () => { const d = new Date(); return { at: `${TODAY} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`, ts: Date.now() }; };

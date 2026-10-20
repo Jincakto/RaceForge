@@ -8,7 +8,7 @@ import { emptyStage, validateStages, type ServerRow, type Stage } from './workfl
 
 export function TrainingServerPage({state,refresh}: {state:AppState;refresh:()=>Promise<void>}) {
   const action=useServerAction(),manager=state.user!.role==='manager';
-  const [profiles,setProfiles]=useState<ServerRow[]>([]),[assignments,setAssignments]=useState<ServerRow[]>([]);
+  const [profiles,setProfiles]=useState<ServerRow[]>([]),[assignments,setAssignments]=useState<ServerRow[]>([]),[horseTasks,setHorseTasks]=useState<ServerRow[]>([]);
   const [pack,setPack]=useState(''),[trainer,setTrainer]=useState(''),[selected,setSelected]=useState('');
   const [reason,setReason]=useState(''),[detail,setDetail]=useState<any>(null),[context,setContext]=useState<ServerRow|null>(null);
   const [recommendation,setRecommendation]=useState<ServerRow|null>(null),[confirmed,setConfirmed]=useState(false);
@@ -19,7 +19,7 @@ export function TrainingServerPage({state,refresh}: {state:AppState;refresh:()=>
   const current=assignments.find(a=>String(a.assignment_id||a.id)===selected);
   const accepted=current?.status==='ACCEPTED';
   const session=sessions.find(s=>s.sessionId===sessionId);
-  const loadAssignments=async()=>{ if(manager){if(pack)setAssignments(await api<ServerRow[]>(`/api/horse-packages/${backendId(pack)}/trainer-assignments`));}else setAssignments(await api<ServerRow[]>('/api/trainer-assignments/me')); };
+  const loadAssignments=async()=>{ if(manager){if(pack)setAssignments(await api<ServerRow[]>(`/api/horse-packages/${backendId(pack)}/trainer-assignments`));}else {const [packageAssignments,tasks]=await Promise.all([api<ServerRow[]>('/api/trainer-assignments/me'),api<ServerRow[]>('/api/trainers/assignments/mine')]);setAssignments(packageAssignments);setHorseTasks(tasks);} };
   const loadSessions=async()=>{if(current)setSessions(await api<ServerRow[]>(`/api/training-sessions/horse/${current.horse_id}`));};
   const loadPlans=async()=>{if(current)setPlans(await api<ServerRow[]>(`/api/horses/${current.horse_id}/training-plans`));};
   useEffect(()=>{void action.run(async()=>{if(manager)setProfiles(await api<ServerRow[]>('/api/trainer-profiles'));await loadAssignments();},'');},[pack]);
@@ -34,6 +34,7 @@ export function TrainingServerPage({state,refresh}: {state:AppState;refresh:()=>
   return <div className="space-y-5" data-ui-translate="off"><h2 className="font-serif text-xl font-bold">Trainer assignments and training roadmap</h2><ActionStatus action={action}/>
     {manager&&<Card className="p-5 space-y-3"><Select label="Registered horse package" value={pack} onChange={v=>{setPack(v);resetSelection('');}} options={[{value:'',label:'Select paid active package'},...state.enrollments.filter(e=>e.status==='active'&&e.paymentStatus==='PAID').map(e=>({value:e.id,label:`${state.horses.find(h=>h.id===e.horseId)?.name||e.horseId} · ${e.packageName} · ${e.id}`}))]}/><Select label="Trainer profile" value={trainer} onChange={setTrainer} options={profileOptions}/><Btn disabled={action.busy||!pack||!trainer} onClick={()=>{void action.run(assign);}}>Assign trainer</Btn></Card>}
     <Btn variant="secondary" disabled={action.busy} onClick={()=>{void action.run(loadAssignments,'');}}>Reload assignments</Btn>
+    {!manager&&horseTasks.length>0&&<Card className="p-5 space-y-3"><h3 className="font-semibold">Horse trainer requests</h3>{horseTasks.map(task=><div key={task.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3"><div><b>{state.horses.find(h=>String(backendId(h.id))===String(task.horseId))?.name||task.horseId}</b><p className="text-sm text-gray-500">{task.status} · {task.createdAt}</p></div>{task.status==='ASSIGNED'&&<div className="flex gap-2"><Btn disabled={action.busy} onClick={()=>{void action.run(async()=>{await api(`/api/trainers/assignments/${task.id}/accept`,'POST');await loadAssignments();await refresh();});}}>Accept</Btn><Btn variant="danger" disabled={action.busy||!reason.trim()||reason.trim().length<10} onClick={()=>{void action.run(async()=>{await api(`/api/trainers/assignments/${task.id}/decline`,'POST',{reason});await loadAssignments();});}}>Decline</Btn></div>}</div>)}</Card>}
     <Select label="Assignment" value={selected} onChange={resetSelection} options={[{value:'',label:'Select assignment'},...assignments.map(a=>({value:String(a.assignment_id||a.id),label:`${a.horse_name} · ${a.trainer_name||''} · ${a.status} · ${a.assignment_id||a.id}`}))]}/>
     {current&&<Card className="p-5 space-y-3"><ServerDetails value={current}/><Input label="Reason" value={reason} onChange={setReason}/>
       {!manager&&current.status==='ASSIGNED'&&<><Btn disabled={action.busy} onClick={()=>{void action.run(async()=>{await api(`/api/trainer-assignments/${selected}/respond`,'POST',{accepted:true});await loadAssignments();await refresh();});}}>Accept assignment</Btn><Btn variant="danger" disabled={action.busy||!reason.trim()} onClick={()=>{void action.run(async()=>{await api(`/api/trainer-assignments/${selected}/respond`,'POST',{accepted:false,reason});await loadAssignments();});}}>Decline assignment</Btn></>}

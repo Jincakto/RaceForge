@@ -23,7 +23,7 @@ public final class UelnValidator {
 
     private static final Pattern FORMAT = Pattern.compile("^[0-9]{3}[A-Z0-9]{12}$");
     private static final String CODE_RESOURCE =
-            "/com/raceforge/backend/horse/ueln/registered-prefixes.txt";
+            "/com/raceforge/backend/src/main/resources/registered-prefixes.txt";
     private static final Set<String> REGISTERED_PREFIXES = loadPrefixes();
 
     private UelnValidator() {

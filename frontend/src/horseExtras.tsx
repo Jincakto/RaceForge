@@ -2,7 +2,6 @@ import { useState } from 'react';
 import type { AppUser, Horse } from './data';
 import { Badge, Btn, Card, Input, Select, Textarea } from './ui';
 import { ReasonDialog } from './admin';
-import { PendingNotice } from './pendingUi';
 
 const nowStamp = () => {
   const t = new Date();
@@ -55,8 +54,7 @@ export function TrainerHistoryTab({ horse, trainers, canEdit, today, onChange }:
             <Input label="Từ ngày" required type="date" value={f.from} max={toIso(today)} error={errs.from} onChange={v => setF({ ...f, from: v })} />
             <div className="col-span-2"><Input label="Ghi chú" value={f.note} maxLength={200} error={errs.note} hint="Phạm vi phụ trách, ví dụ: huấn luyện nước rút" onChange={v => setF({ ...f, note: v })} /></div>
           </div>
-          <PendingNotice>Chờ API lưu nhiều HLV/ngựa và phê duyệt phân công. Việc nhập biểu mẫu không làm thay đổi danh sách đang phụ trách.</PendingNotice>
-          <div className="flex gap-2"><Btn variant="gold" size="sm" disabled>Lưu — chờ API</Btn><Btn variant="secondary" size="sm" onClick={() => setAdding(false)}>Hủy</Btn></div>
+          <div className="flex gap-2"><Btn variant="gold" size="sm" onClick={submit}>Lưu</Btn><Btn variant="secondary" size="sm" onClick={() => setAdding(false)}>Hủy</Btn></div>
         </Card>
       )}
       <Card className="overflow-hidden">
@@ -70,7 +68,7 @@ export function TrainerHistoryTab({ horse, trainers, canEdit, today, onChange }:
                 <td className="px-5 py-3 text-gray-600">{t.to || '—'}</td>
                 <td className="px-5 py-3">{t.to ? <span className="rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-500">Đã kết thúc</span> : <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">Đang phụ trách</span>}</td>
                 <td className="px-5 py-3 text-xs italic text-gray-500">{t.note || '—'}</td>
-                <td className="px-5 py-3 text-right">{canEdit && !t.to && <Btn size="sm" variant="danger" disabled>Gỡ — chờ API</Btn>}</td>
+                <td className="px-5 py-3 text-right">{canEdit && !t.to && <Btn size="sm" variant="danger" onClick={() => setRemoving(t)}>Gỡ</Btn>}</td>
               </tr>
             ))}
             {list.length === 0 && <tr><td colSpan={6} className="px-5 py-10 text-center text-gray-400">Chưa có huấn luyện viên nào phụ trách ngựa này.</td></tr>}

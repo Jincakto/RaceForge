@@ -19,8 +19,8 @@ export function TrainerStatusPill({ status }: { status: Enrollment['trainerStatu
 interface CatalogProps {
   packages: TrainingPackage[];
   enrollments: Enrollment[];
-  onSave: (d: PackageDraft) => Res<TrainingPackage> | Promise<Res<TrainingPackage>>;
-  onToggle: (id: string, active: boolean) => Res<TrainingPackage> | Promise<Res<TrainingPackage>>;
+  onSave: (d: PackageDraft) => Promise<Res<TrainingPackage>>;
+  onToggle: (id: string, active: boolean) => Promise<Res<TrainingPackage>>;
 }
 
 export function PackageCatalogPage({ packages, enrollments, onSave, onToggle }: CatalogProps) {
@@ -80,10 +80,10 @@ export function PackageCatalogPage({ packages, enrollments, onSave, onToggle }: 
                 <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Đã đăng ký</div><div className="font-mono text-sm font-bold">{usage(p.id)}</div></div>
               </div>
               <div className="mt-4 flex gap-2">
-                <Btn disabled size="sm" variant="secondary" onClick={() => { setEditing(p); setActionError(''); }}>Edit — waiting for API</Btn>
+                <Btn size="sm" variant="secondary" onClick={() => { setEditing(p); setActionError(''); }}>Chỉnh sửa</Btn>
                 {p.active
-                  ? <Btn disabled size="sm" variant="danger" onClick={() => setConfirmOff(p)}>Disable — waiting for API</Btn>
-                  : <Btn disabled size="sm" variant="gold" onClick={async () => { const r = await onToggle(p.id, true); setActionError(r.ok ? '' : r.message); }}>Enable — waiting for API</Btn>}
+                  ? <Btn size="sm" variant="danger" onClick={() => setConfirmOff(p)}>Tắt áp dụng</Btn>
+                  : <Btn size="sm" variant="gold" onClick={async () => { const r = await onToggle(p.id, true); setActionError(r.ok ? '' : r.message); }}>Bật áp dụng</Btn>}
               </div>
             </Card>
           ))}
@@ -105,15 +105,15 @@ export function PackageCatalogPage({ packages, enrollments, onSave, onToggle }: 
   );
 }
 
-function PackageForm({ pkg, others, onSave, onClose }: { pkg: TrainingPackage | null; others: TrainingPackage[]; onSave: CatalogProps['onSave']; onClose: () => void }) {
-  const [f, setF] = useState({ name: pkg?.name ?? '', description: pkg?.description ?? '', sessions: '', packageType: pkg?.packageType || 'BASIC', durationDays: String(pkg?.durationDays ?? ''), price: String(pkg?.price ?? '') });
+function PackageForm({ pkg, others, onSave, onClose }: { pkg: TrainingPackage | null; others: TrainingPackage[]; onSave: (d: PackageDraft) => Promise<Res<TrainingPackage>>; onClose: () => void }) {
+  const [f, setF] = useState({ name: pkg?.name ?? '', description: pkg?.description ?? '', sessions: String(pkg?.sessions ?? ''), packageType: pkg?.packageType || 'BASIC', durationDays: String(pkg?.durationDays ?? ''), price: String(pkg?.price ?? '') });
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState('');
   const set = (k: keyof typeof f) => (v: string) => { setF(p => ({ ...p, [k]: v })); setErrs(e => ({ ...e, [k]: '' })); setSubmitError(''); };
   const num = (s: string) => (s.trim() === '' || !/^-?\d+$/.test(s.trim()) ? NaN : Number(s.trim()));
 
   const submit = async () => {
-    const draft: PackageDraft = { id: pkg?.id, name: f.name, description: f.description, sessions: 0, packageType: f.packageType, durationDays: num(f.durationDays), price: num(f.price) };
+    const draft: PackageDraft = { packageType: f.packageType, id: pkg?.id, name: f.name, description: f.description, sessions: num(f.sessions), durationDays: num(f.durationDays), price: num(f.price) };
     const e = validatePackage(draft, others);
     setErrs(e);
     if (Object.keys(e).length) return;
@@ -133,7 +133,7 @@ function PackageForm({ pkg, others, onSave, onClose }: { pkg: TrainingPackage | 
           <div className="flex justify-between text-xs"><span className="text-red-600">{errs.description}</span><span className="text-gray-400">{f.description.length}/300</span></div>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <Select label="Loại gói" required value={f.packageType} onChange={set('packageType')} options={['BASIC', 'RACING', 'PERFORMANCE', 'RECOVERY'].map(value => ({ value, label: value }))} />
+        <div><Select label="Loại gói" value={f.packageType} onChange={set('packageType')} options={['BASIC', 'RACING', 'PERFORMANCE', 'RECOVERY'].map(value => ({ value, label: value }))} />{errs.packageType && <p className="text-xs text-red-600">{errs.packageType}</p>}</div>
           <Input label="Thời hạn (ngày)" required type="number" value={f.durationDays} onChange={set('durationDays')} hint="Từ 7 đến 365 ngày" error={errs.durationDays} />
         </div>
         <Input label="Giá (VND)" required type="number" value={f.price} onChange={set('price')} hint={Number.isFinite(num(f.price)) && num(f.price) > 0 ? `= ${money(num(f.price))}` : 'Số nguyên lớn hơn 0'} error={errs.price} />
@@ -154,7 +154,7 @@ interface AssignProps {
   users: AppUser[];
   horses: Horse[];
   enrollments: Enrollment[];
-  onAssign: (enrId: string, trainerId: string, reason: string) => Res<Enrollment>;
+  onAssign: (enrId: string, trainerId: string, reason: string) => Promise<Res<Enrollment>>;
 }
 
 export function TrainerAssignPage({ user, users, horses, enrollments, onAssign }: AssignProps) {
@@ -175,12 +175,12 @@ export function TrainerAssignPage({ user, users, horses, enrollments, onAssign }
   const replacing = !!dlg && dlg.trainerStatus !== 'unassigned' && !!dlg.trainerId;
 
   const open = (e: Enrollment) => { setDlg(e); setTrainerId(''); setTrainerSearch(''); setReason(''); setErr(''); };
-  const submit = () => {
+  const submit = async () => {
     if (!dlg) return;
     if (!trainerId) { setErr('Vui lòng chọn huấn luyện viên.'); return; }
     if (replacing && reason.trim().length < 10) { setErr('Lý do thay thế phải có ít nhất 10 ký tự.'); return; }
     if (reason.length > 300) { setErr('Lý do tối đa 300 ký tự.'); return; }
-    const r = onAssign(dlg.id, trainerId, reason);
+    const r = await onAssign(dlg.id, trainerId, reason);
     if (!r.ok) { setErr(r.message); return; }
     setFlash(`Đã ${replacing ? 'thay thế' : 'phân công'} huấn luyện viên cho gói ${dlg.id}.`);
     setDlg(null);

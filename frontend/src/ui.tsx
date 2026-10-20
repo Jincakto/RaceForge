@@ -65,19 +65,19 @@ export function Input({ label, value, onChange, type = 'text', placeholder = '',
   return (
     <div>
       {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>}
-      <input aria-label={label} type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} maxLength={maxLength} max={max} min={min} aria-invalid={!!error}
+      <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} maxLength={maxLength} max={max} min={min} aria-invalid={!!error}
         className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b] focus:border-transparent ${error ? 'border-red-400 bg-red-50/40' : 'border-gray-300'}`} />
       {error ? <p className="text-xs text-red-600 mt-0.5">{error}</p> : hint && <p className="text-xs text-gray-400 mt-0.5">{hint}</p>}
     </div>
   );
 }
 
-export function Select({ label, value, onChange, options, error = '', hint = '', required = false, disabled = false }:
-  { label?: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; error?: string; hint?: string; required?: boolean; disabled?: boolean }) {
+export function Select({ label, value, onChange, options, error = '', hint = '', required = false }:
+  { label?: string; value: string; onChange: (v: string) => void; options: { value: string; label: string }[]; error?: string; hint?: string; required?: boolean }) {
   return (
     <div>
       {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>}
-      <select disabled={disabled} aria-label={label} value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b] bg-white">
+      <select value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b] bg-white">
         {options.map((o, index) => <option key={`${o.value}-${index}`} value={o.value}>{o.label}</option>)}
       </select>
       {error ? <p className="text-xs text-red-600 mt-0.5">{error}</p> : hint && <p className="text-xs text-gray-400 mt-0.5">{hint}</p>}
@@ -90,7 +90,7 @@ export function Textarea({ label, value, onChange, placeholder = '', rows = 3, r
   return (
     <div>
       {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>}
-      <textarea aria-label={label} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows}
+      <textarea value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows}
         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b] resize-none" />
       {hint && <p className="text-xs text-gray-400 mt-0.5">{hint}</p>}
     </div>

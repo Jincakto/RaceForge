@@ -1,27 +1,26 @@
+import { request } from './api';
 import { useEffect, useMemo, useState } from 'react';
 import type { AppUser, Club, Horse, HorseClubRequest, HealthRecord, TrainingSession } from './data';
 import { getLifecycle } from './data';
 import { Btn, Card, Input, Select, Textarea } from './ui';
 import { IdChip, Modal, GENDER_LABEL, dispId } from './admin';
 import { vetVisible } from './intake';
-import { PendingNotice } from './pendingUi';
 
 // ── Ngưỡng mẫu & tiện ích dùng chung (form khám + lịch sử khám) ─────────────────
 
-export const THRESHOLD_SOURCE_URL = 'https://njaes.rutgers.edu/fs1262/';
-export const THRESHOLD_SOURCE = 'Rutgers Equine Science Center — FS1262: ngựa trưởng thành, lúc nghỉ. Nhiệt độ 99–101 °F (xấp xỉ 37,2–38,3 °C), tim 28–48 lần/phút, thở 8–14 lần/phút. Chỉ số sau vận động và ngựa non cần bác sĩ đánh giá riêng; kết luận huấn luyện do bác sĩ xác nhận.';
-export function VitalReference() { return <span>{THRESHOLD_SOURCE} <a href={THRESHOLD_SOURCE_URL} target="_blank" rel="noreferrer" className="underline">Xem nguồn Rutgers</a></span>; }
+export const THRESHOLD_SOURCE =
+  'Nguồn tham khảo: University of Arizona Cooperative Extension, Knowing What is Normal for Your Horse (2022), https://extension.arizona.edu/sites/default/files/2024-08/AZ1986-2022.pdf. Ngựa trưởng thành lúc nghỉ; ngưỡng tham khảo không tự quyết định đủ điều kiện. Gợi ý lưu hồ sơ dùng quy tắc hiện có của BE (37,5–38,5°C; 28–44 nhịp tim/phút; 10–20 nhịp thở/phút), có thể khác tài liệu.';
 
 export type VitalKey = 'temperature' | 'heartRate' | 'respRate';
 export interface VitalDef {
   key: VitalKey; label: string; unit: string; lo: number; hi: number; hardLo: number; hardHi: number; icon: string; reason: string; example: string;
 }
 export const VITAL_DEFS: VitalDef[] = [
-  { key: 'temperature', label: 'Nhiệt độ cơ thể', unit: '°C', lo: 37.2, hi: 38.3, hardLo: 0.01, hardHi: 50, icon: '🌡️', example: 'VD: 38,0',
+  { key: 'temperature', label: 'Nhiệt độ cơ thể', unit: '°C', lo: 37.2, hi: 38.3, hardLo: 30, hardHi: 44, icon: '🌡️', example: 'VD: 38,0',
     reason: 'Phát hiện sốt hoặc nhiễm trùng sớm; nhiệt độ cao còn làm tăng nguy cơ kiệt sức khi tập.' },
-  { key: 'heartRate', label: 'Nhịp tim lúc nghỉ', unit: 'lần/phút', lo: 28, hi: 48, hardLo: 1, hardHi: 300, icon: '❤️', example: 'VD: 34',
+  { key: 'heartRate', label: 'Nhịp tim lúc nghỉ', unit: 'lần/phút', lo: 25, hi: 40, hardLo: 10, hardHi: 150, icon: '❤️', example: 'VD: 34',
     reason: 'Đánh giá tim mạch và mức độ đau, căng thẳng; nhịp nghỉ cao bất thường là dấu hiệu cảnh báo.' },
-  { key: 'respRate', label: 'Nhịp thở lúc nghỉ', unit: 'lần/phút', lo: 8, hi: 14, hardLo: 1, hardHi: 200, icon: '🫁', example: 'VD: 12',
+  { key: 'respRate', label: 'Nhịp thở lúc nghỉ', unit: 'lần/phút', lo: 8, hi: 24, hardLo: 2, hardHi: 80, icon: '🫁', example: 'VD: 12',
     reason: 'Phát hiện bệnh hô hấp hoặc sốt; nhịp thở nghỉ tăng cho thấy ngựa chưa sẵn sàng vận động.' },
 ];
 
@@ -36,10 +35,11 @@ export function evalVital(def: VitalDef, raw: string): VStatus {
   if (!t) return { kind: 'empty', n: NaN, error: '' };
   if (!/^\d+([.,]\d+)?$/.test(t)) return { kind: 'invalid', n: NaN, error: 'Chỉ nhập số, ví dụ 38,2 (không nhập chữ hoặc dấu âm).' };
   const n = Number(t.replace(',', '.'));
-  if (def.key !== 'temperature' && !Number.isInteger(n)) return { kind: 'invalid', n, error: 'Nhịp tim và nhịp thở phải là số nguyên dương.' };
-  if (n < def.hardLo || n > def.hardHi) return { kind: 'impossible', n, error: `Ngoài giới hạn nhập của biểu mẫu (${fmtNum(def.hardLo)}–${fmtNum(def.hardHi)} ${def.unit}). Kiểm tra lại số đo và đơn vị. Đây không phải ngưỡng chẩn đoán.` };
+  if (def.key !== 'temperature' && !Number.isInteger(n)) return { kind: 'invalid', n, error: 'Nhịp tim và nhịp thở phải là số nguyên.' };
+  if (n < def.hardLo || n > def.hardHi) return { kind: 'impossible', n, error: `Giá trị ngoài giới hạn kiểm tra nhập liệu (${fmtNum(def.hardLo)}–${fmtNum(def.hardHi)} ${def.unit}). Vui lòng kiểm tra lại phép đo; giới hạn nhập liệu không phải ngưỡng chẩn đoán.` };
   if (n >= def.lo && n <= def.hi) return { kind: 'normal', n, error: '' };
-  return { kind: 'mild', n, error: '' }; // Outside reference range; severity needs a veterinarian.
+  if (n >= def.lo * 0.9 && n <= def.hi * 1.1) return { kind: 'mild', n, error: '' };
+  return { kind: 'severe', n, error: '' };
 }
 export const vitalOk = (s: VStatus) => s.kind === 'normal' || s.kind === 'mild' || s.kind === 'severe';
 
@@ -56,9 +56,7 @@ export interface RegionDef { key: string; label: string; icon: string; hint: str
 export const REGION_DEFS: RegionDef[] = [
   { key: 'eyes', legacy: 'eyes', label: 'Mắt', icon: '👀', hint: 'Bình thường: sáng, tỉnh táo, không đỏ, không tiết dịch.', reason: 'Phát hiện viêm, tổn thương giác mạc hoặc dấu hiệu bệnh toàn thân.' },
   { key: 'nose', legacy: 'nose', label: 'Mũi', icon: '👃', hint: 'Bình thường: sạch, không có dịch đặc hoặc đổi màu.', reason: 'Dịch mũi bất thường là dấu hiệu sớm của bệnh đường hô hấp.' },
-  { key: 'legs', legacy: 'legs', label: 'Chân và gân', icon: '🐎', hint: 'Kiểm tra sưng, nóng, đau, gân và khớp.', reason: 'Bác sĩ ghi nhận tổn thương chi trước khi cho tập.' },
-  { key: 'skin', legacy: 'skin', label: 'Da và lông', icon: '🩺', hint: 'Kiểm tra vết thương, viêm và tình trạng da.', reason: 'Ghi nhận tổn thương và nguy cơ nhiễm trùng.' },
-  { key: 'general', legacy: 'behavior', label: 'Thể trạng toàn thân', icon: '🩺', hint: 'Đánh giá tỉnh táo, ăn uống và thể trạng.', reason: 'Bổ sung đánh giá toàn thân trước kết luận huấn luyện.' },
+  { key: 'mouth', legacy: 'mouth', label: 'Miệng', icon: '🦷', hint: 'Bình thường: niêm mạc hồng, ẩm, răng không gãy.', reason: 'Tổn thương miệng, răng làm ngựa đau khi ăn và khi mang hàm thiết.' },
   { key: 'movement', legacy: 'movement', label: 'Vận động / chân', icon: '🐎', hint: 'Bình thường: đi lại đều, không khập khiễng, chân không nóng sưng.', reason: 'Chân và gân là nơi dễ chấn thương nhất, quyết định ngựa có tập được không.' },
 ];
 
@@ -118,8 +116,8 @@ const STEPS = ['Chọn ngựa', 'Chỉ số sinh tồn', 'Khám lâm sàng', 'K�
 function ageText(h: Horse) { return `${h.age} tuổi`; }
 
 export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, today, postSession, onPostSubmit, onBack, onConsumeExamHorse }: {
-  state: FormState; navigate: (p: 'health-records' | 'vet-assign') => void; onSave: (msg: string) => void; onSaveRecord: (r: HealthRecord) => void | Promise<void>; today: string;
-  postSession?: TrainingSession; onPostSubmit?: (sessionId: string, r: HealthRecord) => string | null; onBack?: () => void; onConsumeExamHorse?: () => void;
+  state: FormState; navigate: (p: 'health-records' | 'vet-assign') => void; onSave: (msg: string) => void; onSaveRecord: (r: HealthRecord) => Promise<HealthRecord>; today: string;
+  postSession?: TrainingSession; onPostSubmit?: (sessionId: string, r: HealthRecord) => string | null | Promise<string | null>; onBack?: () => void; onConsumeExamHorse?: () => void;
 }) {
   const user = state.user!;
   const visible = useMemo(
@@ -152,10 +150,10 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, today
 
   const horse = visible.find(h => h.id === horseId);
   const horseRecords = useMemo(
-    () => state.healthRecords.filter(r => r.horseId === horseId).sort((a, b) => b.date.split('/').reverse().join('').localeCompare(a.date.split('/').reverse().join('')) || (b.createdAt ?? 0) - (a.createdAt ?? 0)),
+    () => state.healthRecords.filter(r => r.horseId === horseId).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0) || b.date.split('/').reverse().join('').localeCompare(a.date.split('/').reverse().join(''))),
     [state.healthRecords, horseId],
   );
-  const prev = horseRecords.find(r => r.status === 'confirmed' && r.vitals);
+  const prev = horseRecords.find(r => r.vitals && r.status === 'confirmed');
 
   const pendingReq = horse ? state.horseClubRequests.find(r => r.horseId === horse.id && r.status === 'pending') : undefined;
   const isIntake = !postSession && !!horse && !!pendingReq && horse.vetAssign?.status === 'accepted' && !horse.intakeExamId;
@@ -173,13 +171,29 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, today
     if (s.kind === 'mild' || s.kind === 'severe') findings.push({ label: d.label, text: `${fmtNum(s.n)} ${d.unit} (bình thường ${rangeText(d)})`, level: s.kind === 'severe' ? 'fail' : 'watch' });
   });
   REGION_DEFS.forEach(r => { if (regions[r.key] === 'bad') findings.push({ label: r.label, text: (notes[r.key] || '').trim() || 'Bất thường', level: 'watch' }); });
-  const overall: Level = findings.some(f => f.level === 'fail') ? 'fail' : findings.length ? 'watch' : 'pass';
+  const [preview, setPreview] = useState<{ key: string; suggestedConclusion: string; level: string; systemNote: string } | null>(null);
+  const previewKey = JSON.stringify({ horseId, vit, weight, regions, notes, examType, isIntake });
+  useEffect(() => {
+    if (!horseId || !vitalsDone || !regionsDone) { setPreview(null); return; }
+    let active = true;
+    const timer = setTimeout(() => {
+      const body = {
+        examType: isIntake ? 'INITIAL' : postSession || /Tái khám/i.test(examType) ? 'FOLLOW_UP' : 'PERIODIC',
+        vitalSign: { bodyTemperature: vs.temperature.n, restingHeartRate: vs.heartRate.n, restingRespiratoryRate: vs.respRate.n, weight: weight.trim() ? Number(weight.replace(',', '.')) : null },
+        clinicalExams: REGION_DEFS.map(r => ({ examinationArea: ({ eyes: 'EYES', nose: 'NOSE', mouth: 'MOUTH', movement: 'MOVEMENT_LEGS' } as Record<string,string>)[r.key], conditionStatus: regions[r.key] === 'ok' ? 'NORMAL' : 'ABNORMAL', notes: notes[r.key] || '' })),
+      };
+      void request(`/medical/horses/${encodeURIComponent(horseId)}/evaluation`, 'POST', body).then(value => { if (active) { setPreview({ ...value, key: previewKey }); setSaveError(''); } }).catch(e => { if (active) { setPreview(null); setSaveError((e as Error).message); } });
+    }, 300);
+    return () => { active = false; clearTimeout(timer); };
+  }, [previewKey]);
+  const currentPreview = preview?.key === previewKey ? preview : null;
+  const overall: Level = currentPreview?.level === 'CRITICAL' ? 'fail' : currentPreview?.level === 'WARNING' ? 'watch' : currentPreview?.level === 'NORMAL' ? 'pass' : findings.some(f => f.level === 'fail') ? 'fail' : findings.length ? 'watch' : 'pass';
   const overallCfg = {
     pass: { label: 'Bình thường', cls: 'border-emerald-300 bg-emerald-50 text-emerald-800', icon: '🟢' },
     watch: { label: 'Cần theo dõi', cls: 'border-amber-300 bg-amber-50 text-amber-800', icon: '🟡' },
     fail: { label: 'Nghiêm trọng', cls: 'border-red-300 bg-red-50 text-red-800', icon: '🔴' },
   }[overall];
-  const suggestedDecision: Decision = overall === 'fail' ? 'not-eligible' : overall === 'watch' ? 'conditional' : 'eligible';
+  const suggestedDecision: Decision = currentPreview?.suggestedConclusion === 'NOT_FIT' ? 'not-eligible' : currentPreview?.suggestedConclusion === 'FIT_WITH_MONITORING' ? 'conditional' : 'eligible';
   const needsOverride = !!decision && decision !== suggestedDecision;
   const decisionDetailsDone = decision === 'conditional'
     ? followUpNote.trim().length >= 10
@@ -194,14 +208,14 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, today
     return `Ngựa ${horse?.name || ''} không đủ điều kiện huấn luyện và bị khóa tập luyện. Lý do: ${decisionReason.trim() || 'chưa nhập lý do'}.`;
   })();
   const concText = autoConclusion.trim();
-  const conclusionDone = decisionDetailsDone && overrideDone && concText.length >= 10;
+  const conclusionDone = !!currentPreview && currentPreview.level !== 'INCOMPLETE' && decisionDetailsDone && overrideDone && concText.length >= 10;
   const done = [!!horse, vitalsDone, regionsDone, conclusionDone];
   const current = done.findIndex(d => !d);
-  const suggestionText = overall === 'pass'
+  const suggestionText = currentPreview?.systemNote || (overall === 'pass'
     ? 'Mọi chỉ số và vùng khám đều bình thường — hệ thống gợi ý ĐỦ ĐIỀU KIỆN huấn luyện.'
     : overall === 'watch'
       ? `Có ${findings.length} mục bất thường mức nhẹ (${findings.map(f => f.label).join(', ')}) — hệ thống gợi ý có thể huấn luyện nhưng cần theo dõi, bác sĩ cân nhắc.`
-      : `Có chỉ số lệch nhiều so với ngưỡng (${findings.filter(f => f.level === 'fail').map(f => f.label).join(', ')}) — hệ thống gợi ý KHÔNG ĐỦ ĐIỀU KIỆN huấn luyện.`;
+      : `Có chỉ số lệch nhiều so với ngưỡng (${findings.filter(f => f.level === 'fail').map(f => f.label).join(', ')}) — hệ thống gợi ý KHÔNG ĐỦ ĐIỀU KIỆN huấn luyện.`);
 
   // ── Lỗi từng trường ──
   const vitalError = (d: VitalDef) => {
@@ -254,23 +268,30 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, today
     };
   };
 
+  const [saving, setSaving] = useState(false);
+  const [pendingRecord, setPendingRecord] = useState<HealthRecord | null>(null);
   const doSave = async () => {
-    if (!horse) return;
-    const rec = buildRecord();
-    setSaveError('');
-    if (postSession && onPostSubmit) {
-      const err = onPostSubmit(postSession.id, rec);
-      if (err) { setSaveError(err); setConfirm(false); return; }
-    } else {
-      try { await onSaveRecord(rec); onSave(`Đã lưu hồ sơ khám ${rec.id} — ${DECISION_LABEL[rec.decision!]}`); }
-      catch (error) { setSaveError(error instanceof Error ? error.message : 'Không lưu được hồ sơ'); setConfirm(false); return; }
-    }
-    setConfirm(false);
-    setSaved(rec);
+    if (!horse || saving) return;
+    const fresh = buildRecord();
+    const rec = pendingRecord ? { ...fresh, id: pendingRecord.id, profileId: pendingRecord.profileId } : fresh;
+    setPendingRecord(rec); setSaveError(''); setSaving(true);
+    try {
+      if (postSession && onPostSubmit) {
+        const err = await onPostSubmit(postSession.id, rec);
+        if (err) { setSaveError(err); return; }
+        setSaved(rec);
+      } else {
+        const saved = await onSaveRecord(rec);
+        onSave(`Đã lưu hồ sơ khám ${saved.id} — ${DECISION_LABEL[saved.decision!]}`);
+        setSaved(saved);
+      }
+      setPendingRecord(null); setConfirm(false);
+    } catch (e) { setSaveError((e as Error).message); }
+    finally { setSaving(false); }
   };
 
   const reset = () => {
-    setHorseId(''); setQuery(''); setVit({ temperature: '', heartRate: '', respRate: '' }); setWeight(''); setRegions({}); setNotes({});
+    setPendingRecord(null); setHorseId(''); setQuery(''); setVit({ temperature: '', heartRate: '', respRate: '' }); setWeight(''); setRegions({}); setNotes({});
     setDecision(''); setFollowUpNote(''); setDecisionReason(''); setOverrideReason(''); setRecommendations(''); setMedications(''); setTried(false); setSaved(null); setSaveError(''); setExamType('Kiểm tra định kỳ');
   };
   const leave = () => (postSession && onBack ? onBack() : navigate('health-records'));
@@ -341,7 +362,6 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, today
         <Btn variant="secondary" onClick={leave}>Hủy</Btn>
       </div>
 
-      <PendingNotice>Chưa có API xác nhận phân công bác sĩ. Bạn có thể xem dữ liệu ngựa và các trường khám, nhưng nút lưu được khóa cho đến khi có phân công được chấp thuận. Kết luận đủ/không đủ điều kiện là bước sau khám, độc lập với duyệt hồ sơ hành chính.</PendingNotice>
       {/* Tiến trình */}
       <Card className="px-4 py-4">
         <ol className="flex items-start" aria-label="Tiến trình khám">
@@ -368,7 +388,7 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, today
 
       {/* 1. Chọn ngựa */}
       <Card className="p-5">
-        <SectionHead n={1} title="Chọn ngựa" sub="Gõ tên hoặc mã HRS. Dữ liệu đọc theo quyền backend; chỉ lưu khi phân công khám đã được xác nhận." />
+        <SectionHead n={1} title="Chọn ngựa" sub="Gõ tên hoặc mã ngựa (HRS-…) — chỉ hiện ngựa đã giao cho bạn." />
         {postSession && horse ? null : !horse ? (
           <div className="relative">
             <label className="mb-1 block text-sm font-medium text-gray-700">Tìm ngựa<span className="ml-0.5 text-red-500">*</span></label>
@@ -474,7 +494,7 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, today
             <table className="w-full text-xs text-gray-700"><tbody>
               {VITAL_DEFS.map(d => <tr key={d.key} className="border-t border-gray-100 first:border-0"><td className="py-1 pr-3">{d.label}</td><td className="py-1 font-medium">{rangeText(d)}</td></tr>)}
             </tbody></table>
-            <p className="mt-2 text-[11px] italic leading-snug text-amber-700"><VitalReference /></p>
+            <p className="mt-2 text-[11px] italic leading-snug text-amber-700">{THRESHOLD_SOURCE}</p>
           </div>
         </Card>
 
@@ -576,7 +596,7 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, today
             {willLock && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700">Ngựa đang tập sẽ bị KHÓA HUẤN LUYỆN, gói tạm dừng và các buổi nặng bị hủy.</p>}
             <div className="flex justify-end gap-2 pt-1">
               <Btn variant="secondary" onClick={() => setConfirm(false)}>Quay lại chỉnh sửa</Btn>
-              <Btn disabled={!horse.vetId || horse.vetAssign?.status !== 'accepted'} variant={willLock ? 'danger' : 'gold'} onClick={doSave}>Xác nhận & lưu hồ sơ — chờ API phân công</Btn>
+              <Btn variant={willLock ? 'danger' : 'gold'} onClick={doSave}>Xác nhận & lưu hồ sơ</Btn>
             </div>
           </div>
         </Modal>

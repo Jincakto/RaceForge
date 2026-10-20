@@ -4,7 +4,7 @@ import { Btn, Card, Input, Select } from './ui';
 import { IdChip, dispId } from './admin';
 import { vetVisible } from './intake';
 import {
-  VITAL_DEFS, REGION_DEFS, THRESHOLD_SOURCE, VitalReference, DECISION_LABEL, DecisionPill, VitalStatusPill,
+  VITAL_DEFS, REGION_DEFS, THRESHOLD_SOURCE, DECISION_LABEL, DecisionPill, VitalStatusPill,
   evalVital, fmtNum, rangeText, recordDecision, type VitalDef,
 } from './vetForm';
 
@@ -249,7 +249,7 @@ function RecordDetail({ rec, horse, vet, all, onClose }: { rec: HealthRecord; ho
               </tbody>
             </table>
           </div>
-          <p className="mt-1.5 text-[11px] italic text-amber-700"><VitalReference /></p>
+          <p className="mt-1.5 text-[11px] italic text-amber-700">{THRESHOLD_SOURCE}</p>
           <p className="mt-0.5 text-[11px] text-gray-400">Màu mũi tên: xanh = tiến gần ngưỡng bình thường, đỏ = xa ngưỡng hơn.</p>
         </div>
 

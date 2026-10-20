@@ -4,19 +4,20 @@ import java.math.BigDecimal;
 
 public class MedicalVitalSignResponse {
 
-    private Integer vitalSignId;
+    private String vitalSignId;
     private BigDecimal bodyTemperature;
     private Integer restingHeartRate;
     private Integer restingRespiratoryRate;
+    private BigDecimal weight;
 
     public MedicalVitalSignResponse() {
     }
 
-    public Integer getVitalSignId() {
+    public String getVitalSignId() {
         return vitalSignId;
     }
 
-    public void setVitalSignId(Integer vitalSignId) {
+    public void setVitalSignId(String vitalSignId) {
         this.vitalSignId = vitalSignId;
     }
 
@@ -43,4 +44,20 @@ public class MedicalVitalSignResponse {
     public void setRestingRespiratoryRate(Integer restingRespiratoryRate) {
         this.restingRespiratoryRate = restingRespiratoryRate;
     }
+<<<<<<< HEAD
+
+    public BigDecimal getWeight() {
+        return weight;
+    }
+
+    public void setWeight(BigDecimal weight) {
+        this.weight = weight;
+    }
+=======
+    @jakarta.validation.constraints.DecimalMin("0.01") @jakarta.validation.constraints.Digits(integer=5,fraction=2)
+    private java.math.BigDecimal weight;
+    public java.math.BigDecimal getWeight(){return weight;}
+    public void setWeight(java.math.BigDecimal value){weight=value;}
+>>>>>>> 76de6e5 (luu code)
+
 }

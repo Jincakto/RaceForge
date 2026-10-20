@@ -108,6 +108,7 @@ export interface HorseRehab {
 }
 
 export interface TrainingPackage {
+  packageType?: string;
   id: string;
   name: string;
   description: string;
@@ -155,13 +156,15 @@ export type TrainerAssignStatus = 'unassigned' | 'pending' | 'confirmed';
 export interface AssignEntry { time: string; kind: 'assign' | 'replace' | 'confirm' | 'decline'; from: string | null; to: string; by: string; reason: string }
 
 export interface Enrollment {
+  paymentStatus?: string;
+  backendStatus?: string;
   id: string;
   horseId: string;
   packageId: string;
   packageName: string;
   sessionsTotal: number;
   sessionsDone: number;
-  status: 'active' | 'paused' | 'completed';
+  status: 'active' | 'paused' | 'completed' | 'pending' | 'cancelled';
   trainerId: string;
   trainerName: string;
   trainerStatus: TrainerAssignStatus;
@@ -204,6 +207,7 @@ export function getLifecycle(h: Horse): Lifecycle {
 }
 
 export interface Horse {
+  backendAdmissionStatus?: string;
   id: string;
   name: string;
   breed: string;
@@ -378,7 +382,7 @@ export interface HealthRecord {
 }
 
 // ── Training Plan Algorithm ────────────────────────────────────────────────────
-// Based on: Seiler's 80/20 Polarized Training model + FEI equine science guidelines
+// Frontend heuristic for trainer review; this is not a validated veterinary prescription.
 // Factors: health status, age, weight, resting heart rate, race history
 
 export interface TrainingSuggestion {
@@ -438,12 +442,12 @@ export function computeTrainingSuggestion(horse: Horse, health?: HealthRecord): 
     const temp = Number(health.vitals.temperature);
     if (hr >= 28 && hr <= 36) {
       score += 15; rationale.push(`Nhịp tim nghỉ ${hr} bpm — tim mạch xuất sắc (nền tảng tốt cho tập hiệu suất cao)`);
-    } else if (hr <= 44) {
+    } else if (hr >= 28 && hr <= 48) {
       score += 8; rationale.push(`Nhịp tim nghỉ ${hr} bpm — bình thường`);
     } else {
       score -= 5; warnings.push(`Nhịp tim nghỉ ${hr} bpm cao — cần đánh giá lại tim mạch trước khi tăng tải`);
     }
-    if (temp > 38.5) { score -= 10; warnings.push(`Nhiệt độ ${temp}°C — dấu hiệu viêm nhiễm, tạm ngưng tập luyện`); }
+    if (temp > 38.3 || temp < 37.2) { score -= 10; warnings.push(`Nhiệt độ ${temp}°C ngoài khoảng tham chiếu lúc nghỉ — cần bác sĩ đánh giá trước khi tập.`); }
   } else {
     warnings.push('Chưa có dữ liệu sinh hiệu gần nhất — đề xuất khám trước khi bắt đầu chương trình');
   }

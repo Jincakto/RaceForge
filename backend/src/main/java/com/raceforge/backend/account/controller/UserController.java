@@ -2,7 +2,6 @@ package com.raceforge.backend.account.controller;
 
 import com.raceforge.backend.account.dto.AuthDtos.MessageResponse;
 import com.raceforge.backend.account.dto.AuthDtos.PageResponse;
-import com.raceforge.backend.account.dto.AuthDtos.RegistrationRequestResponse;
 import com.raceforge.backend.account.dto.AuthDtos.UserResponse;
 import com.raceforge.backend.account.dto.UserDtos.ChangePasswordRequest;
 import com.raceforge.backend.account.dto.UserDtos.UpdateMeRequest;
@@ -22,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+@org.springframework.validation.annotation.Validated
 @RestController
 @RequestMapping("/api/users")
 @Tag(name = "Users")
@@ -55,18 +55,11 @@ public class UserController {
         return ApiResponse.success("Password changed", new MessageResponse("Password changed."));
     }
 
-    @GetMapping("/me/registration-request")
-    public ApiResponse<RegistrationRequestResponse> myRegistrationRequest(
-            @AuthenticationPrincipal AuthenticatedUser currentUser
-    ) {
-        return ApiResponse.success("Registration request", userService.myRegistrationRequest(currentUser.userId()));
-    }
-
     @GetMapping
     public ApiResponse<PageResponse<UserResponse>> listUsers(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) Integer roleId,
+            @RequestParam(required = false) String roleId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
@@ -74,14 +67,22 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<UserResponse> getUser(@PathVariable Integer id) {
+<<<<<<< HEAD
+    public ApiResponse<UserResponse> getUser(@PathVariable @jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String id) {
+=======
+    public ApiResponse<UserResponse> getUser(@PathVariable String id) {
+>>>>>>> 76de6e5 (luu code)
         return ApiResponse.success("User", userService.getUser(id));
     }
 
     @PatchMapping("/{id}/status")
     public ApiResponse<UserResponse> updateStatus(
             @AuthenticationPrincipal AuthenticatedUser currentUser,
-            @PathVariable Integer id,
+<<<<<<< HEAD
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String id,
+=======
+            @PathVariable String id,
+>>>>>>> 76de6e5 (luu code)
             @Valid @RequestBody UpdateStatusRequest request
     ) {
         return ApiResponse.success("User status updated", userService.updateStatus(currentUser.userId(), id, request));

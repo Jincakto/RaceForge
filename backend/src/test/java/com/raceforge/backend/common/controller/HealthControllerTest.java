@@ -45,11 +45,11 @@ class HealthControllerTest {
     }
 
     @Test
-    void authenticatedUserWithoutRequiredRoleReceives403() throws Exception {
-        mockMvc.perform(get("/api/users").with(
+    void authenticatedUnknownApiReceives404() throws Exception {
+        mockMvc.perform(get("/api/missing").with(
                 org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("tester")))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.data.code").value("ACCESS_DENIED"));
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.data.code").value("RESOURCE_NOT_FOUND"));
     }
 
     @Test
@@ -64,8 +64,13 @@ class HealthControllerTest {
     @Test
     void databaseFailureDuringAuthenticationIsNotReportedAsInvalidToken() throws Exception {
         org.mockito.Mockito.when(jwtService.parse("valid"))
-                .thenReturn(new com.raceforge.backend.security.AuthenticatedUser(1, "test@example.com", "ACTIVE", 1, "CLUB_MANAGER"));
-        org.mockito.Mockito.when(userRepository.findDetailedById(1))
+<<<<<<< HEAD
+                .thenReturn(new com.raceforge.backend.security.AuthenticatedUser("CM-001", "test@example.com", "ACTIVE", 1, "CLUB_MANAGER"));
+        org.mockito.Mockito.when(userRepository.findDetailedById("CM-001"))
+=======
+                .thenReturn(new com.raceforge.backend.security.AuthenticatedUser("USR-001", "test@example.com", "ACTIVE", "ROL-001", "CLUB_MANAGER"));
+        org.mockito.Mockito.when(userRepository.findDetailedById("USR-001"))
+>>>>>>> 76de6e5 (luu code)
                 .thenThrow(new org.springframework.dao.DataAccessResourceFailureException("Database unavailable"));
         mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer valid"))
                 .andExpect(status().isServiceUnavailable())

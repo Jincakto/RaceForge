@@ -10,8 +10,8 @@ import java.util.List;
 
 @Repository
 public interface HorseRaceHistoryRepository
-        extends JpaRepository<HorseRaceHistory, Integer> {
+        extends JpaRepository<HorseRaceHistory, String> {
 
-    List<HorseRaceHistory> findByHorseHorseId(Integer horseId);
+    List<HorseRaceHistory> findByHorseHorseId(String horseId);
 }
 

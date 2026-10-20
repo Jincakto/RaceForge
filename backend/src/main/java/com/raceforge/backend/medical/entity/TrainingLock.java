@@ -7,11 +7,10 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "Training_Lock")
-public class TrainingLock {
+public class TrainingLock extends com.raceforge.backend.common.id.BusinessEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "lock_id", length = 20)
-    private Integer lockId;
+    private String lockId;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "horse_id", nullable = false)
@@ -41,11 +40,11 @@ public class TrainingLock {
     @Column(name = "unlock_reason", length = 1000)
     private String unlockReason;
 
-    public Integer getLockId() { 
+    public String getLockId() { 
         return lockId; 
     }
     
-    public void setLockId(Integer lockId) { 
+    public void setLockId(String lockId) { 
         this.lockId = lockId; 
     }
     

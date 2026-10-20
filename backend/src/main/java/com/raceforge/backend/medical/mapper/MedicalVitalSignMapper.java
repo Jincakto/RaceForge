@@ -13,6 +13,7 @@ public class MedicalVitalSignMapper {
         response.setBodyTemperature(entity.getBodyTemperature());
         response.setRestingHeartRate(entity.getRestingHeartRate());
         response.setRestingRespiratoryRate(entity.getRestingRespiratoryRate());
+        response.setWeight(entity.getWeight());
         return response;
     }
 }

@@ -10,7 +10,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface PasswordResetTokenRepository extends JpaRepository<PasswordResetToken, Integer> {
+public interface PasswordResetTokenRepository extends JpaRepository<PasswordResetToken, String> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select t from PasswordResetToken t where t.tokenHash = :tokenHash")
@@ -22,5 +22,5 @@ public interface PasswordResetTokenRepository extends JpaRepository<PasswordRese
             set t.usedAt = :now
             where t.user.userId = :userId and t.usedAt is null
             """)
-    int markAllUnusedForUserUsed(@Param("userId") Integer userId, @Param("now") Instant now);
+    int markAllUnusedForUserUsed(@Param("userId") String userId, @Param("now") Instant now);
 }

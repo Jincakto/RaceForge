@@ -10,15 +10,14 @@ import java.time.Instant;
 
 @Entity
 @Table(name = "Notification")
-public class Notification {
+public class Notification extends com.raceforge.backend.common.id.BusinessEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "notification_id")
-    private Integer notificationId;
+    private String notificationId;
 
     @Column(name = "user_id", nullable = false, length = 20)
-    private Integer userId;
+    private String userId;
 
     @Column(name = "notification_type", nullable = false, length = 50)
     private String notificationType;
@@ -35,19 +34,19 @@ public class Notification {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    public Integer getNotificationId() {
+    public String getNotificationId() {
         return notificationId;
     }
 
-    public void setNotificationId(Integer notificationId) {
+    public void setNotificationId(String notificationId) {
         this.notificationId = notificationId;
     }
 
-    public Integer getUserId() {
+    public String getUserId() {
         return userId;
     }
 
-    public void setUserId(Integer userId) {
+    public void setUserId(String userId) {
         this.userId = userId;
     }
 

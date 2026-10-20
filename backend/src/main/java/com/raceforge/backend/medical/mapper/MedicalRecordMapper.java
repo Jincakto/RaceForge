@@ -26,11 +26,19 @@ public class MedicalRecordMapper {
         MedicalRecordResponse response = new MedicalRecordResponse();
         response.setMedicalRecordId(record.getMedicalRecordId());
         response.setProfileId(record.getHealthProfile() == null ? null : record.getHealthProfile().getProfileId());
+        response.setVeterinarianName(record.getVeterinarian()==null?null:record.getVeterinarian().getFullName());
         response.setVeterinarianId(record.getVeterinarian() == null ? null : record.getVeterinarian().getUserId());
         response.setCorrectionOfId(record.getCorrectionOf() == null ? null : record.getCorrectionOf().getMedicalRecordId());
         response.setExamType(record.getExamType());
         response.setExaminedAt(record.getExaminedAt());
         response.setHealthStatus(record.getHealthStatus());
+        response.setTrainingEligible(record.getTrainingEligible());
+        response.setEligibilityReason(record.getEligibilityReason());
+        response.setSuggestedConclusion(record.getSuggestedConclusion());
+        response.setFinalConclusion(record.getFinalConclusion());
+        response.setOverrideReason(record.getOverrideReason());
+        response.setMonitoringNote(record.getMonitoringNote());
+        response.setTrainingLockReason(record.getTrainingLockReason());
         response.setDiagnosis(record.getDiagnosis());
         response.setTreatment(record.getTreatment());
         response.setMedication(record.getMedication());
@@ -38,12 +46,21 @@ public class MedicalRecordMapper {
         response.setNotes(record.getNotes());
         response.setSystemNote(record.getSystemNote());
         response.setTrainingNote(record.getTrainingNote());
+        response.setTrainingEligible(record.getTrainingEligible());
+        response.setEligibilityReason(record.getEligibilityReason());
         response.setStatus(record.getStatus());
         response.setConfirmedAt(record.getConfirmedAt());
         response.setCreatedAt(record.getCreatedAt());
         response.setUpdatedAt(record.getUpdatedAt());
         response.setVitalSign(vitalSignMapper.toResponse(vitalSign));
         response.setClinicalExams(clinicalExamMapper.toResponses(clinicalExams));
+        response.setEligibilityReason(record.getEligibilityReason());
+        response.setSuggestedConclusion(record.getSuggestedConclusion());
+        response.setFinalConclusion(record.getFinalConclusion());
+        response.setOverrideReason(record.getOverrideReason());
+        response.setMonitoringNote(record.getMonitoringNote());
+        response.setTrainingLockReason(record.getTrainingLockReason());
+        response.setTrainingEligible(record.getTrainingEligible());response.setIdealWeight(record.getIdealWeight());response.setBodyConditionScore(record.getBodyConditionScore());
         return response;
     }
 }

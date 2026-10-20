@@ -6,12 +6,16 @@ import com.raceforge.backend.account.entity.User;
 
 @Entity
 @Table(name = "Medical_Record")
-public class MedicalRecord {
+@SecondaryTable(name="Training_Medical_Context",pkJoinColumns=@PrimaryKeyJoinColumn(name="medical_record_id"))
+public class MedicalRecord extends com.raceforge.backend.common.id.BusinessEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+<<<<<<< HEAD
+    @Column(name = "medical_record_id", length = 20, nullable = false, updatable = false)
+=======
     @Column(name = "medical_record_id", length = 20)
-    private Integer medicalRecordId;
+>>>>>>> 76de6e5 (luu code)
+    private String medicalRecordId;
 
     @ManyToOne
     @JoinColumn(name = "profile_id", nullable = false)
@@ -33,6 +37,35 @@ public class MedicalRecord {
 
     @Column(name = "health_status", length = 30)
     private String healthStatus;
+
+    // NULL while DRAFT/CANCELLED. Calculated from the Vet's confirmed decision.
+    // FIT or FIT_WITH_MONITORING -> true; NOT_FIT -> false.
+    @Column(name = "training_eligible")
+    private Boolean trainingEligible;
+
+    // Explanation for the confirmed eligibility decision (not the system suggestion).
+    @Column(name = "eligibility_reason", length = 1000)
+    private String eligibilityReason;
+
+    // Evaluation suggestion and veterinarian's final decision are independent.
+    // FIT, FIT_WITH_MONITORING, NOT_FIT (business validation in service layer).
+    @Column(name = "suggested_conclusion", length = 30)
+    private String suggestedConclusion;
+
+    @Column(name = "final_conclusion", length = 30)
+    private String finalConclusion;
+
+    // Required when finalConclusion differs from suggestedConclusion.
+    @Column(name = "override_reason", length = 1000)
+    private String overrideReason;
+
+    // Required for FIT_WITH_MONITORING.
+    @Column(name = "monitoring_note", length = 1000)
+    private String monitoringNote;
+
+    // Required for NOT_FIT; applied only after veterinarian confirms the record.
+    @Column(name = "training_lock_reason", length = 1000)
+    private String trainingLockReason;
 
     @Column(name = "diagnosis", length = 1000)
     private String diagnosis;
@@ -90,11 +123,11 @@ public class MedicalRecord {
         updatedAt = LocalDateTime.now();
     }
 
-    public Integer getMedicalRecordId() {
+    public String getMedicalRecordId() {
         return medicalRecordId;
     }
 
-    public void setMedicalRecordId(Integer medicalRecordId) {
+    public void setMedicalRecordId(String medicalRecordId) {
         this.medicalRecordId = medicalRecordId;
     }
 
@@ -144,6 +177,62 @@ public class MedicalRecord {
 
     public void setHealthStatus(String healthStatus) {
         this.healthStatus = healthStatus;
+    }
+
+    public Boolean getTrainingEligible() {
+        return trainingEligible;
+    }
+
+    public void setTrainingEligible(Boolean trainingEligible) {
+        this.trainingEligible = trainingEligible;
+    }
+
+    public String getEligibilityReason() {
+        return eligibilityReason;
+    }
+
+    public void setEligibilityReason(String eligibilityReason) {
+        this.eligibilityReason = eligibilityReason;
+    }
+
+    public String getSuggestedConclusion() {
+        return suggestedConclusion;
+    }
+
+    public void setSuggestedConclusion(String suggestedConclusion) {
+        this.suggestedConclusion = suggestedConclusion;
+    }
+
+    public String getFinalConclusion() {
+        return finalConclusion;
+    }
+
+    public void setFinalConclusion(String finalConclusion) {
+        this.finalConclusion = finalConclusion;
+    }
+
+    public String getOverrideReason() {
+        return overrideReason;
+    }
+
+    public void setOverrideReason(String overrideReason) {
+        this.overrideReason = overrideReason;
+    }
+
+    public String getMonitoringNote() {
+        return monitoringNote;
+    }
+
+    public void setMonitoringNote(String monitoringNote) {
+        this.monitoringNote = monitoringNote;
+    }
+
+    public String getTrainingLockReason() {
+        return trainingLockReason;
+    }
+
+    public void setTrainingLockReason(String trainingLockReason) {
+        this.trainingLockReason = trainingLockReason;
     }
 
     public String getDiagnosis() {
@@ -233,4 +322,42 @@ public class MedicalRecord {
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
     }
+
+    @jakarta.persistence.Column(name="training_eligible") private Boolean trainingEligible;
+    @jakarta.persistence.Column(name="ideal_weight",table="Training_Medical_Context",precision=8,scale=2) private java.math.BigDecimal idealWeight;
+    @jakarta.persistence.Column(name="body_condition_score",table="Training_Medical_Context") private Integer bodyConditionScore;
+    public Boolean getTrainingEligible(){return trainingEligible;}public void setTrainingEligible(Boolean value){trainingEligible=value;}
+    public java.math.BigDecimal getIdealWeight(){return idealWeight;}public void setIdealWeight(java.math.BigDecimal value){idealWeight=value;}
+    public Integer getBodyConditionScore(){return bodyConditionScore;}public void setBodyConditionScore(Integer value){bodyConditionScore=value;}
+
+    @Column(name="eligibility_reason",length=1000)
+    private String eligibilityReason;
+    public String getEligibilityReason(){return eligibilityReason;}
+    public void setEligibilityReason(String value){eligibilityReason=value;}
+
+    @Column(name="suggested_conclusion",length=30)
+    private String suggestedConclusion;
+    public String getSuggestedConclusion(){return suggestedConclusion;}
+    public void setSuggestedConclusion(String value){suggestedConclusion=value;}
+
+    @Column(name="final_conclusion",length=30)
+    private String finalConclusion;
+    public String getFinalConclusion(){return finalConclusion;}
+    public void setFinalConclusion(String value){finalConclusion=value;}
+
+    @Column(name="override_reason",length=1000)
+    private String overrideReason;
+    public String getOverrideReason(){return overrideReason;}
+    public void setOverrideReason(String value){overrideReason=value;}
+
+    @Column(name="monitoring_note",length=1000)
+    private String monitoringNote;
+    public String getMonitoringNote(){return monitoringNote;}
+    public void setMonitoringNote(String value){monitoringNote=value;}
+
+    @Column(name="training_lock_reason",length=1000)
+    private String trainingLockReason;
+    public String getTrainingLockReason(){return trainingLockReason;}
+    public void setTrainingLockReason(String value){trainingLockReason=value;}
+
 }

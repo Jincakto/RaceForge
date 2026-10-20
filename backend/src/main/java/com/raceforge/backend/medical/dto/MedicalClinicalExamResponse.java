@@ -2,21 +2,22 @@ package com.raceforge.backend.medical.dto;
 
 public class MedicalClinicalExamResponse {
 
-    private Integer clinicalExamId;
+    private String clinicalExamId;
     private String examinationArea;
     private String conditionStatus;
-    private String abnormalityType;
-    private String severity;
     private String notes;
 
+<<<<<<< HEAD
+=======
     public MedicalClinicalExamResponse() {
     }
 
-    public Integer getClinicalExamId() {
+>>>>>>> 76de6e5 (luu code)
+    public String getClinicalExamId() {
         return clinicalExamId;
     }
 
-    public void setClinicalExamId(Integer clinicalExamId) {
+    public void setClinicalExamId(String clinicalExamId) {
         this.clinicalExamId = clinicalExamId;
     }
 
@@ -36,22 +37,13 @@ public class MedicalClinicalExamResponse {
         this.conditionStatus = conditionStatus;
     }
 
-    public String getAbnormalityType() {
-        return abnormalityType;
-    }
+<<<<<<< HEAD
+=======
 
-    public void setAbnormalityType(String abnormalityType) {
-        this.abnormalityType = abnormalityType;
-    }
 
-    public String getSeverity() {
-        return severity;
-    }
 
-    public void setSeverity(String severity) {
-        this.severity = severity;
-    }
 
+>>>>>>> 76de6e5 (luu code)
     public String getNotes() {
         return notes;
     }

@@ -4,7 +4,6 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import java.time.Instant;
 import java.util.List;
 
 public final class AuthDtos {
@@ -16,8 +15,7 @@ public final class AuthDtos {
             @NotBlank @Size(max = 150) String fullName,
             @NotBlank @Email @Size(max = 255) String email,
             @NotBlank @Size(min = 8, max = 100) String password,
-            @Size(max = 20) String phone,
-            Integer requestedRoleId
+            @Size(max = 20) String phone
     ) {
     }
 
@@ -37,8 +35,7 @@ public final class AuthDtos {
     }
 
     public record GoogleAuthRequest(
-            @NotBlank String idToken,
-            Integer requestedRoleId
+            @NotBlank String idToken
     ) {
     }
 
@@ -82,32 +79,40 @@ public final class AuthDtos {
     }
 
     public record UserResponse(
-            Integer userId,
+<<<<<<< HEAD
+            @jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String userId,
+=======
+            String userId,
+>>>>>>> 76de6e5 (luu code)
             String fullName,
             String email,
             String phone,
             String status,
             boolean emailVerified,
             String avatarUrl,
-            RoleResponse role
+            RoleResponse role,
+            String profileId
     ) {
     }
 
-    public record RoleResponse(Integer roleId, String roleName) {
+    public record RoleResponse(String roleId, String roleName) {
     }
 
+<<<<<<< HEAD
+=======
     public record RegistrationRequestResponse(
-            Integer requestId,
+            String requestId,
             UserResponse user,
             RoleResponse requestedRole,
             String status,
-            Integer reviewedBy,
+            String reviewedBy,
             Instant reviewedAt,
             String reviewNote,
             Instant createdAt
     ) {
     }
 
+>>>>>>> 76de6e5 (luu code)
     public record PageResponse<T>(
             List<T> content,
             int page,

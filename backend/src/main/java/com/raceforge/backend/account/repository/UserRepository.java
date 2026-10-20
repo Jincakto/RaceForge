@@ -11,7 +11,7 @@ import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Lock;
 
-public interface UserRepository extends JpaRepository<User, Integer> {
+public interface UserRepository extends JpaRepository<User, String> {
 
     Optional<User> findByEmail(String email);
 
@@ -23,15 +23,14 @@ public interface UserRepository extends JpaRepository<User, Integer> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select u from User u where u.userId = :userId")
-    Optional<User> findByIdForUpdate(@Param("userId") Integer userId);
+    Optional<User> findByIdForUpdate(@Param("userId") String userId);
 
     @Query("""
             select u from User u
             left join fetch u.role
-            left join fetch u.requestedRole
             where u.userId = :userId
             """)
-    Optional<User> findDetailedById(@Param("userId") Integer userId);
+    Optional<User> findDetailedById(@Param("userId") String userId);
 
     @Query("""
             select u from User u
@@ -45,7 +44,7 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     Page<User> searchUsers(
             @Param("search") String search,
             @Param("status") String status,
-            @Param("roleId") Integer roleId,
+            @Param("roleId") String roleId,
             Pageable pageable
     );
 

@@ -8,7 +8,7 @@ import { money, purchaseBlockReason, enrollmentTerm, isCurrent, EXPIRY_WARN_DAYS
 interface Props {
   state: { user: AppUser | null; horses: Horse[]; enrollments: Enrollment[]; packages: TrainingPackage[]; healthRecords: HealthRecord[] };
   navigate: (p: string) => void;
-  onPurchase: (horseId: string, packageId: string, renewOfId?: string) => Res<Enrollment>;
+  onPurchase: (horseId: string, packageId: string, renewOfId?: string, successful?: boolean) => Res<Enrollment> | Promise<Res<Enrollment>>;
 }
 
 const STEPS = ['Chọn gói', 'Chọn ngựa', 'Xem lại', 'Thanh toán', 'Biên lai'];
@@ -33,7 +33,7 @@ function StepBar({ step }: { step: number }) {
 export function ReceiptView({ e, horseName }: { e: Enrollment; horseName: string }) {
   const rows: [string, React.ReactNode][] = [
     ['Mã đăng ký', <IdChip kind="ENR" id={e.id} />],
-    ['Gói huấn luyện', `${e.packageName} · ${e.sessionsTotal} buổi`],
+    ['Gói huấn luyện', e.sessionsTotal ? `${e.packageName} · ${e.sessionsTotal} buổi` : e.packageName],
     ['Ngựa', horseName],
     ['Chủ ngựa', e.ownerName],
     ['Hiệu lực', `${e.startedAt} – ${e.expiresAt}`],
@@ -100,11 +100,10 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
   const pay = () => {
     if (paying) return;
     setPayMsg(null); setPaying(true);
-    timer.current = window.setTimeout(() => {
+    timer.current = window.setTimeout(async () => {
+      if (scenario === 'cancel') { setPaying(false); setPayMsg({ kind: 'cancel', text: 'Bạn đã hủy thanh toán. Chưa tạo đăng ký — bạn có thể thử lại bất cứ lúc nào.' }); return; }
+      const r = await onPurchase(horseId, pkgId, renewOf?.id, scenario === 'success');
       setPaying(false);
-      if (scenario === 'fail') { setPayMsg({ kind: 'fail', text: 'Thanh toán thất bại: ngân hàng từ chối giao dịch mô phỏng. Chưa có khoản tiền nào bị trừ và chưa tạo đăng ký.' }); return; }
-      if (scenario === 'cancel') { setPayMsg({ kind: 'cancel', text: 'Bạn đã hủy thanh toán. Chưa tạo đăng ký — bạn có thể thử lại bất cứ lúc nào.' }); return; }
-      const r = onPurchase(horseId, pkgId, renewOf?.id);
       if (!r.ok) { setPayMsg({ kind: 'error', text: r.message }); return; }
       setReceipt(r.data); setStep(4);
     }, 1200);
@@ -136,12 +135,12 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
                 <IdChip kind="ENR" id={e.id} />
                 <span className="font-semibold text-[#0f1729]">Gói {e.packageName}</span>
                 <span className="text-sm text-gray-500">· {horseName(e.horseId)}</span>
-                <Badge status={e.status === 'paused' ? 'Paused' : e.status === 'completed' ? 'Completed' : 'Active'} />
+                <Badge status={e.status === 'pending' ? 'Pending' : e.status === 'cancelled' ? 'Cancelled' : e.status === 'paused' ? 'Paused' : e.status === 'completed' ? 'Completed' : 'Active'} />
                 {live && <TrainerStatusPill status={e.trainerStatus} />}
               </div>
               <div className="mt-2 grid gap-1 text-sm text-gray-600 sm:grid-cols-2">
                 <div>Thời hạn: <strong>{t.text}</strong></div>
-                <div>{live ? (t.expired ? <span className="font-medium text-red-600">Đã hết hạn</span> : <>Còn <strong className={t.warn ? 'text-amber-700' : ''}>{t.left} ngày</strong></>) : 'Đã kết thúc'}</div>
+                <div>{live ? (t.expired ? <span className="font-medium text-red-600">Đã hết hạn</span> : <>Còn <strong className={t.warn ? 'text-amber-700' : ''}>{t.left} ngày</strong></>) : e.status === 'pending' ? 'Chưa kích hoạt — chờ thanh toán' : e.status === 'cancelled' ? 'Thanh toán thất bại / đã hủy' : 'Đã kết thúc'}</div>
                 <div>Huấn luyện viên: {e.trainerName ? e.trainerName : <span className="italic text-gray-400">chưa phân công</span>}</div>
                 <div>Số tiền: {money(e.amount)}</div>
               </div>
@@ -191,7 +190,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
                   <div className="mb-1 flex items-center gap-2"><IdChip kind="PKG" id={p.id} />{p.popular && <span className="rounded-full bg-[#c9973b]/15 px-2 py-0.5 text-[10px] font-medium text-[#8a6420]">Phổ biến</span>}</div>
                   <div className="font-serif text-lg font-bold text-[#0f1729]">{p.name}</div>
                   <div className="mt-1 font-serif text-xl font-bold text-[#c9973b]">{money(p.price)}</div>
-                  <div className="mt-2 text-sm text-gray-600">{p.sessions} buổi · {p.durationDays} ngày</div>
+                  <div className="mt-2 text-sm text-gray-600">{p.durationDays} ngày · Lịch tập theo lộ trình</div>
                   <p className="mt-2 text-xs text-gray-500">{p.description}</p>
                   {p.focus && <ul className="mt-2 space-y-0.5 text-xs text-gray-600">{p.focus.map(f => <li key={f}>✓ {f}</li>)}</ul>}
                 </button>
@@ -225,7 +224,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
         <Card className="space-y-4 p-6">
           <h3 className="font-serif text-lg font-bold">Xem lại đăng ký</h3>
           <div className="divide-y divide-gray-100 rounded-xl border border-gray-200">
-            {([['Gói', `${pkg.name} · ${pkg.sessions} buổi`], ['Ngựa', horse.name], ['Chủ ngựa', user.name], ['Hiệu lực', `${TODAY} – ${addDaysLabel(TODAY, pkg.durationDays)} (${pkg.durationDays} ngày)`], ['Tổng thanh toán', money(pkg.price)]] as [string, string][]).map(([k, v]) => (
+            {([['Gói', pkg.name], ['Ngựa', horse.name], ['Chủ ngựa', user.name], ['Hiệu lực', `${TODAY} – ${addDaysLabel(TODAY, pkg.durationDays)} (${pkg.durationDays} ngày)`], ['Tổng thanh toán', money(pkg.price)]] as [string, string][]).map(([k, v]) => (
               <div key={k} className="flex justify-between px-4 py-2.5 text-sm"><span className="text-gray-500">{k}</span><span className="font-medium">{v}</span></div>
             ))}
           </div>

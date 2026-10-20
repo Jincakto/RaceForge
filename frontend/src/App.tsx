@@ -1,7 +1,11 @@
 import { VetHealthFormPage, nextMedId, REGION_DEFS } from './vetForm';
 import { HealthRecordsPage } from './healthRecords';
 import { IntakeBoardPage, VetAssignedPage, IntakeProgress, IdentityBadge, intakeStage, vetVisible } from './intake';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { api, login, logout, restoreSession, type User } from './api';
+import { loadBackendState, toAppUser, backendId, makeBackendHandlers, BACKEND_PENDING } from './backendBridge';
+import { TODAY } from './today';
+import { PendingNotice, StaffCreationDesign, ApprovedEditRequest } from './pendingUi';
 import { makeTrainingHandlers } from './trainingLogic';
 import { PackageCatalogPage, TrainerAssignPage } from './packages';
 import { TrainingRegisterPage } from './trainingRegister';
@@ -30,7 +34,7 @@ import { ReasonDialog, FEATURES, NoPermission, IdChip, dispId, GENDER_LABEL, Acc
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Page =
+export type Page =
   | 'home' | 'login' | 'register' | 'onboarding' | 'join-center' | 'pending'
   | 'dashboard' | 'horse-list' | 'horse-detail' | 'horse-create' | 'horse-edit'
   | 'my-horses' | 'center-requests' | 'package-catalog' | 'trainer-assign'
@@ -42,7 +46,7 @@ type Page =
   | 'accounts' | 'permissions' | 'audit-log'
   | 'training-register' | 'vet-assign' | 'post-exam' | 'rehab-center' | 'inventory' | 'inventory-log';
 
-interface AppState {
+export interface AppState {
   user: AppUser | null;
   page: Page;
   users: AppUser[];
@@ -174,10 +178,11 @@ function UserAvatarDropdown({ user, onLogout }: { user: AppUser; onLogout: () =>
 
 // ── OTP Modal ─────────────────────────────────────────────────────────────────
 
-function OTPModal({ email, code, onVerify, onClose }: { email: string; code: string; onVerify: () => void; onClose: () => void }) {
+function OTPModal({ email, code, onVerify, onClose, verifyCode }: { email: string; code: string; onVerify: () => void; onClose: () => void; verifyCode?: (otp: string) => Promise<void> }) {
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
-  const verify = () => { if (input === code) onVerify(); else setError('Mã OTP không đúng. Vui lòng thử lại.'); };
+  const [busy, setBusy] = useState(false);
+  const verify = async () => { if (busy) return; if (!/^\d{6}$/.test(input)) { setError('Nhập đủ 6 chữ số OTP.'); return; } setBusy(true); setError(''); try { if (verifyCode) await verifyCode(input); else if (input === code) onVerify(); else setError('Mã OTP không đúng. Vui lòng thử lại.'); } catch (error) { setError(error instanceof Error ? error.message : 'Xác thực thất bại'); } finally { setBusy(false); } };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
@@ -187,16 +192,16 @@ function OTPModal({ email, code, onVerify, onClose }: { email: string; code: str
           <h3 className="font-serif font-bold text-xl text-[#0f1729]">Xác thực OTP</h3>
           <p className="text-gray-500 text-sm mt-1">Mã đã gửi đến <strong className="text-[#0f1729]">{email}</strong></p>
         </div>
-        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-center">
+        {!verifyCode && <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl text-center">
           <div className="text-xs text-amber-600 font-medium mb-1">🔐 Mã OTP (demo mode)</div>
           <div className="font-mono text-2xl font-bold text-[#c9973b] tracking-[0.4em]">{code}</div>
-        </div>
+        </div>}
         <div className="space-y-4">
           <input value={input} onChange={e => setInput(e.target.value.replace(/\D/g, '').slice(0, 6))} placeholder="000000" maxLength={6}
             className="w-full px-4 py-3 border border-gray-300 rounded-xl text-center text-2xl font-mono tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-[#c9973b]"
             onKeyDown={e => e.key === 'Enter' && verify()} />
           {error && <p className="text-red-500 text-sm text-center">{error}</p>}
-          <button onClick={verify} className="w-full py-3 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all">Xác nhận →</button>
+          <button disabled={busy} onClick={verify} className="w-full py-3 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all disabled:opacity-50">{busy ? 'Đang xác thực…' : 'Xác nhận →'}</button>
         </div>
       </div>
     </div>
@@ -281,19 +286,9 @@ const ROLE_LABELS: Record<Role, string> = {
   veterinarian: 'Veterinarian', groom: 'Groom', owner: 'Horse Owner',
 };
 
-const DEMO_ACCOUNTS = [
-  { email: 'admin@raceforce.vn', password: '123456', role: 'Administrator', icon: '🛡', color: 'bg-rose-700' },
-  { email: 'manager@raceforce.vn', password: '123456', role: 'Club Manager', icon: '🏛', color: 'bg-[#1a2844]' },
-  { email: 'trainer@raceforce.vn', password: '123456', role: 'Trainer', icon: '🏇', color: 'bg-blue-700' },
-  { email: 'vet@raceforce.vn', password: '123456', role: 'Veterinarian', icon: '🩺', color: 'bg-emerald-700' },
-  { email: 'groom@raceforce.vn', password: '123456', role: 'Groom', icon: '🧹', color: 'bg-amber-600' },
-  { email: 'owner@raceforce.vn', password: '123456', role: 'Horse Owner', icon: '👤', color: 'bg-purple-700' },
-  { email: 'owner2@raceforce.vn', password: '123456', role: 'Horse Owner (new)', icon: '👤', color: 'bg-purple-500' },
-];
-
 // ── Homepage ──────────────────────────────────────────────────────────────────
 
-function HomePage({ navigate }: { navigate: (p: Page) => void }) {
+export function HomePage({ navigate }: { navigate: (p: Page) => void }) {
   return (
     <div className="min-h-screen bg-[#0f1729] overflow-x-hidden">
       <nav className="flex items-center justify-between px-10 py-5 border-b border-white/10">
@@ -366,21 +361,20 @@ function HomePage({ navigate }: { navigate: (p: Page) => void }) {
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 
-function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) => void; users: AppUser[]; onLogin: (u: AppUser) => void }) {
+function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) => void; users: AppUser[]; onLogin: (u: AppUser, backendUser?: User) => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const di = 'w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]';
 
-  const handle = () => {
+  const handle = async () => {
     if (!email || !password) { setError('Please enter your email and password'); return; }
-    setLoading(true);
-    setTimeout(() => {
-      const u = users.find(u => u.email === email && u.password === password);
-      if (u) { if (!u.verified) { setError("Your email address has not been verified. Please check your inbox."); setLoading(false); } else if (u.locked) { setError("Your account is locked. Please contact an administrator."); setLoading(false); } else onLogin(u); }
-      else { setError("Incorrect email or password"); setLoading(false); }
-    }, 400);
+    if (loading) return;
+    setLoading(true); setError('');
+    try { const user = await login(email.trim(), password); onLogin(toAppUser(user), user); }
+    catch (error) { setError(error instanceof Error ? error.message : 'Sign in failed'); }
+    finally { setLoading(false); }
   };
 
   return (
@@ -403,19 +397,7 @@ function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) => void; 
           <p className="text-center text-gray-500 text-sm mt-5">No account yet? <button onClick={() => navigate('register')} className="text-[#c9973b] hover:underline font-medium">Register</button></p>
           <p className="mt-2 text-center text-xs text-gray-500">Staff accounts are issued by an administrator.</p>
 
-          {/* Quick Login Demo */}
-          <div className="mt-7 border-t border-white/10 pt-6">
-            <p className="text-gray-500 text-xs text-center mb-3 uppercase tracking-wider font-medium">Quick sign-in (demo)</p>
-            <div className="grid grid-cols-2 gap-2">
-              {DEMO_ACCOUNTS.map(acc => (
-                <button key={acc.email} onClick={() => { setEmail(acc.email); setPassword(acc.password); setTimeout(() => { const u = users.find(u => u.email === acc.email); if (u) onLogin(u); }, 100); }}
-                  className="flex items-center gap-2 p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all text-left">
-                  <span className={`w-7 h-7 rounded-lg ${acc.color} flex items-center justify-center text-white text-sm flex-shrink-0`}>{acc.icon}</span>
-                  <div className="min-w-0"><div className="text-white text-xs font-medium truncate">{acc.role}</div></div>
-                </button>
-              ))}
-            </div>
-          </div>
+
         </div>
       </div>
       <div className="w-[42%] relative hidden lg:block">
@@ -432,30 +414,29 @@ function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) => void; 
 
 // ── Register ──────────────────────────────────────────────────────────────────
 
-function RegisterPage({ navigate, onRegister }: { navigate: (p: Page) => void; onRegister: (u: AppUser) => void }) {
+function RegisterPage({ navigate, onRegister }: { navigate: (p: Page) => void; onRegister: (u: AppUser, backendUser?: User) => void }) {
   const [form, setForm] = useState({ name: '', email: '', phone: '', password: '', confirm: '' });
   const [error, setError] = useState('');
   const [showOtp, setShowOtp] = useState(false);
-  const otpCode = useRef('');
+  const [busy, setBusy] = useState(false);
   const set = (k: string) => (v: string) => setForm(f => ({ ...f, [k]: v }));
   const di = 'w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]';
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (busy) return;
     if (!form.name || !form.email || !form.password) { setError("Please complete all required fields"); return; }
     if (form.password !== form.confirm) { setError("Passwords do not match"); return; }
-    if (form.password.length < 6) { setError("Password must contain at least 6 characters"); return; }
-    otpCode.current = String(Math.floor(100000 + Math.random() * 900000));
-    setError(''); setShowOtp(true);
+    if (form.password.length < 8) { setError("Password must contain at least 8 characters"); return; }
+    setBusy(true); setError('');
+    try { await api('/api/auth/register', 'POST', { fullName: form.name.trim(), email: form.email.trim(), phone: form.phone, password: form.password, requestedRoleId: 5 }); setShowOtp(true); }
+    catch (error) { setError(error instanceof Error ? error.message : 'Registration failed'); }
+    finally { setBusy(false); }
   };
 
-  const handleVerified = () => {
-    const initials = form.name.trim().split(' ').map(w => w[0]).slice(-2).join('').toUpperCase();
-    onRegister({ id: `u${Date.now()}`, name: form.name, email: form.email, password: form.password, avatar: initials, role: 'owner', clubId: null, status: 'active', phone: form.phone, verified: true });
-  };
 
   return (
     <>
-      {showOtp && <OTPModal email={form.email} code={otpCode.current} onVerify={handleVerified} onClose={() => setShowOtp(false)} />}
+      {showOtp && <OTPModal email={form.email} code="" onVerify={() => {}} onClose={() => setShowOtp(false)} verifyCode={async otp => { await api('/api/auth/verify-email', 'POST', { email: form.email.trim(), otp }); const user = await login(form.email.trim(), form.password); onRegister(toAppUser(user), user); }} />}
       <div className="min-h-screen bg-[#0f1729] flex">
         <div className="flex-1 flex flex-col items-center justify-center px-10">
           <div className="w-full max-w-sm">
@@ -470,10 +451,10 @@ function RegisterPage({ navigate, onRegister }: { navigate: (p: Page) => void; o
               <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Full name <span className="text-red-400">*</span></label><input value={form.name} onChange={e => set('name')(e.target.value)} placeholder="Full name" className={di} /></div>
               <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Email <span className="text-red-400">*</span></label><input type="email" value={form.email} onChange={e => set('email')(e.target.value)} placeholder="you@example.com" className={di} /></div>
               <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Phone number</label><input value={form.phone} onChange={e => set('phone')(e.target.value)} placeholder="0912 345 678" className={di} /></div>
-              <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Password <span className="text-red-400">*</span></label><input type="password" value={form.password} onChange={e => set('password')(e.target.value)} placeholder="At least 6 characters" className={di} /></div>
+              <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Password <span className="text-red-400">*</span></label><input type="password" value={form.password} onChange={e => set('password')(e.target.value)} placeholder="At least 8 characters" className={di} /></div>
               <div><label className="block text-sm font-medium text-gray-300 mb-1.5">Confirm password <span className="text-red-400">*</span></label><input type="password" value={form.confirm} onChange={e => set('confirm')(e.target.value)} placeholder="Enter again" className={di} onKeyDown={e => e.key === 'Enter' && handleSubmit()} /></div>
               {error && <p className="text-red-400 text-sm">{error}</p>}
-              <button onClick={handleSubmit} className="w-full py-3 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all text-sm">Send OTP code →</button>
+              <button disabled={busy} onClick={handleSubmit} className="w-full py-3 bg-[#c9973b] hover:bg-[#b8852a] text-white font-semibold rounded-xl transition-all text-sm disabled:opacity-50">{busy ? 'Sending…' : 'Send OTP code →'}</button>
             </div>
             <p className="text-center text-gray-500 text-sm mt-5">Already have an account? <button onClick={() => navigate('login')} className="text-[#c9973b] hover:underline font-medium">Sign in</button></p>
           </div>
@@ -779,8 +760,8 @@ function ManagerDashboard({ state, navigate }: { state: AppState; navigate: (p: 
           ))}
         </Card>
         <Card className="p-5">
-          <h3 className="font-semibold mb-4">Performance — Thunder King</h3>
-          <ResponsiveContainer width="100%" height={200}><LineChart data={PERFORMANCE_DATA}><CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip /><Line type="monotone" dataKey="speed" stroke="#c9973b" strokeWidth={2} dot={false} name="Speed km/h" /><Line type="monotone" dataKey="fitness" stroke="#1a4a3a" strokeWidth={2} dot={false} name="Fitness %" /></LineChart></ResponsiveContainer>
+          <h3 className="font-semibold mb-4">Performance — waiting for reporting API</h3>
+          <ResponsiveContainer width="100%" height={200}><LineChart data={[]}><CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip /><Line type="monotone" dataKey="speed" stroke="#c9973b" strokeWidth={2} dot={false} name="Speed km/h" /><Line type="monotone" dataKey="fitness" stroke="#1a4a3a" strokeWidth={2} dot={false} name="Fitness %" /></LineChart></ResponsiveContainer>
         </Card>
       </div>
     </div>
@@ -953,7 +934,7 @@ function HorseListPage({ navigate, horses, role, clubId, onSelectHorse }:
   const PER = 6;
   const q = search.trim().toLowerCase();
   const list = (clubId ? horses.filter(h => h.clubId === clubId) : horses).filter(h => {
-    const ms = !q || h.name.toLowerCase().includes(q) || h.id.toLowerCase().includes(q);
+    const ms = !q || [h.name, h.id, dispId('HRS', h.id), h.microchip || ''].some(value => value.toLowerCase().includes(q));
     const mf = filter === 'Tất cả' || h.healthStatus === filter || h.trainingStatus === filter;
     const mg = gender === 'Tất cả' || (GENDER_LABEL[h.gender] || h.gender) === gender;
     return ms && mf && mg;
@@ -975,7 +956,7 @@ function HorseListPage({ navigate, horses, role, clubId, onSelectHorse }:
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-gray-500 w-20">Giới tính</span>
-          {['Tất cả', 'Đực', 'Cái'].map(f => <button key={f} onClick={() => { setGender(f); setPageNo(1); }} className={chip(gender === f)}>{f}</button>)}
+          {['Tất cả', 'Male', 'Female'].map(f => <button key={f} onClick={() => { setGender(f); setPageNo(1); }} className={chip(gender === f)}>{f}</button>)}
         </div>
       </div>
       <Card className="overflow-hidden">
@@ -1020,7 +1001,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
   const [showAchForm, setShowAchForm] = useState(false);
   const isOwner = user.role === 'owner' && horse.ownerId === user.id;
   const intakeRequest = state.horseClubRequests.find(r => r.horseId === horse.id && r.status === 'pending');
-  const ownerCanEdit = isOwner && (!intakeRequest || intakeStage(horse, intakeRequest) < 3);
+  const ownerCanEdit = isOwner && horse.approvalStatus !== 'approved' && horse.backendAdmissionStatus !== 'PENDING';
 
   const [editErr, setEditErr] = useState<Record<string, string>>({});
   const saveEdit = () => {
@@ -1028,7 +1009,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
     const hh = numOf(editForm.height);
     if (editForm.name.trim().length < 2 || editForm.name.length > 40) e.name = 'Tên ngựa từ 2 đến 40 ký tự.';
     if (isNaN(hh) || hh < 100 || hh > 200) e.height = 'Chiều cao hợp lệ từ 100 đến 200 cm.';
-    if (!editForm.microchip) e.microchip = 'Vui lòng nhập số microchip.'; else if (!/^\d{15}$/.test(editForm.microchip)) e.microchip = 'Số microchip gồm đúng 15 chữ số.';
+    if (editForm.microchip && !/^\d{15}$/.test(editForm.microchip)) e.microchip = 'Số microchip gồm đúng 15 chữ số.';
     else if (state.horses.some(x => x.id !== horse.id && x.microchip === editForm.microchip)) e.microchip = 'Số microchip này đã tồn tại trong hệ thống.';
     if (editForm.evidenceUrl.trim() && !/^https?:\/\/\S+\.\S+/.test(editForm.evidenceUrl.trim())) e.evidenceUrl = 'URL ảnh phải bắt đầu bằng http:// hoặc https://.';
     if (editForm.evidenceFileUrl.trim() && !/^https?:\/\/\S+/.test(editForm.evidenceFileUrl.trim())) e.evidenceFileUrl = 'File URL must begin with http:// or https://.';
@@ -1048,7 +1029,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
   const addAchievement = () => {
     const e: Record<string, string> = {};
     if (!newAch.title.trim()) e.title = 'Nhập tên giải.'; else if (newAch.title.length > 80) e.title = 'Tối đa 80 ký tự.';
-    if (!newAch.date) e.date = 'Chọn ngày.'; else if (newAch.date > '2026-09-25') e.date = 'Ngày thành tích không được ở tương lai.';
+    if (!newAch.date) e.date = 'Chọn ngày.'; else if (newAch.date > toISO(TODAY)) e.date = 'Ngày thành tích không được ở tương lai.';
     if (newAch.description.length > 300) e.description = 'Mô tả tối đa 300 ký tự.';
     setAchErr(e);
     if (Object.keys(e).length) return;
@@ -1063,7 +1044,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
   const saveRace = () => {
     const e: Record<string, string> = {};
     if (!raceF.raceName.trim()) e.raceName = 'Nhập tên giải đua.';
-    if (!raceF.date) e.date = 'Chọn ngày đua.'; else if (raceF.date > '2026-09-25') e.date = 'Ngày đua không được ở tương lai.';
+    if (!raceF.date) e.date = 'Chọn ngày đua.'; else if (raceF.date > toISO(TODAY)) e.date = 'Ngày đua không được ở tương lai.';
     const tot = Number(raceF.totalHorses);
     if (!Number.isInteger(tot) || tot < 2 || tot > 20) e.totalHorses = 'Số ngựa tham dự từ 2 đến 20.';
     else if (Number(raceF.position) > tot) e.position = 'Hạng không thể lớn hơn số ngựa tham dự.';
@@ -1116,7 +1097,8 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
           </div>
         </div>
       </div>
-      {isOwner && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Horse information cannot be changed after Step 3</p>}
+      {isOwner && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">Chỉ sửa trực tiếp bản chưa nộp hoặc bị từ chối. Bản đang duyệt tạm khóa; sau duyệt phải gửi yêu cầu sửa và được quản lý chấp thuận.</p>}
+      {isOwner && isApproved && <ApprovedEditRequest horse={horse} />}
       {horse.approvalStatus === 'approved' && <Card className="p-3"><LifecycleStepper horse={horse} /></Card>}
       {horse.lock && (
         <Card className="p-4 border-l-4 border-red-500 bg-red-50">
@@ -1139,7 +1121,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
       {tab === 'overview' && isApproved && (
         <Card className="flex items-start gap-3 border-l-4 border-[#1a2844] bg-slate-50 p-4">
           <span className="text-2xl">🔒</span>
-          <div className="text-sm"><div className="font-semibold text-[#0f1729]">Thông tin hồ sơ đã được khóa</div><div className="text-gray-600">Lý do: ngựa đã được duyệt nhận vào câu lạc bộ ngày {horse.approvedAt}, dữ liệu gốc dùng để đối chiếu nên không được sửa. Bạn chỉ có thể cập nhật <b>thành tích</b> và <b>ảnh minh chứng</b> ở thẻ “Cập nhật”.</div></div>
+          <div className="text-sm"><div className="font-semibold text-[#0f1729]">Thông tin hồ sơ đã được khóa</div><div className="text-gray-600">Hồ sơ đã được duyệt{horse.approvedAt ? ` ngày ${horse.approvedAt}` : ''}. Dữ liệu gốc dùng để đối chiếu; thay đổi cần được quản lý chấp thuận. API yêu cầu sửa, ảnh minh chứng và thành tích riêng đang chờ.</div></div>
         </Card>
       )}
       {tab === 'overview' && !isApproved && (() => { const rq = state.horseClubRequests.find(r => r.horseId === horse.id && r.status !== 'expired'); return rq ? <Card className="p-5"><div className="mb-3 text-sm font-semibold text-[#0f1729]">Tiến trình tiếp nhận vào câu lạc bộ</div><IntakeProgress stage={intakeStage(horse, rq)} />{rq.status === 'rejected' && rq.reviewNote && <p className="mt-3 text-sm text-red-600">Lý do từ chối: {rq.reviewNote}</p>}</Card> : null; })()}
@@ -1153,10 +1135,9 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
                   <Input label="Tên ngựa" value={editForm.name} maxLength={40} error={editErr.name} onChange={v => setEditForm(f => ({ ...f, name: v }))} />
                   <div className="grid grid-cols-2 gap-3">
                     <Input label="Chiều cao (cm)" value={editForm.height} error={editErr.height} onChange={v => setEditForm(f => ({ ...f, height: v }))} type="number" />
-                    <Input label="Chuồng" value={editForm.stable} onChange={v => setEditForm(f => ({ ...f, stable: v }))} />
-                    <Input label="Ô" value={editForm.stall} onChange={v => setEditForm(f => ({ ...f, stall: v }))} />
                   </div>
-                  <Input label="Identification Code" value={editForm.microchip} maxLength={15} error={editErr.microchip} hint="Changing the identification code resets verification status." onChange={v => setEditForm(f => ({ ...f, microchip: v.replace(/\D/g, '') }))} />
+                  <PendingNotice>Mã hồ sơ {dispId('HRS', horse.id)} do server cấp. Microchip và minh chứng định danh đang chờ API lưu/kiểm chứng.</PendingNotice>
+                  <fieldset disabled><Input label="Microchip" value={editForm.microchip} onChange={() => {}} /></fieldset>
                   <Input label="Evidence image URL" value={editForm.evidenceUrl} error={editErr.evidenceUrl} onChange={v => setEditForm(f => ({ ...f, evidenceUrl: v }))} />
                   <Input label="Evidence file URL" value={editForm.evidenceFileUrl} error={editErr.evidenceFileUrl} onChange={v => setEditForm(f => ({ ...f, evidenceFileUrl: v }))} />
                   <Input label="Document Type" value={editForm.evidenceNote} onChange={v => setEditForm(f => ({ ...f, evidenceNote: v }))} />
@@ -1164,7 +1145,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
               ) : (
                 <>
                   <div className="grid grid-cols-2 gap-x-8 gap-y-3 mb-4">
-                    {[['Giống', horse.breed], ['Giới tính', GENDER_LABEL[horse.gender] || horse.gender], ['Ngày sinh', horse.birthDate || '—'], ['Microchip', horse.microchip || 'Chưa khai báo'], ['Tuổi', `${horse.age} tuổi`], ['Màu lông', horse.color], ['Cân nặng', `${horse.weight} kg`], ['Chiều cao', `${horse.height} cm`], ['Chuồng', horse.stable], ['Ô', horse.stall]].map(([k, v]) => (
+                    {[['Giống', horse.breed], ['Giới tính', GENDER_LABEL[horse.gender] || horse.gender], ['Ngày sinh', horse.birthDate || '—'], ['Microchip', horse.microchip || 'Chờ API'], ['Tuổi', `${horse.age} tuổi`], ['Màu lông', horse.color], ['Cân nặng', `${horse.weight} kg`], ['Chiều cao', `${horse.height} cm`]].map(([k, v]) => (
                       <div key={k as string} className="flex gap-2"><span className="text-sm text-gray-500 w-24">{k as string}</span><span className="text-sm font-medium">{v as string}</span></div>
                     ))}
                   </div>
@@ -1249,6 +1230,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
 
       {tab === 'training' && !isVetRole && (
         <div className="space-y-6">
+          <PendingNotice>Mô hình UI một ngựa/nhiều HLV đã có bảng người đang phụ trách và lịch sử kết thúc. Backend hiện chỉ trả một HLV; cần API nhiều HLV, duyệt/nhận/từ chối và thay thế. Không lưu danh sách giả.</PendingNotice>
           <TrainerHistoryTab horse={horse} trainers={state.users.filter(u => u.role === 'head_trainer' && u.clubId === horse.clubId && !u.locked)} canEdit={user.role === 'manager' && horse.clubId === user.clubId} today={TODAY}
             onChange={(list, text, reason) => { onUpdateHorse({ ...horse, trainerHistory: list, changeLog: logChange(horse, user.name, text) }); onAudit(`Huấn luyện viên phụ trách: ${text}`, `${horse.name} (${dispId('HRS', horse.id)})`, reason); onShowSuccess('Đã cập nhật huấn luyện viên phụ trách!'); }} />
           <div className="space-y-3">
@@ -1307,9 +1289,10 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
 
       {tab === 'updates' && (
         <div className="space-y-4">
+          <PendingNotice>Ảnh minh chứng, thành tích và giải thưởng riêng đang chờ API. Kết quả đua được đọc từ API thật.</PendingNotice>
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">Thành tích của {horse.name}</h3>
-            {isOwner && <Btn variant="gold" onClick={() => setShowAchForm(!showAchForm)}>+ Thêm thành tích</Btn>}
+            {isOwner && <Btn variant="gold" onClick={() => setShowAchForm(!showAchForm)}>+ Achievement — waiting for API</Btn>}
           </div>
           {showAchForm && isOwner && (
             <Card className="p-5 border-l-4 border-[#c9973b]">
@@ -1322,7 +1305,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
                 <div className="col-span-2"><label className="block text-sm font-medium text-gray-700 mb-1">Tài liệu đính kèm</label><input type="file" accept=".pdf,image/*" onChange={e => setNewAch(a => ({ ...a, doc: e.target.files?.[0]?.name || a.doc }))} className="text-xs" />{newAch.doc && <div className="text-xs text-blue-600 mt-1">📎 {newAch.doc}</div>}</div>
                 <div className="col-span-2"><Textarea label="Mô tả" value={newAch.description} onChange={v => setNewAch(a => ({ ...a, description: v }))} placeholder="Mô tả thành tích..." /></div>
               </div>
-              <div className="flex gap-2 mt-3"><Btn variant="gold" onClick={addAchievement} >✓ Lưu</Btn><Btn variant="secondary" onClick={() => setShowAchForm(false)}>Huỷ</Btn></div>
+              <div className="flex gap-2 mt-3"><Btn variant="gold" disabled>Save achievement — waiting for API</Btn><Btn variant="secondary" onClick={() => setShowAchForm(false)}>Huỷ</Btn></div>
             </Card>
           )}
           {horse.achievements.length === 0 && <Card className="p-10 text-center"><div className="text-4xl mb-3">🏆</div><div className="text-gray-500 font-semibold">Chưa có thành tích</div>{isOwner && <div className="text-sm text-gray-400 mt-1">Nhấn "+ Thêm thành tích" để ghi nhận</div>}</Card>}
@@ -1376,7 +1359,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
         </div>
       )}
 
-      {tab === 'updates' && <PhotosTab horse={horse} canEdit={isOwner || (user.role === 'manager' && horse.clubId === user.clubId)} onChange={photos => onUpdateHorse({ ...horse, photos, changeLog: logChange(horse, user.name, `cập nhật ảnh minh chứng (${photos.length} ảnh)`) })} />}
+      {tab === 'updates' && <PhotosTab horse={horse} canEdit={false} onChange={() => {}} />}
 
     </div>
   );
@@ -1386,7 +1369,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onShowSuccess, onAudi
 
 function HorseCreatePage({ user, state, navigate, onCreateHorse }:
   { user: AppUser; state: AppState; navigate: (p: Page) => void; onCreateHorse: (h: Horse) => void }) {
-  const [form, setForm] = useState({ name: '', microchip: '', breed: 'Thoroughbred', birthDate: '', color: '', gender: 'Stallion', height: '', evidenceUrl: '', evidenceFileUrl: '', evidenceNote: '' });
+  const [form, setForm] = useState({ name: '', microchip: '', breed: 'Thoroughbred', birthDate: '', color: '', gender: 'Male', height: '', weight: '', imageUrl: '', evidenceUrl: '', evidenceFileUrl: '', evidenceNote: '' });
   const [raceHistory, setRaceHistory] = useState<RaceHistoryEntry[]>([]);
   const [showRaceForm, setShowRaceForm] = useState(false);
   const [newRace, setNewRace] = useState({ date: '', raceName: '', distance: '1200m', position: '1', totalHorses: '10', time: '', venue: '', jockey: '', prize: '' });
@@ -1411,7 +1394,7 @@ function HorseCreatePage({ user, state, navigate, onCreateHorse }:
     const e: Record<string, string> = {};
     const name = form.name.trim();
     if (!name) e.name = 'Vui lòng nhập tên ngựa.'; else if (name.length < 2 || name.length > 40) e.name = 'Tên ngựa từ 2 đến 40 ký tự.';
-    if (!form.microchip) e.microchip = 'Vui lòng nhập số microchip.'; else if (!/^\d{15}$/.test(form.microchip)) e.microchip = 'Số microchip gồm đúng 15 chữ số (chuẩn ISO 11784).';
+    if (form.microchip && !/^\d{15}$/.test(form.microchip)) e.microchip = 'Số microchip gồm đúng 15 chữ số.';
     else if (state.horses.some(x => x.microchip === form.microchip)) e.microchip = 'Số microchip này đã tồn tại trong hệ thống.';
     if (form.evidenceUrl.trim() && !/^https?:\/\/\S+\.\S+/.test(form.evidenceUrl.trim())) e.evidenceUrl = 'URL ảnh phải bắt đầu bằng http:// hoặc https://.';
     if (form.evidenceFileUrl.trim() && !/^https?:\/\/\S+/.test(form.evidenceFileUrl.trim())) e.evidenceFileUrl = 'File URL must begin with http:// or https://.';
@@ -1420,6 +1403,9 @@ function HorseCreatePage({ user, state, navigate, onCreateHorse }:
     else if (form.birthDate < '1996-01-01') e.birthDate = 'Ngày sinh không hợp lý (trước năm 1996).';
     if (!form.color.trim()) e.color = 'Vui lòng nhập màu lông.'; else if (form.color.length > 30) e.color = 'Tối đa 30 ký tự.';
     const h = numOf(form.height);
+    const weight = numOf(form.weight);
+    if (!Number.isFinite(weight) || weight <= 0) e.weight = 'Nhập cân nặng lớn hơn 0 kg.';
+    if (form.imageUrl && (!/^https?:\/\//.test(form.imageUrl) || form.imageUrl.length > 500)) e.imageUrl = 'URL ảnh http/https tối đa 500 ký tự.';
     if (isNaN(h)) e.height = 'Vui lòng nhập chiều cao (số).'; else if (h < 100 || h > 200) e.height = 'Chiều cao hợp lệ từ 100 đến 200 cm.';
     setErrors(e);
     if (Object.keys(e).length) return;
@@ -1427,13 +1413,13 @@ function HorseCreatePage({ user, state, navigate, onCreateHorse }:
     const age = Math.max(0, Math.floor((new Date(todayIso).getTime() - new Date(form.birthDate).getTime()) / 31557600000));
     onCreateHorse({
       id, name, breed: form.breed, age, birthDate: toDDMMYYYY(form.birthDate), microchip: form.microchip || undefined, color: form.color.trim(), gender: form.gender,
-      weight: 0, height: h, stable: '', stall: '', clubId: null,
+      weight, height: h, stable: '', stall: '', clubId: null,
       ownerId: user.id, ownerName: user.name, headTrainerId: '', headTrainerName: '',
       vetId: '', vetName: '', groomId: '', groomName: '',
       healthStatus: 'Pending Vet', trainingStatus: 'Pending Approval', approvalStatus: 'pending',
       registrationDate: TODAY, approvedAt: null, totalRaces: raceHistory.length,
       wins: raceHistory.filter(r => r.position === 1).length,
-      vetClearance: false, biography: '', imageUrl: '', achievements: [], raceHistory,
+      vetClearance: false, biography: '', imageUrl: form.imageUrl, achievements: [], raceHistory,
       lifecycle: 'pending', identityVerified: false, identityEvidence: { url: form.evidenceUrl.trim(), fileUrl: form.evidenceFileUrl.trim(), note: form.evidenceNote.trim() }, medicalHistory: '',
     });
   };
@@ -1442,20 +1428,20 @@ function HorseCreatePage({ user, state, navigate, onCreateHorse }:
     <div className="space-y-5 max-w-2xl">
       <div className="flex items-center gap-2 text-sm text-gray-500"><button onClick={() => navigate('my-horses')} className="hover:text-[#c9973b]">Ngựa của tôi</button><span>/</span><span className="font-medium text-[#0f1729]">Đăng ký ngựa mới</span></div>
       <div className="flex items-center justify-between">
-        <div><h2 className="text-xl font-serif font-bold text-[#0f1729]">Register horse profile</h2><p className="text-sm text-gray-500">The profile is created immediately and sent to the club for veterinarian assignment.</p></div>
+        <div><h2 className="text-xl font-serif font-bold text-[#0f1729]">Register horse profile</h2><p className="text-sm text-gray-500">Save the profile first, then submit it for administrative review from My horses. Admission does not replace the medical examination.</p></div>
         <div className="flex gap-2"><Btn variant="secondary" onClick={() => navigate('my-horses')}>Huỷ</Btn><Btn variant="gold" onClick={handle}>Gửi đăng ký →</Btn></div>
       </div>
 
       <Card className="p-6 space-y-4">
         <div className="flex items-center justify-between"><h3 className="font-semibold text-[#0f1729]">Định danh ngựa</h3><IdentityBadge verified={false} /></div>
-        <p className="text-xs text-gray-500">Số microchip gồm đúng 15 chữ số, không được trùng và sẽ được Quản lý đối chiếu với minh chứng khi tiếp nhận.</p>
-        <div className="grid grid-cols-2 gap-4">
-          <Input label="Identification Code" value={form.microchip} onChange={v => set('microchip')(v.replace(/\D/g, '').slice(0, 15))} placeholder="15 digits" required hint={`${form.microchip.length}/15 digits entered`} error={errors.microchip} />
+        <PendingNotice>Mã hồ sơ HRS do backend tạo sau khi lưu. Microchip, ảnh/file minh chứng và xác minh định danh đang chờ API; không tự sinh mã định danh thay backend.</PendingNotice>
+        <fieldset disabled className="grid grid-cols-2 gap-4 opacity-60">
+          <Input label="Microchip — chờ API" value={form.microchip} onChange={() => {}} placeholder="15 digits" hint="Chưa có API lưu microchip" />
           <div className="col-span-2"><Input label="Evidence image URL" value={form.evidenceUrl} onChange={set('evidenceUrl')} placeholder="https://..." error={errors.evidenceUrl} /></div>
           <div className="col-span-2"><Input label="Evidence file URL" value={form.evidenceFileUrl} onChange={set('evidenceFileUrl')} placeholder="https://..." error={errors.evidenceFileUrl} /></div>
           {form.evidenceUrl.trim() && /^https?:\/\//.test(form.evidenceUrl.trim()) && <div className="col-span-2"><img src={form.evidenceUrl.trim()} alt="Xem trước minh chứng" className="h-32 rounded-lg border border-gray-200 object-cover bg-gray-50" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} /></div>}
           <div className="col-span-2"><Input label="Document Type" value={form.evidenceNote} onChange={set('evidenceNote')} placeholder="Example: Identification certificate" error={errors.evidenceNote} /></div>
-        </div>
+        </fieldset>
       </Card>
 
       <Card className="p-6 space-y-4">
@@ -1463,10 +1449,12 @@ function HorseCreatePage({ user, state, navigate, onCreateHorse }:
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2"><Input label="Tên ngựa" value={form.name} onChange={set('name')} placeholder="VD: Silver Arrow" required maxLength={40} error={errors.name} /></div>
           <Select label="Giống ngựa" value={form.breed} onChange={set('breed')} options={['Thoroughbred', 'Arabian', 'Quarter Horse', 'Warmblood', 'Appaloosa'].map(v => ({ value: v, label: v }))} />
-          <Select label="Gender" value={form.gender} onChange={set('gender')} options={['Stallion', 'Mare'].map(v => ({ value: v, label: v }))} />
+          <Select label="Gender" value={form.gender} onChange={set('gender')} options={[{ value: 'Male', label: 'Male' }, { value: 'Female', label: 'Female' }]} />
           <Input label="Ngày sinh" value={form.birthDate} onChange={set('birthDate')} type="date" max={todayIso} required error={errors.birthDate} />
           <Input label="Màu lông" value={form.color} onChange={set('color')} placeholder="Bay, Grey, Chestnut..." required maxLength={30} error={errors.color} />
           <Input label="Chiều cao (cm)" value={form.height} onChange={set('height')} type="number" placeholder="160" required error={errors.height} />
+          <Input label="Cân nặng (kg)" value={form.weight} onChange={set('weight')} type="number" required error={errors.weight} />
+          <Input label="Ảnh ngựa (URL)" value={form.imageUrl} onChange={set('imageUrl')} error={errors.imageUrl} />
         </div>
         {Object.values(errors).some(Boolean) && <p className="text-red-600 text-sm">Vui lòng sửa các trường được đánh dấu đỏ.</p>}
       </Card>
@@ -2347,7 +2335,7 @@ function PerformancePage() {
       <div><h2 className="text-xl font-serif font-bold">Hiệu suất — Thunder King</h2></div>
       <div className="grid grid-cols-4 gap-4"><StatCard label="Tốc độ đỉnh" value="58.6 km/h" sub="Kỷ lục cá nhân 23/09" color="gold" /><StatCard label="Thể lực" value="87%" sub="↑ 6% tháng 9" color="green" /><StatCard label="Điểm AI" value="88/100" sub="Chuẩn bị thi đấu" color="navy" /><StatCard label="Tỷ lệ thắng" value="58%" sub="7/12 lần đua" color="navy" /></div>
       <div className="grid grid-cols-3 gap-5">
-        <div className="col-span-2"><Card className="p-5"><h3 className="font-semibold mb-4">Tốc độ & Thể lực theo tháng</h3><ResponsiveContainer width="100%" height={250}><LineChart data={PERFORMANCE_DATA}><CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /><XAxis dataKey="month" tick={{ fontSize: 12 }} /><YAxis tick={{ fontSize: 12 }} /><Tooltip /><Legend /><Line type="monotone" dataKey="speed" stroke="#c9973b" strokeWidth={2.5} dot={{ r: 4 }} name="Tốc độ (km/h)" /><Line type="monotone" dataKey="fitness" stroke="#1a4a3a" strokeWidth={2.5} dot={{ r: 4 }} name="Thể lực %" /></LineChart></ResponsiveContainer></Card></div>
+        <div className="col-span-2"><Card className="p-5"><h3 className="font-semibold mb-4">Tốc độ & Thể lực theo tháng</h3><ResponsiveContainer width="100%" height={250}><LineChart data={[]}><CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /><XAxis dataKey="month" tick={{ fontSize: 12 }} /><YAxis tick={{ fontSize: 12 }} /><Tooltip /><Legend /><Line type="monotone" dataKey="speed" stroke="#c9973b" strokeWidth={2.5} dot={{ r: 4 }} name="Tốc độ (km/h)" /><Line type="monotone" dataKey="fitness" stroke="#1a4a3a" strokeWidth={2.5} dot={{ r: 4 }} name="Thể lực %" /></LineChart></ResponsiveContainer></Card></div>
         <Card className="p-5"><h3 className="font-semibold mb-4">Năng lực tổng thể</h3><ResponsiveContainer width="100%" height={250}><RadarChart data={radar}><PolarGrid stroke="#e5e7eb" /><PolarAngleAxis dataKey="subject" tick={{ fontSize: 10 }} /><Radar dataKey="A" stroke="#c9973b" fill="#c9973b" fillOpacity={0.25} strokeWidth={2} /></RadarChart></ResponsiveContainer></Card>
       </div>
     </div>
@@ -2397,7 +2385,7 @@ function ReportsPage() {
           <Card key={r.title} className="p-5 cursor-pointer hover:border-[#c9973b]"><div className="flex items-start gap-4"><div className="w-12 h-12 rounded-xl bg-[#1a2844]/10 flex items-center justify-center text-2xl">{r.icon}</div><div className="flex-1"><div className="font-semibold">{r.title}</div></div></div><div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100"><Badge status={r.type} /><Btn variant="secondary">⬇ Tải PDF</Btn></div></Card>
         ))}
       </div>
-      <Card className="p-5"><h3 className="font-semibold mb-4">Tổng quan mùa giải 2026</h3><ResponsiveContainer width="100%" height={220}><BarChart data={PERFORMANCE_DATA}><CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /><XAxis dataKey="month" tick={{ fontSize: 12 }} /><YAxis tick={{ fontSize: 12 }} /><Tooltip /><Legend /><Bar dataKey="fitness" fill="#1a4a3a" name="Thể lực %" radius={[3, 3, 0, 0]} /><Bar dataKey="speed" fill="#c9973b" name="Tốc độ km/h" radius={[3, 3, 0, 0]} /></BarChart></ResponsiveContainer></Card>
+      <Card className="p-5"><h3 className="font-semibold mb-4">Tổng quan mùa giải 2026</h3><ResponsiveContainer width="100%" height={220}><BarChart data={[]}><CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" /><XAxis dataKey="month" tick={{ fontSize: 12 }} /><YAxis tick={{ fontSize: 12 }} /><Tooltip /><Legend /><Bar dataKey="fitness" fill="#1a4a3a" name="Thể lực %" radius={[3, 3, 0, 0]} /><Bar dataKey="speed" fill="#c9973b" name="Tốc độ km/h" radius={[3, 3, 0, 0]} /></BarChart></ResponsiveContainer></Card>
     </div>
   );
 }
@@ -2517,7 +2505,7 @@ function NotificationsPage({ notifications, onMarkRead, onOpen }: { notification
 }
 
 function ProfilePage({ user, state, navigate, onLogout, onSave }:
-  { user: AppUser; state: AppState; navigate: (p: Page) => void; onLogout: () => void; onSave: (msg: string) => void }) {
+  { user: AppUser; state: AppState; navigate: (p: Page) => void; onLogout: () => void; onSave: (msg: string, name?: string) => void }) {
   const [name, setName] = useState(user.name);
   const myClub = state.clubs.find(c => c.id === user.clubId);
   return (
@@ -2529,7 +2517,7 @@ function ProfilePage({ user, state, navigate, onLogout, onSave }:
         {user.bio && <div className="mt-4 p-3 bg-gray-50 rounded-lg text-sm text-gray-600 italic">"{user.bio}"</div>}
         {user.experience && <div className="mt-3"><div className="text-xs font-semibold text-gray-500 uppercase mb-1">Experience</div><div className="text-sm text-gray-700">{user.experience}</div></div>}
         {user.certifications && <div className="mt-3"><div className="text-xs font-semibold text-gray-500 uppercase mb-1">Certifications</div><div className="text-sm text-gray-700">{user.certifications}</div></div>}
-        <Btn variant="gold" className="mt-4" onClick={() => onSave('Profile updated successfully.')}>Save</Btn>
+        <Btn variant="gold" className="mt-4" onClick={() => onSave('Profile updated successfully.', name)}>Save</Btn>
       </Card>
       {myClub && user.role !== 'manager' && <Card className="p-5"><h3 className="font-semibold mb-3">My Club</h3><div className="flex items-center gap-3"><div className="w-12 h-12 rounded-xl bg-[#1a2844] text-white flex items-center justify-center font-serif font-bold text-lg">{myClub.logoLetter}</div><div><div className="font-semibold">{myClub.name}</div><div className="text-sm text-gray-500">📍 {myClub.location} · Founded {myClub.founded}</div></div></div></Card>}
       <Btn variant="danger" onClick={onLogout}>Sign out</Btn>
@@ -2705,7 +2693,6 @@ const PAGE_TITLES: Partial<Record<Page, string>> = {
   'training-register': 'Training registration', 'vet-assign': 'Assigned horses', 'post-exam': 'Post-training exams & locks', 'rehab-center': 'Rehabilitation packages', inventory: 'My inventory', 'inventory-log': 'Inventory history',
 };
 
-const TODAY = '25/09/2026';
 
 function newNotif(n: Omit<AppNotification, 'id' | 'time' | 'read'>): AppNotification {
   return { ...n, id: `n${Date.now()}${Math.random().toString(36).slice(2, 6)}`, time: 'Vừa xong', read: false };
@@ -2740,21 +2727,40 @@ function NoAccess({ text }: { text: string }) {
 export default function App() {
   const [state, setState] = useState<AppState>({
     user: null, page: 'home',
-    users: SEED_USERS, clubs: SEED_CLUBS, memberRequests: SEED_REQUESTS,
-    horses: HORSES, horseClubRequests: SEED_HORSE_CLUB_REQUESTS, examHorseId: null,
-    healthRecords: [...INTAKE_RECORDS, ...MEDICAL_RECORDS], trainingPlans: TRAINING_PLANS, trainingSessions: TRAINING_SESSIONS,
-    inventory: SEED_INVENTORY, invLogs: SEED_INV_LOGS, careRecords: [], incidents: [], notifications: NOTIFICATIONS, enrollments: SEED_ENROLLMENTS, errorMsg: null,
-    selectedHorseId: 'HRS-000001', packages: TRAINING_PACKAGES, viewTrainerId: null, showSuccess: null,
+    users: [], clubs: [{ id: 'c1', name: 'RaceForce', location: '', description: '', managerId: '', managerName: '', memberCount: 0, founded: '', logoLetter: 'R' }], memberRequests: [],
+    horses: [], horseClubRequests: [], examHorseId: null,
+    healthRecords: [], trainingPlans: [], trainingSessions: [],
+    inventory: [], invLogs: [], careRecords: [], incidents: [], notifications: [], enrollments: [], errorMsg: null,
+    selectedHorseId: '', packages: [], viewTrainerId: null, showSuccess: null,
     userPermissions: {}, rolePerms: DEFAULT_ROLE_PERMS,
-    auditLog: [
-      { id: 'au3', time: '24/09/2026 16:40', actor: 'Quản trị hệ thống', actorRole: 'Quản trị viên', action: 'Tạo tài khoản', target: 'Dr. Le Thi An (USR-000004) — Bác sĩ thú y', reason: 'Nhân sự mới theo hợp đồng ngày 20/09/2026' },
-      { id: 'au2', time: '22/09/2026 09:15', actor: 'Nguyen Van Binh', actorRole: 'Quản lý CLB', action: 'Duyệt hồ sơ ngựa', target: 'Thunder King (HRS-000001)', reason: 'Hồ sơ đầy đủ, giấy tờ nguồn gốc hợp lệ' },
-      { id: 'au1', time: '21/09/2026 14:02', actor: 'Dr. Le Thi An', actorRole: 'Bác sĩ thú y', action: 'Khóa tập luyện', target: 'Storm Wreck (HRS-000002)', reason: 'Tổn thương dây chằng chân phải trước độ II' },
-    ],
+    auditLog: [],
   });
 
   const stateRef = useRef(state);
   stateRef.current = state;
+  const backendUser = useRef<User | null>(null);
+  const [loadingBackend, setLoadingBackend] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const mutationBusy = useRef(false);
+  const refreshBackend = useCallback(async () => {
+    const user = backendUser.current;
+    if (!user) return;
+    const snapshot = await loadBackendState(user);
+    if (backendUser.current?.userId !== user.userId) return;
+    setState(s => ({ ...s, ...snapshot, selectedHorseId: s.selectedHorseId || snapshot.horses?.[0]?.id || '', clubs: s.clubs.map(c => ({ ...c, managerId: snapshot.user?.role === 'manager' ? snapshot.user.id : c.managerId })) }));
+  }, []);
+  useEffect(() => {
+    let active = true;
+    restoreSession().then(async session => {
+      if (!active) return;
+      backendUser.current = session.user;
+      setState(s => ({ ...s, user: toAppUser(session.user), page: 'dashboard' }));
+      await refreshBackend();
+    }).catch(error => { if (active && error?.status !== 401) setLoadError(error instanceof Error ? error.message : 'Không kết nối được backend'); }).finally(() => { if (active) setLoadingBackend(false); });
+    const expired = () => { backendUser.current = null; setState(s => ({ ...s, user: null, page: 'login', users: [], horses: [], healthRecords: [], trainingPlans: [], trainingSessions: [], enrollments: [], notifications: [] })); };
+    window.addEventListener('raceforge:session-expired', expired);
+    return () => { active = false; window.removeEventListener('raceforge:session-expired', expired); };
+  }, [refreshBackend]);
 
   const navigate = useCallback((page: Page) => setState(s => ({ ...s, page })), []);
 
@@ -2831,17 +2837,15 @@ export default function App() {
     showSuccess(on ? 'Đã cấp quyền.' : 'Đã thu hồi quyền.');
   }, [logAudit, showSuccess]);
 
-  const handleLogin = useCallback((user: AppUser) => {
+  const handleLogin = useCallback((user: AppUser, serverUser?: User) => {
+    if (!serverUser) { showError('Phải đăng nhập bằng tài khoản backend.'); return; }
+    backendUser.current = serverUser;
     setState(s => ({ ...s, user, page: 'dashboard' }));
-  }, []);
+    setLoadingBackend(true); setLoadError('');
+    void refreshBackend().catch(error => setLoadError(error instanceof Error ? error.message : 'Không tải được dữ liệu')).finally(() => setLoadingBackend(false));
+  }, [refreshBackend, showError]);
 
-  const handleRegister = useCallback((user: AppUser) => {
-    setState(s => {
-      const ready = { ...user, clubId: user.clubId || s.clubs[0]?.id || null };
-      return { ...s, users: [...s.users, ready], user: ready, page: 'dashboard' };
-    });
-    showSuccess(`Chào mừng ${user.name.split(' ').pop()}! OTP xác thực thành công.`);
-  }, [showSuccess]);
+  const handleRegister = handleLogin;
 
   const handleJoinRequest = useCallback((clubId: string) => {
     setState(s => {
@@ -2946,8 +2950,11 @@ export default function App() {
   }, [showSuccess, logAudit]);
 
   const handleLogout = useCallback(() => {
-    setState(s => ({ ...s, user: null, page: 'home' }));
-  }, []);
+    void logout().catch(error => showError(error instanceof Error ? error.message : 'Đăng xuất thất bại')).finally(() => {
+      backendUser.current = null;
+      setState(s => ({ ...s, user: null, page: 'home', users: [], horses: [], healthRecords: [], trainingPlans: [], trainingSessions: [], enrollments: [], notifications: [], packages: [], horseClubRequests: [], auditLog: [] }));
+    });
+  }, [showError]);
 
   const handleFirstPasswordChange = useCallback((password: string) => {
     setState(s => {
@@ -3041,7 +3048,44 @@ export default function App() {
 
   const reject = useCallback((msg: string) => { showError(msg); return msg; }, [showError]);
 
-  const TH = makeTrainingHandlers({ getState: () => stateRef.current, setState: (f) => setState(f), toast: showSuccess, reject, audit: logAudit, notif: newNotif });
+  const TH = makeBackendHandlers(() => stateRef.current, setState, refreshBackend);
+  const pendingAction = () => showError(BACKEND_PENDING);
+  const callBackend = async (work: () => Promise<void>) => {
+    if (mutationBusy.current) return;
+    mutationBusy.current = true;
+    try { await work(); showSuccess('Đã lưu dữ liệu trên backend.'); }
+    catch (error) { showError(error instanceof Error ? error.message : 'Không lưu được dữ liệu'); }
+    finally { mutationBusy.current = false; }
+  };
+  const submitAdmission = (id: string) => { void callBackend(async () => { await api(`/api/horses/${backendId(id)}/admission`, 'POST'); await refreshBackend(); }); };
+  const reviewAdmission = (id: string, approve: boolean, note = '') => { void callBackend(async () => { await api(`/api/horses/${backendId(id)}/admission/${approve ? 'approve' : 'reject'}`, 'POST', { note }); await refreshBackend(); }); };
+  const createHorseOnServer = (horse: Horse) => { void callBackend(async () => {
+    const created = await api<{ horseId: number }>(`/api/horses?ownerId=${backendId(stateRef.current.user!.id)}`, 'POST', { horseName: horse.name, dateOfBirth: toISO(horse.birthDate || ''), breed: horse.breed, coatColor: horse.color, gender: horse.gender, height: horse.height, weight: horse.weight, imageUrl: horse.imageUrl, background: horse.biography, declaredMedicalHistory: horse.medicalHistory });
+    try {
+      for (const race of horse.raceHistory) await api(`/api/horses/${created.horseId}/race-history`, 'POST', { raceName: race.raceName, raceDate: toISO(race.date), distance: Number(race.distance.replace(/[^\d.]/g, '')) || null, finishPosition: race.position, completionTime: race.time, racecourse: race.venue, jockeyName: race.jockey, prize: Number(race.prize.replace(/[^\d.]/g, '')) || 0 });
+    } catch (error) {
+      await refreshBackend(); setState(s => ({ ...s, page: 'my-horses' }));
+      throw new Error(`Đã tạo ngựa #${created.horseId}, nhưng chưa lưu hết lịch sử đua. ${error instanceof Error ? error.message : 'API error'}`);
+    }
+    await refreshBackend(); setState(s => ({ ...s, page: 'my-horses', selectedHorseId: `HRS-${String(created.horseId).padStart(6, '0')}` }));
+  }); };
+  const updateHorseOnServer = (horse: Horse) => { void callBackend(async () => {
+    const previous = stateRef.current.horses.find(h => h.id === horse.id);
+    if (!previous) throw new Error('Không tìm thấy ngựa.');
+    if (JSON.stringify(horse.raceHistory) !== JSON.stringify(previous.raceHistory)) {
+      for (const race of previous.raceHistory.filter(r => !horse.raceHistory.some(next => next.id === r.id))) await api(`/api/horses/race-history/${backendId(race.id)}`, 'DELETE');
+      for (const race of horse.raceHistory) {
+        const old = previous.raceHistory.find(r => r.id === race.id);
+        if (old && JSON.stringify(old) === JSON.stringify(race)) continue;
+        const body = { raceName: race.raceName, raceDate: toISO(race.date), distance: Number(race.distance.replace(/[^\d.]/g, '')) || null, finishPosition: race.position, completionTime: race.time, racecourse: race.venue, jockeyName: race.jockey, prize: Number(race.prize.replace(/[^\d.]/g, '')) || 0 };
+        await api(old ? `/api/horses/race-history/${backendId(race.id)}` : `/api/horses/${backendId(horse.id)}/race-history`, old ? 'PUT' : 'POST', body);
+      }
+      await refreshBackend(); return;
+    }
+    if (previous.approvalStatus === 'approved') throw new Error('Hồ sơ sau duyệt đã khóa; API yêu cầu sửa đang chờ.');
+    if (JSON.stringify(horse.achievements) !== JSON.stringify(previous.achievements) || JSON.stringify(horse.photos) !== JSON.stringify(previous.photos) || JSON.stringify(horse.trainerHistory) !== JSON.stringify(previous.trainerHistory) || horse.microchip !== previous.microchip || JSON.stringify(horse.identityEvidence) !== JSON.stringify(previous.identityEvidence)) throw new Error(BACKEND_PENDING);
+    await api(`/api/horses/${backendId(horse.id)}`, 'PUT', { horseName: horse.name, dateOfBirth: toISO(horse.birthDate || ''), breed: horse.breed, coatColor: horse.color, gender: horse.gender, height: horse.height, weight: horse.weight, background: horse.biography, declaredMedicalHistory: horse.medicalHistory, imageUrl: horse.imageUrl }); await refreshBackend();
+  }); };
 
   const nowStamp = () => { const d = new Date(); return { at: `${TODAY} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`, ts: Date.now() }; };
   const mkLog = (item: InvItem, u: AppUser, p: Partial<InvLog> & Pick<InvLog, 'kind' | 'delta' | 'balance'>): InvLog => {
@@ -3394,10 +3438,12 @@ export default function App() {
   }, [reject, showSuccess]);
 
   // Public pages
+  if (loadingBackend) return <div className="min-h-screen bg-[#0f1729] text-white flex items-center justify-center" role="status">Đang tải phiên và dữ liệu từ backend…</div>;
   if (!state.user || ['home', 'login', 'register'].includes(state.page)) {
     return (
       <>
         {state.showSuccess && <SuccessToast message={state.showSuccess} />}
+        {loadError && <ErrorToast message={loadError} />}
         {state.page === 'home' && <HomePage navigate={navigate} />}
         {state.page === 'login' && <LoginPage navigate={navigate} users={state.users} onLogin={handleLogin} />}
         {state.page === 'register' && <RegisterPage navigate={navigate} onRegister={handleRegister} />}
@@ -3411,10 +3457,13 @@ export default function App() {
     setTimeout(() => setState(s => ({ ...s, page: 'dashboard' })), 0);
     return null;
   }
-  if (!state.user.role) return <NoPermission text="Tài khoản chưa được gán vai trò. Vui lòng liên hệ Quản trị viên." />;
+  if (!state.user.role) return <div className="min-h-screen bg-[#0f1729] flex items-center justify-center p-6"><Card className="p-8 max-w-lg space-y-4"><h1 className="font-serif text-xl font-bold">Hồ sơ chủ ngựa đang chờ duyệt</h1><p className="text-sm text-gray-600">Chỉ chủ ngựa được tự đăng ký. Tài khoản quản lý, thú y và huấn luyện viên do Admin tạo và cấp quyền.</p><Btn onClick={() => { void api<User>('/api/users/me').then(user => handleLogin(toAppUser(user), user)).catch(error => showError(error.message)); }}>Kiểm tra trạng thái</Btn><Btn variant="secondary" onClick={handleLogout}>Đăng xuất</Btn>{state.errorMsg && <p className="text-red-600 text-sm">{state.errorMsg}</p>}</Card></div>;
   if (state.user.mustChangePassword) return <FirstPasswordChange user={state.user} onSave={handleFirstPasswordChange} />;
 
   const renderPage = (): React.ReactNode => {
+    if (loadError) return <Card className="p-6 space-y-3"><p role="alert" className="text-red-700">{loadError}</p><Btn onClick={() => { setLoadingBackend(true); void refreshBackend().then(() => setLoadError('')).catch(error => setLoadError(error.message)).finally(() => setLoadingBackend(false)); }}>Tải lại dữ liệu</Btn></Card>;
+    if (['performance', 'reports'].includes(state.page)) return <PendingNotice>Chưa có API báo cáo/phân tích cho màn hình này. Không hiển thị biểu đồ mẫu như dữ liệu thật.</PendingNotice>;
+    if (['inventory', 'inventory-log', 'care-hub', 'rehab-center'].includes(state.page)) return <PendingNotice>Luồng này cần API nghiệp vụ tương ứng và dữ liệu phân công. Các thao tác cục bộ của bản UI cũ đã được khóa.</PendingNotice>;
     const role = state.user!.role!;
     const adminOnly: Page[] = ['accounts', 'permissions', 'audit-log'];
     if (adminOnly.includes(state.page) && role !== 'admin') return <NoPermission text="Chỉ Quản trị viên mới truy cập chức năng này." />;
@@ -3435,24 +3484,24 @@ export default function App() {
         return null;
       }
       case 'horse-list': return <HorseListPage navigate={navigate} horses={state.user!.role === 'veterinarian' ? state.horses.filter(h => vetVisible(h, state.user!)) : state.horses} role={state.user!.role!} clubId={state.user!.clubId} onSelectHorse={id => setState(s => ({ ...s, selectedHorseId: id }))} />;
-      case 'horse-detail': return <HorseDetailPage state={state} navigate={navigate} onUpdateHorse={handleUpdateHorse} onShowSuccess={showSuccess} onAudit={logAudit} />;
-      case 'horse-create': return <HorseCreatePage user={state.user!} state={state} navigate={navigate} onCreateHorse={handleCreateHorse} />;
-      case 'my-horses': return <MyHorsesPage user={state.user!} state={state} navigate={navigate} onSubmitToCenter={handleSubmitToCenter} onSelectHorse={id => setState(s => ({ ...s, selectedHorseId: id }))} />;
+      case 'horse-detail': return state.horses.length ? <HorseDetailPage key={state.selectedHorseId} state={state} navigate={navigate} onUpdateHorse={updateHorseOnServer} onShowSuccess={() => {}} onAudit={() => {}} /> : <Card className="p-6">Không có ngựa để hiển thị.</Card>;
+      case 'horse-create': return <HorseCreatePage user={state.user!} state={state} navigate={navigate} onCreateHorse={createHorseOnServer} />;
+      case 'my-horses': return <MyHorsesPage user={state.user!} state={state} navigate={navigate} onSubmitToCenter={submitAdmission} onSelectHorse={id => setState(s => ({ ...s, selectedHorseId: id }))} />;
       case 'package-catalog':
         if (state.user!.role !== 'manager') return <NoAccess text="Chỉ Quản lý mới quản lý danh mục gói" />;
         return <PackageCatalogPage packages={state.packages} enrollments={state.enrollments} onSave={TH.savePackage} onToggle={TH.togglePackage} />;
       case 'trainer-assign':
         if (state.user!.role !== 'manager') return <NoAccess text="Chỉ Quản lý mới phân công huấn luyện viên" />;
-        return <TrainerAssignPage user={state.user!} users={state.users} horses={state.horses} enrollments={state.enrollments} onAssign={TH.assignTrainer} />;
+        return <><PendingNotice>Cần API quản lý phân công nhiều HLV, xác nhận/từ chối và thay thế người được phân công. Không dùng API chủ ngựa tự chọn HLV cho luồng này.</PendingNotice><TrainerAssignPage user={state.user!} users={state.users} horses={state.horses} enrollments={state.enrollments} onAssign={TH.assignTrainer} /></>;
       case 'trainer-profile': return <TrainerProfilePage state={state} navigate={navigate} trainerId={state.viewTrainerId || ''} onApproveRequest={handleApproveRequest} />;
       case 'center-requests':
         if (state.user!.role !== 'manager') return <NoAccess text="Chỉ Quản lý CLB mới tiếp nhận ngựa" />;
-        return <IntakeBoardPage user={state.user!} horses={state.horses} requests={state.horseClubRequests} records={state.healthRecords} users={state.users} onVerify={handleVerifyIdentity} onAssign={handleAssignVet} onApprove={handleApproveHorse} onReject={handleRejectHorse} onOpenHorse={id => setState(s => ({ ...s, selectedHorseId: id, page: 'horse-detail' }))} />;
+        return <><PendingNotice>API hiện có duyệt hồ sơ hành chính rồi tạo health profile để khám. API định danh/minh chứng, phân công/nhận ca/thay bác sĩ đang chờ. Duyệt hồ sơ không đồng nghĩa đủ điều kiện tập; cần kết luận khám riêng.</PendingNotice><IntakeBoardPage user={state.user!} horses={state.horses} requests={state.horseClubRequests} records={state.healthRecords} users={state.users} onVerify={pendingAction} onAssign={pendingAction} onApprove={id => reviewAdmission(id, true)} onReject={(id, note) => reviewAdmission(id, false, note)} onOpenHorse={id => setState(s => ({ ...s, selectedHorseId: id, page: 'horse-detail' }))} /></>;
       case 'health-records': return <HealthRecordsPage state={state} navigate={navigate} />;
       case 'vet-health-form':
         if (state.user!.role !== 'veterinarian') return <HealthRecordsPage state={state} navigate={navigate} />;
-        return <VetHealthFormPage state={state} navigate={navigate} onSave={showSuccess} onSaveRecord={handleSaveHealthRecord} today={TODAY} onConsumeExamHorse={() => setState(s => ({ ...s, examHorseId: null }))} />;
-      case 'training-hub': return <TrainingHubPage state={state} navigate={navigate as (p: string) => void} onCreatePlan={TH.createPlan} onGenerate={TH.generateSessions} onCheckIn={TH.checkIn} onRespond={TH.respondAssign} onStartSession={handleStartSession} onCompleteSession={handleCompleteSession} onConfirmSchedule={handleConfirmSchedule} />;
+        return <VetHealthFormPage state={state} navigate={navigate} onSave={() => {}} onSaveRecord={() => { throw new Error(BACKEND_PENDING); }} today={TODAY} onConsumeExamHorse={() => setState(s => ({ ...s, examHorseId: null }))} />;
+      case 'training-hub': return <><PendingNotice>API chưa trả danh sách lộ trình và lịch sử gói cho HLV. Lộ trình vừa tạo dùng ID thật trả từ server; sau tải lại cần API đọc lộ trình. Phân công/nhận/thay HLV và xác nhận lịch đang chờ API; điều kiện gói và sức khỏe được server kiểm tra khi lưu.</PendingNotice><TrainingHubPage state={state} navigate={navigate as (p: string) => void} onCreatePlan={TH.createPlan} onGenerate={TH.generateSessions} onCheckIn={TH.checkIn} onRespond={TH.respondAssign} onStartSession={async id => { try { await api(`/api/training-sessions/${backendId(id)}/start`, 'PATCH'); await refreshBackend(); return null; } catch (error) { return error instanceof Error ? error.message : 'API error'; } }} onCompleteSession={async (id, result) => { try { await api(`/api/training-sessions/${backendId(id)}/complete`, 'PATCH', { heartRate: result.heartRate, avgSpeed: Number(result.speed), performanceNotes: result.notes }); await refreshBackend(); return null; } catch (error) { return error instanceof Error ? error.message : 'API error'; } }} onConfirmSchedule={() => BACKEND_PENDING} /></>;
       case 'care-hub': return state.user!.role === 'groom' ? <CareHubPage state={state} navigate={navigate} onComplete={completeCare} onUndo={undoCare} onReceive={invReceive} onReport={reportIncident} /> : null;
       case 'inventory': return state.user!.role === 'groom' ? <InventoryPage state={state} navigate={navigate} onAdd={invAddItem} onReceive={invReceive} onEdit={invEdit} onAdjust={invAdjust} onDelete={invDelete} /> : null;
       case 'inventory-log': return state.user!.role === 'groom' ? <InventoryLogPage state={state} navigate={navigate} /> : null;
@@ -3461,19 +3510,19 @@ export default function App() {
         return <TrainingRegisterPage state={state} navigate={navigate as (p: string) => void} onPurchase={TH.purchasePackage} />;
       case 'vet-assign':
         if (state.user!.role !== 'veterinarian') return <NoAccess text="Chỉ Thú y mới truy cập trang này" />;
-        return <VetAssignedPage user={state.user!} horses={state.horses} requests={state.horseClubRequests} onRespond={handleRespondVet} onExam={id => setState(s => ({ ...s, examHorseId: id, page: 'vet-health-form' }))} onOpenHorse={id => setState(s => ({ ...s, selectedHorseId: id, page: 'horse-detail' }))} />;
+        return <><PendingNotice>Cần API phân công bác sĩ, bác sĩ xác nhận/từ chối, lịch sử và thay thế phân công.</PendingNotice><VetAssignedPage user={state.user!} horses={state.horses} requests={state.horseClubRequests} onRespond={pendingAction} onExam={id => setState(s => ({ ...s, examHorseId: id, page: 'vet-health-form' }))} onOpenHorse={id => setState(s => ({ ...s, selectedHorseId: id, page: 'horse-detail' }))} /></>;
       case 'post-exam':
         if (state.user!.role !== 'veterinarian') return <NoAccess text="Chỉ Thú y mới truy cập trang này" />;
-        return <PostExamPage state={state} navigate={navigate} onSave={showSuccess} onPostExam={handlePostExam} onUnlock={handleUnlock} onManualLock={handleManualLock} />;
+        return <><PendingNotice>Chờ API phân công bác sĩ và liên kết lần khám với buổi tập; không tạo hồ sơ khám giả.</PendingNotice><PostExamPage state={state} navigate={navigate} onSave={() => {}} onPostExam={() => BACKEND_PENDING} onUnlock={() => BACKEND_PENDING} onManualLock={() => BACKEND_PENDING} /></>;
       case 'rehab-center':
         if (state.user!.role !== 'manager') return <NoAccess text="Chỉ Quản lý mới kích hoạt gói phục hồi" />;
         return <RehabCenterPage state={state} onActivate={handleActivateRehab} />;
       case 'performance': return <PerformancePage />;
       case 'race-results': return <RaceResultsPage horses={state.horses.filter(h => h.clubId === state.user!.clubId)} />;
       case 'reports': return <ReportsPage />;
-      case 'staff': return <StaffPage state={state} navigate={navigate} onUpdatePermissions={handleUpdatePermissions} />;
-      case 'notifications': return <NotificationsPage notifications={visibleNotifications(state.notifications, state.user!)} onMarkRead={id => setState(s => ({ ...s, notifications: s.notifications.map(n => n.id === id ? { ...n, read: true } : n) }))} onOpen={n => { if (n.action) setState(s => ({ ...s, page: n.action as Page, selectedHorseId: n.horseId || s.selectedHorseId })); }} />;
-      case 'profile': return <ProfilePage user={state.user!} state={state} navigate={navigate} onLogout={handleLogout} onSave={showSuccess} />;
+      case 'staff': return <><StaffCreationDesign /><StaffPage state={state} navigate={navigate} onUpdatePermissions={pendingAction} /></>;
+      case 'notifications': return <NotificationsPage notifications={visibleNotifications(state.notifications, state.user!)} onMarkRead={id => { void callBackend(async () => { await api(`/api/notifications/${id}/read`, 'PATCH'); await refreshBackend(); }); }} onOpen={() => {}} />;
+      case 'profile': return <ProfilePage user={state.user!} state={state} navigate={navigate} onLogout={handleLogout} onSave={(_msg, name) => { void callBackend(async () => { const user = await api<User>('/api/users/me', 'PUT', { fullName: name, phone: state.user?.phone || null, avatarUrl: backendUser.current?.avatarUrl || null }); backendUser.current = user; await refreshBackend(); }); }} />;
       default: return <ManagerDashboard state={state} navigate={navigate} />;
     }
   };

@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Past;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
@@ -15,12 +16,15 @@ public class HorseCreateRequest {
     @Size(max = 100, message = "Horse name must not exceed 100 characters")
     private String horseName;
 
+    @NotNull(message = "Date of birth is required")
     @Past(message = "Date of birth must be in the past")
     private LocalDate dateOfBirth;
 
+    @NotBlank(message = "Gender is required")
     @Size(max = 20, message = "Gender must not exceed 20 characters")
     private String gender;
 
+    @NotBlank(message = "Breed is required")
     @Size(max = 100, message = "Breed must not exceed 100 characters")
     private String breed;
 
@@ -34,28 +38,41 @@ public class HorseCreateRequest {
     @Size(max = 100, message = "Dam must not exceed 100 characters")
     private String dam;
 
-    @Size(max = 100, message = "Dam sire must not exceed 100 characters")
-    private String damSire;
 
-    @NotNull(message = "Weight is required")
-    @Positive(message = "Weight must be greater than 0")
-    private BigDecimal weight;
+<<<<<<< HEAD
+    @Positive(message = "Height must be greater than 0")
+    private BigDecimal height;
+
+=======
 
     @NotNull(message = "Height is required")
     @Positive(message = "Height must be greater than 0")
     private BigDecimal height;
 
-    @Size(max = 1000, message = "Background must not exceed 1000 characters")
-    private String background;
 
+>>>>>>> 76de6e5 (luu code)
     @Size(
         max = 1000,
         message = "Declared medical history must not exceed 1000 characters"
     )
     private String declaredMedicalHistory;
 
+    @NotBlank(message = "Image URL is required")
     @Size(max = 500, message = "Image URL must not exceed 500 characters")
     private String imageUrl;
+
+    @NotBlank(message = "Registration number is required")
+    @Pattern(regexp = "[ \t]*[0-9]{3}[a-zA-Z0-9]{12}[ \t]*",
+             message = "UELN must have 15 alphanumeric characters (3 country digits, 3 issuer characters, 9 horse characters)")
+    private String registrationNumber;
+
+    @NotBlank(message = "Document type is required")
+    @Size(max = 50, message = "Document type must not exceed 50 characters")
+    private String documentType;
+
+    @NotBlank(message = "Document URL is required")
+    @Size(max = 500, message = "Document URL must not exceed 500 characters")
+    private String documentUrl;
 
 
     public String getHorseName() {
@@ -114,22 +131,13 @@ public class HorseCreateRequest {
         this.dam = dam;
     }
 
-    public String getDamSire() {
-        return damSire;
-    }
+<<<<<<< HEAD
+=======
 
-    public void setDamSire(String damSire) {
-        this.damSire = damSire;
-    }
 
-    public BigDecimal getWeight() {
-        return weight;
-    }
 
-    public void setWeight(BigDecimal weight) {
-        this.weight = weight;
-    }
 
+>>>>>>> 76de6e5 (luu code)
     public BigDecimal getHeight() {
         return height;
     }
@@ -138,14 +146,11 @@ public class HorseCreateRequest {
         this.height = height;
     }
 
-    public String getBackground() {
-        return background;
-    }
+<<<<<<< HEAD
+=======
 
-    public void setBackground(String background) {
-        this.background = background;
-    }
 
+>>>>>>> 76de6e5 (luu code)
     public String getDeclaredMedicalHistory() {
         return declaredMedicalHistory;
     }
@@ -161,4 +166,45 @@ public class HorseCreateRequest {
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
     }
+<<<<<<< HEAD
+    public String getRegistrationNumber() {
+        return registrationNumber;
+    }
+
+    public void setRegistrationNumber(String registrationNumber) {
+        this.registrationNumber = registrationNumber;
+    }
+
+    public String getDocumentType() {
+        return documentType;
+    }
+
+    public void setDocumentType(String documentType) {
+        this.documentType = documentType;
+    }
+
+    public String getDocumentUrl() {
+        return documentUrl;
+    }
+
+    public void setDocumentUrl(String documentUrl) {
+        this.documentUrl = documentUrl;
+    }
+=======
+    @jakarta.validation.constraints.Size(max=100)
+    private String registrationNumber;
+    public String getRegistrationNumber(){return registrationNumber;}
+    public void setRegistrationNumber(String value){registrationNumber=value;}
+
+    @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max=50)
+    private String documentType;
+    public String getDocumentType(){return documentType;}
+    public void setDocumentType(String value){documentType=value;}
+
+    @jakarta.validation.constraints.NotBlank @jakarta.validation.constraints.Size(max=500)
+    private String documentUrl;
+    public String getDocumentUrl(){return documentUrl;}
+    public void setDocumentUrl(String value){documentUrl=value;}
+
+>>>>>>> 76de6e5 (luu code)
 }

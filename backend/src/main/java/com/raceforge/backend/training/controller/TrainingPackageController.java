@@ -8,12 +8,14 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/training-packages")
 @Tag(name = "Training Packages")
+@org.springframework.security.access.prepost.PreAuthorize("hasAnyAuthority('CLUB_MANAGER','HEAD_TRAINER','HORSE_OWNER')")
 public class TrainingPackageController {
 
     private final TrainingPackageService service;
@@ -27,16 +29,18 @@ public class TrainingPackageController {
         return ResponseEntity.ok(ApiResponse.success("Active packages retrieved", service.getActivePackages()));
     }
 
+    @PreAuthorize("hasAuthority('CLUB_MANAGER')")
     @GetMapping("/all")
     public ResponseEntity<ApiResponse<List<TrainingPackageResponse>>> listAll() {
         return ResponseEntity.ok(ApiResponse.success("All packages retrieved", service.getAllPackages()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<TrainingPackageResponse>> get(@PathVariable Integer id) {
+    public ResponseEntity<ApiResponse<TrainingPackageResponse>> get(@PathVariable String id) {
         return ResponseEntity.ok(ApiResponse.success("Package retrieved", service.getPackage(id)));
     }
 
+    @PreAuthorize("hasAuthority('CLUB_MANAGER')")
     @PostMapping
     public ResponseEntity<ApiResponse<TrainingPackageResponse>> create(
             @Valid @RequestBody TrainingPackageCreateRequest request) {
@@ -44,15 +48,17 @@ public class TrainingPackageController {
                 .body(ApiResponse.success("Package created", service.create(request)));
     }
 
+    @PreAuthorize("hasAuthority('CLUB_MANAGER')")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<TrainingPackageResponse>> update(
-            @PathVariable Integer id, @Valid @RequestBody TrainingPackageUpdateRequest request) {
+            @PathVariable String id, @Valid @RequestBody TrainingPackageUpdateRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Package updated", service.update(id, request)));
     }
 
+    @PreAuthorize("hasAuthority('CLUB_MANAGER')")
     @PatchMapping("/{id}/status")
     public ResponseEntity<ApiResponse<TrainingPackageResponse>> changeStatus(
-            @PathVariable Integer id, @Valid @RequestBody TrainingPackageStatusRequest request) {
+            @PathVariable String id, @Valid @RequestBody TrainingPackageStatusRequest request) {
         return ResponseEntity.ok(ApiResponse.success("Package status updated", service.changeStatus(id, request)));
     }
 }

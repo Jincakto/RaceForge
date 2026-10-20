@@ -4,12 +4,11 @@ import jakarta.persistence.*;
 
 @Entity
 @Table(name = "Medical_Clinical_Exam")
-public class MedicalClinicalExam {
+public class MedicalClinicalExam extends com.raceforge.backend.common.id.BusinessEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "clinical_exam_id", length = 20)
-    private Integer clinicalExamId;
+    private String clinicalExamId;
 
     @ManyToOne
     @JoinColumn(name = "medical_record_id", nullable = false)
@@ -21,23 +20,23 @@ public class MedicalClinicalExam {
     @Column(name = "condition_status", nullable = false, length = 20)
     private String conditionStatus;
 
-    @Column(name = "abnormality_type", length = 100)
-    private String abnormalityType;
+<<<<<<< HEAD
+    // NORMAL or ABNORMAL. The veterinarian describes any abnormality in notes.
+=======
 
-    @Column(name = "severity", length = 20)
-    private String severity;
 
+>>>>>>> 76de6e5 (luu code)
     @Column(name = "notes", length = 500)
     private String notes;
 
     public MedicalClinicalExam() {
     }
 
-    public Integer getClinicalExamId() {
+    public String getClinicalExamId() {
         return clinicalExamId;
     }
 
-    public void setClinicalExamId(Integer clinicalExamId) {
+    public void setClinicalExamId(String clinicalExamId) {
         this.clinicalExamId = clinicalExamId;
     }
 
@@ -65,22 +64,13 @@ public class MedicalClinicalExam {
         this.conditionStatus = conditionStatus;
     }
 
-    public String getAbnormalityType() {
-        return abnormalityType;
-    }
+<<<<<<< HEAD
+=======
 
-    public void setAbnormalityType(String abnormalityType) {
-        this.abnormalityType = abnormalityType;
-    }
 
-    public String getSeverity() {
-        return severity;
-    }
 
-    public void setSeverity(String severity) {
-        this.severity = severity;
-    }
 
+>>>>>>> 76de6e5 (luu code)
     public String getNotes() {
         return notes;
     }

@@ -24,19 +24,19 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Single-club system: no club_id anywhere here. Roles and permissions use INT ids (role_id,
+ * Single-club system: no club_id anywhere here. Roles and permissions use String ids (role_id,
  * permission_id) like the database; the API still accepts role/permission names and resolves
  * them to ids here.
  *
- * MANAGE_PERMISSION is exclusive to CLUB_MANAGER: it can never be granted to any other role,
- * and it can never be revoked from CLUB_MANAGER — either would leave nobody able to configure
+ * MANAGE_PERMISSION is exclusive to ADMIN: it can never be granted to any other role,
+ * and it can never be revoked from ADMIN — either would leave nobody able to configure
  * permissions.
  */
 @Service
 public class PermissionService {
 
   private static final String MANAGE_PERMISSION_CODE = "MANAGE_PERMISSION";
-  private static final String CLUB_MANAGER_ROLE = "CLUB_MANAGER";
+  private static final String ADMIN_ROLE = "ADMIN";
 
   @Autowired
   private RoleRepository roleRepository;
@@ -54,7 +54,7 @@ public class PermissionService {
   private PermissionAuditLogMapper auditLogMapper;
 
   @Transactional
-  public void grant(GrantPermissionRequest request, Integer performedBy) {
+  public void grant(GrantPermissionRequest request, String performedBy) {
       String roleName = request.getRoleName().trim().toUpperCase(Locale.ROOT);
       String permissionCode = request.getPermissionCode().trim().toUpperCase(Locale.ROOT);
 
@@ -63,9 +63,9 @@ public class PermissionService {
       Permission permission = permissionRepository.findByPermissionName(permissionCode)
               .orElseThrow(() -> new ResourceNotFoundException("Permission not found: " + permissionCode));
 
-      if (MANAGE_PERMISSION_CODE.equals(permissionCode) && !CLUB_MANAGER_ROLE.equals(roleName)) {
+      if (MANAGE_PERMISSION_CODE.equals(permissionCode) && !ADMIN_ROLE.equals(roleName)) {
           throw new BusinessRuleException(
-                  "MANAGE_PERMISSION is exclusive to CLUB_MANAGER, cannot grant it to " + roleName);
+                  "MANAGE_PERMISSION is exclusive to ADMIN, cannot grant it to " + roleName);
       }
 
       RolePermissionId id = new RolePermissionId(role.getRoleId(), permission.getPermissionId());
@@ -83,12 +83,12 @@ public class PermissionService {
   }
 
   @Transactional
-  public void revoke(String roleName, String permissionCode, Integer performedBy) {
+  public void revoke(String roleName, String permissionCode, String performedBy) {
       roleName = roleName.trim().toUpperCase(Locale.ROOT);
       permissionCode = permissionCode.trim().toUpperCase(Locale.ROOT);
-      if (MANAGE_PERMISSION_CODE.equals(permissionCode) && CLUB_MANAGER_ROLE.equals(roleName)) {
+      if (MANAGE_PERMISSION_CODE.equals(permissionCode) && ADMIN_ROLE.equals(roleName)) {
           throw new BusinessRuleException(
-                  "Cannot revoke MANAGE_PERMISSION from CLUB_MANAGER — would leave nobody able to configure permissions.");
+                  "Cannot revoke MANAGE_PERMISSION from ADMIN — would leave nobody able to configure permissions.");
       }
 
       Role role = roleRepository.findByRoleNameForUpdate(roleName)
@@ -128,18 +128,18 @@ public class PermissionService {
       Role role = roleRepository.findByRoleName(roleName)
               .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleName));
       return auditLogRepository
-              .findByEntityTypeAndEntityIdOrderByCreatedAtDesc(PermissionAuditLog.ENTITY_TYPE, role.getRoleId())
+              .findByEntityTypeAndEntityIdOrderByCreatedAtDesc(PermissionAuditLog.ENTITY_TYPE, role.getRoleId().toString())
               .stream()
               .map(log -> auditLogMapper.toResponse(log, roleName))
               .collect(Collectors.toList());
   }
 
-  private void writeAuditLog(String action, Role role, Permission permission, Integer performedBy) {
+  private void writeAuditLog(String action, Role role, Permission permission, String performedBy) {
       PermissionAuditLog log = new PermissionAuditLog();
       log.setUserId(performedBy);
       log.setAction(action);
       log.setEntityType(PermissionAuditLog.ENTITY_TYPE);
-      log.setEntityId(role.getRoleId());
+      log.setEntityId(role.getRoleId().toString());
       log.setResult("SUCCESS");
       log.setReason(permission.getPermissionName());
       log.setCreatedAt(LocalDateTime.now());

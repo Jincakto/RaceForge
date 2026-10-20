@@ -4,8 +4,6 @@ public class MedicalClinicalExamRequest {
 
     private String examinationArea;
     private String conditionStatus;
-    private String abnormalityType;
-    private String severity;
     private String notes;
 
     public String getExaminationArea() {
@@ -24,22 +22,13 @@ public class MedicalClinicalExamRequest {
         this.conditionStatus = conditionStatus;
     }
 
-    public String getAbnormalityType() {
-        return abnormalityType;
-    }
+<<<<<<< HEAD
+=======
 
-    public void setAbnormalityType(String abnormalityType) {
-        this.abnormalityType = abnormalityType;
-    }
 
-    public String getSeverity() {
-        return severity;
-    }
 
-    public void setSeverity(String severity) {
-        this.severity = severity;
-    }
 
+>>>>>>> 76de6e5 (luu code)
     public String getNotes() {
         return notes;
     }

@@ -14,12 +14,16 @@ public class AuditService {
         this.auditLogRepository = auditLogRepository;
     }
 
-    public void record(Integer actorUserId, String action, String entityType, Integer entityId, String result, String reason) {
+<<<<<<< HEAD
+    public void record(String actorUserId, String action, String entityType, Object entityId, String result, String reason) {
+=======
+    public void record(String actorUserId, String action, String entityType, String entityId, String result, String reason) {
+>>>>>>> 76de6e5 (luu code)
         AuditLog log = new AuditLog();
         log.setUserId(actorUserId);
         log.setAction(action);
         log.setEntityType(entityType);
-        log.setEntityId(entityId);
+        log.setEntityId(entityId == null ? null : entityId.toString());
         log.setResult(result);
         log.setReason(reason);
         log.setCreatedAt(LocalDateTime.now());

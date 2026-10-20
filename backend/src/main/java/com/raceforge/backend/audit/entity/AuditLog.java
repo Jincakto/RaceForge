@@ -1,4 +1,3 @@
-
 package com.raceforge.backend.audit.entity;
 
 import jakarta.persistence.*;
@@ -6,18 +5,17 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "Audit_Log")
-public class AuditLog {
+public class AuditLog extends com.raceforge.backend.common.id.BusinessEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "audit_id")
-    private Integer auditId;
+    private String auditId;
 
     @Column(name = "user_id")
-    private Integer userId;
+    private String userId;
 
     @Column(name = "horse_id")
-    private Integer horseId;
+    private String horseId;
 
     @Column(name = "action", nullable = false, length = 100)
     private String action;
@@ -26,7 +24,7 @@ public class AuditLog {
     private String entityType;
 
     @Column(name = "entity_id")
-    private Integer entityId;
+    private String entityId;
 
     @Column(name = "result", length = 50)
     private String result;
@@ -45,28 +43,38 @@ public class AuditLog {
     }
 
    
-    public Integer getAuditId() {
+    public String getAuditId() {
         return auditId;
     }
     
-    public void setAuditId(Integer auditId) {
+    public void setAuditId(String auditId) {
         this.auditId = auditId;
     }
     
-    public Integer getUserId() {
+    public String getUserId() {
         return userId;
     }
     
-    public void setUserId(Integer userId) {
+<<<<<<< HEAD
+    public void setUserId(Object userId) {
+        this.userId = userId == null ? null : userId.toString();
+=======
+    public void setUserId(String userId) {
         this.userId = userId;
+>>>>>>> 76de6e5 (luu code)
     }
     
-    public Integer getHorseId() {
+    public String getHorseId() {
         return horseId;
     }
     
-    public void setHorseId(Integer horseId) {
+<<<<<<< HEAD
+    public void setHorseId(Object horseId) {
+        this.horseId = horseId == null ? null : horseId.toString();
+=======
+    public void setHorseId(String horseId) {
         this.horseId = horseId;
+>>>>>>> 76de6e5 (luu code)
     }
     
     public String getAction() {
@@ -85,12 +93,17 @@ public class AuditLog {
         this.entityType = entityType;
     }
     
-    public Integer getEntityId() {
+    public String getEntityId() {
         return entityId;
     }
     
-    public void setEntityId(Integer entityId) {
+<<<<<<< HEAD
+    public void setEntityId(Object entityId) {
+        this.entityId = entityId == null ? null : entityId.toString();
+=======
+    public void setEntityId(String entityId) {
         this.entityId = entityId;
+>>>>>>> 76de6e5 (luu code)
     }
     
     public String getResult() {

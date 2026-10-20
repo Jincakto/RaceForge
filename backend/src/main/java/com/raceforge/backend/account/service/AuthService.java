@@ -1,9 +1,5 @@
 package com.raceforge.backend.account.service;
 
-import static com.raceforge.backend.account.AccountConstants.REQUEST_PENDING;
-import static com.raceforge.backend.account.AccountConstants.ROLE_MANAGER;
-import static com.raceforge.backend.account.AccountConstants.ROLE_USER;
-import static com.raceforge.backend.account.AccountConstants.SELF_REGISTRATION_ROLES;
 import static com.raceforge.backend.account.AccountConstants.STATUS_ACTIVE;
 import static com.raceforge.backend.account.AccountConstants.STATUS_INACTIVE;
 import static com.raceforge.backend.account.AccountConstants.STATUS_PENDING;
@@ -25,7 +21,7 @@ import com.raceforge.backend.account.dto.AuthDtos.UserResponse;
 import com.raceforge.backend.account.dto.AuthDtos.VerifyEmailRequest;
 import com.raceforge.backend.account.entity.PasswordResetToken;
 import com.raceforge.backend.account.entity.RefreshToken;
-import com.raceforge.backend.account.entity.RegistrationRequest;
+
 import com.raceforge.backend.account.entity.Role;
 import com.raceforge.backend.account.entity.User;
 import com.raceforge.backend.account.entity.EmailVerificationOtp;
@@ -33,7 +29,7 @@ import com.raceforge.backend.account.mapper.AccountMapper;
 import com.raceforge.backend.account.repository.PasswordResetTokenRepository;
 import com.raceforge.backend.account.repository.EmailVerificationOtpRepository;
 import com.raceforge.backend.account.repository.RefreshTokenRepository;
-import com.raceforge.backend.account.repository.RegistrationRequestRepository;
+
 import com.raceforge.backend.account.repository.RoleRepository;
 import com.raceforge.backend.account.repository.UserRepository;
 import com.raceforge.backend.audit.service.AuditService;
@@ -43,7 +39,7 @@ import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.common.util.EmailNormalizer;
 import com.raceforge.backend.common.util.SecureTokenUtil;
 import com.raceforge.backend.config.AuthProperties;
-import com.raceforge.backend.notification.service.NotificationService;
+
 import com.raceforge.backend.security.JwtService;
 import com.raceforge.backend.security.JwtService.GooglePasswordSetupIdentity;
 import java.net.URLEncoder;
@@ -59,7 +55,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
-    private final RegistrationRequestRepository registrationRequestRepository;
+
     private final RefreshTokenRepository refreshTokenRepository;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final EmailVerificationOtpRepository emailVerificationOtpRepository;
@@ -67,7 +63,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final EmailService emailService;
     private final GoogleTokenVerifier googleTokenVerifier;
-    private final NotificationService notificationService;
+
     private final AuditService auditService;
     private final AccountMapper mapper;
     private final AuthProperties properties;
@@ -75,7 +71,7 @@ public class AuthService {
     public AuthService(
             UserRepository userRepository,
             RoleRepository roleRepository,
-            RegistrationRequestRepository registrationRequestRepository,
+
             RefreshTokenRepository refreshTokenRepository,
             PasswordResetTokenRepository passwordResetTokenRepository,
             EmailVerificationOtpRepository emailVerificationOtpRepository,
@@ -83,14 +79,14 @@ public class AuthService {
             JwtService jwtService,
             EmailService emailService,
             GoogleTokenVerifier googleTokenVerifier,
-            NotificationService notificationService,
+
             AuditService auditService,
             AccountMapper mapper,
             AuthProperties properties
     ) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
-        this.registrationRequestRepository = registrationRequestRepository;
+
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.emailVerificationOtpRepository = emailVerificationOtpRepository;
@@ -98,7 +94,7 @@ public class AuthService {
         this.jwtService = jwtService;
         this.emailService = emailService;
         this.googleTokenVerifier = googleTokenVerifier;
-        this.notificationService = notificationService;
+
         this.auditService = auditService;
         this.mapper = mapper;
         this.properties = properties;
@@ -110,7 +106,10 @@ public class AuthService {
         if (userRepository.existsByEmail(email)) {
             throw new ApiException(HttpStatus.CONFLICT, "EMAIL_ALREADY_EXISTS", "Email already exists");
         }
-        Role requestedRole = selfRegistrationRole(request.requestedRoleId());
+<<<<<<< HEAD
+=======
+        Role requestedRole = null; // Public registration always creates an owner.
+>>>>>>> 76de6e5 (luu code)
 
         User user = new User();
         user.setRole(defaultRole());
@@ -118,7 +117,6 @@ public class AuthService {
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(request.password()));
         user.setPhone(request.phone());
-        user.setRequestedRole(requestedRole);
         user.setStatus(STATUS_UNVERIFIED);
         user.setEmailVerified(false);
         userRepository.save(user);
@@ -153,7 +151,12 @@ public class AuthService {
 
         emailVerificationOtpRepository.delete(verification);
         user.setEmailVerified(true);
-        user.setStatus(user.getRequestedRole() == null ? STATUS_ACTIVE : STATUS_PENDING);
+        user.setStatus(STATUS_ACTIVE);
+<<<<<<< HEAD
+        return new MessageResponse("Email verified. You can log in to your horse owner account.");
+    }
+=======
+        user.setRequestedRole(null);
 
         if (user.getRequestedRole() != null
                 && !registrationRequestRepository.existsByUserUserIdAndStatus(user.getUserId(), REQUEST_PENDING)) {
@@ -161,10 +164,22 @@ public class AuthService {
             notifyManagersForRegistration(user);
         }
         return new MessageResponse(user.getRequestedRole() == null
-                ? "Email verified. You can log in to your USER account."
+                ? "Email verified. You can log in to your owner account."
                 : "Email verified. Registration request is pending manager review.");
     }
 
+    @Transactional(noRollbackFor = InvalidOtpException.class)
+    public AuthSession verifyAndSignIn(VerifyEmailRequest request) {
+        User user=userRepository.findByEmailForUpdate(EmailNormalizer.normalize(request.email()))
+                .orElseThrow(InvalidOtpException::new);
+        // Never issue a session by replaying an OTP against an already-verified email.
+        if(!STATUS_UNVERIFIED.equals(user.getStatus()))throw new ApiException(HttpStatus.CONFLICT,"EMAIL_ALREADY_VERIFIED","Email is already verified; use login");
+        verifyEmail(request);
+        ensureLoginAllowed(user);
+        return createSession(user);
+    }
+
+>>>>>>> 76de6e5 (luu code)
     @Transactional
     public MessageResponse resendOtp(ResendOtpRequest request) {
         String email = EmailNormalizer.normalize(request.email());
@@ -204,7 +219,7 @@ public class AuthService {
         }
         String email = EmailNormalizer.normalize(identity.email());
         User user = userRepository.findByEmailForUpdate(email)
-                .orElseGet(() -> createGoogleRegistration(request, identity, email));
+                .orElseGet(() -> createGoogleRegistration(identity, email));
         if (STATUS_UNVERIFIED.equals(user.getStatus())) {
             completeEmailVerification(user);
         }
@@ -259,7 +274,7 @@ public class AuthService {
     }
 
     @Transactional
-    public MessageResponse logout(Integer currentUserId, String refreshToken) {
+    public MessageResponse logout(String currentUserId, String refreshToken) {
         if (refreshToken != null && !refreshToken.isBlank()) {
             refreshTokenRepository.findByTokenHash(SecureTokenUtil.sha256Hex(refreshToken)).ifPresent(token -> {
                 if (token.getUser().getUserId().equals(currentUserId) && token.getRevokedAt() == null) {
@@ -297,7 +312,7 @@ public class AuthService {
         PasswordResetToken token = passwordResetTokenRepository.findByTokenHashForUpdate(hash)
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESET_TOKEN", "Invalid reset token"));
         Instant now = Instant.now();
-        if (token.getUsedAt() != null || token.getExpiresAt().isBefore(now)) {
+        if (!PasswordResetToken.PASSWORD_RESET.equals(token.getPurpose()) || token.getUsedAt() != null || !token.getExpiresAt().isAfter(now)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "INVALID_RESET_TOKEN", "Invalid reset token");
         }
         User user = token.getUser();
@@ -329,22 +344,22 @@ public class AuthService {
         );
     }
 
+<<<<<<< HEAD
+    private User createGoogleRegistration(GoogleIdentity identity, String email) {
+
+=======
     private User createGoogleRegistration(GoogleAuthRequest request, GoogleIdentity identity, String email) {
-        Role requestedRole = selfRegistrationRole(request.requestedRoleId());
+        Role requestedRole = null; // Public sign-in never provisions staff roles.
+>>>>>>> 76de6e5 (luu code)
         User user = new User();
         user.setRole(defaultRole());
         user.setEmail(email);
         user.setFullName(identity.name() == null || identity.name().isBlank() ? email : identity.name());
         user.setAvatarUrl(identity.picture());
         user.setEmailVerified(true);
-        user.setStatus(requestedRole == null ? STATUS_ACTIVE : STATUS_PENDING);
-        user.setRequestedRole(requestedRole);
+        user.setStatus(STATUS_ACTIVE);
         userRepository.save(user);
 
-        if (requestedRole != null) {
-            createRegistrationRequest(user, requestedRole);
-            notifyManagersForRegistration(user);
-        }
         auditService.record(user.getUserId(), "GOOGLE_REGISTER", "User", user.getUserId(), "SUCCESS", null);
         return user;
     }
@@ -370,34 +385,8 @@ public class AuthService {
         emailVerificationOtpRepository.findByUserIdForUpdate(user.getUserId())
                 .ifPresent(emailVerificationOtpRepository::delete);
         user.setEmailVerified(true);
-        user.setStatus(user.getRequestedRole() == null ? STATUS_ACTIVE : STATUS_PENDING);
-        if (user.getRequestedRole() != null
-                && !registrationRequestRepository.existsByUserUserIdAndStatus(user.getUserId(), REQUEST_PENDING)) {
-            createRegistrationRequest(user, user.getRequestedRole());
-            notifyManagersForRegistration(user);
-        }
+        user.setStatus(STATUS_ACTIVE);
     }
-
-    private RegistrationRequest createRegistrationRequest(User user, Role requestedRole) {
-        RegistrationRequest request = new RegistrationRequest();
-        request.setUser(user);
-        request.setRequestedRole(requestedRole);
-        request.setStatus(REQUEST_PENDING);
-        request.setCreatedAt(Instant.now());
-        return registrationRequestRepository.save(request);
-    }
-
-    private void notifyManagersForRegistration(User user) {
-        userRepository.findActiveManagers().forEach(manager ->
-                notificationService.notify(
-                        manager.getUserId(),
-                        "REGISTRATION_REQUEST",
-                        "New registration request",
-                        user.getFullName() + " is waiting for approval."
-                )
-        );
-    }
-
     private AuthSession createSession(User user) {
         String refreshToken = SecureTokenUtil.randomToken(32);
         RefreshToken entity = new RefreshToken();
@@ -409,7 +398,12 @@ public class AuthService {
         return new AuthSession(jwtService.createAccessToken(user), refreshToken, user);
     }
 
-    private Role selfRegistrationRole(Integer requestedRoleId) {
+<<<<<<< HEAD
+    private Role defaultRole() {
+        return roleRepository.findById(com.raceforge.backend.account.AccountConstants.ROLE_HORSE_OWNER)
+                .orElseThrow(() -> new ResourceNotFoundException("HORSE_OWNER role not found"));
+=======
+    private Role selfRegistrationRole(String requestedRoleId) {
         if (requestedRoleId == null || ROLE_USER.equals(requestedRoleId)) {
             return null;
         }
@@ -421,10 +415,10 @@ public class AuthService {
     }
 
     private Role defaultRole() {
-        return roleRepository.findById(ROLE_USER)
-                .orElseThrow(() -> new ResourceNotFoundException("Default USER role not found"));
+        return roleRepository.findById(com.raceforge.backend.account.AccountConstants.ROLE_HORSE_OWNER)
+                .orElseThrow(() -> new ResourceNotFoundException("Default owner role not found"));
+>>>>>>> 76de6e5 (luu code)
     }
-
     private void ensureLoginAllowed(User user) {
         if (STATUS_UNVERIFIED.equals(user.getStatus())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "EMAIL_NOT_VERIFIED", "Please verify email before logging in");

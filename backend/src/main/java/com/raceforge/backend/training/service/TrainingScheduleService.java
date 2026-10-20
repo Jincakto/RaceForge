@@ -9,6 +9,9 @@ import com.raceforge.backend.training.dto.AttendanceResponse;
 import com.raceforge.backend.training.dto.ScheduleRecurringRequest;
 import com.raceforge.backend.training.dto.TrainingSessionResponse;
 import com.raceforge.backend.training.entity.TrainingPlan;
+import com.raceforge.backend.training.entity.HorsePackage;
+import com.raceforge.backend.training.repository.HorsePackageRepository;
+import com.raceforge.backend.training.dto.SchedulingPackageResponse;
 import com.raceforge.backend.training.entity.TrainingSession;
 import com.raceforge.backend.training.mapper.TrainingSessionMapper;
 import com.raceforge.backend.training.repository.TrainingPlanRepository;
@@ -17,9 +20,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -42,6 +43,9 @@ public class TrainingScheduleService {
 
   private static final LocalTime DEFAULT_SESSION_TIME = LocalTime.of(7, 0);
 
+  @Autowired private TrainingWorkflowGuard workflowGuard;
+  @Autowired private SessionStageBinder stageBinder;
+  @Autowired private TrainingCalendarRules calendar;
   @Autowired
   private TrainingSessionRepository sessionRepository;
 
@@ -63,38 +67,62 @@ public class TrainingScheduleService {
   @Autowired
   private TrainingSessionService sessionService;
 
+  @Autowired
+  private HorsePackageRepository horsePackageRepository;
+
+  private boolean usablePackage(HorsePackage pack) {
+      return "ACTIVE".equals(pack.getStatus()) && "PAID".equals(pack.getPaymentStatus())
+              && pack.getStartDate() != null && pack.getEndDate() != null
+              && !pack.getEndDate().isBefore(pack.getStartDate());
+  }
+
+  @Transactional(readOnly = true)
+  public List<SchedulingPackageResponse> getSchedulingPackages(String horseId) {
+      if (!horseRepository.existsById(horseId)) {
+          throw new ResourceNotFoundException("Training horse not found: " + horseId);
+      }
+      return horsePackageRepository.findByHorse_HorseIdAndStatus(horseId, "ACTIVE").stream()
+              .filter(this::usablePackage)
+              .filter(pack -> workflowGuard.canAccessPackage(pack.getHorsePackageId(),workflowGuard.actor().userId()))
+              .map(pack -> new SchedulingPackageResponse(pack.getHorsePackageId(),
+                      pack.getTrainingPackage().getPackageName(), pack.getStartDate(), pack.getEndDate()))
+              .toList();
+  }
+
   // All-or-nothing: if any generated slot clashes with an existing session, nothing is saved.
   @Transactional
   public List<TrainingSessionResponse> createRecurringSchedule(ScheduleRecurringRequest request) {
       TrainingPlan plan = planRepository.findById(request.getPlanId())
               .orElseThrow(() -> new ResourceNotFoundException("Training plan not found: " + request.getPlanId()));
 
+      if(!java.util.Objects.equals(plan.getHorsePackageId(),request.getHorsePackageId()))throw new BusinessRuleException("Select the package linked to this plan");
       Horse linked = horseResolver.resolve(plan.getPlanId(), request.getHorseId());
       Horse horse = rules.lockHorse(linked.getHorseId());
       rules.requireUnlocked(horse);
 
-      int weeks = (request.getDurationWeeks() != null && request.getDurationWeeks() > 0)
-              ? request.getDurationWeeks() : 1;
+      HorsePackage pack = horsePackageRepository.findById(request.getHorsePackageId())
+              .orElseThrow(() -> new ResourceNotFoundException("Registered horse package not found."));
+      if (!horse.getHorseId().equals(pack.getHorse().getHorseId())) {
+          throw new BusinessRuleException("Selected package belongs to another horse.");
+      }
+      if (!usablePackage(pack)) {
+          throw new BusinessRuleException("Select an ACTIVE, PAID horse package with a valid date range.");
+      }
+      Set<DayOfWeek> days = request.getDaysOfWeek();
+      if (days == null || days.isEmpty() || days.size()>6 || days.stream().anyMatch(java.util.Objects::isNull)) {
+          throw new BusinessRuleException("Select one to six weekdays.");
+      }
       LocalTime time = request.getSessionTime() != null ? request.getSessionTime() : DEFAULT_SESSION_TIME;
 
       List<LocalDate> dates = new ArrayList<>();
-      Set<DayOfWeek> days = request.getDaysOfWeek();
-      if (days != null && !days.isEmpty()) {
-          // Weekday mode: first matching weekday on/after startDate, then repeat weekly.
-          for (DayOfWeek day : days) {
-              LocalDate first = request.getStartDate().with(TemporalAdjusters.nextOrSame(day));
-              for (int w = 0; w < weeks; w++) {
-                  dates.add(first.plusWeeks(w));
-              }
-          }
-      } else {
-          // Specific-date mode: startDate itself, repeated weekly when durationWeeks > 1.
-          for (int w = 0; w < weeks; w++) {
-              dates.add(request.getStartDate().plusWeeks(w));
-          }
+      // Include both ends of the registered package period.
+      for (LocalDate date = pack.getStartDate(); !date.isAfter(pack.getEndDate()); date = date.plusDays(1)) {
+          if (days.contains(date.getDayOfWeek())) dates.add(date);
       }
-      dates.sort(Comparator.naturalOrder());
-
+      if (dates.isEmpty()) {
+          throw new BusinessRuleException("No selected weekday occurs within the package date range.");
+      }
+      calendar.validateDates(horse.getHorseId(),dates);
       List<TrainingSession> toSave = new ArrayList<>();
       for (LocalDate date : dates) {
           horseResolver.validateSchedule(plan, horse.getHorseId(), date);
@@ -108,17 +136,19 @@ public class TrainingScheduleService {
           session.setPlan(plan);
           session.setHorse(horse);
           session.setScheduledStart(when);
-          session.setNotes(request.getActivityName());
+          if(request.getSessionEndTime()!=null)session.setScheduledEnd(LocalDateTime.of(date,request.getSessionEndTime()));
+          // Curriculum activity is authoritative; the legacy request label cannot overwrite it.
+          stageBinder.bind(session);
           toSave.add(session);
       }
 
-      return sessionRepository.saveAll(toSave).stream()
+      return sessionRepository.saveAllAndFlush(toSave).stream()
               .map(sessionMapper::toResponse)
               .collect(Collectors.toList());
   }
 
   @Transactional
-  public AttendanceResponse submitAttendance(Integer sessionId, AttendSessionRequest request, Integer actorId) {
+  public AttendanceResponse submitAttendance(String sessionId, AttendSessionRequest request, String actorId) {
       String status = request.getStatus().trim().toUpperCase(Locale.ROOT);
       if (!STATUS_COMPLETED.equals(status) && !STATUS_MISSED.equals(status)) {
           throw new BusinessRuleException("status must be COMPLETED or MISSED.");
@@ -129,8 +159,10 @@ public class TrainingScheduleService {
       }
       TrainingSession session = sessionRepository.findByIdForUpdate(sessionId)
               .orElseThrow(() -> new ResourceNotFoundException("Training session not found: " + sessionId));
+      workflowGuard.authorizePlan(session.getPlan());
       Horse horse = rules.lockHorse(session.getHorse().getHorseId());
       rules.requireOpen(session);
+      if(session.getActualStart()!=null)throw new BusinessRuleException("A started session cannot be erased or changed to MISSED; stop and record its results instead.");
       boolean locked = Boolean.TRUE.equals(horse.getTrainingLocked());
 
       if (STATUS_MISSED.equals(status)) {
@@ -165,7 +197,7 @@ public class TrainingScheduleService {
   }
 
   @Transactional(readOnly = true)
-  public List<TrainingSessionResponse> getScheduleByHorseId(Integer horseId) {
+  public List<TrainingSessionResponse> getScheduleByHorseId(String horseId) {
       if (!horseRepository.existsById(horseId)) {
           throw new ResourceNotFoundException("Horse not found: " + horseId);
       }

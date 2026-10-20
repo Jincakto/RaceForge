@@ -5,14 +5,26 @@ import java.util.List;
 
 public class MedicalRecordCreateRequest {
 
-    private Integer profileId;
-    private Integer veterinarianId;
-    private Integer correctionOfId;
+    private String profileId;
+<<<<<<< HEAD
+=======
+    private String assignmentId;
+    public String getAssignmentId(){return assignmentId;}
+    public void setAssignmentId(String value){assignmentId=value;}
+>>>>>>> 76de6e5 (luu code)
+    private String veterinarianId;
+    private String correctionOfId;
 
     private String examType;
     private LocalDateTime examinedAt;
 
     private String healthStatus;
+
+    private String finalConclusion;
+    private String overrideReason;
+    private String monitoringNote;
+    private String trainingLockReason;
+
 
     private String diagnosis;
     private String treatment;
@@ -20,31 +32,32 @@ public class MedicalRecordCreateRequest {
     private String careRecommendation;
     private String notes;
 
+    @jakarta.validation.Valid
     private MedicalVitalSignRequest vitalSign;
 
     private List<MedicalClinicalExamRequest> clinicalExams;
 
-    public Integer getProfileId() {
+    public String getProfileId() {
         return profileId;
     }
 
-    public void setProfileId(Integer profileId) {
+    public void setProfileId(String profileId) {
         this.profileId = profileId;
     }
 
-    public Integer getVeterinarianId() {
+    public String getVeterinarianId() {
         return veterinarianId;
     }
 
-    public void setVeterinarianId(Integer veterinarianId) {
+    public void setVeterinarianId(String veterinarianId) {
         this.veterinarianId = veterinarianId;
     }
 
-    public Integer getCorrectionOfId() {
+    public String getCorrectionOfId() {
         return correctionOfId;
     }
 
-    public void setCorrectionOfId(Integer correctionOfId) {
+    public void setCorrectionOfId(String correctionOfId) {
         this.correctionOfId = correctionOfId;
     }
 
@@ -128,4 +141,84 @@ public class MedicalRecordCreateRequest {
             List<MedicalClinicalExamRequest> clinicalExams) {
         this.clinicalExams = clinicalExams;
     }
+
+<<<<<<< HEAD
+    public String getFinalConclusion() {
+        return finalConclusion;
+    }
+
+    public void setFinalConclusion(String finalConclusion) {
+        this.finalConclusion = finalConclusion;
+    }
+
+    public String getOverrideReason() {
+        return overrideReason;
+    }
+
+    public void setOverrideReason(String overrideReason) {
+        this.overrideReason = overrideReason;
+    }
+
+    public String getMonitoringNote() {
+        return monitoringNote;
+    }
+
+    public void setMonitoringNote(String monitoringNote) {
+        this.monitoringNote = monitoringNote;
+    }
+
+    public String getTrainingLockReason() {
+        return trainingLockReason;
+    }
+
+    public void setTrainingLockReason(String trainingLockReason) {
+        this.trainingLockReason = trainingLockReason;
+    }
+
+
+=======
+    private Boolean trainingEligible;
+    private java.math.BigDecimal idealWeight;
+    private Integer bodyConditionScore;
+    public Boolean getTrainingEligible(){return trainingEligible;}public void setTrainingEligible(Boolean value){trainingEligible=value;}
+    public java.math.BigDecimal getIdealWeight(){return idealWeight;}public void setIdealWeight(java.math.BigDecimal value){idealWeight=value;}
+    public Integer getBodyConditionScore(){return bodyConditionScore;}public void setBodyConditionScore(Integer value){bodyConditionScore=value;}
+
+
+    @jakarta.validation.constraints.Size(max=1000)
+    private String eligibilityReason;
+    public String getEligibilityReason(){return eligibilityReason;}
+    public void setEligibilityReason(String value){eligibilityReason=value;}
+
+
+    @jakarta.validation.constraints.Size(max=30)
+    private String suggestedConclusion;
+    public String getSuggestedConclusion(){return suggestedConclusion;}
+    public void setSuggestedConclusion(String value){suggestedConclusion=value;}
+
+
+    @jakarta.validation.constraints.Size(max=30)
+    private String finalConclusion;
+    public String getFinalConclusion(){return finalConclusion;}
+    public void setFinalConclusion(String value){finalConclusion=value;}
+
+
+    @jakarta.validation.constraints.Size(max=1000)
+    private String overrideReason;
+    public String getOverrideReason(){return overrideReason;}
+    public void setOverrideReason(String value){overrideReason=value;}
+
+
+    @jakarta.validation.constraints.Size(max=1000)
+    private String monitoringNote;
+    public String getMonitoringNote(){return monitoringNote;}
+    public void setMonitoringNote(String value){monitoringNote=value;}
+
+
+    @jakarta.validation.constraints.Size(max=1000)
+    private String trainingLockReason;
+    public String getTrainingLockReason(){return trainingLockReason;}
+    public void setTrainingLockReason(String value){trainingLockReason=value;}
+
+>>>>>>> 76de6e5 (luu code)
 }

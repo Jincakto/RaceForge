@@ -27,7 +27,7 @@ export function IdChip({ kind, id, className = '' }: { kind: IdKind; id: string;
   );
 }
 
-export const GENDER_LABEL: Record<string, string> = { Stallion: 'Stallion', Mare: 'Mare', Gelding: 'Gelding', Đực: 'Stallion', Cái: 'Mare', 'Đực thiến': 'Gelding' };
+export const GENDER_LABEL: Record<string, string> = { Male: 'Male', Female: 'Female', MALE: 'Male', FEMALE: 'Female', Stallion: 'Male', Mare: 'Female', Gelding: 'Male', Đực: 'Male', Cái: 'Female', 'Đực thiến': 'Male' };
 
 // ── Audit log ─────────────────────────────────────────────────────────────────
 

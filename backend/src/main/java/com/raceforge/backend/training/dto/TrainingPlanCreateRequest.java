@@ -7,9 +7,9 @@ import java.time.LocalDate;
 
 public class TrainingPlanCreateRequest {
 
-  // User id (INT) of the trainer creating the plan -> Training_Plan.created_by
+  // Authenticated User String ID -> Training_Plan.created_by; Trainer profile uses a separate INT ID.
   // Legacy trainerId is ignored; creator is the authenticated principal.
-  private Integer trainerId;
+  private String trainerId;
 
   // Training_Plan.plan_name (NOT NULL)
   @NotBlank
@@ -27,14 +27,22 @@ public class TrainingPlanCreateRequest {
   private LocalDate startDate;
   private LocalDate endDate;
 
+  @jakarta.validation.constraints.NotBlank private String assignmentId;
+  private String recommendationId;
+  private Boolean recommendationConfirmed;
+  @jakarta.validation.Valid private java.util.List<TrainingWorkflowDtos.Stage> stages;
+  public String getAssignmentId(){return assignmentId;} public void setAssignmentId(String value){assignmentId=value;}
+  public String getRecommendationId(){return recommendationId;} public void setRecommendationId(String value){recommendationId=value;}
+  public Boolean getRecommendationConfirmed(){return recommendationConfirmed;} public void setRecommendationConfirmed(Boolean value){recommendationConfirmed=value;}
+  public java.util.List<TrainingWorkflowDtos.Stage> getStages(){return stages;} public void setStages(java.util.List<TrainingWorkflowDtos.Stage> value){stages=value;}
   public TrainingPlanCreateRequest() {
   }
 
-  public Integer getTrainerId() {
+  public String getTrainerId() {
       return trainerId;
   }
 
-  public void setTrainerId(Integer trainerId) {
+  public void setTrainerId(String trainerId) {
       this.trainerId = trainerId;
   }
 

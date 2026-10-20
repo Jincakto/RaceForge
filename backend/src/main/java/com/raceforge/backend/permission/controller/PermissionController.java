@@ -15,25 +15,15 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+@org.springframework.validation.annotation.Validated
 @RestController
 @RequestMapping("/api/admin/permissions")
-@PreAuthorize("hasAuthority('CLUB_MANAGER') and @permissionAccess.has(authentication, 'MANAGE_PERMISSION')")
+@PreAuthorize("hasAuthority('ADMIN') and @permissionAccess.has(authentication, 'MANAGE_PERMISSION')")
 @Tag(name = "Permissions")
 public class PermissionController {
 
   @Autowired
   private PermissionService permissionService;
-
-  public record PermissionOption(String permissionName, String description) {}
-
-  @Autowired
-  private com.raceforge.backend.permission.repository.PermissionRepository permissionRepository;
-
-  @GetMapping("/catalog")
-  public ApiResponse<List<PermissionOption>> catalog() {
-      return ApiResponse.success("Permission catalog", permissionRepository.findAll().stream()
-          .map(p -> new PermissionOption(p.getPermissionName(), p.getDescription())).toList());
-  }
 
   @PostMapping("/grant")
   public ResponseEntity<ApiResponse<Void>> grant(@Valid @RequestBody GrantPermissionRequest request,

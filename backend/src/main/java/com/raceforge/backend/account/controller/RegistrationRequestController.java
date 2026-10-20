@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/registration-requests")
 @Tag(name = "Registration Requests")
+@org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN')")
 public class RegistrationRequestController {
 
     private final RegistrationRequestService service;
@@ -40,14 +41,14 @@ public class RegistrationRequestController {
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<RegistrationRequestResponse> get(@PathVariable Integer id) {
+    public ApiResponse<RegistrationRequestResponse> get(@PathVariable String id) {
         return ApiResponse.success("Registration request", service.get(id));
     }
 
     @PostMapping("/{id}/approve")
     public ApiResponse<RegistrationRequestResponse> approve(
             @AuthenticationPrincipal AuthenticatedUser currentUser,
-            @PathVariable Integer id,
+            @PathVariable String id,
             @Valid @RequestBody(required = false) ApproveRequest request
     ) {
         return ApiResponse.success("Registration approved", service.approve(id, currentUser.userId(), request == null ? null : request.note()));
@@ -56,7 +57,7 @@ public class RegistrationRequestController {
     @PostMapping("/{id}/reject")
     public ApiResponse<RegistrationRequestResponse> reject(
             @AuthenticationPrincipal AuthenticatedUser currentUser,
-            @PathVariable Integer id,
+            @PathVariable String id,
             @Valid @RequestBody RejectRequest request
     ) {
         return ApiResponse.success("Registration rejected", service.reject(id, currentUser.userId(), request.reason()));

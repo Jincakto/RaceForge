@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
+@org.springframework.validation.annotation.Validated
 @RestController
 @RequestMapping("/api/notifications")
 @Tag(name = "Notifications")
@@ -50,7 +51,7 @@ public class NotificationController {
     @PatchMapping("/{id}/read")
     @Transactional
     public NotificationResponse markRead(
-            @PathVariable Integer id,
+            @PathVariable String id,
             @AuthenticationPrincipal AuthenticatedUser principal) {
 
         Notification notification = repository

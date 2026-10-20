@@ -69,7 +69,11 @@ public class JwtService {
                 .parseSignedClaims(token)
                 .getPayload();
         return new GooglePasswordSetupIdentity(
-                Integer.valueOf(claims.getSubject()),
+<<<<<<< HEAD
+                userSubject(claims),
+=======
+                claims.getSubject(),
+>>>>>>> 76de6e5 (luu code)
                 claims.get("email", String.class)
         );
     }
@@ -84,10 +88,14 @@ public class JwtService {
                 .getPayload();
 
         return new AuthenticatedUser(
-                Integer.valueOf(claims.getSubject()),
+<<<<<<< HEAD
+                userSubject(claims),
+=======
+                claims.getSubject(),
+>>>>>>> 76de6e5 (luu code)
                 claims.get("email", String.class),
                 claims.get("status", String.class),
-                claims.get("role_id", Integer.class),
+                claims.get("role_id", String.class),
                 claims.get("role_name", String.class)
         );
     }
@@ -105,6 +113,17 @@ public class JwtService {
         return properties.getJwt().getAudience() + GOOGLE_PASSWORD_SETUP_AUDIENCE_SUFFIX;
     }
 
-    public record GooglePasswordSetupIdentity(Integer userId, String email) {
+    public record GooglePasswordSetupIdentity(String userId, String email) {
+<<<<<<< HEAD
+    }
+
+    private String userSubject(Claims claims) {
+        String subject = claims.getSubject();
+        if (subject == null || !subject.matches("(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}")) {
+            throw new IllegalArgumentException("Invalid user ID in token");
+        }
+        return subject;
+=======
+>>>>>>> 76de6e5 (luu code)
     }
 }

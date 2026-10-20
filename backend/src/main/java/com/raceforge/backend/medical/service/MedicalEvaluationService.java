@@ -7,12 +7,12 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import static com.raceforge.backend.medical.service.MedicalEvaluationResult.EvaluationLevel;
 
 @Service
 public class MedicalEvaluationService {
+
     private final MedicalClinicalExamValidator clinicalExamValidator;
 
     public MedicalEvaluationService(MedicalClinicalExamValidator clinicalExamValidator) {
@@ -23,16 +23,13 @@ public class MedicalEvaluationService {
                                             MedicalVitalSignRequest vitalSign,
                                             List<MedicalClinicalExamRequest> clinicalExams) {
         List<String> findings = new ArrayList<>();
-        boolean hasWarning = false;
-        boolean hasCritical = false;
-        boolean incomplete = false;
+        boolean warning = false;
+        boolean critical = false;
+        boolean incomplete = !clinicalExamValidator.validate(examType, clinicalExams);
 
-        boolean clinicalComplete = clinicalExamValidator.validate(examType, clinicalExams);
-        if (!clinicalComplete) {
-            incomplete = true;
-            findings.add("Clinical examination data is incomplete.");
+        if (incomplete) {
+            findings.add("Clinical examination is incomplete.");
         }
-
         if (vitalSign == null) {
             incomplete = true;
             findings.add("Vital signs are missing.");
@@ -45,16 +42,14 @@ public class MedicalEvaluationService {
                 incomplete = true;
                 findings.add("Body temperature is missing.");
             } else {
-                if (temperature.compareTo(BigDecimal.ZERO) <= 0) {
-                    throw new IllegalArgumentException("Body temperature must be positive.");
-                }
+                requirePositive(temperature, "Body temperature");
                 if (temperature.compareTo(MedicalReferenceRange.CRITICAL_HIGH_TEMPERATURE) >= 0) {
-                    hasCritical = true;
-                    findings.add("Critical high temperature alert.");
+                    critical = true;
+                    findings.add("Temperature greatly exceeds the configured reference range.");
                 } else if (temperature.compareTo(MedicalReferenceRange.MIN_NORMAL_TEMPERATURE) < 0
                         || temperature.compareTo(MedicalReferenceRange.MAX_NORMAL_TEMPERATURE) > 0) {
-                    hasWarning = true;
-                    findings.add("Temperature outside normal range.");
+                    warning = true;
+                    findings.add("Temperature is outside the configured reference range.");
                 }
             }
 
@@ -62,16 +57,14 @@ public class MedicalEvaluationService {
                 incomplete = true;
                 findings.add("Resting heart rate is missing.");
             } else {
-                if (heartRate <= 0) {
-                    throw new IllegalArgumentException("Resting heart rate must be positive.");
-                }
+                requirePositive(heartRate, "Resting heart rate");
                 if (heartRate > MedicalReferenceRange.CRITICAL_HIGH_HEART_RATE) {
-                    hasCritical = true;
-                    findings.add("Critical high resting heart rate alert.");
+                    critical = true;
+                    findings.add("Resting heart rate greatly exceeds the configured reference range.");
                 } else if (heartRate < MedicalReferenceRange.MIN_NORMAL_HEART_RATE
                         || heartRate > MedicalReferenceRange.MAX_NORMAL_HEART_RATE) {
-                    hasWarning = true;
-                    findings.add("Heart rate outside normal range.");
+                    warning = true;
+                    findings.add("Resting heart rate is outside the configured reference range.");
                 }
             }
 
@@ -79,43 +72,60 @@ public class MedicalEvaluationService {
                 incomplete = true;
                 findings.add("Resting respiratory rate is missing.");
             } else {
-                if (respiratoryRate <= 0) {
-                    throw new IllegalArgumentException("Respiratory rate must be positive.");
-                }
-                if (respiratoryRate < MedicalReferenceRange.MIN_NORMAL_RESPIRATORY_RATE
+                requirePositive(respiratoryRate, "Resting respiratory rate");
+                if (respiratoryRate >= MedicalReferenceRange.CRITICAL_HIGH_RESPIRATORY_RATE) {
+                    critical = true;
+                    findings.add("Resting respiratory rate greatly exceeds the configured reference range.");
+                } else if (respiratoryRate < MedicalReferenceRange.MIN_NORMAL_RESPIRATORY_RATE
                         || respiratoryRate > MedicalReferenceRange.MAX_NORMAL_RESPIRATORY_RATE) {
-                    hasWarning = true;
-                    findings.add("Respiratory rate outside normal range.");
+                    warning = true;
+                    findings.add("Resting respiratory rate is outside the configured reference range.");
                 }
+            }
+
+            if (vitalSign.getWeight() != null) {
+                requirePositive(vitalSign.getWeight(), "Weight");
             }
         }
 
         if (clinicalExams != null) {
             for (MedicalClinicalExamRequest exam : clinicalExams) {
+<<<<<<< HEAD
+                if (exam != null && "ABNORMAL".equalsIgnoreCase(exam.getConditionStatus())) {
+                    // Binary clinical status cannot establish severity or prove an injury.
+                    warning = true;
+                    findings.add("Clinical abnormality in " + exam.getExaminationArea() + ".");
+                }
+            }
+        }
+
+        EvaluationLevel level = incomplete ? EvaluationLevel.INCOMPLETE
+                : critical ? EvaluationLevel.CRITICAL
+                : warning ? EvaluationLevel.WARNING
+                : EvaluationLevel.NORMAL;
+        String trainingNote = switch (level) {
+            case NORMAL -> "ALLOW_TRAINING";
+            case WARNING -> "ALLOW_WITH_CAUTION";
+            case CRITICAL -> "TRAINING_LOCK";  
+            case INCOMPLETE -> "EVALUATION_INCOMPLETE";
+        };
+=======
                 if (exam == null || isBlank(exam.getExaminationArea())
                         || isBlank(exam.getConditionStatus())) {
                     continue;
                 }
                 String condition = normalize(exam.getConditionStatus());
-                String severity = isBlank(exam.getSeverity()) ? "" : normalize(exam.getSeverity());
-                String area = normalize(exam.getExaminationArea());
-                if ("CRITICAL".equals(condition)
-                        || "SEVERE".equals(severity) || "CRITICAL".equals(severity)) {
-                    hasCritical = true;
-                    findings.add("Critical clinical finding in " + area + ".");
-                } else if ("ABNORMAL".equals(condition)
-                        && ("MILD".equals(severity) || "MODERATE".equals(severity))) {
-                    hasWarning = true;
-                    findings.add("Abnormal clinical finding in " + area + ".");
-                }
+                String area=normalize(exam.getExaminationArea());
+                if("ABNORMAL".equals(condition)){hasWarning=true;findings.add("Abnormal clinical finding in "+area+".");}
+
             }
         }
 
         EvaluationLevel level;
-        if (hasCritical) {
-            level = EvaluationLevel.CRITICAL;
-        } else if (incomplete) {
+        if (incomplete) {
             level = EvaluationLevel.INCOMPLETE;
+        } else if (hasCritical) {
+            level = EvaluationLevel.CRITICAL;
         } else if (hasWarning) {
             level = EvaluationLevel.WARNING;
         } else {
@@ -142,15 +152,25 @@ public class MedicalEvaluationService {
         String systemNote = findings.isEmpty()
                 ? "All evaluated indicators are within normal range."
                 : String.join(" ", findings);
+>>>>>>> 76de6e5 (luu code)
         return new MedicalEvaluationResult(
-                level, systemNote, trainingNote, level == EvaluationLevel.CRITICAL);
+                level,
+                findings.isEmpty() ? "All entered indicators are within the configured reference ranges."
+                        : String.join(" ", findings),
+                trainingNote,
+                level == EvaluationLevel.CRITICAL
+        );
     }
 
-    private String normalize(String value) {
-        return value.trim().toUpperCase(Locale.ROOT);
+    private void requirePositive(BigDecimal value, String label) {
+        if (value.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException(label + " must be positive.");
+        }
     }
 
-    private boolean isBlank(String value) {
-        return value == null || value.isBlank();
+    private void requirePositive(Integer value, String label) {
+        if (value <= 0) {
+            throw new IllegalArgumentException(label + " must be positive.");
+        }
     }
 }

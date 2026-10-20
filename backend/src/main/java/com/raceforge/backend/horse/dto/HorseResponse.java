@@ -2,13 +2,19 @@ package com.raceforge.backend.horse.dto;
 
 import java.time.LocalDate;
 import java.math.BigDecimal;
+import java.util.List;
 
 public class HorseResponse {
 
-    private Integer horseId;
+    private String horseId;
 
-    private Integer ownerId;
-    private Integer headTrainerId;
+    private String ownerId;
+<<<<<<< HEAD
+
+    // Assigned HEAD_TRAINER user IDs (not Trainer table primary keys).
+    private List<String> trainerIds = List.of();
+=======
+>>>>>>> 76de6e5 (luu code)
 
     private String horseName;
     private LocalDate dateOfBirth;
@@ -18,49 +24,70 @@ public class HorseResponse {
 
     private String sire;
     private String dam;
-    private String damSire;
 
-    private BigDecimal weight;
     private BigDecimal height;
 
-    private String background;
     private String declaredMedicalHistory;
     private String imageUrl;
+    private String registrationNumber;
+    private String documentType;
+    private String documentUrl;
 
     private String healthStatus;
     private Boolean trainingLocked;
     private String status;
     private String admissionStatus;
     private String admissionNote;
-    public String getAdmissionStatus() { return admissionStatus; }
-    public void setAdmissionStatus(String value) { admissionStatus = value; }
-    public String getAdmissionNote() { return admissionNote; }
-    public void setAdmissionNote(String value) { admissionNote = value; }
+    public String getAdmissionStatus() {
+        return admissionStatus;
+    }
 
-    public Integer getHorseId() {
+<<<<<<< HEAD
+    public void setAdmissionStatus(String admissionStatus) {
+        this.admissionStatus = admissionStatus;
+    }
+
+    public String getAdmissionNote() {
+        return admissionNote;
+    }
+
+    public void setAdmissionNote(String admissionNote) {
+        this.admissionNote = admissionNote;
+    }
+
+    public List<String> getTrainerIds() {
+        return trainerIds;
+    }
+
+    public void setTrainerIds(List<String> trainerIds) {
+        this.trainerIds = trainerIds;
+    }
+
+    public String getHorseId() {
+        return horseId;
+=======
+    public String getHorseId() {
     return horseId;
+>>>>>>> 76de6e5 (luu code)
     }
     
-    public void setHorseId(Integer horseId) {
+    public void setHorseId(String horseId) {
         this.horseId = horseId;
     }
     
-    public Integer getOwnerId() {
+    public String getOwnerId() {
         return ownerId;
     }
     
-    public void setOwnerId(Integer ownerId) {
+    public void setOwnerId(String ownerId) {
         this.ownerId = ownerId;
     }
     
-    public Integer getHeadTrainerId() {
-        return headTrainerId;
-    }
+<<<<<<< HEAD
+=======
     
-    public void setHeadTrainerId(Integer headTrainerId) {
-        this.headTrainerId = headTrainerId;
-    }
     
+>>>>>>> 76de6e5 (luu code)
     public String getHorseName() {
         return horseName;
     }
@@ -117,22 +144,13 @@ public class HorseResponse {
         this.dam = dam;
     }
     
-    public String getDamSire() {
-        return damSire;
-    }
+<<<<<<< HEAD
+=======
     
-    public void setDamSire(String damSire) {
-        this.damSire = damSire;
-    }
     
-    public BigDecimal getWeight() {
-        return weight;
-    }
     
-    public void setWeight(BigDecimal weight) {
-        this.weight = weight;
-    }
     
+>>>>>>> 76de6e5 (luu code)
     public BigDecimal getHeight() {
         return height;
     }
@@ -141,14 +159,11 @@ public class HorseResponse {
         this.height = height;
     }
     
-    public String getBackground() {
-        return background;
-    }
+<<<<<<< HEAD
+=======
     
-    public void setBackground(String background) {
-        this.background = background;
-    }
     
+>>>>>>> 76de6e5 (luu code)
     public String getDeclaredMedicalHistory() {
         return declaredMedicalHistory;
     }
@@ -188,4 +203,45 @@ public class HorseResponse {
     public void setStatus(String status) {
         this.status = status;
     }
+<<<<<<< HEAD
+    public String getRegistrationNumber() {
+        return registrationNumber;
+    }
+
+    public void setRegistrationNumber(String registrationNumber) {
+        this.registrationNumber = registrationNumber;
+    }
+
+    public String getDocumentType() {
+        return documentType;
+    }
+
+    public void setDocumentType(String documentType) {
+        this.documentType = documentType;
+    }
+
+    public String getDocumentUrl() {
+        return documentUrl;
+    }
+
+    public void setDocumentUrl(String documentUrl) {
+        this.documentUrl = documentUrl;
+    }
+=======
+    @jakarta.validation.constraints.Size(max=100)
+    private String registrationNumber;
+    public String getRegistrationNumber(){return registrationNumber;}
+    public void setRegistrationNumber(String value){registrationNumber=value;}
+
+
+    private String documentType;
+    public String getDocumentType(){return documentType;}
+    public void setDocumentType(String value){documentType=value;}
+
+
+    private String documentUrl;
+    public String getDocumentUrl(){return documentUrl;}
+    public void setDocumentUrl(String value){documentUrl=value;}
+
+>>>>>>> 76de6e5 (luu code)
 }

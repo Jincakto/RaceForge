@@ -8,12 +8,11 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "HORSE_RACE_HISTORY")
-public class HorseRaceHistory {
+public class HorseRaceHistory extends com.raceforge.backend.common.id.BusinessEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "race_history_id", length = 20)
-    private Integer raceHistoryId;
+    private String raceHistoryId;
 
     @ManyToOne
     @JoinColumn(name = "horse_id", nullable = false)
@@ -49,11 +48,11 @@ public class HorseRaceHistory {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    public Integer getRaceHistoryId() {
+    public String getRaceHistoryId() {
         return raceHistoryId;
     }
 
-    public void setRaceHistoryId(Integer raceHistoryId) {
+    public void setRaceHistoryId(String raceHistoryId) {
         this.raceHistoryId = raceHistoryId;
     }
 

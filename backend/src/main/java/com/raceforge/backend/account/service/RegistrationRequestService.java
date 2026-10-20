@@ -58,13 +58,13 @@ public class RegistrationRequestService {
     }
 
     @Transactional(readOnly = true)
-    public RegistrationRequestResponse get(Integer id) {
+    public RegistrationRequestResponse get(String id) {
         return mapper.toRegistrationRequestResponse(registrationRequestRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Registration request not found")));
     }
 
     @Transactional
-    public RegistrationRequestResponse approve(Integer requestId, Integer managerId, String note) {
+    public RegistrationRequestResponse approve(String requestId, String managerId, String note) {
         RegistrationRequest request = pendingRequestForUpdate(requestId);
         User user = request.getUser();
         if (!STATUS_PENDING.equals(user.getStatus())) {
@@ -84,7 +84,7 @@ public class RegistrationRequestService {
     }
 
     @Transactional
-    public RegistrationRequestResponse reject(Integer requestId, Integer managerId, String reason) {
+    public RegistrationRequestResponse reject(String requestId, String managerId, String reason) {
         RegistrationRequest request = pendingRequestForUpdate(requestId);
         User user = request.getUser();
         User manager = userRepository.findById(managerId)
@@ -99,7 +99,7 @@ public class RegistrationRequestService {
         return mapper.toRegistrationRequestResponse(request);
     }
 
-    private RegistrationRequest pendingRequestForUpdate(Integer requestId) {
+    private RegistrationRequest pendingRequestForUpdate(String requestId) {
         RegistrationRequest request = registrationRequestRepository.findByIdForUpdate(requestId)
                 .orElseThrow(() -> new ResourceNotFoundException("Registration request not found"));
         if (!REQUEST_PENDING.equals(request.getStatus())) {

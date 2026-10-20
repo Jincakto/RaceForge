@@ -4,7 +4,8 @@ import {
   type AppNotification, type TrainingPackage, type TrainingSuggestion, type AssignEntry, type Res, type HealthRecord,
 } from './data';
 
-export const TODAY = '25/09/2026';
+export { TODAY } from './today';
+import { TODAY } from './today';
 export const EXPIRY_WARN_DAYS = 14;
 
 // ── Date helpers (dd/mm/yyyy) ────────────────────────────────────────────────
@@ -40,7 +41,7 @@ export const money = (n: number) => `${Math.round(n).toLocaleString('vi-VN')} VN
 // ── Enrollment helpers ───────────────────────────────────────────────────────
 
 export const daysLeft = (e: Pick<Enrollment, 'expiresAt'>) => diffDays(TODAY, e.expiresAt);
-export const isCurrent = (e: Enrollment) => e.status !== 'completed';
+export const isCurrent = (e: Enrollment) => e.status === 'active' || e.status === 'paused';
 export const currentEnrollment = (list: Enrollment[], horseId: string) => list.find(e => e.horseId === horseId && isCurrent(e));
 
 export function enrollmentTerm(e: Enrollment): { text: string; left: number; warn: boolean; expired: boolean } {
@@ -54,9 +55,8 @@ export const TRAINER_STATUS_LABEL: Record<Enrollment['trainerStatus'], string> =
 
 /** Lý do ngựa không thể đăng ký gói mới (null = chọn được). */
 function latestHealthRecord(records: HealthRecord[], horseId: string): HealthRecord | undefined {
-  return records.filter(r => r.horseId === horseId).sort((a, b) =>
-    (b.createdAt ?? 0) - (a.createdAt ?? 0) || parseD(b.date).getTime() - parseD(a.date).getTime(),
-  )[0];
+  const list = records.filter(r => r.horseId === horseId).sort((a, b) => parseD(b.date).getTime() - parseD(a.date).getTime() || (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  return list.find(r => r.status === 'confirmed') || list[0];
 }
 
 /** Điều kiện đăng ký dựa trên hồ sơ khám đã xác nhận gần nhất. */
@@ -78,6 +78,12 @@ export function purchaseBlockReason(h: Horse, enrollments: Enrollment[], records
 
 /** Ngựa mà HLV được phép lập lộ trình: đang được phân công, gói đã xác nhận, không khóa. */
 export function trainerPlanBlockReason(h: Horse, enrollments: Enrollment[], trainerId: string): string | null {
+  if (h.backendAdmissionStatus !== undefined) {
+    if (!(h.trainerHistory || []).some(t => t.trainerId === trainerId && !t.to)) return 'Ngựa chưa được phân công cho bạn';
+    if (h.backendAdmissionStatus !== 'APPROVED') return 'Hồ sơ chưa được duyệt';
+    if (h.lock || h.healthStatus !== 'Eligible') return 'Ngựa chưa đủ điều kiện huấn luyện';
+    return null; // Package eligibility is checked by the backend; its trainer history API is missing.
+  }
   const activeEntry = (h.trainerHistory || []).some(t => t.trainerId === trainerId && t.to === null);
   const en = currentEnrollment(enrollments, h.id);
   if (!activeEntry || !en || en.trainerId !== trainerId) return 'Chưa được phân công cho bạn';
@@ -93,6 +99,7 @@ export function trainerPlanBlockReason(h: Horse, enrollments: Enrollment[], trai
 export interface SessionDraft { date: string; time: string; type: string; distance: string; targetTime: string; notes: string }
 
 export interface SessionCheckCtx {
+  serverChecksPackage?: boolean;
   sessions: TrainingSession[];
   enrollments: Enrollment[];
   horseId: string;
@@ -115,8 +122,8 @@ export function checkSessionDrafts(ctx: SessionCheckCtx, drafts: SessionDraft[])
     return '';
   });
   let global = '';
-  if (!en) global = 'Ngựa chưa có gói huấn luyện đang hiệu lực.';
-  else {
+  if (!en && !ctx.serverChecksPackage) global = 'Ngựa chưa có gói huấn luyện đang hiệu lực.';
+  else if (en && en.sessionsTotal > 0) {
     const remain = en.sessionsTotal - en.sessionsDone - live.filter(s => s.horseId === ctx.horseId).length;
     if (drafts.length > remain) global = `Vượt số buổi còn lại của gói: còn ${Math.max(0, remain)} buổi chưa xếp lịch, đang tạo ${drafts.length} buổi.`;
   }
@@ -159,7 +166,7 @@ export interface TrainingEnv<S extends TrainingSlice> {
   notif: (n: Omit<AppNotification, 'id' | 'time' | 'read'>) => AppNotification;
 }
 
-export interface PackageDraft { id?: string; name: string; description: string; sessions: number; durationDays: number; price: number }
+export interface PackageDraft { id?: string; name: string; description: string; sessions: number; durationDays: number; price: number; packageType?: string }
 export interface PlanDraft { horseId: string; phase: string; startDate: string; endDate: string; distance: string; workload: string; surface: string; goals: string; suggestion?: TrainingSuggestion }
 export interface AttemptInfo { horseId: string; packageId: string; renewOfId?: string }
 
@@ -169,7 +176,7 @@ export function validatePackage(d: PackageDraft, others: TrainingPackage[]): Rec
   if (name.length < 3 || name.length > 60) e.name = 'Tên gói phải từ 3 đến 60 ký tự.';
   else if (others.some(p => p.id !== d.id && p.name.trim().toLowerCase() === name.toLowerCase())) e.name = 'Tên gói đã tồn tại.';
   if (!Number.isInteger(d.price) || d.price <= 0) e.price = 'Giá phải là số nguyên VND lớn hơn 0.';
-  if (!Number.isInteger(d.sessions) || d.sessions < 1 || d.sessions > 200) e.sessions = 'Số buổi từ 1 đến 200.';
+  if (!d.packageType && (!Number.isInteger(d.sessions) || d.sessions < 1 || d.sessions > 200)) e.sessions = 'Số buổi từ 1 đến 200.';
   if (!Number.isInteger(d.durationDays) || d.durationDays < 7 || d.durationDays > 365) e.durationDays = 'Thời hạn từ 7 đến 365 ngày.';
   if (d.description.length > 300) e.description = 'Mô tả tối đa 300 ký tự.';
   return e;

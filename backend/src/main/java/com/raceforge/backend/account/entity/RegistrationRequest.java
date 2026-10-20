@@ -13,12 +13,11 @@ import java.time.Instant;
 
 @Entity
 @Table(name = "Registration_Request")
-public class RegistrationRequest {
+public class RegistrationRequest extends com.raceforge.backend.common.id.BusinessEntity {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "request_id")
-    private Integer requestId;
+    private String requestId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
@@ -44,11 +43,11 @@ public class RegistrationRequest {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    public Integer getRequestId() {
+    public String getRequestId() {
         return requestId;
     }
 
-    public void setRequestId(Integer requestId) {
+    public void setRequestId(String requestId) {
         this.requestId = requestId;
     }
 

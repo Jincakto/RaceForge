@@ -29,7 +29,8 @@ public class MembershipController {
     public MembershipController(UserRepository users, RoleRepository roles, RegistrationRequestRepository requests, AccountMapper mapper, AuditService audit) {
         this.users=users; this.roles=roles; this.requests=requests; this.mapper=mapper; this.audit=audit;
     }
-    public record SubmitRequest(@NotNull Integer requestedRoleId) {}
+    public record SubmitRequest(@NotNull String requestedRoleId) {}
+    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('ADMIN')")
     @PostMapping
     @Transactional
     public ApiResponse<RegistrationRequestResponse> submit(@AuthenticationPrincipal AuthenticatedUser actor, @Valid @RequestBody SubmitRequest body) {

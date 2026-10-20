@@ -5,6 +5,11 @@ import java.time.LocalDateTime;
 
 public class TrainingSessionResponse {
 
+<<<<<<< HEAD
+  private Integer sessionId;
+  private Integer planId;
+  private @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId;
+=======
   private Integer restingHeartRate;
   public Integer getRestingHeartRate(){return restingHeartRate;}
   public void setRestingHeartRate(Integer value){restingHeartRate=value;}
@@ -85,6 +90,7 @@ public class TrainingSessionResponse {
   private String sessionId;
   private String planId;
   private String horseId;
+>>>>>>> 76de6e5 (luu code)
   private LocalDateTime scheduledStart;
   private LocalDateTime scheduledEnd;
   private BigDecimal distance;
@@ -132,7 +138,11 @@ public class TrainingSessionResponse {
       return horseId;
   }
 
+<<<<<<< HEAD
+  public void setHorseId(@jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
+=======
   public void setHorseId(String horseId) {
+>>>>>>> 76de6e5 (luu code)
       this.horseId = horseId;
   }
 

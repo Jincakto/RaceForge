@@ -9,7 +9,11 @@ public class TrainingPlanCreateRequest {
 
   // Authenticated User String ID -> Training_Plan.created_by; Trainer profile uses a separate INT ID.
   // Legacy trainerId is ignored; creator is the authenticated principal.
+<<<<<<< HEAD
+  private @jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String trainerId;
+=======
   private String trainerId;
+>>>>>>> 76de6e5 (luu code)
 
   // Training_Plan.plan_name (NOT NULL)
   @NotBlank
@@ -42,7 +46,11 @@ public class TrainingPlanCreateRequest {
       return trainerId;
   }
 
+<<<<<<< HEAD
+  public void setTrainerId(@jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String trainerId) {
+=======
   public void setTrainerId(String trainerId) {
+>>>>>>> 76de6e5 (luu code)
       this.trainerId = trainerId;
   }
 

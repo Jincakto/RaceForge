@@ -68,7 +68,11 @@ public class TrainingSessionService {
     }
 
     @Transactional
+<<<<<<< HEAD
+    public TrainingSessionResponse completeSession(Integer sessionId, CompleteSessionRequest request, String actorId) {
+=======
     public TrainingSessionResponse completeSession(String sessionId, CompleteSessionRequest request, String actorId) {
+>>>>>>> 76de6e5 (luu code)
         TrainingSession session = lockedSession(sessionId);
         workflowGuard.authorizePlan(session.getPlan());
         rules.requireUnlocked(rules.lockHorse(session.getHorse().getHorseId()));

@@ -9,7 +9,11 @@ public class ScheduleSessionRequest {
   private String planId;
 
   // Optional when the plan has exactly one horse.
+<<<<<<< HEAD
   private @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId;
+=======
+  private String horseId;
+>>>>>>> 76de6e5 (luu code)
 
   @NotNull
   private LocalDateTime scheduledTime;
@@ -40,7 +44,11 @@ public class ScheduleSessionRequest {
       return horseId;
   }
 
+<<<<<<< HEAD
   public void setHorseId(@jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
+=======
+  public void setHorseId(String horseId) {
+>>>>>>> 76de6e5 (luu code)
       this.horseId = horseId;
   }
 }

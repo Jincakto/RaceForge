@@ -5,7 +5,6 @@ import com.raceforge.backend.training.dto.AttendSessionRequest;
 import com.raceforge.backend.training.dto.AttendanceResponse;
 import com.raceforge.backend.training.dto.ScheduleRecurringRequest;
 import com.raceforge.backend.training.dto.TrainingSessionResponse;
-import com.raceforge.backend.training.dto.SchedulingPackageResponse;
 import com.raceforge.backend.training.service.TrainingScheduleService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -36,6 +35,8 @@ public class TrainingScheduleController {
       return ResponseEntity.ok(ApiResponse.success("Training schedule created", created));
   }
 
+<<<<<<< HEAD
+=======
   @GetMapping("/horse/{horseId}/scheduling-packages")
   @PreAuthorize("hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")
   public ResponseEntity<ApiResponse<List<SchedulingPackageResponse>>> schedulingPackages(
@@ -44,6 +45,7 @@ public class TrainingScheduleController {
               trainingScheduleService.getSchedulingPackages(horseId)));
   }
 
+>>>>>>> 76de6e5 (luu code)
   @PutMapping("/{sessionId}/attendance")
   @PreAuthorize("hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")
   public ResponseEntity<ApiResponse<AttendanceResponse>> submitAttendance(
@@ -59,7 +61,11 @@ public class TrainingScheduleController {
 
   @GetMapping("/horse/{horseId}")
   @PreAuthorize("@permissionAccess.canReadHorse(authentication, #p0)")
+<<<<<<< HEAD
   public ResponseEntity<ApiResponse<List<TrainingSessionResponse>>> getByHorse(@PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
+=======
+  public ResponseEntity<ApiResponse<List<TrainingSessionResponse>>> getByHorse(@PathVariable String horseId) {
+>>>>>>> 76de6e5 (luu code)
       return ResponseEntity.ok(ApiResponse.success(
               "Training schedule retrieved", trainingScheduleService.getScheduleByHorseId(horseId)));
   }

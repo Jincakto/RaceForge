@@ -7,13 +7,9 @@ import java.time.LocalDate;
 
 public class TrainingPlanCreateRequest {
 
-  // Authenticated User String ID -> Training_Plan.created_by; Trainer profile uses a separate INT ID.
+  // User id (INT) of the trainer creating the plan -> Training_Plan.created_by
   // Legacy trainerId is ignored; creator is the authenticated principal.
-<<<<<<< HEAD
   private @jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String trainerId;
-=======
-  private String trainerId;
->>>>>>> 76de6e5 (luu code)
 
   // Training_Plan.plan_name (NOT NULL)
   @NotBlank
@@ -31,14 +27,6 @@ public class TrainingPlanCreateRequest {
   private LocalDate startDate;
   private LocalDate endDate;
 
-  @jakarta.validation.constraints.NotBlank private String assignmentId;
-  private String recommendationId;
-  private Boolean recommendationConfirmed;
-  @jakarta.validation.Valid private java.util.List<TrainingWorkflowDtos.Stage> stages;
-  public String getAssignmentId(){return assignmentId;} public void setAssignmentId(String value){assignmentId=value;}
-  public String getRecommendationId(){return recommendationId;} public void setRecommendationId(String value){recommendationId=value;}
-  public Boolean getRecommendationConfirmed(){return recommendationConfirmed;} public void setRecommendationConfirmed(Boolean value){recommendationConfirmed=value;}
-  public java.util.List<TrainingWorkflowDtos.Stage> getStages(){return stages;} public void setStages(java.util.List<TrainingWorkflowDtos.Stage> value){stages=value;}
   public TrainingPlanCreateRequest() {
   }
 
@@ -46,11 +34,7 @@ public class TrainingPlanCreateRequest {
       return trainerId;
   }
 
-<<<<<<< HEAD
   public void setTrainerId(@jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String trainerId) {
-=======
-  public void setTrainerId(String trainerId) {
->>>>>>> 76de6e5 (luu code)
       this.trainerId = trainerId;
   }
 

@@ -20,7 +20,7 @@ public class HorsePackageMapper {
                 entity.getPaymentStatus(),
                 entity.getTotalPrice(),
                 entity.getRegisteredAt(),
-                // entity.getPaidAt(), // Removed with paid_at in V5.
+                entity.getPaidAt(),
                 entity.getStartDate(),
                 entity.getEndDate(),
                 displayedRemainingDays(entity),

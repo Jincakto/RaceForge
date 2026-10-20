@@ -19,17 +19,8 @@ public class MedicalClinicalExamValidator {
     private static final Set<String> VALID_EXAM_TYPES = Set.of(
             "INITIAL", "PERIODIC", "FOLLOW_UP"
     );
-<<<<<<< HEAD
     private static final Set<String> VALID_CONDITIONS = Set.of("NORMAL", "ABNORMAL");
     private static final int MAX_ABNORMAL_NOTES = 200;
-=======
-    private static final Set<String> VALID_CONDITIONS = Set.of(
-            "NORMAL", "ABNORMAL"
-    );
-    private static final Set<String> VALID_SEVERITIES = Set.of(
-            "MILD", "MODERATE", "SEVERE", "CRITICAL"
-    );
->>>>>>> 76de6e5 (luu code)
 
     /**
      * @return true if all eight areas are present with valid statuses and notes.
@@ -70,7 +61,6 @@ public class MedicalClinicalExamValidator {
             if (!VALID_CONDITIONS.contains(condition)) {
                 throw new IllegalArgumentException("Unsupported condition status: " + condition);
             }
-<<<<<<< HEAD
             if ("ABNORMAL".equals(condition)) {
                 String notes = exam.getNotes();
                 if (notes == null || notes.isBlank()) {
@@ -80,11 +70,6 @@ public class MedicalClinicalExamValidator {
                             "Abnormal description exceeds " + MAX_ABNORMAL_NOTES + " characters: " + area);
                 }
             }
-=======
-            if("ABNORMAL".equals(condition) && isBlank(exam.getNotes()))
-                throw new IllegalArgumentException("Abnormal findings require notes: "+area);
-
->>>>>>> 76de6e5 (luu code)
         }
         return complete && submittedAreas.containsAll(REQUIRED_AREAS);
     }

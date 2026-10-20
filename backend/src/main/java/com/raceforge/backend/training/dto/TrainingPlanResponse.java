@@ -2,13 +2,8 @@ package com.raceforge.backend.training.dto;
 
 public class TrainingPlanResponse {
 
-<<<<<<< HEAD
   private Integer planId;
   private @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId;
-=======
-  private String planId;
-  private String horseId;
->>>>>>> 76de6e5 (luu code)
   private String createdBy;
   private String planName;
   private String goal;
@@ -16,24 +11,14 @@ public class TrainingPlanResponse {
   private String status;
   private String notes;
 
-  private String horsePackageId;private String trainerAssignmentId;private String recommendationId;
-  public String getHorsePackageId(){return horsePackageId;}public void setHorsePackageId(String value){horsePackageId=value;}
-  public String getTrainerAssignmentId(){return trainerAssignmentId;}public void setTrainerAssignmentId(String value){trainerAssignmentId=value;}
-  public String getRecommendationId(){return recommendationId;}public void setRecommendationId(String value){recommendationId=value;}
-  private String packageType;
-  public String getPackageType(){return packageType;}
-  public void setPackageType(String value){packageType=value;}
-  private String roadmapVersion;
-  public String getRoadmapVersion(){return roadmapVersion;}
-  public void setRoadmapVersion(String value){roadmapVersion=value;}
   public TrainingPlanResponse() {
   }
 
-  public String getPlanId() {
+  public Integer getPlanId() {
       return planId;
   }
 
-  public void setPlanId(String planId) {
+  public void setPlanId(Integer planId) {
       this.planId = planId;
   }
 
@@ -41,11 +26,7 @@ public class TrainingPlanResponse {
       return horseId;
   }
 
-<<<<<<< HEAD
   public void setHorseId(@jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
-=======
-  public void setHorseId(String horseId) {
->>>>>>> 76de6e5 (luu code)
       this.horseId = horseId;
   }
 

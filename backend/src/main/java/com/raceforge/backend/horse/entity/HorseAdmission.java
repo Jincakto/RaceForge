@@ -1,5 +1,4 @@
 package com.raceforge.backend.horse.entity;
-<<<<<<< HEAD
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
@@ -58,24 +57,4 @@ public class HorseAdmission {
     public void setDecidedAt(LocalDateTime time) { this.decidedAt = time; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
-=======
-import jakarta.persistence.*;
-import java.time.LocalDateTime;
-@Entity @Table(name="Horse_Admission")
-public class HorseAdmission {
- @Id @Column(name="horse_id",length=20) private String horseId;
- @MapsId @OneToOne(fetch=FetchType.LAZY) @JoinColumn(name="horse_id") private Horse horse;
- @Column(name="status",nullable=false,length=50) private String status="NOT_SUBMITTED";
- @Column(name="medical_record_id",length=20) private String medicalRecordId;
- @Column(name="decision_by",length=20) private String decisionBy;
- @org.hibernate.annotations.Nationalized @Column(name="decision_reason",length=1000) private String decisionReason;
- @Column(name="decided_at") private LocalDateTime decidedAt;
- @Column(name="created_at",nullable=false) private LocalDateTime createdAt;
- @PrePersist void create(){if(createdAt==null)createdAt=LocalDateTime.now();}
- public void setHorse(Horse value){horse=value;}
- public String getStatus(){return status;}public void setStatus(String value){status=value;}
- public String getDecisionReason(){return decisionReason;}public void setDecisionReason(String value){decisionReason=value;}
- public void setMedicalRecordId(String value){medicalRecordId=value;}public String getMedicalRecordId(){return medicalRecordId;}
- public void setDecisionBy(String value){decisionBy=value;}public void setDecidedAt(LocalDateTime value){decidedAt=value;}
->>>>>>> 76de6e5 (luu code)
 }

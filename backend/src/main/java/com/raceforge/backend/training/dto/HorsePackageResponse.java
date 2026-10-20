@@ -14,7 +14,7 @@ public record HorsePackageResponse(
         String paymentStatus,
         BigDecimal totalPrice,
         LocalDateTime registeredAt,
-        // LocalDateTime paidAt, // Removed from the API in V5.
+        LocalDateTime paidAt,
         LocalDate startDate,
         LocalDate endDate,
         Integer remainingDays,

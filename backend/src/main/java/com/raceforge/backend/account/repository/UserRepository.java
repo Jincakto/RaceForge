@@ -44,7 +44,7 @@ public interface UserRepository extends JpaRepository<User, String> {
     Page<User> searchUsers(
             @Param("search") String search,
             @Param("status") String status,
-            @Param("roleId") String roleId,
+            @Param("roleId") Integer roleId,
             Pageable pageable
     );
 

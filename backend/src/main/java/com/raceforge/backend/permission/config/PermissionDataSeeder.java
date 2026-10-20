@@ -15,16 +15,16 @@ import org.springframework.stereotype.Component;
 /**
  * Runs on every startup and is idempotent. The SQL script already inserts the business roles;
  * this only fills in anything missing: the roles, the MANAGE_PERMISSION permission, and its grant
- * to ADMIN (without it nobody could ever call /grant).
+ * to CLUB_MANAGER (without it nobody could ever call /grant).
  */
 @Component
 public class PermissionDataSeeder implements CommandLineRunner {
 
   private static final String MANAGE_PERMISSION = "MANAGE_PERMISSION";
-  private static final String ADMIN = "ADMIN";
+  private static final String CLUB_MANAGER = "CLUB_MANAGER";
 
   private static final List<String> ROLE_NAMES = List.of(
-          ADMIN, "CLUB_MANAGER", "HEAD_TRAINER", "VETERINARIAN", "GROOM", "HORSE_OWNER"
+          CLUB_MANAGER, "HEAD_TRAINER", "VETERINARIAN", "GROOM", "HORSE_OWNER"
   );
 
   @Autowired
@@ -47,9 +47,9 @@ public class PermissionDataSeeder implements CommandLineRunner {
 
       Permission managePermission = permissionRepository.findByPermissionName(MANAGE_PERMISSION)
               .orElseGet(() -> permissionRepository.save(new Permission(MANAGE_PERMISSION,
-                      "Grant or revoke permissions for any role. Exclusive to ADMIN.")));
+                      "Grant or revoke permissions for any role. Exclusive to CLUB_MANAGER.")));
 
-      Role clubManager = roleRepository.findByRoleName(ADMIN).orElseThrow();
+      Role clubManager = roleRepository.findByRoleName(CLUB_MANAGER).orElseThrow();
 
       RolePermissionId id = new RolePermissionId(clubManager.getRoleId(), managePermission.getPermissionId());
       if (!rolePermissionRepository.existsById(id)) {
@@ -59,11 +59,9 @@ public class PermissionDataSeeder implements CommandLineRunner {
           grant.setPermission(managePermission);
           rolePermissionRepository.save(grant);
       }
-      seedNewPermission("MANAGE_ACCOUNTS", "Create and manage staff accounts.", List.of("ADMIN"));
-      seedNewPermission("ASSIGN_TRAINER", "Assign and replace trainers through paid horse packages.", List.of("CLUB_MANAGER"));
       seedNewPermission("MANAGE_TRAINING", "Create schedules and record training results.", List.of("HEAD_TRAINER"));
       seedNewPermission("VIEW_TRAINING", "Read training schedules and results.",
-              List.of("HEAD_TRAINER", "CLUB_MANAGER", "HORSE_OWNER"));
+              List.of("HEAD_TRAINER", "CLUB_MANAGER", "HORSE_OWNER", "VETERINARIAN"));
   }
 
   private void seedNewPermission(String code, String description, List<String> defaults) {

@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 
 @Entity
 @Table(name = "Medical_Vital_Sign")
-public class MedicalVitalSign extends com.raceforge.backend.common.id.BusinessEntity {
+public class MedicalVitalSign {
 
     @Id
     @Column(name = "vital_sign_id", length = 20)
@@ -74,7 +74,6 @@ public class MedicalVitalSign extends com.raceforge.backend.common.id.BusinessEn
     public void setRestingRespiratoryRate(Integer restingRespiratoryRate) {
         this.restingRespiratoryRate = restingRespiratoryRate;
     }
-<<<<<<< HEAD
 
     public BigDecimal getWeight() {
         return weight;
@@ -83,11 +82,4 @@ public class MedicalVitalSign extends com.raceforge.backend.common.id.BusinessEn
     public void setWeight(BigDecimal weight) {
         this.weight = weight;
     }
-=======
-    @Column(name="weight",precision=7,scale=2)
-    private java.math.BigDecimal weight;
-    public java.math.BigDecimal getWeight(){return weight;}
-    public void setWeight(java.math.BigDecimal value){weight=value;}
-
->>>>>>> 76de6e5 (luu code)
 }

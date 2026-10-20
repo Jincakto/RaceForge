@@ -7,32 +7,19 @@ import java.util.Objects;
 @Embeddable
 public class HorsePlanId implements Serializable {
 
-<<<<<<< HEAD
   private Integer planId;
-=======
-  private String planId;
->>>>>>> 76de6e5 (luu code)
   private String horseId;
 
   public HorsePlanId() {
   }
 
-<<<<<<< HEAD
   public HorsePlanId(Integer planId, String horseId) {
-=======
-  public HorsePlanId(String planId, String horseId) {
->>>>>>> 76de6e5 (luu code)
       this.planId = planId;
       this.horseId = horseId;
   }
 
-<<<<<<< HEAD
   public Integer getPlanId() { return planId; }
   public void setPlanId(Integer planId) { this.planId = planId; }
-=======
-  public String getPlanId() { return planId; }
-  public void setPlanId(String planId) { this.planId = planId; }
->>>>>>> 76de6e5 (luu code)
   public String getHorseId() { return horseId; }
   public void setHorseId(String horseId) { this.horseId = horseId; }
 

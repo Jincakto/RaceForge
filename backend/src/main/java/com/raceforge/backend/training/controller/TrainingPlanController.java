@@ -23,22 +23,9 @@ public class TrainingPlanController {
   @Autowired
   private TrainingPlanService trainingPlanService;
 
-<<<<<<< HEAD
   @PostMapping
   public ResponseEntity<ApiResponse<TrainingPlanResponse>> create(
           @PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId,
-=======
-  @GetMapping
-  public ResponseEntity<ApiResponse<List<TrainingPlanOptionResponse>>> list(
-          @PathVariable String horseId) {
-      return ResponseEntity.ok(ApiResponse.success("Horse training plans retrieved",
-              trainingPlanService.getPlansForHorse(horseId)));
-  }
-
-  @PostMapping
-  public ResponseEntity<ApiResponse<TrainingPlanResponse>> create(
-          @PathVariable String horseId,
->>>>>>> 76de6e5 (luu code)
           @Valid @RequestBody TrainingPlanCreateRequest request,
           @AuthenticationPrincipal AuthenticatedUser user) {
 

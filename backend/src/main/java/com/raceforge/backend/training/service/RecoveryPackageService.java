@@ -232,7 +232,7 @@ public class RecoveryPackageService {
             throw new BusinessRuleException("Recovery package duration must be positive");
         }
         registration.setPaymentStatus("PAID");
-        // registration.setPaidAt(LocalDateTime.now()); // Retired in V5.
+        registration.setPaidAt(LocalDateTime.now());
         registration.setStatus("ACTIVE");
         registration.setStartDate(today);
         registration.setEndDate(today.plusDays(days - 1L));

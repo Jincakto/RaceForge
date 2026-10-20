@@ -10,11 +10,12 @@ import jakarta.persistence.Table;
 // Maps to table Role: role_id INT IDENTITY, role_name VARCHAR(50) UNIQUE.
 @Entity(name = "PermissionRole")
 @Table(name = "[Role]")
-public class Role extends com.raceforge.backend.common.id.BusinessEntity {
+public class Role {
 
   @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
   @Column(name = "role_id")
-  private String roleId;
+  private Integer roleId;
 
   @Column(name = "role_name", nullable = false, unique = true, length = 50)
   private String roleName;
@@ -26,11 +27,11 @@ public class Role extends com.raceforge.backend.common.id.BusinessEntity {
       this.roleName = roleName;
   }
 
-  public String getRoleId() {
+  public Integer getRoleId() {
       return roleId;
   }
 
-  public void setRoleId(String roleId) {
+  public void setRoleId(Integer roleId) {
       this.roleId = roleId;
   }
 

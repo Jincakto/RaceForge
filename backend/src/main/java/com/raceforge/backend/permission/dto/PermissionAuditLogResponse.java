@@ -4,7 +4,7 @@ import java.time.LocalDateTime;
 
 public class PermissionAuditLogResponse {
 
-  private String logId;
+  private Integer logId;
   private String action;
   private String roleName;
   private String permissionCode;
@@ -14,11 +14,11 @@ public class PermissionAuditLogResponse {
   public PermissionAuditLogResponse() {
   }
 
-  public String getLogId() {
+  public Integer getLogId() {
       return logId;
   }
 
-  public void setLogId(String logId) {
+  public void setLogId(Integer logId) {
       this.logId = logId;
   }
 

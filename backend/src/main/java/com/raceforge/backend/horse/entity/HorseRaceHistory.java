@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "HORSE_RACE_HISTORY")
-public class HorseRaceHistory extends com.raceforge.backend.common.id.BusinessEntity {
+public class HorseRaceHistory {
 
     @Id
     @Column(name = "race_history_id", length = 20)

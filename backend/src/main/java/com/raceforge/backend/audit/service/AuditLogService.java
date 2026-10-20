@@ -15,13 +15,8 @@ public class AuditLogService {
      *  The final schema stores user_id, horse_id, entity_id as VARCHAR(20).
      */
     @Transactional
-<<<<<<< HEAD
     public AuditLog record(Object actorId, Object horseId, String entityType,
                            Object entityId, String action, String result, String reason) {
-=======
-    public AuditLog record(String actorId, String horseId, String entityType,
-                           String entityId, String action, String result, String reason) {
->>>>>>> 76de6e5 (luu code)
         AuditLog log = new AuditLog();
         log.setUserId(actorId);
         log.setHorseId(horseId);

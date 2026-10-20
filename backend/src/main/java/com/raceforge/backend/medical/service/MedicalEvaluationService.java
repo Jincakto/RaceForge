@@ -90,7 +90,6 @@ public class MedicalEvaluationService {
 
         if (clinicalExams != null) {
             for (MedicalClinicalExamRequest exam : clinicalExams) {
-<<<<<<< HEAD
                 if (exam != null && "ABNORMAL".equalsIgnoreCase(exam.getConditionStatus())) {
                     // Binary clinical status cannot establish severity or prove an injury.
                     warning = true;
@@ -109,50 +108,6 @@ public class MedicalEvaluationService {
             case CRITICAL -> "TRAINING_LOCK";  
             case INCOMPLETE -> "EVALUATION_INCOMPLETE";
         };
-=======
-                if (exam == null || isBlank(exam.getExaminationArea())
-                        || isBlank(exam.getConditionStatus())) {
-                    continue;
-                }
-                String condition = normalize(exam.getConditionStatus());
-                String area=normalize(exam.getExaminationArea());
-                if("ABNORMAL".equals(condition)){hasWarning=true;findings.add("Abnormal clinical finding in "+area+".");}
-
-            }
-        }
-
-        EvaluationLevel level;
-        if (incomplete) {
-            level = EvaluationLevel.INCOMPLETE;
-        } else if (hasCritical) {
-            level = EvaluationLevel.CRITICAL;
-        } else if (hasWarning) {
-            level = EvaluationLevel.WARNING;
-        } else {
-            level = EvaluationLevel.NORMAL;
-        }
-
-        String type = normalize(examType);
-        String trainingNote;
-        if ("FOLLOW_UP".equals(type)) {
-            trainingNote = switch (level) {
-                case NORMAL -> "FOLLOW_UP_NORMAL_REVIEW_REQUIRED";
-                case WARNING -> "FOLLOW_UP_CAUTION_REVIEW_REQUIRED";
-                case CRITICAL -> "TRAINING_LOCK";
-                case INCOMPLETE -> "EVALUATION_INCOMPLETE";
-            };
-        } else {
-            trainingNote = switch (level) {
-                case NORMAL -> "ALLOW_TRAINING";
-                case WARNING -> "ALLOW_WITH_CAUTION";
-                case CRITICAL -> "TRAINING_LOCK";
-                case INCOMPLETE -> "EVALUATION_INCOMPLETE";
-            };
-        }
-        String systemNote = findings.isEmpty()
-                ? "All evaluated indicators are within normal range."
-                : String.join(" ", findings);
->>>>>>> 76de6e5 (luu code)
         return new MedicalEvaluationResult(
                 level,
                 findings.isEmpty() ? "All entered indicators are within the configured reference ranges."

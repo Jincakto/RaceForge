@@ -52,12 +52,8 @@ public class HorseService {
         Horse horse = horseMapper.toEntity(request);
 
         horse.setOwner(owner);
-<<<<<<< HEAD
         horse.setHorseId(nextHorseId());
         horse.setAdmissionStatus("NOT_SUBMITTED"); // Cascade persists Horse_Admission
-=======
-        horse.setAdmissionStatus("NOT_SUBMITTED");
->>>>>>> 76de6e5 (luu code)
 
         horse.setHealthStatus(null);
         horse.setTrainingLocked(false);
@@ -69,16 +65,11 @@ public class HorseService {
         return horseMapper.toResponse(savedHorse);
     }
 
-<<<<<<< HEAD
     @Transactional(readOnly = true)
-=======
-    @org.springframework.transaction.annotation.Transactional(readOnly=true)
->>>>>>> 76de6e5 (luu code)
     public List<HorseResponse> getAllHorses() {
         return searchHorses(null);
     }
 
-<<<<<<< HEAD
     @Transactional(readOnly = true)
     public List<HorseResponse> searchHorses(String keyword) {
         if (keyword == null || keyword.isBlank()) {
@@ -100,9 +91,6 @@ public class HorseService {
     }
 
     @Transactional(readOnly = true)
-=======
-    @org.springframework.transaction.annotation.Transactional(readOnly=true)
->>>>>>> 76de6e5 (luu code)
     public HorseResponse getHorseById(String horseId) {
 
         Horse horse = findHorseById(horseId);
@@ -111,7 +99,6 @@ public class HorseService {
     }
 
     @org.springframework.transaction.annotation.Transactional
-<<<<<<< HEAD
     public HorseResponse updateHorse(String horseId, String actorId, HorseUpdateRequest request) {
 
         Horse horse = findHorseById(horseId);
@@ -119,13 +106,6 @@ public class HorseService {
         if ("APPROVED".equals(horse.getAdmissionStatus())) {
             throw new BusinessRuleException("Approved horse registration details cannot be modified");
         }
-=======
-    public HorseResponse updateHorse(String horseId, HorseUpdateRequest request) {
-
-        Horse horse = findHorseById(horseId);
-
-        if("APPROVED".equals(horse.getAdmissionStatus()))throw new com.raceforge.backend.common.exception.BusinessRuleException("Admitted horse identity details cannot be edited");
->>>>>>> 76de6e5 (luu code)
         horseMapper.updateEntity(horse, request);
 
         Horse updatedHorse = horseRepository.save(horse);
@@ -135,11 +115,7 @@ public class HorseService {
     }
 
     @org.springframework.transaction.annotation.Transactional
-<<<<<<< HEAD
     public HorseResponse deactivateHorse(String horseId, String actorId) {
-=======
-    public HorseResponse deactivateHorse(String horseId) {
->>>>>>> 76de6e5 (luu code)
     
         Horse horse = findHorseById(horseId);
     
@@ -152,11 +128,7 @@ public class HorseService {
     }
 
     @org.springframework.transaction.annotation.Transactional
-<<<<<<< HEAD
     public HorseResponse activateHorse(String horseId, String actorId) {
-=======
-    public HorseResponse activateHorse(String horseId) {
->>>>>>> 76de6e5 (luu code)
     
         Horse horse = findHorseById(horseId);
     
@@ -168,7 +140,6 @@ public class HorseService {
         return horseMapper.toResponse(updatedHorse);
     }
 
-<<<<<<< HEAD
     /**
      * Horse IDs continue to use dbo.Horse_Id_Sequence from the merged schema.
      * Its output must fit the DB CHECK constraint HOR-001..HOR-999.
@@ -181,8 +152,6 @@ public class HorseService {
         return "HOR-" + String.format(java.util.Locale.ROOT, "%03d", number);
     }
 
-=======
->>>>>>> 76de6e5 (luu code)
     private Horse findHorseById(String horseId) {
         return horseRepository.findById(horseId)
                 .orElseThrow(() ->

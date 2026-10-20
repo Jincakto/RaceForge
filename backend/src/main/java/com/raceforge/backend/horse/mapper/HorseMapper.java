@@ -19,24 +19,12 @@ public class HorseMapper {
         horse.setCoatColor(request.getCoatColor());
         horse.setSire(request.getSire());
         horse.setDam(request.getDam());
-<<<<<<< HEAD
         horse.setHeight(request.getHeight());
         horse.setDeclaredMedicalHistory(request.getDeclaredMedicalHistory());
         horse.setImageUrl(request.getImageUrl());
         horse.setRegistrationNumber(request.getRegistrationNumber());
         horse.setDocumentType(request.getDocumentType());
         horse.setDocumentUrl(request.getDocumentUrl());
-=======
-
-        horse.setHeight(request.getHeight());
-
-        horse.setDeclaredMedicalHistory(
-                request.getDeclaredMedicalHistory()
-        );
-        horse.setImageUrl(request.getImageUrl());
-        horse.setRegistrationNumber(request.getRegistrationNumber());horse.setDocumentType(request.getDocumentType());horse.setDocumentUrl(request.getDocumentUrl());
-
->>>>>>> 76de6e5 (luu code)
         return horse;
     }
 
@@ -50,11 +38,6 @@ public class HorseMapper {
         if (horse.getOwner() != null) {
             response.setOwnerId(horse.getOwner().getUserId());
         }
-<<<<<<< HEAD
-=======
-
-
->>>>>>> 76de6e5 (luu code)
         response.setHorseName(horse.getHorseName());
         response.setDateOfBirth(horse.getDateOfBirth());
         response.setGender(horse.getGender());
@@ -62,24 +45,12 @@ public class HorseMapper {
         response.setCoatColor(horse.getCoatColor());
         response.setSire(horse.getSire());
         response.setDam(horse.getDam());
-<<<<<<< HEAD
         response.setHeight(horse.getHeight());
         response.setDeclaredMedicalHistory(horse.getDeclaredMedicalHistory());
         response.setImageUrl(horse.getImageUrl());
         response.setRegistrationNumber(horse.getRegistrationNumber());
         response.setDocumentType(horse.getDocumentType());
         response.setDocumentUrl(horse.getDocumentUrl());
-=======
-
-        response.setHeight(horse.getHeight());
-
-        response.setDeclaredMedicalHistory(
-                horse.getDeclaredMedicalHistory()
-        );
-        response.setImageUrl(horse.getImageUrl());
-        response.setRegistrationNumber(horse.getRegistrationNumber());response.setDocumentType(horse.getDocumentType());response.setDocumentUrl(horse.getDocumentUrl());
-
->>>>>>> 76de6e5 (luu code)
         response.setHealthStatus(horse.getHealthStatus());
         response.setTrainingLocked(horse.getTrainingLocked());
         response.setStatus(horse.getStatus());
@@ -96,22 +67,11 @@ public class HorseMapper {
         horse.setCoatColor(request.getCoatColor());
         horse.setSire(request.getSire());
         horse.setDam(request.getDam());
-<<<<<<< HEAD
         horse.setHeight(request.getHeight());
         horse.setDeclaredMedicalHistory(request.getDeclaredMedicalHistory());
         horse.setImageUrl(request.getImageUrl());
         horse.setRegistrationNumber(request.getRegistrationNumber());
         horse.setDocumentType(request.getDocumentType());
         horse.setDocumentUrl(request.getDocumentUrl());
-=======
-
-        horse.setHeight(request.getHeight());
-
-        horse.setDeclaredMedicalHistory(
-                request.getDeclaredMedicalHistory()
-        );
-        horse.setImageUrl(request.getImageUrl());
-        horse.setRegistrationNumber(request.getRegistrationNumber());horse.setDocumentType(request.getDocumentType());horse.setDocumentUrl(request.getDocumentUrl());
->>>>>>> 76de6e5 (luu code)
     }
 }

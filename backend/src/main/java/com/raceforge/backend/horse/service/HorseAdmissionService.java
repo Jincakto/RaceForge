@@ -17,14 +17,10 @@ import java.util.Set;
 
 @Service
 public class HorseAdmissionService {
-<<<<<<< HEAD
 
     private static final Set<String> SUBMITTABLE_STATUSES =
             Set.of("NOT_SUBMITTED", "REJECTED");
 
-=======
-    @org.springframework.beans.factory.annotation.Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
->>>>>>> 76de6e5 (luu code)
     private final HorseRepository horses;
     private final HorseMapper mapper;
     private final HealthProfileRepository profiles;
@@ -46,7 +42,6 @@ public class HorseAdmissionService {
     }
 
     @Transactional
-<<<<<<< HEAD
     public HorseResponse submit(String horseId, String actorId) {
         Horse horse = findLockedHorse(horseId);
 
@@ -71,19 +66,9 @@ public class HorseAdmissionService {
         audit(horse, actorId, "HORSE_ADMISSION_SUBMITTED", null);
 
         return mapper.toResponse(horse);
-=======
-    public HorseResponse submit(String id,String actor){
-        Horse h=locked(id);
-        if(!h.getOwner().getUserId().equals(actor))throw new BusinessRuleException("Only the owner may submit this horse");
-        if(!java.util.Set.of("NOT_SUBMITTED","REJECTED").contains(h.getAdmissionStatus()))throw new BusinessRuleException("Horse admission is already pending or approved");
-        if(h.getDocumentType()==null||h.getDocumentType().isBlank()||h.getDocumentUrl()==null||h.getDocumentUrl().isBlank())throw new BusinessRuleException("Identity document type and URL are required before admission submission");
-        if(profiles.findByHorse_HorseId(id).isEmpty()){var profile=new HealthProfile();profile.setHorse(h);profiles.save(profile);}
-        h.setAdmissionStatus("PENDING");h.setAdmissionNote(null);record(h,actor,"HORSE_ADMISSION_SUBMITTED",null);return mapper.toResponse(h);
->>>>>>> 76de6e5 (luu code)
     }
 
     @Transactional
-<<<<<<< HEAD
     public HorseResponse review(
             String horseId,
             String actorId,
@@ -181,22 +166,4 @@ public class HorseAdmissionService {
                 note
         );
     }
-=======
-    public HorseResponse review(String id,String actor,boolean approved,String note){
-        Horse h=locked(id);
-        if(!"PENDING".equals(h.getAdmissionStatus()))throw new BusinessRuleException("Only pending admissions can be reviewed");
-        if(!approved&&(note==null||note.isBlank()))throw new BusinessRuleException("Rejection reason is required");
-        if(approved){var records=jdbc.queryForList("SELECT TOP 1 mr.medical_record_id,mr.training_eligible,mr.final_conclusion FROM dbo.Medical_Record mr JOIN dbo.Health_Profile hp ON hp.profile_id=mr.profile_id WHERE hp.horse_id=? AND mr.status='CONFIRMED' ORDER BY mr.examined_at DESC,mr.confirmed_at DESC",id);if(records.isEmpty()||!Boolean.TRUE.equals(records.get(0).get("training_eligible"))||(records.get(0).get("final_conclusion")==null || !java.util.Set.of("FIT","FIT_WITH_MONITORING").contains(records.get(0).get("final_conclusion"))))throw new BusinessRuleException("A confirmed fit-for-training examination is required before admission");h.admission().setMedicalRecordId((String)records.get(0).get("medical_record_id"));h.setStatus("ACTIVE");}
-        h.setAdmissionStatus(approved?"APPROVED":"REJECTED");h.setAdmissionNote(note);h.admission().setDecisionBy(actor);h.admission().setDecidedAt(java.time.LocalDateTime.now());
-        if(approved&&profiles.findByHorse_HorseId(id).isEmpty()){var profile=new HealthProfile();profile.setHorse(h);profiles.save(profile);}
-        // Approval creates a health profile, but does not declare the horse medically ready.
-        record(h,actor,approved?"HORSE_ADMISSION_APPROVED":"HORSE_ADMISSION_REJECTED",note);return mapper.toResponse(h);
-    }
-    @Transactional(readOnly=true)
-    public String profile(String id){
-        return profiles.findByHorse_HorseId(id).orElseThrow(()->new ResourceNotFoundException("Health profile not found; submit the horse for examination first")).getProfileId();
-    }
-    private Horse locked(String id){return horses.findByIdForUpdate(id).orElseThrow(()->new ResourceNotFoundException("Horse not found"));}
-    private void record(Horse h,String actor,String action,String note){audit.record(actor,h.getHorseId(),"HORSE",h.getHorseId(),action,"SUCCESS",note);}
->>>>>>> 76de6e5 (luu code)
 }

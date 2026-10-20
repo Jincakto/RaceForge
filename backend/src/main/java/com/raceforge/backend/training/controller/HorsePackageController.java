@@ -20,54 +20,38 @@ import java.util.List;
 @Tag(name = "Horse Packages")
 public class HorsePackageController {
 
-    private final HorsePackageService service;
+        private final HorsePackageService service;
 
-    public HorsePackageController(HorsePackageService service) {
-        this.service = service;
-    }
+        public HorsePackageController(HorsePackageService service) {
+                this.service = service;
+        }
 
-    @PreAuthorize("hasAuthority('HORSE_OWNER')")
-    @PostMapping("/register")
-    public ResponseEntity<ApiResponse<HorsePackageResponse>> register(
-            @Valid @RequestBody HorsePackageRegisterRequest request,
-            @AuthenticationPrincipal(expression = "userId") String ownerId
-    ) {
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success("Registration created", service.register(request, ownerId)));
-    }
+        @PreAuthorize("hasAuthority('HORSE_OWNER')")
+        @PostMapping("/register")
+        public ResponseEntity<ApiResponse<HorsePackageResponse>> register(
+                        @Valid @RequestBody HorsePackageRegisterRequest request,
+                        @AuthenticationPrincipal(expression = "userId") String ownerId) {
+                return ResponseEntity.status(HttpStatus.CREATED)
+                                .body(ApiResponse.success("Registration created", service.register(request, ownerId)));
+        }
 
-    @PreAuthorize("hasAuthority('HORSE_OWNER')")
-    @PostMapping("/{id}/simulate-payment")
-    public ResponseEntity<ApiResponse<HorsePackageResponse>> simulatePayment(
-            @PathVariable String id,
-            @Valid @RequestBody HorsePackagePaymentRequest request,
-            @AuthenticationPrincipal(expression = "userId") String ownerId
-    ) {
-        return ResponseEntity.ok(ApiResponse.success(
-                "Payment simulation processed",
-                service.simulatePayment(id, request.successful(), ownerId)
-        ));
-    }
+        @PreAuthorize("hasAuthority('HORSE_OWNER')")
+        @PostMapping("/{id}/simulate-payment")
+        public ResponseEntity<ApiResponse<HorsePackageResponse>> simulatePayment(
+                        @PathVariable String id,
+                        @Valid @RequestBody HorsePackagePaymentRequest request,
+                        @AuthenticationPrincipal(expression = "userId") String ownerId) {
+                return ResponseEntity.ok(ApiResponse.success(
+                                "Payment simulation processed",
+                                service.simulatePayment(id, request.successful(), ownerId)));
+        }
 
-    /** CM oversight: unlike Owner history, this endpoint has no ownership filter. */
-    @PreAuthorize("hasAuthority('CLUB_MANAGER')")
-    @GetMapping("/manage/horse/{horseId}")
-    public ResponseEntity<ApiResponse<List<HorsePackageResponse>>> managerHistory(
-            @PathVariable String horseId
-    ) {
-        return ResponseEntity.ok(ApiResponse.success(
-                "Horse package history for Club Manager", service.historyForManager(horseId)
-        ));
-    }
-
-    @PreAuthorize("hasAuthority('HORSE_OWNER')")
-    @GetMapping("/horse/{horseId}")
-    public ResponseEntity<ApiResponse<List<HorsePackageResponse>>> history(
-            @PathVariable String horseId,
-            @AuthenticationPrincipal(expression = "userId") String ownerId
-    ) {
-        return ResponseEntity.ok(ApiResponse.success(
-                "Horse package history retrieved", service.history(horseId, ownerId)
-        ));
-    }
+        @PreAuthorize("hasAuthority('HORSE_OWNER')")
+        @GetMapping("/horse/{horseId}")
+        public ResponseEntity<ApiResponse<List<HorsePackageResponse>>> history(
+                        @PathVariable String horseId,
+                        @AuthenticationPrincipal(expression = "userId") String ownerId) {
+                return ResponseEntity.ok(ApiResponse.success(
+                                "Horse package history retrieved", service.history(horseId, ownerId)));
+        }
 }

@@ -128,7 +128,7 @@ public class PermissionService {
       Role role = roleRepository.findByRoleName(roleName)
               .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleName));
       return auditLogRepository
-              .findByEntityTypeAndEntityIdOrderByCreatedAtDesc(PermissionAuditLog.ENTITY_TYPE, role.getRoleId().toString())
+              .findByEntityTypeAndEntityIdOrderByCreatedAtDesc(PermissionAuditLog.ENTITY_TYPE, role.getRoleId())
               .stream()
               .map(log -> auditLogMapper.toResponse(log, roleName))
               .collect(Collectors.toList());
@@ -139,7 +139,7 @@ public class PermissionService {
       log.setUserId(performedBy);
       log.setAction(action);
       log.setEntityType(PermissionAuditLog.ENTITY_TYPE);
-      log.setEntityId(role.getRoleId().toString());
+      log.setEntityId(role.getRoleId());
       log.setResult("SUCCESS");
       log.setReason(permission.getPermissionName());
       log.setCreatedAt(LocalDateTime.now());

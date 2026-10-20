@@ -11,7 +11,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-@org.springframework.validation.annotation.Validated
 @RestController
 @RequestMapping("/api/horse-packages")
 @Tag(name = "Package Resumption")
@@ -28,29 +27,9 @@ public class PackageResumptionController {
     public ResponseEntity<ApiResponse<HorsePackageResponse>> resumeOriginal(
             @PathVariable String recoveryId,
             @Valid @RequestBody ResumeOriginalPackageRequest request,
-            @AuthenticationPrincipal(expression = "userId") String managerId
-    ) {
+            @AuthenticationPrincipal(expression = "userId") String managerId) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Original training package resumed",
-                service.resumeOriginalPackage(recoveryId, request.reason(), managerId)
-        ));
-    }
-
-    /**
-     * CM approves resumption when Vet unlocked before Recovery was activated.
-     * The path contains the original HORSE_PACKAGE registration ID, not a
-     * Recovery registration ID.
-     */
-    @PreAuthorize("hasAuthority('CLUB_MANAGER')")
-    @PostMapping("/{originalId}/resume-after-unlock")
-    public ResponseEntity<ApiResponse<HorsePackageResponse>> resumeWithoutRecovery(
-            @PathVariable String originalId,
-            @Valid @RequestBody ResumeOriginalPackageRequest request,
-            @AuthenticationPrincipal(expression = "userId") String managerId
-    ) {
-        return ResponseEntity.ok(ApiResponse.success(
-                "Original training package resumed without Recovery",
-                service.resumeWithoutRecovery(originalId, request.reason(), managerId)
-        ));
+                service.resumeOriginalPackage(recoveryId, request.reason(), managerId)));
     }
 }

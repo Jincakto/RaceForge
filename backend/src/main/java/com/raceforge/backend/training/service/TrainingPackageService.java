@@ -6,7 +6,6 @@ import com.raceforge.backend.training.dto.*;
 import com.raceforge.backend.training.entity.TrainingPackage;
 import com.raceforge.backend.training.mapper.TrainingPackageMapper;
 import com.raceforge.backend.training.repository.TrainingPackageRepository;
-import com.raceforge.backend.training.repository.HorsePackageRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,20 +15,15 @@ import java.util.Set;
 
 @Service
 public class TrainingPackageService {
-    private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
 
     private static final Set<String> ALLOWED_TYPES = Set.of("BASIC", "RACING", "PERFORMANCE", "RECOVERY");
     private static final Set<String> ALLOWED_STATUSES = Set.of("ACTIVE", "INACTIVE");
 
     private final TrainingPackageRepository repository;
-    private final HorsePackageRepository horsePackageRepository;
     private final TrainingPackageMapper mapper;
 
-    public TrainingPackageService(TrainingPackageRepository repository, HorsePackageRepository horsePackageRepository, TrainingPackageMapper mapper,
-            com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator) {
-        this.idAllocator = idAllocator;
+    public TrainingPackageService(TrainingPackageRepository repository, TrainingPackageMapper mapper) {
         this.repository = repository;
-        this.horsePackageRepository = horsePackageRepository;
         this.mapper = mapper;
     }
 
@@ -53,7 +47,6 @@ public class TrainingPackageService {
     public TrainingPackageResponse create(TrainingPackageCreateRequest request) {
         validateType(request.packageType());
         TrainingPackage entity = mapper.toEntity(request);
-        entity.setPackageId(nextPackageId());
         return mapper.toResponse(repository.saveAndFlush(entity));
     }
 
@@ -61,12 +54,6 @@ public class TrainingPackageService {
     public TrainingPackageResponse update(String id, TrainingPackageUpdateRequest request) {
         validateType(request.packageType());
         TrainingPackage entity = findById(id);
-        // Price, package type and duration must remain stable once sold.
-        // Historical HorsePackage registrations refer to this catalogue row.
-        if (horsePackageRepository.existsByTrainingPackage_PackageId(id)) {
-            throw new BusinessRuleException(
-                    "This package already has registrations; create a new package instead of editing it");
-        }
         mapper.updateEntity(entity, request);
         return mapper.toResponse(repository.saveAndFlush(entity));
     }
@@ -82,13 +69,6 @@ public class TrainingPackageService {
         return mapper.toResponse(repository.saveAndFlush(entity));
     }
 
-<<<<<<< HEAD
-    private String nextPackageId() {
-        return idAllocator.next("PKG");
-    }
-
-=======
->>>>>>> 76de6e5 (luu code)
     private TrainingPackage findById(String id) {
         return repository.findById(id).orElseThrow(
                 () -> new ResourceNotFoundException("Training package not found: " + id)

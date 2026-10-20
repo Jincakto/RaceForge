@@ -26,7 +26,7 @@ public class AdminUserController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create staff and email a single-use password setup link",
-            description = "Active ADMIN only. roleId: 1 CLUB_MANAGER, 2 HEAD_TRAINER, 3 VETERINARIAN, 4 GROOM. Account remains INVITED until password setup.")
+            description = "Active ADMIN only. roleId: ROL-001 CLUB_MANAGER, ROL-002 HEAD_TRAINER, ROL-003 VETERINARIAN, ROL-004 GROOM. Account remains INVITED until password setup.")
     public ApiResponse<UserResponse> create(@AuthenticationPrincipal AuthenticatedUser admin,
             @Valid @RequestBody CreateStaffRequest request) {
         return ApiResponse.success("Staff invitation sent", service.create(admin.userId(), request));
@@ -34,7 +34,7 @@ public class AdminUserController {
 
     @PostMapping("/{id}/invitation")
     @Operation(summary = "Resend staff invitation and invalidate previous links")
-    public ApiResponse<MessageResponse> resend(@AuthenticationPrincipal AuthenticatedUser admin, @PathVariable @jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String id) {
+    public ApiResponse<MessageResponse> resend(@AuthenticationPrincipal AuthenticatedUser admin, @PathVariable @jakarta.validation.constraints.Pattern(regexp = "USR-(?!000)[0-9]{3}") String id) {
         return ApiResponse.success("Invitation sent", service.resend(admin.userId(), id));
     }
 }

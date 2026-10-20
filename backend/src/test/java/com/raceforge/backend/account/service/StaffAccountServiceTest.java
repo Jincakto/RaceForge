@@ -39,10 +39,10 @@ class StaffAccountServiceTest {
 
     @ParameterizedTest @ValueSource(ints = {1, 2, 3, 4})
     void adminCreatesInvitedStaffWithoutPasswordAndStoresOnlyTokenHash(int roleId) {
-        when(users.findDetailedById("ADM-007")).thenReturn(Optional.of(user(7, "ADMIN", "ACTIVE")));
-        when(roles.findById(roleId)).thenReturn(Optional.of(role(roleId, "STAFF")));
-        when(users.saveAndFlush(any())).thenAnswer(i -> { User user = i.getArgument(0); user.setUserId("OWN-042"); return user; });
-        var result = service.create("ADM-007", new CreateStaffRequest(" Staff ", "STAFF@example.com", "0900123456", roleId));
+        when(users.findDetailedById("USR-707")).thenReturn(Optional.of(user(7, "ADMIN", "ACTIVE")));
+        when(roles.findById(String.format("ROL-%03d",roleId))).thenReturn(Optional.of(role(roleId, "STAFF")));
+        when(users.saveAndFlush(any())).thenAnswer(i -> { User user = i.getArgument(0); user.setUserId("USR-542"); return user; });
+        var result = service.create("USR-707", new CreateStaffRequest(" Staff ", "STAFF@example.com", "0900123456", String.format("ROL-%03d",roleId)));
         assertEquals("staff@example.com", result.email());
         assertEquals("Staff", result.fullName());
         assertEquals("INVITED", result.status());
@@ -62,29 +62,29 @@ class StaffAccountServiceTest {
 
     @ParameterizedTest @ValueSource(ints = {1, 2, 3, 4, 5, 6})
     void nonAdminCannotCreateStaff(int roleId) {
-        when(users.findDetailedById("ADM-007")).thenReturn(Optional.of(user(roleId, "OTHER", "ACTIVE")));
-        assertThrows(ApiException.class, () -> service.create("ADM-007", new CreateStaffRequest("Staff", "s@example.com", null, 3)));
+        when(users.findDetailedById("USR-707")).thenReturn(Optional.of(user(roleId, "OTHER", "ACTIVE")));
+        assertThrows(ApiException.class, () -> service.create("USR-707", new CreateStaffRequest("Staff", "s@example.com", null, "ROL-003")));
         verify(users, never()).saveAndFlush(any());
         verifyNoInteractions(tokens, email);
     }
 
     @ParameterizedTest @ValueSource(ints = {5, 6, 7, 999})
     void adminCannotAssignOwnerGenericOrAdminRoles(int roleId) {
-        when(users.findDetailedById("ADM-007")).thenReturn(Optional.of(user(7, "ADMIN", "ACTIVE")));
-        assertThrows(ApiException.class, () -> service.create("ADM-007", new CreateStaffRequest("Staff", "s@example.com", null, roleId)));
+        when(users.findDetailedById("USR-707")).thenReturn(Optional.of(user(7, "ADMIN", "ACTIVE")));
+        assertThrows(ApiException.class, () -> service.create("USR-707", new CreateStaffRequest("Staff", "s@example.com", null, String.format("ROL-%03d",roleId))));
         verifyNoInteractions(tokens, email);
     }
 
     @Test void duplicateEmailRejectedBeforeInvitation() {
-        when(users.findDetailedById("ADM-007")).thenReturn(Optional.of(user(7, "ADMIN", "ACTIVE")));
+        when(users.findDetailedById("USR-707")).thenReturn(Optional.of(user(7, "ADMIN", "ACTIVE")));
         when(users.existsByEmail("s@example.com")).thenReturn(true);
-        assertThrows(ApiException.class, () -> service.create("ADM-007", new CreateStaffRequest("Staff", "s@example.com", null, 3)));
+        assertThrows(ApiException.class, () -> service.create("USR-707", new CreateStaffRequest("Staff", "s@example.com", null, "ROL-003")));
         verifyNoInteractions(tokens, email);
     }
 
     @Test void inactiveAdminCannotCreateStaff() {
-        when(users.findDetailedById("ADM-007")).thenReturn(Optional.of(user(7, "ADMIN", "INACTIVE")));
-        assertThrows(ApiException.class, () -> service.create("ADM-007", new CreateStaffRequest("Staff", "s@example.com", null, 3)));
+        when(users.findDetailedById("USR-707")).thenReturn(Optional.of(user(7, "ADMIN", "INACTIVE")));
+        assertThrows(ApiException.class, () -> service.create("USR-707", new CreateStaffRequest("Staff", "s@example.com", null, "ROL-003")));
         verify(users, never()).saveAndFlush(any());
     }
 
@@ -92,7 +92,7 @@ class StaffAccountServiceTest {
         User staff = user(3, "VETERINARIAN", "INVITED");
         PasswordResetToken token = invitation(staff);
         when(tokens.findByTokenHashForUpdate(anyString())).thenReturn(Optional.of(token));
-        when(users.findByIdForUpdate("OWN-042")).thenReturn(Optional.of(staff));
+        when(users.findByIdForUpdate("USR-542")).thenReturn(Optional.of(staff));
         service.setPassword(new ResetPasswordRequest("raw", "NewPassword123"));
         assertEquals("ACTIVE", staff.getStatus());
         assertTrue(staff.isEmailVerified());
@@ -115,11 +115,11 @@ class StaffAccountServiceTest {
     }
 
     @Test void resendInvalidatesOldTokens() {
-        when(users.findDetailedById("ADM-007")).thenReturn(Optional.of(user(7, "ADMIN", "ACTIVE")));
-        when(users.findByIdForUpdate("OWN-042")).thenReturn(Optional.of(user(3, "VETERINARIAN", "INVITED")));
-        service.resend("ADM-007", "OWN-042");
+        when(users.findDetailedById("USR-707")).thenReturn(Optional.of(user(7, "ADMIN", "ACTIVE")));
+        when(users.findByIdForUpdate("USR-542")).thenReturn(Optional.of(user(3, "VETERINARIAN", "INVITED")));
+        service.resend("USR-707", "USR-542");
         var order = inOrder(tokens, email);
-        order.verify(tokens).markAllUnusedForUserUsed(eq("OWN-042"), any());
+        order.verify(tokens).markAllUnusedForUserUsed(eq("USR-542"), any());
         order.verify(tokens).save(any());
         order.verify(email).sendStaffInvitation(any(), any());
     }
@@ -130,10 +130,10 @@ class StaffAccountServiceTest {
         token.setExpiresAt(Instant.now().plusSeconds(60)); return token;
     }
     private User user(int roleId, String name, String status) {
-        User user = new User(); user.setUserId("OWN-042"); user.setEmail("s@example.com"); user.setFullName("Staff");
+        User user = new User(); user.setUserId("USR-542"); user.setEmail("s@example.com"); user.setFullName("Staff");
         user.setRole(role(roleId, name)); user.setStatus(status); return user;
     }
     private Role role(int id, String name) {
-        Role role = new Role(); role.setRoleId(id); role.setRoleName(name); return role;
+        Role role = new Role(); role.setRoleId(String.format("ROL-%03d",id)); role.setRoleName(name); return role;
     }
 }

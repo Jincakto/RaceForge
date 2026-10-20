@@ -77,18 +77,7 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-<<<<<<< HEAD
-    public PageResponse<UserResponse> listUsers(String search, String status, Integer roleId, int page, int size) {
-=======
-    public RegistrationRequestResponse myRegistrationRequest(String userId) {
-        return registrationRequestRepository.findFirstByUserUserIdOrderByCreatedAtDesc(userId)
-                .map(mapper::toRegistrationRequestResponse)
-                .orElseThrow(() -> new ResourceNotFoundException("Registration request not found"));
-    }
-
-    @Transactional(readOnly = true)
     public PageResponse<UserResponse> listUsers(String search, String status, String roleId, int page, int size) {
->>>>>>> 76de6e5 (luu code)
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "userId"));
         return mapper.toPageResponse(userRepository.searchUsers(blankToNull(search), blankToNull(status), roleId, pageable)
                 .map(mapper::toUserResponse));
@@ -101,7 +90,6 @@ public class UserService {
 
     @Transactional
     public UserResponse updateStatus(String managerId, String id, UpdateStatusRequest request) {
-<<<<<<< HEAD
         User actor = findUser(managerId);
         if (!STATUS_ACTIVE.equals(actor.getStatus()) || actor.getRole() == null
                 || !com.raceforge.backend.account.AccountConstants.ROLE_ADMIN.equals(actor.getRole().getRoleId())) {
@@ -113,14 +101,6 @@ public class UserService {
         User user = findUser(id);
         if (user.getRole() != null && com.raceforge.backend.account.AccountConstants.ROLE_ADMIN.equals(user.getRole().getRoleId())) {
             throw new ApiException(HttpStatus.CONFLICT, "CANNOT_UPDATE_ADMIN_STATUS", "Admin accounts cannot be updated here");
-=======
-        if (managerId.equals(id)) {
-            throw new ApiException(HttpStatus.CONFLICT, "CANNOT_UPDATE_SELF_STATUS", "Administrator cannot update own status");
-        }
-        User user = findUser(id);
-        if (user.getRole() != null && com.raceforge.backend.account.AccountConstants.ROLE_ADMIN.equals(user.getRole().getRoleId())) {
-            throw new ApiException(HttpStatus.CONFLICT, "CANNOT_UPDATE_ADMIN_STATUS", "Administrator status is managed outside this staff-status endpoint");
->>>>>>> 76de6e5 (luu code)
         }
         if (!STATUS_ACTIVE.equals(user.getStatus()) && !STATUS_INACTIVE.equals(user.getStatus())) {
             throw new ApiException(HttpStatus.CONFLICT, "ACCOUNT_NOT_APPROVED", "Only approved accounts can be locked or unlocked");

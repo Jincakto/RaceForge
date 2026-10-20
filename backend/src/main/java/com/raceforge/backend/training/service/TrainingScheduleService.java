@@ -4,6 +4,9 @@ import com.raceforge.backend.common.exception.BusinessRuleException;
 import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.repository.HorseRepository;
+import com.raceforge.backend.training.dto.SchedulingPackageResponse;
+import com.raceforge.backend.training.entity.HorsePackage;
+import com.raceforge.backend.training.repository.HorsePackageRepository;
 import com.raceforge.backend.training.dto.AttendSessionRequest;
 import com.raceforge.backend.training.dto.AttendanceResponse;
 import com.raceforge.backend.training.dto.ScheduleRecurringRequest;
@@ -17,9 +20,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -66,8 +67,6 @@ public class TrainingScheduleService {
   @Autowired
   private TrainingSessionService sessionService;
 
-<<<<<<< HEAD
-=======
   @Autowired
   private HorsePackageRepository horsePackageRepository;
 
@@ -90,7 +89,6 @@ public class TrainingScheduleService {
               .toList();
   }
 
->>>>>>> 76de6e5 (luu code)
   // All-or-nothing: if any generated slot clashes with an existing session, nothing is saved.
   @Transactional
   public List<TrainingSessionResponse> createRecurringSchedule(ScheduleRecurringRequest request) {
@@ -102,10 +100,6 @@ public class TrainingScheduleService {
       Horse horse = rules.lockHorse(linked.getHorseId());
       rules.requireUnlocked(horse);
 
-<<<<<<< HEAD
-      int weeks = (request.getDurationWeeks() != null && request.getDurationWeeks() > 0)
-              ? request.getDurationWeeks() : 1;
-=======
       HorsePackage pack = horsePackageRepository.findById(request.getHorsePackageId())
               .orElseThrow(() -> new ResourceNotFoundException("Registered horse package not found."));
       if (!horse.getHorseId().equals(pack.getHorse().getHorseId())) {
@@ -118,61 +112,25 @@ public class TrainingScheduleService {
       if (days == null || days.isEmpty() || days.size()>6 || days.stream().anyMatch(java.util.Objects::isNull)) {
           throw new BusinessRuleException("Select one to six weekdays.");
       }
->>>>>>> 76de6e5 (luu code)
       LocalTime time = request.getSessionTime() != null ? request.getSessionTime() : DEFAULT_SESSION_TIME;
-
       List<LocalDate> dates = new ArrayList<>();
-      Set<DayOfWeek> days = request.getDaysOfWeek();
-      if (days != null && !days.isEmpty()) {
-          // Weekday mode: first matching weekday on/after startDate, then repeat weekly.
-          for (DayOfWeek day : days) {
-              LocalDate first = request.getStartDate().with(TemporalAdjusters.nextOrSame(day));
-              for (int w = 0; w < weeks; w++) {
-                  dates.add(first.plusWeeks(w));
-              }
-          }
-      } else {
-          // Specific-date mode: startDate itself, repeated weekly when durationWeeks > 1.
-          for (int w = 0; w < weeks; w++) {
-              dates.add(request.getStartDate().plusWeeks(w));
-          }
+      // Inclusive registered dates, including a partial final week. No rounding up to full weeks.
+      for (LocalDate date = pack.getStartDate(); !date.isAfter(pack.getEndDate()); date = date.plusDays(1)) {
+          if (days.contains(date.getDayOfWeek())) dates.add(date);
       }
-<<<<<<< HEAD
-      dates.sort(Comparator.naturalOrder());
-
-=======
       if (dates.isEmpty()) {
           throw new BusinessRuleException("No selected weekday occurs within the package date range.");
       }
-      // Retained previous implementation: client-selected startDate/durationWeeks.
-      //       int weeks = (request.getDurationWeeks() != null && request.getDurationWeeks() > 0)
-      //               ? request.getDurationWeeks() : 1;
-      //       LocalTime time = request.getSessionTime() != null ? request.getSessionTime() : DEFAULT_SESSION_TIME;
-      // 
-      //       List<LocalDate> dates = new ArrayList<>();
-      //       Set<DayOfWeek> days = request.getDaysOfWeek();
-      //       if (days != null && !days.isEmpty()) {
-      //           // Weekday mode: first matching weekday on/after startDate, then repeat weekly.
-      //           for (DayOfWeek day : days) {
-      //               LocalDate first = request.getStartDate().with(TemporalAdjusters.nextOrSame(day));
-      //               for (int w = 0; w < weeks; w++) {
-      //                   dates.add(first.plusWeeks(w));
-      //               }
-      //           }
-      //       } else {
-      //           // Specific-date mode: startDate itself, repeated weekly when durationWeeks > 1.
-      //           for (int w = 0; w < weeks; w++) {
-      //               dates.add(request.getStartDate().plusWeeks(w));
-      //           }
-      //       }
-      //       dates.sort(Comparator.naturalOrder());
-      // 
-      // 
       calendar.validateDates(horse.getHorseId(),dates);
->>>>>>> 76de6e5 (luu code)
       List<TrainingSession> toSave = new ArrayList<>();
       for (LocalDate date : dates) {
-          horseResolver.validateSchedule(plan, horse.getHorseId(), date);
+          try {
+              horseResolver.validateSchedule(plan, horse.getHorseId(), date);
+          } catch (BusinessRuleException ex) {
+              throw new BusinessRuleException("Cannot schedule package '" + pack.getTrainingPackage().getPackageName()
+                      + "' (" + pack.getStartDate() + " to " + pack.getEndDate() + "): "
+                      + ex.getMessage() + " Invalid date: " + date + ". No sessions were created.");
+          }
           LocalDateTime when = LocalDateTime.of(date, time);
           // BR-C03: checked up front so the caller gets a clear 409 instead of a raw DB error.
           if (sessionRepository.existsByHorse_HorseIdAndScheduledStart(horse.getHorseId(), when)) {
@@ -195,11 +153,7 @@ public class TrainingScheduleService {
   }
 
   @Transactional
-<<<<<<< HEAD
-  public AttendanceResponse submitAttendance(Integer sessionId, AttendSessionRequest request, String actorId) {
-=======
   public AttendanceResponse submitAttendance(String sessionId, AttendSessionRequest request, String actorId) {
->>>>>>> 76de6e5 (luu code)
       String status = request.getStatus().trim().toUpperCase(Locale.ROOT);
       if (!STATUS_COMPLETED.equals(status) && !STATUS_MISSED.equals(status)) {
           throw new BusinessRuleException("status must be COMPLETED or MISSED.");

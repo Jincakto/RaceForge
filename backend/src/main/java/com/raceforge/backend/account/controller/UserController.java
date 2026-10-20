@@ -67,22 +67,14 @@ public class UserController {
     }
 
     @GetMapping("/{id}")
-<<<<<<< HEAD
-    public ApiResponse<UserResponse> getUser(@PathVariable @jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String id) {
-=======
-    public ApiResponse<UserResponse> getUser(@PathVariable String id) {
->>>>>>> 76de6e5 (luu code)
+    public ApiResponse<UserResponse> getUser(@PathVariable @jakarta.validation.constraints.Pattern(regexp = "USR-(?!000)[0-9]{3}") String id) {
         return ApiResponse.success("User", userService.getUser(id));
     }
 
     @PatchMapping("/{id}/status")
     public ApiResponse<UserResponse> updateStatus(
             @AuthenticationPrincipal AuthenticatedUser currentUser,
-<<<<<<< HEAD
-            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "(?:OWN|VET|HTR|CM|ADM|GRM)-[0-9]{3}") String id,
-=======
-            @PathVariable String id,
->>>>>>> 76de6e5 (luu code)
+            @PathVariable @jakarta.validation.constraints.Pattern(regexp = "USR-(?!000)[0-9]{3}") String id,
             @Valid @RequestBody UpdateStatusRequest request
     ) {
         return ApiResponse.success("User status updated", userService.updateStatus(currentUser.userId(), id, request));

@@ -14,10 +14,9 @@ import org.springframework.stereotype.Component;
 public class TrainingSessionRules {
     @org.springframework.beans.factory.annotation.Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
     private final HorseRepository horses;
-    private final com.raceforge.backend.horse.admission.AdmissionService admission;
     @PersistenceContext private EntityManager entityManager;
 
-    public TrainingSessionRules(HorseRepository horses, com.raceforge.backend.horse.admission.AdmissionService admission) { this.horses = horses; this.admission=admission; }
+    public TrainingSessionRules(HorseRepository horses) { this.horses = horses; }
 
     public Horse lockHorse(String horseId) {
         Horse horse = horses.findByIdForUpdate(horseId)
@@ -28,12 +27,7 @@ public class TrainingSessionRules {
     }
 
     public void requireUnlocked(Horse horse) {
-<<<<<<< HEAD
-        admission.requireCompleted(horse.getHorseId());
-        if (Boolean.TRUE.equals(horse.getTrainingLocked())) {
-=======
         if (Boolean.TRUE.equals(horse.getTrainingLocked()) || jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Training_Lock WHERE horse_id=? AND unlocked_at IS NULL",Integer.class,horse.getHorseId())>0) {
->>>>>>> 76de6e5 (luu code)
             throw new BusinessRuleException("Horse is training-locked; this operation is not allowed.");
         }
     }

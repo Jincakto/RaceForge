@@ -6,14 +6,10 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "Health_Profile")
-public class HealthProfile extends com.raceforge.backend.common.id.BusinessEntity {
+public class HealthProfile {
 
     @Id
-<<<<<<< HEAD
     @Column(name = "profile_id", length = 20)
-=======
-    @Column(name = "profile_id")
->>>>>>> 76de6e5 (luu code)
     private String profileId;
 
     @OneToOne

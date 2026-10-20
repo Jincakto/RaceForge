@@ -26,7 +26,6 @@ public class MedicalRecordMapper {
         MedicalRecordResponse response = new MedicalRecordResponse();
         response.setMedicalRecordId(record.getMedicalRecordId());
         response.setProfileId(record.getHealthProfile() == null ? null : record.getHealthProfile().getProfileId());
-        response.setVeterinarianName(record.getVeterinarian()==null?null:record.getVeterinarian().getFullName());
         response.setVeterinarianId(record.getVeterinarian() == null ? null : record.getVeterinarian().getUserId());
         response.setCorrectionOfId(record.getCorrectionOf() == null ? null : record.getCorrectionOf().getMedicalRecordId());
         response.setExamType(record.getExamType());
@@ -54,13 +53,6 @@ public class MedicalRecordMapper {
         response.setUpdatedAt(record.getUpdatedAt());
         response.setVitalSign(vitalSignMapper.toResponse(vitalSign));
         response.setClinicalExams(clinicalExamMapper.toResponses(clinicalExams));
-        response.setEligibilityReason(record.getEligibilityReason());
-        response.setSuggestedConclusion(record.getSuggestedConclusion());
-        response.setFinalConclusion(record.getFinalConclusion());
-        response.setOverrideReason(record.getOverrideReason());
-        response.setMonitoringNote(record.getMonitoringNote());
-        response.setTrainingLockReason(record.getTrainingLockReason());
-        response.setTrainingEligible(record.getTrainingEligible());response.setIdealWeight(record.getIdealWeight());response.setBodyConditionScore(record.getBodyConditionScore());
         return response;
     }
 }

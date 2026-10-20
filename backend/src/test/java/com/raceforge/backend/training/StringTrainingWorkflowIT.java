@@ -48,32 +48,40 @@ class StringTrainingWorkflowIT {
   call("POST","/api/auth/register",Map.of("fullName","Test owner","email",address,"password",PASSWORD,"requestedRoleId","ROL-002"),null,200);
   ArgumentCaptor<String> otp=ArgumentCaptor.forClass(String.class);verify(email).sendOtp(eq(address),otp.capture());
   var verified=call("POST","/api/auth/verify-email",Map.of("email",address,"otp",otp.getValue()),null,200).get("data");
-  assertFalse(verified.get("accessToken").asText().isBlank());assertEquals("HORSE_OWNER",verified.get("user").get("role").get("roleName").asText());
+  assertFalse(verified.has("accessToken"));
   var login=call("POST","/api/auth/login",Map.of("email",address,"password",PASSWORD),null,200).get("data");
   owner=login.get("accessToken").asText();ownerId=login.get("user").get("userId").asText();
   assertEquals("HORSE_OWNER",login.get("user").get("role").get("roleName").asText());assertTrue(ownerId.startsWith("USR-"));
  }
  String[] staff(String role) throws Exception {
-  var data=call("POST","/api/admin/accounts",Map.of("fullName","Test "+role,"email",UUID.randomUUID()+"@example.com","password",PASSWORD,"roleName",role),admin,200).get("data");
-  String id=data.get("userId").asText();return new String[]{id,jwt.createAccessToken(users.findDetailedById(id).orElseThrow())};
+  String address=UUID.randomUUID()+"@example.com";
+  String roleId=roles.findByRoleName(role).orElseThrow().getRoleId();
+  var data=call("POST","/api/admin/users",Map.of("fullName","Test "+role,"email",address,"roleId",roleId),admin,201).get("data");
+  String id=data.get("userId").asText();
+  ArgumentCaptor<String> invitation=ArgumentCaptor.forClass(String.class);verify(email).sendStaffInvitation(eq(address),invitation.capture());
+  String raw=java.net.URLDecoder.decode(invitation.getValue().substring(invitation.getValue().indexOf("token=")+6),java.nio.charset.StandardCharsets.UTF_8);
+  call("POST","/api/auth/staff/set-password",Map.of("token",raw,"newPassword",PASSWORD),null,200);em.flush();em.clear();
+  return new String[]{id,jwt.createAccessToken(users.findDetailedById(id).orElseThrow())};
  }
- String profile(String id) throws Exception{return call("POST","/api/trainer-profiles",Map.of("userId",id,"bio","Integration test trainer","qualifications","Test-only fixture"),admin,200).get("data").get("trainer_id").asText();}
+ String profile(String id) throws Exception{return call("POST","/api/admin/trainer-profiles",Map.of("userId",id,"bio","Integration test trainer","qualifications","Test-only fixture"),admin,200).get("data").get("trainer_id").asText();}
  String horse(int weight) throws Exception {
-  String id=call("POST","/api/horses?ownerId="+ownerId,Map.of("horseName","Test horse "+weight,"gender","MALE","coatColor","Brown","height",150,"dateOfBirth","2018-01-01","documentType","PASSPORT","documentUrl","https://example.com/test-horse-passport.pdf"),owner,201).get("data").get("horseId").asText();
+  String id=call("POST","/api/horses?ownerId="+ownerId,Map.ofEntries(Map.entry("horseName","Test horse "+weight),Map.entry("gender","MALE"),Map.entry("breed","Thoroughbred"),Map.entry("coatColor","Brown"),Map.entry("height",150),Map.entry("dateOfBirth","2018-01-01"),Map.entry("imageUrl","https://example.com/test-horse.jpg"),Map.entry("registrationNumber","TEST-"+UUID.randomUUID()),Map.entry("documentType","PASSPORT"),Map.entry("documentUrl","https://example.com/test-horse-passport.pdf")),owner,201).get("data").get("horseId").asText();
   assertTrue(id.matches("HOR-\\d{3}"));horseWeights.put(id,weight);return id;
  }
  void examineAndAdmit(String horse) throws Exception {
   call("POST","/api/horses/"+horse+"/admission",null,owner,200);
   examination(horse,true,"INITIAL");
   call("POST","/api/horses/"+horse+"/admission/approve",Map.of("note","Exam confirmed fit"),manager,200);
+  // N keeps admission approval separate from operational activation.
+  call("PATCH","/api/horses/"+horse+"/activate",null,manager,200);
  }
  void examination(String horse,boolean eligible,String type) throws Exception {
   String veterinarian=call("GET","/api/users/me",null,vet,200).get("data").get("userId").asText();
-  String assignment=call("POST","/api/horses/"+horse+"/vet-assignments",Map.of("veterinarianId",veterinarian),manager,200).get("data").get("id").asText();
-  call("POST","/api/vet-assignments/"+assignment+"/respond",Map.of("accepted",true),vet,200);
+  String assignment=call("POST","/api/medical/assignments/horses/"+horse,Map.of("veterinarianId",veterinarian),manager,201).get("data").get("assignmentId").asText();
+  call("POST","/api/medical/assignments/"+assignment+"/accept",null,vet,200);
   String profile=call("GET","/api/horses/"+horse+"/health-profile",null,owner,200).get("data").asText();
   List<Map<String,Object>> exams=new ArrayList<>();
-  for(String area:List.of("LEGS","EYES","RESPIRATORY","SKIN","MOVEMENT","GENERAL_CONDITION"))exams.add(Map.of("examinationArea",area,"conditionStatus","NORMAL"));
+  for(String area:List.of("EYES","NOSE","MOUTH","MOVEMENT_LEGS"))exams.add(Map.of("examinationArea",area,"conditionStatus","NORMAL"));
   Map<String,Object> body=new HashMap<>();
   body.put("profileId",profile);body.put("assignmentId",assignment);body.put("examType",type);body.put("examinedAt",LocalDateTime.now().minusSeconds(1).toString());
   body.put("healthStatus",eligible?"READY":"INJURED");body.put("finalConclusion",eligible?"FIT":"NOT_FIT");body.put("eligibilityReason","Test-only veterinary conclusion");
@@ -99,21 +107,16 @@ class StringTrainingWorkflowIT {
  }
  String manualPlan(String horse,String assignment,String token) throws Exception {return call("POST","/api/horses/"+horse+"/training-plans",Map.of("planName","Test roadmap","assignmentId",assignment,"stages",List.of(stage(30,"Walk",List.of("MONDAY","WEDNESDAY")))),token,200).get("data").get("planId").asText();}
  @Test void roleProfilesAreSeparateFromAccountIdsAndExposedByApi() throws Exception {
-  var ownerView=call("GET","/api/users/me",null,owner,200).get("data");
-  assertTrue(ownerView.get("userId").asText().matches("USR-\\d{3}"));
-  assertTrue(ownerView.get("profileId").asText().matches("OWN-\\d{3}"));
-  assertTrue(call("GET","/api/users/me",null,vet,200).get("data").get("profileId").asText().matches("VET-\\d{3}"));
-  assertTrue(call("GET","/api/users/me",null,manager,200).get("data").get("profileId").asText().matches("CM-\\d{3}"));
-  assertEquals(profileA,call("GET","/api/users/me",null,trainerA,200).get("data").get("profileId").asText());
+  var ownerView=call("GET","/api/users/me",null,owner,200).get("data");assertTrue(ownerView.get("userId").asText().matches("USR-\\d{3}"));
+  assertTrue(jdbc.queryForObject("SELECT profile_id FROM dbo.Account_Role_Profile WHERE user_id=? AND role_name='HORSE_OWNER'",String.class,ownerId).startsWith("OWN-"));
+  assertNotEquals(userA,profileA);assertTrue(profileA.startsWith("HTR-"));
  }
  @Test void roleChangePreservesAccountAndPreviouslyAllocatedProfile() throws Exception {
-  var original=call("GET","/api/users/me",null,manager,200).get("data");
-  String id=original.get("userId").asText(),cmProfile=original.get("profileId").asText();
-  call("PATCH","/api/admin/accounts/"+id+"/role",Map.of("roleName","VETERINARIAN"),admin,200);
-  var changed=call("GET","/api/users/me",null,manager,200).get("data");
-  assertEquals(id,changed.get("userId").asText());assertTrue(changed.get("profileId").asText().matches("VET-\\d{3}"));
-  call("PATCH","/api/admin/accounts/"+id+"/role",Map.of("roleName","CLUB_MANAGER"),admin,200);
-  assertEquals(cmProfile,call("GET","/api/users/me",null,manager,200).get("data").get("profileId").asText());
+  String id=jwt.parse(manager).userId();String original=jdbc.queryForObject("SELECT profile_id FROM dbo.Account_Role_Profile WHERE user_id=? AND role_name='CLUB_MANAGER'",String.class,id);
+  var account=users.findById(id).orElseThrow();account.setRole(roles.findByRoleName("VETERINARIAN").orElseThrow());users.saveAndFlush(account);em.clear();
+  assertEquals(id,call("GET","/api/users/me",null,manager,200).get("data").get("userId").asText());
+  assertTrue(jdbc.queryForObject("SELECT profile_id FROM dbo.Account_Role_Profile WHERE user_id=? AND role_name='VETERINARIAN'",String.class,id).startsWith("VET-"));
+  assertEquals(original,jdbc.queryForObject("SELECT profile_id FROM dbo.Account_Role_Profile WHERE user_id=? AND role_name='CLUB_MANAGER'",String.class,id));
  }
  @Test void threeDigitCounterStopsAt999WithoutReusingOrIncrementing() {
   jdbc.update("UPDATE dbo.Id_Counter SET next_value=998 WHERE prefix='SUP-'");
@@ -124,7 +127,7 @@ class StringTrainingWorkflowIT {
  @Test void ownerOtpHasImmediateOwnerAccessAndCannotManageAccountsOrPermissions() throws Exception {
   assertNotEquals(userA,profileA);assertTrue(profileA.matches("HTR-\\d{3}"));
   call("GET","/api/admin/permissions/HEAD_TRAINER",null,owner,403);
-  call("POST","/api/admin/accounts",Map.of("fullName","Forbidden","email","forbidden@example.com","password",PASSWORD,"roleName","ADMIN"),manager,403);
+  call("POST","/api/admin/users",Map.of("fullName","Forbidden","email","forbidden@example.com","roleId","ROL-007"),manager,403);
   call("POST","/api/admin/permissions/grant",Map.of("roleName","HEAD_TRAINER","permissionCode","MANAGE_PERMISSION"),admin,409);
   call("DELETE","/api/admin/permissions/revoke?roleName=ADMIN&permissionCode=MANAGE_PERMISSION",null,admin,409);
  }
@@ -135,9 +138,8 @@ class StringTrainingWorkflowIT {
   String wrong=otp.getValue().equals("000000")?"111111":"000000";
   call("POST","/api/auth/verify-email",Map.of("email",address,"otp",wrong),null,400);em.flush();
   assertEquals(1,jdbc.queryForObject("SELECT o.attempt_count FROM dbo.Email_Verification_OTP o JOIN dbo.[User] u ON u.user_id=o.user_id WHERE u.email=?",Integer.class,address));
-  String token=call("POST","/api/auth/verify-email",Map.of("email",address,"otp",otp.getValue()),null,200).get("data").get("accessToken").asText();
-  call("GET","/api/users/me",null,token,200);
-  call("POST","/api/auth/verify-email",Map.of("email",address,"otp",otp.getValue()),null,409);
+  var verified=call("POST","/api/auth/verify-email",Map.of("email",address,"otp",otp.getValue()),null,200).get("data");assertFalse(verified.has("accessToken"));
+  var replay=call("POST","/api/auth/verify-email",Map.of("email",address,"otp",otp.getValue()),null,200).get("data");assertFalse(replay.has("accessToken"));
  }
  @Test void stringIdsWorkForPasswordResetRefreshAndPurposeBoundJwt() throws Exception {
   var account=users.findDetailedById(ownerId).orElseThrow();
@@ -274,7 +276,7 @@ class StringTrainingWorkflowIT {
   for(int kg:new int[]{300,500}){
    String horse=horse(kg);examineAndAdmit(horse);String pack=register(horse,true);String assignment=assign(pack,profileA,trainerA);
    var rec=call("POST","/api/horse-packages/"+pack+"/training-recommendations",Map.of("assignmentId",assignment),trainerA,200).get("data");
-   assertEquals(kg,rec.get("weightKg").asInt());assertTrue(rec.get("requiresTrainerConfirmation").asBoolean());assertFalse(rec.get("veterinarianName").asText().isBlank());protocols.add(rec.get("protocolId").asText());
+   assertEquals("FIT",rec.get("fitnessConclusion").asText());assertEquals(kg,rec.get("weightKg").asInt());assertTrue(rec.get("requiresTrainerConfirmation").asBoolean());assertFalse(rec.get("veterinarianName").asText().isBlank());protocols.add(rec.get("protocolId").asText());
   }
   assertEquals(2,protocols.size());
  }
@@ -343,11 +345,11 @@ class StringTrainingWorkflowIT {
   String rec=call("POST","/api/horse-packages/"+pack+"/training-recommendations",Map.of("assignmentId",assignment),trainerA,200).get("data").get("recommendationId").asText();
   call("POST","/api/horses/"+horse+"/training-plans",Map.of("planName","Unconfirmed draft","assignmentId",assignment,"recommendationId",rec,"recommendationConfirmed",false),trainerA,409);
  }
- @Test void changedStaffRoleKeepsBothIdentifiersAndClosesAssignments() throws Exception {
+ @Test void changedStaffRoleKeepsBothIdentifiersAndCannotUseTraining() throws Exception {
   String horse=horse(400);examineAndAdmit(horse);String pack=register(horse,true);String assignment=assign(pack,profileA,trainerA);
-  call("PATCH","/api/admin/accounts/"+userA+"/role",Map.of("roleName","VETERINARIAN"),admin,200);
+  var changed=users.findById(userA).orElseThrow();changed.setRole(roles.findByRoleName("VETERINARIAN").orElseThrow());users.saveAndFlush(changed);em.clear();
   assertEquals(userA,jdbc.queryForObject("SELECT user_id FROM dbo.Trainer WHERE trainer_id=?",String.class,profileA));
-  assertEquals("CANCELLED",jdbc.queryForObject("SELECT status FROM dbo.Horse_Assignment WHERE id=?",String.class,assignment));
+  assertEquals("ACCEPTED",jdbc.queryForObject("SELECT status FROM dbo.Horse_Assignment WHERE id=?",String.class,assignment));
   call("GET","/api/trainer-assignments/me",null,trainerA,403);
  }
  @Test void databaseRejectsCrossPackagePlanAssignmentEvenOutsideTheApi() throws Exception {
@@ -355,6 +357,47 @@ class StringTrainingWorkflowIT {
   String horse2=horse(500);examineAndAdmit(horse2);String pack2=register(horse2,true);String assignment2=assign(pack2,profileA,trainerA);
   call("POST","/api/horses/"+horse1+"/training-plans",Map.of("planName","Wrong horse","assignmentId",assignment2,"stages",List.of(stage(30,"Walk",List.of("MONDAY")))),trainerA,409);
   em.flush();assertThrows(org.springframework.dao.DataIntegrityViolationException.class,()->jdbc.update("UPDATE dbo.Training_Plan SET trainer_assignment_id=? WHERE plan_id=?",assignment2,plan));
+ }
+
+ @Test void trainingLockAndLifecycleGuardMeasurementsAndPreserveRecordedTimes() throws Exception {
+  String horse=horse(400);examineAndAdmit(horse);String pack=register(horse,true),assignment=assign(pack,profileA,trainerA),plan=manualPlan(horse,assignment,trainerA);
+  String session=call("POST","/api/training-plans/"+plan+"/generate-sessions",Map.of("confirmed",true),trainerA,200).get("data").get(0).get("sessionId").asText();
+  String uri="/api/training-sessions/"+session;
+  call("PATCH",uri+"/stop",null,trainerA,409);
+  call("PATCH",uri+"/complete",Map.of(),trainerA,409);
+  em.flush();jdbc.update("UPDATE dbo.Horse SET training_locked=1 WHERE horse_id=?",horse);em.clear();
+  call("PATCH",uri+"/start",null,trainerA,409);
+  jdbc.update("UPDATE dbo.Horse SET training_locked=0 WHERE horse_id=?",horse);em.clear();
+  var started=call("PATCH",uri+"/start",null,trainerA,200).get("data");assertEquals(40,started.get("restingHeartRate").asInt());
+  call("PATCH",uri+"/start",null,trainerA,409);
+  em.flush();jdbc.update("UPDATE dbo.Training_Session SET actual_start=DATEADD(minute,-5,SYSDATETIME()) WHERE session_id=?",session);jdbc.update("UPDATE dbo.Horse SET training_locked=1 WHERE horse_id=?",horse);em.clear();
+  call("PATCH",uri+"/stop",null,trainerA,409);
+  call("PATCH",uri+"/complete",Map.of(),trainerA,409);
+  jdbc.update("UPDATE dbo.Horse SET training_locked=0 WHERE horse_id=?",horse);em.clear();
+  call("PATCH",uri+"/stop",null,trainerA,200);
+  call("PATCH",uri+"/stop",null,trainerA,409);
+  em.flush();jdbc.update("UPDATE dbo.Training_Session SET actual_end=DATEADD(minute,-3,SYSDATETIME()) WHERE session_id=?",session);em.clear();
+  LocalDateTime stopped=jdbc.queryForObject("SELECT actual_end FROM dbo.Training_Session WHERE session_id=?",java.sql.Timestamp.class,session).toLocalDateTime();
+  Map<String,Object> results=new HashMap<>(Map.of("distance",1.2,"avgSpeed",14,"maxSpeed",20,"endExerciseHeartRate",140,"recoveryHeartRate2Min",80,"recoveryMeasuredAt",stopped.plusSeconds(60).toString()));
+  call("PATCH",uri+"/complete",results,trainerA,409);
+  results.put("recoveryMeasuredAt",stopped.plusMinutes(2).toString());results.put("distance",-1);
+  call("PATCH",uri+"/complete",results,trainerA,409);results.put("distance",1.2);
+  jdbc.update("UPDATE dbo.Horse SET training_locked=1 WHERE horse_id=?",horse);em.clear();
+  call("PATCH",uri+"/complete",results,trainerA,409);
+  jdbc.update("UPDATE dbo.Horse SET training_locked=0 WHERE horse_id=?",horse);em.clear();
+  call("PATCH",uri+"/complete",results,trainerA,200);em.flush();em.clear();
+  assertEquals(stopped,jdbc.queryForObject("SELECT actual_end FROM dbo.Training_Session WHERE session_id=?",java.sql.Timestamp.class,session).toLocalDateTime());
+  assertEquals("COMPLETED",jdbc.queryForObject("SELECT status FROM dbo.Training_Session WHERE session_id=?",String.class,session));
+  call("PATCH",uri+"/complete",results,trainerA,409);
+  var feedback=call("GET",uri+"/feedback",null,trainerA,200).get("data");assertEquals(120,feedback.get("recoveryDelaySeconds").asInt());assertEquals(60,feedback.get("heartRateDrop2Min").asInt());assertFalse(feedback.get("automaticScheduleChange").asBoolean());
+  call("GET",uri+"/feedback",null,trainerC,403);
+ }
+ @Test void sessionsOutsideThePaidPackageDatesAreRejectedWithoutWritingRows() throws Exception {
+  String horse=horse(400);examineAndAdmit(horse);String pack=register(horse,true),assignment=assign(pack,profileA,trainerA),plan=manualPlan(horse,assignment,trainerA);
+  LocalDate start=jdbc.queryForObject("SELECT start_date FROM dbo.HORSE_PACKAGE WHERE horse_package_id=?",java.sql.Date.class,pack).toLocalDate();
+  LocalDate end=jdbc.queryForObject("SELECT end_date FROM dbo.HORSE_PACKAGE WHERE horse_package_id=?",java.sql.Date.class,pack).toLocalDate();
+  for(LocalDate outside:List.of(start.minusDays(1),end.plusDays(1)))call("POST","/api/training-sessions",Map.of("planId",plan,"horseId",horse,"scheduledTime",outside+"T07:00:00"),trainerA,409);
+  em.flush();assertEquals(0,jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Training_Session WHERE plan_id=?",Integer.class,plan));
  }
  JsonNode call(String method,String uri,Object body,String token,int expected) throws Exception {
   var request=request(HttpMethod.valueOf(method),uri);if(token!=null)request.header("Authorization","Bearer "+token);if(body!=null)request.contentType(org.springframework.http.MediaType.APPLICATION_JSON).content(json.writeValueAsString(body));

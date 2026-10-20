@@ -34,7 +34,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api")
 public class TrainerController {
-<<<<<<< HEAD
     private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
     private final UserRepository users;
     private final HorseRepository horses;
@@ -46,9 +45,9 @@ public class TrainerController {
     private final NotificationService notifications;
 
     public TrainerController(UserRepository users, HorseRepository horses,
-                             TrainerRepository trainers, HorseAssignmentRepository assignments,
-                             HorsePackageRepository horsePackages, HorseMapper mapper,
-                             AuditLogService audit, NotificationService notifications,
+            TrainerRepository trainers, HorseAssignmentRepository assignments,
+            HorsePackageRepository horsePackages, HorseMapper mapper,
+            AuditLogService audit, NotificationService notifications,
             com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator) {
         this.idAllocator = idAllocator;
         this.users = users;
@@ -59,24 +58,19 @@ public class TrainerController {
         this.mapper = mapper;
         this.audit = audit;
         this.notifications = notifications;
-=======
-    private final UserRepository users;private final HorseRepository horses;private final HorseMapper mapper;private final AuditLogService audit;
-    public TrainerController(UserRepository users,HorseRepository horses,HorseMapper mapper,AuditLogService audit){this.users=users;this.horses=horses;this.mapper=mapper;this.audit=audit;}
-    public record Trainer(String userId,String fullName,String avatarUrl){}
-    public record Assignment(@NotNull String trainerId){}
-    @GetMapping("/trainers")
-    @Transactional(readOnly=true)
-    public ApiResponse<com.raceforge.backend.account.dto.AuthDtos.PageResponse<Trainer>> trainers(@RequestParam(defaultValue="0") int page){
-        var result=users.searchUsers(null,"ACTIVE",com.raceforge.backend.account.AccountConstants.ROLE_HEAD_TRAINER,PageRequest.of(Math.max(0,page),20));
-        return ApiResponse.success("Trainers",new com.raceforge.backend.account.dto.AuthDtos.PageResponse<>(result.getContent().stream().filter(u->u.isEmailVerified()).map(u->new Trainer(u.getUserId(),u.getFullName(),u.getAvatarUrl())).toList(),result.getNumber(),result.getSize(),result.getTotalElements(),result.getTotalPages()));
->>>>>>> 76de6e5 (luu code)
     }
 
-    public record TrainerSummary(String userId, String fullName, String avatarUrl) {}
-    public record Assignment(@NotBlank String trainerId) {}
-    public record Decline(@NotBlank @Size(min = 10, max = 1000) String reason) {}
+    public record TrainerSummary(String userId, String fullName, String avatarUrl) {
+    }
+
+    public record Assignment(@NotBlank String trainerId) {
+    }
+
+    public record Decline(@NotBlank @Size(min = 10, max = 1000) String reason) {
+    }
+
     public record TrainerTask(String id, String horseId, String assigneeId, String status,
-                              String reason, LocalDateTime createdAt, LocalDateTime respondedAt) {
+            String reason, LocalDateTime createdAt, LocalDateTime respondedAt) {
         static TrainerTask from(HorseAssignment a) {
             return new TrainerTask(a.getId(), a.getHorse().getHorseId(),
                     a.getAssignee().getUserId(), a.getStatus(), a.getReason(),
@@ -95,7 +89,6 @@ public class TrainerController {
     }
 
     @GetMapping("/trainers/{id}")
-<<<<<<< HEAD
     @Transactional(readOnly = true)
     public ApiResponse<TrainerSummary> trainer(@PathVariable String id) {
         User user = findEligible(id);
@@ -106,7 +99,8 @@ public class TrainerController {
     @PreAuthorize("@horseAccess.read(authentication, #horseId)")
     @Transactional(readOnly = true)
     public ApiResponse<List<TrainerSummary>> assigned(@PathVariable String horseId) {
-        if (!horses.existsById(horseId)) throw new ResourceNotFoundException("Horse not found");
+        if (!horses.existsById(horseId))
+            throw new ResourceNotFoundException("Horse not found");
         return ApiResponse.success("Assigned trainers", trainers.findAssignedToHorse(horseId)
                 .stream().map(t -> summary(t.getUser())).toList());
     }
@@ -116,8 +110,8 @@ public class TrainerController {
     @PreAuthorize("hasAuthority('CLUB_MANAGER')")
     @Transactional
     public ApiResponse<TrainerTask> assign(@PathVariable String horseId,
-                                           @AuthenticationPrincipal AuthenticatedUser actor,
-                                           @Valid @RequestBody Assignment body) {
+            @AuthenticationPrincipal AuthenticatedUser actor,
+            @Valid @RequestBody Assignment body) {
         return requestAssignment(horseId, actor.userId(), body.trainerId());
     }
 
@@ -126,13 +120,13 @@ public class TrainerController {
     @PreAuthorize("hasAuthority('CLUB_MANAGER')")
     @Transactional
     public ApiResponse<TrainerTask> assignLegacy(@PathVariable String horseId,
-                                                 @AuthenticationPrincipal AuthenticatedUser actor,
-                                                 @Valid @RequestBody Assignment body) {
+            @AuthenticationPrincipal AuthenticatedUser actor,
+            @Valid @RequestBody Assignment body) {
         return requestAssignment(horseId, actor.userId(), body.trainerId());
     }
 
     private ApiResponse<TrainerTask> requestAssignment(String horseId, String managerId,
-                                                       String trainerUserId) {
+            String trainerUserId) {
         Horse horse = getHorseForUpdate(horseId);
         requireEligibleForTrainerAssignment(horse);
         User manager = users.findById(managerId)
@@ -174,7 +168,7 @@ public class TrainerController {
     @PreAuthorize("hasAuthority('HEAD_TRAINER')")
     @Transactional
     public ApiResponse<HorseResponse> accept(@PathVariable String id,
-                                             @AuthenticationPrincipal AuthenticatedUser actor) {
+            @AuthenticationPrincipal AuthenticatedUser actor) {
         HorseAssignment task = getTrainerTaskForUser(id, actor.userId());
         requirePending(task);
         String horseId = task.getHorse().getHorseId();
@@ -203,8 +197,8 @@ public class TrainerController {
     @PreAuthorize("hasAuthority('HEAD_TRAINER')")
     @Transactional
     public ApiResponse<TrainerTask> decline(@PathVariable String id,
-                                            @AuthenticationPrincipal AuthenticatedUser actor,
-                                            @Valid @RequestBody Decline body) {
+            @AuthenticationPrincipal AuthenticatedUser actor,
+            @Valid @RequestBody Decline body) {
         HorseAssignment task = getTrainerTaskForUser(id, actor.userId());
         requirePending(task);
         task.setStatus("DECLINED");
@@ -221,8 +215,8 @@ public class TrainerController {
     @PreAuthorize("hasAuthority('CLUB_MANAGER')")
     @Transactional
     public ApiResponse<HorseResponse> unassign(@PathVariable String horseId,
-                                               @PathVariable String userId,
-                                               @AuthenticationPrincipal AuthenticatedUser actor) {
+            @PathVariable String userId,
+            @AuthenticationPrincipal AuthenticatedUser actor) {
         Horse horse = getHorseForUpdate(horseId);
         boolean removed = horse.getTrainers().removeIf(t -> t.getUser().getUserId().equals(userId));
         var open = assignments.findByHorse_HorseIdAndKindAndStatusIn(
@@ -235,7 +229,8 @@ public class TrainerController {
                 cancelled = true;
             }
         }
-        if (!removed && !cancelled) throw new ResourceNotFoundException("No active trainer assignment");
+        if (!removed && !cancelled)
+            throw new ResourceNotFoundException("No active trainer assignment");
         audit.record(actor.userId(), null, "HORSE", null,
                 "TRAINER_UNASSIGNED", "SUCCESS", "Horse " + horseId + "; trainer " + userId);
         return ApiResponse.success("Trainer unassigned", mapper.toResponse(horse));
@@ -296,20 +291,5 @@ public class TrainerController {
 
     private TrainerSummary summary(User user) {
         return new TrainerSummary(user.getUserId(), user.getFullName(), user.getAvatarUrl());
-=======
-    @Transactional(readOnly=true)
-    public ApiResponse<Trainer> trainer(@PathVariable String id){var u=users.findDetailedById(id).orElseThrow(()->new ResourceNotFoundException("Trainer not found"));if(!"HEAD_TRAINER".equals(u.getRole().getRoleName())||!"ACTIVE".equals(u.getStatus())||!u.isEmailVerified())throw new ResourceNotFoundException("Active trainer not found");return ApiResponse.success("Trainer",new Trainer(u.getUserId(),u.getFullName(),u.getAvatarUrl()));}
-    @PutMapping("/horses/{horseId}/trainer")
-    @PreAuthorize("hasAuthority('CLUB_MANAGER')")
-    @Transactional
-    public ApiResponse<HorseResponse> assign(@PathVariable String horseId,@AuthenticationPrincipal AuthenticatedUser actor,@Valid @RequestBody Assignment body){
-        if (true) throw new BusinessRuleException("Use POST /api/trainer-assignments: assignment must go through a paid horse package.");
-        var h=horses.findByIdForUpdate(horseId).orElseThrow(()->new ResourceNotFoundException("Horse not found"));
-        if(!actor.userId().equals(h.getOwner().getUserId()))throw new BusinessRuleException("Only owner may assign trainer");
-        var trainer=users.findByIdForUpdate(body.trainerId()).orElseThrow(()->new ResourceNotFoundException("Trainer not found"));
-        if(!"HEAD_TRAINER".equals(trainer.getRole().getRoleName())||!"ACTIVE".equals(trainer.getStatus())||!trainer.isEmailVerified())throw new BusinessRuleException("Trainer must be active and verified");
-        h.setHeadTrainer(trainer);audit.record(actor.userId(),horseId,"HORSE",horseId,"TRAINER_ASSIGNED","SUCCESS",String.valueOf(body.trainerId()));
-        return ApiResponse.success("Trainer assigned",mapper.toResponse(h));
->>>>>>> 76de6e5 (luu code)
     }
 }

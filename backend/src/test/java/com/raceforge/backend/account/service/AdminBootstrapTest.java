@@ -18,28 +18,28 @@ class AdminBootstrapTest {
     BCryptPasswordEncoder passwords = new BCryptPasswordEncoder();
 
     @Test void createsAdminWithHashedPassword() {
-        Role role = new Role(); role.setRoleId(7); role.setRoleName("ADMIN");
-        when(roles.findById(7)).thenReturn(Optional.of(role));
+        Role role = new Role(); role.setRoleId("ROL-007"); role.setRoleName("ADMIN");
+        when(roles.findById("ROL-007")).thenReturn(Optional.of(role));
         new AdminBootstrap(users, roles, passwords, "admin@example.com", "StrongPassword123").run();
         var saved = ArgumentCaptor.forClass(User.class);
         verify(users).saveAndFlush(saved.capture());
-        assertEquals(7, saved.getValue().getRole().getRoleId());
+        assertEquals("ROL-007",saved.getValue().getRole().getRoleId());
         assertEquals("ACTIVE", saved.getValue().getStatus());
         assertTrue(passwords.matches("StrongPassword123", saved.getValue().getPassword()));
     }
 
     @Test void cannotPromoteExistingOwner() {
-        Role role = new Role(); role.setRoleId(5);
+        Role role = new Role(); role.setRoleId("ROL-005");
         User user = new User(); user.setRole(role);
         when(users.findByEmail("admin@example.com")).thenReturn(Optional.of(user));
         assertThrows(IllegalStateException.class,
                 () -> new AdminBootstrap(users, roles, passwords, "admin@example.com", "StrongPassword123").run());
-        assertEquals(5, user.getRole().getRoleId());
+        assertEquals("ROL-005",user.getRole().getRoleId());
         verify(users, never()).saveAndFlush(any());
     }
 
     @Test void repeatedBootstrapDoesNotResetExistingAdmin() {
-        Role role = new Role(); role.setRoleId(7);
+        Role role = new Role(); role.setRoleId("ROL-007");
         User user = new User(); user.setRole(role); user.setPassword("existing-hash");
         when(users.findByEmail("admin@example.com")).thenReturn(Optional.of(user));
         new AdminBootstrap(users, roles, passwords, "admin@example.com", "StrongPassword123").run();

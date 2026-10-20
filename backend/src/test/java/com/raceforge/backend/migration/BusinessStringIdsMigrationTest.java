@@ -55,21 +55,21 @@ class BusinessStringIdsMigrationTest {
             assertEquals(1,flyway.migrate().migrationsExecuted);
             assertEquals(0,flyway.migrate().migrationsExecuted);
             assertEquals("HOR-000",mapped(c,"Horse",horse));
-            assertEquals("OWN-000",mapped(c,"User",owner));
-            assertEquals("VET-000",mapped(c,"User",vet));
+            assertEquals("USR-500",mapped(c,"User",owner));
+            assertEquals("USR-300",mapped(c,"User",vet));
             assertEquals("PKG-000",mapped(c,"TRAINING_PACKAGE",pkg));
             assertEquals("HOR-000",text(c,"SELECT horse_id FROM dbo.Health_Profile WHERE profile_id="+profile));
             assertEquals(mapped(c,"Medical_Record",record),text(c,"SELECT correction_of_id FROM dbo.Medical_Record WHERE medical_record_id='"+mapped(c,"Medical_Record",correction)+"'"));
             assertEquals("Preserve diagnosis",text(c,"SELECT diagnosis FROM dbo.Medical_Record WHERE medical_record_id='"+mapped(c,"Medical_Record",record)+"'"));
             assertEquals(mapped(c,"Medical_Record",record),text(c,"SELECT entity_id FROM dbo.Audit_Log WHERE action='TEST'"));
             assertEquals("2",text(c,"SELECT entity_id FROM dbo.Audit_Log WHERE entity_type='ROLE_PERMISSION'"));
-            assertEquals("OWN-000",text(c,"SELECT user_id FROM dbo.Email_Verification_OTP"));
+            assertEquals("USR-500",text(c,"SELECT user_id FROM dbo.Email_Verification_OTP"));
             assertEquals(1,number(c,"SELECT COUNT(*) FROM dbo.Email_Verification_OTP WHERE expires_at<=SYSUTCDATETIME()"));
             assertEquals(1,number(c,"SELECT COLUMNPROPERTY(OBJECT_ID('dbo.Health_Profile'),'profile_id','IsIdentity')"));
             assertEquals(0,number(c,"SELECT COLUMNPROPERTY(OBJECT_ID('dbo.Horse'),'horse_id','IsIdentity')"));
 
             DriverManagerDataSource ds=new DriverManagerDataSource(url,username,password);
-            BusinessIdGenerator generator=new BusinessIdGenerator(new JdbcTemplate(ds));
+            BusinessIdGenerator generator=new BusinessIdGenerator();
             ExecutorService executor=Executors.newFixedThreadPool(8);
             try {
                 List<Callable<String>> jobs=new ArrayList<>();
@@ -79,7 +79,7 @@ class BusinessStringIdsMigrationTest {
                 assertEquals(32,unique.size());
             } finally { executor.shutdownNow(); }
             String deleted=generator.next("HOR");
-            execute(c,"INSERT dbo.Horse(horse_id,owner_id,horse_name,status) VALUES ('"+deleted+"','OWN-000','delete fixture','INACTIVE')");
+            execute(c,"INSERT dbo.Horse(horse_id,owner_id,horse_name,status) VALUES ('"+deleted+"','USR-500','delete fixture','INACTIVE')");
             execute(c,"DELETE dbo.Horse WHERE horse_id='"+deleted+"'");
             assertNotEquals(deleted,generator.next("HOR"));
             execute(c,"ALTER SEQUENCE dbo.seq_business_PKG RESTART WITH 999");

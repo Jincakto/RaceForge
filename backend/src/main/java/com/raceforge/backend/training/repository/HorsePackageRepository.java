@@ -7,8 +7,8 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.time.LocalDate;
 import java.util.List;
+import java.time.LocalDate;
 import java.util.Optional;
 
 public interface HorsePackageRepository extends JpaRepository<HorsePackage, String> {
@@ -18,9 +18,10 @@ public interface HorsePackageRepository extends JpaRepository<HorsePackage, Stri
     List<HorsePackage> findByHorse_HorseIdAndStatus(String horseId, String status);
 
     boolean existsByHorse_HorseIdAndStatusIn(String horseId, List<String> statuses);
-<<<<<<< HEAD
 
-    boolean existsByTrainingPackage_PackageId(String packageId);
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT hp FROM HorsePackage hp WHERE hp.horsePackageId = :id")
+    Optional<HorsePackage> findForUpdate(@Param("id") String id);
 
     /**
      * Used while confirming a Training Lock. Horse itself must already be
@@ -31,18 +32,13 @@ public interface HorsePackageRepository extends JpaRepository<HorsePackage, Stri
     List<HorsePackage> findByHorseIdAndStatusForUpdate(
             @Param("horseId") String horseId, @Param("status") String status);
 
-    @Query("SELECT hp FROM HorsePackage hp WHERE hp.horse.horseId = :horseId ORDER BY hp.registeredAt DESC")
-    List<HorsePackage> findByHorseIdOrderByRegisteredAtDesc(@Param("horseId") String horseId);
 
     /** endDate is inclusive; a package expires only on the following day. */
     @Query("SELECT hp.horsePackageId FROM HorsePackage hp "
             + "WHERE hp.status = 'ACTIVE' AND hp.endDate < :today "
             + "ORDER BY hp.horsePackageId")
     List<String> findExpiredActiveRegistrationIds(@Param("today") LocalDate today);
-=======
->>>>>>> 76de6e5 (luu code)
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT hp FROM HorsePackage hp WHERE hp.horsePackageId = :id")
-    Optional<HorsePackage> findForUpdate(@Param("id") String id);
+
+
 }

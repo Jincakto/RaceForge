@@ -15,19 +15,19 @@ public class TrainingWorkflowController {
  private static final String TRAINER="hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication,'MANAGE_TRAINING')";
  private final TrainerAssignmentService assignments;private final TrainingRecommendationService recommendations;private final TrainingRoadmapService roadmaps;
  public TrainingWorkflowController(TrainerAssignmentService assignments,TrainingRecommendationService recommendations,TrainingRoadmapService roadmaps){this.assignments=assignments;this.recommendations=recommendations;this.roadmaps=roadmaps;}
- @PostMapping("/trainer-profiles") @PreAuthorize("hasAuthority('ADMIN') and @permissionAccess.has(authentication,'MANAGE_ACCOUNTS')")
+ @PostMapping("/admin/trainer-profiles") @PreAuthorize("hasAuthority('ADMIN') and @permissionAccess.has(authentication,'MANAGE_ACCOUNTS')")
  public Object createProfile(@Valid @RequestBody ProfileRequest body){return ApiResponse.success("Trainer profile created",assignments.createProfile(body));}
- @GetMapping("/trainer-profiles") @PreAuthorize("hasAnyAuthority('ADMIN','CLUB_MANAGER')")
+ @GetMapping({"/trainer-profiles","/admin/trainer-profiles"}) @PreAuthorize("hasAnyAuthority('ADMIN','CLUB_MANAGER')")
  public Object profiles(){return ApiResponse.success("Trainer profiles",assignments.profiles());}
- @GetMapping("/trainer-profiles/{id}") @PreAuthorize("hasAnyAuthority('ADMIN','CLUB_MANAGER','HEAD_TRAINER')")
+ @GetMapping({"/trainer-profiles/{id}","/admin/trainer-profiles/{id}"}) @PreAuthorize("hasAnyAuthority('ADMIN','CLUB_MANAGER','HEAD_TRAINER')")
  public Object profile(@PathVariable String id){return ApiResponse.success("Trainer profile",assignments.profile(id));}
- @PutMapping("/trainer-profiles/{id}") @PreAuthorize("hasAnyAuthority('ADMIN','HEAD_TRAINER')")
+ @PutMapping({"/trainer-profiles/{id}","/admin/trainer-profiles/{id}"}) @PreAuthorize("hasAnyAuthority('ADMIN','HEAD_TRAINER')")
  public Object updateProfile(@PathVariable String id,@Valid @RequestBody ProfileUpdate body){return ApiResponse.success("Trainer profile updated",assignments.updateProfile(id,body));}
- @PatchMapping("/trainer-profiles/{id}/status") @PreAuthorize("hasAuthority('ADMIN') and @permissionAccess.has(authentication,'MANAGE_ACCOUNTS')")
+ @PatchMapping("/admin/trainer-profiles/{id}/status") @PreAuthorize("hasAuthority('ADMIN') and @permissionAccess.has(authentication,'MANAGE_ACCOUNTS')")
  public Object profileStatus(@PathVariable String id,@Valid @RequestBody ProfileStatus body){return ApiResponse.success("Trainer profile status updated",assignments.profileStatus(id,body.status()));}
- @GetMapping("/trainer-profiles/{id}/history") @PreAuthorize("hasAnyAuthority('ADMIN','CLUB_MANAGER','HEAD_TRAINER')")
+ @GetMapping({"/trainer-profiles/{id}/history","/admin/trainer-profiles/{id}/history"}) @PreAuthorize("hasAnyAuthority('ADMIN','CLUB_MANAGER','HEAD_TRAINER')")
  public Object history(@PathVariable String id){return ApiResponse.success("Trainer history",assignments.history(id));}
- @GetMapping("/trainer-profiles/{id}/sessions") @PreAuthorize("hasAnyAuthority('ADMIN','CLUB_MANAGER','HEAD_TRAINER')")
+ @GetMapping({"/trainer-profiles/{id}/sessions","/admin/trainer-profiles/{id}/sessions"}) @PreAuthorize("hasAnyAuthority('ADMIN','CLUB_MANAGER','HEAD_TRAINER')")
  public Object trainerSessions(@PathVariable String id){return ApiResponse.success("Trainer recorded session history",assignments.sessionHistory(id));}
  @PostMapping("/trainer-assignments") @PreAuthorize(MANAGER)
  public Object assign(@Valid @RequestBody AssignmentRequest body){return ApiResponse.success("Trainer assigned",assignments.assign(body));}

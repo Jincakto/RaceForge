@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 //   action = "GRANT" | "REVOKE", entity_type = "ROLE_PERMISSION",
 //   entity_id = role_id, reason = permission_name, user_id = who did it.
 @Entity
+// Legacy mapping: @Table(name = "audit_log")
 @Table(name = "Audit_Log")
 public class PermissionAuditLog extends com.raceforge.backend.common.id.BusinessEntity {
 
@@ -21,11 +22,7 @@ public class PermissionAuditLog extends com.raceforge.backend.common.id.Business
   @Column(name = "audit_id")
   private String auditId;
 
-<<<<<<< HEAD
-  @Column(name = "user_id", length = 20)
-=======
   @Column(name = "user_id")
->>>>>>> 76de6e5 (luu code)
   private String userId;
 
   @Column(name = "action", nullable = false, length = 100)
@@ -34,11 +31,7 @@ public class PermissionAuditLog extends com.raceforge.backend.common.id.Business
   @Column(name = "entity_type", length = 100)
   private String entityType;
 
-<<<<<<< HEAD
-  @Column(name = "entity_id", length = 20)
-=======
   @Column(name = "entity_id")
->>>>>>> 76de6e5 (luu code)
   private String entityId;
 
   @Column(name = "result", length = 50)
@@ -53,13 +46,8 @@ public class PermissionAuditLog extends com.raceforge.backend.common.id.Business
   public PermissionAuditLog() {
   }
 
-<<<<<<< HEAD
-  public Integer getAuditId() { return auditId; }
-  public void setAuditId(Integer auditId) { this.auditId = auditId; }
-=======
   public String getAuditId() { return auditId; }
   public void setAuditId(String auditId) { this.auditId = auditId; }
->>>>>>> 76de6e5 (luu code)
   public String getUserId() { return userId; }
   public void setUserId(String userId) { this.userId = userId; }
   public String getAction() { return action; }

@@ -10,21 +10,16 @@ import java.util.Set;
 
 @Entity
 @Table(name = "Horse")
-public class Horse extends com.raceforge.backend.common.id.BusinessEntity {
+public class Horse {
 
     @Id
-<<<<<<< HEAD
     @Column(name = "horse_id", length = 20, nullable = false, updatable = false)
-=======
-    @Column(name = "horse_id", length = 20)
->>>>>>> 76de6e5 (luu code)
     private String horseId;
 
     @ManyToOne
     @JoinColumn(name = "owner_id", nullable = false)
     private User owner;
 
-<<<<<<< HEAD
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "Horse_Trainer",
@@ -32,10 +27,6 @@ public class Horse extends com.raceforge.backend.common.id.BusinessEntity {
             inverseJoinColumns = @JoinColumn(name = "trainer_id")
     )
     private Set<Trainer> trainers = new LinkedHashSet<>();
-=======
-    @Transient // Deprecated compatibility accessor; authoritative assignment is through Horse_Package.
-    private User headTrainer;
->>>>>>> 76de6e5 (luu code)
 
     @Column(name = "horse_name", nullable = false)
     private String horseName;
@@ -58,18 +49,9 @@ public class Horse extends com.raceforge.backend.common.id.BusinessEntity {
     @Column(name = "dam")
     private String dam;
 
-<<<<<<< HEAD
     @Column(name = "height")
     private BigDecimal height;
 
-=======
-
-
-    @Column(name = "height")
-    private BigDecimal height;
-
-
->>>>>>> 76de6e5 (luu code)
     @Column(name = "declared_medical_history")
     private String declaredMedicalHistory;
 
@@ -94,7 +76,6 @@ public class Horse extends com.raceforge.backend.common.id.BusinessEntity {
     @Column(name = "status", nullable = false)
     private String status;
 
-<<<<<<< HEAD
     @OneToOne(mappedBy = "horse", cascade = CascadeType.ALL, orphanRemoval = true,
               fetch = FetchType.LAZY)
     private HorseAdmission admission;
@@ -133,17 +114,6 @@ public class Horse extends com.raceforge.backend.common.id.BusinessEntity {
     }
 
 
-=======
-
-
-    @OneToOne(mappedBy="horse",cascade=CascadeType.ALL,orphanRemoval=true,fetch=FetchType.LAZY)
-    private HorseAdmission admission;
-    public HorseAdmission admission(){if(admission==null){admission=new HorseAdmission();admission.setHorse(this);}return admission;}
-    public String getAdmissionStatus(){return admission==null?"NOT_SUBMITTED":admission.getStatus();}
-    public void setAdmissionStatus(String value){admission().setStatus(value);}
-    public String getAdmissionNote(){return admission==null?null:admission.getDecisionReason();}
-    public void setAdmissionNote(String value){admission().setDecisionReason(value);}
->>>>>>> 76de6e5 (luu code)
     public String getHorseId() {
         return horseId;
     }
@@ -224,13 +194,6 @@ public class Horse extends com.raceforge.backend.common.id.BusinessEntity {
         this.dam = dam;
     }
 
-<<<<<<< HEAD
-=======
-
-
-
-
->>>>>>> 76de6e5 (luu code)
     public BigDecimal getHeight() {
         return height;
     }
@@ -239,11 +202,6 @@ public class Horse extends com.raceforge.backend.common.id.BusinessEntity {
         this.height = height;
     }
 
-<<<<<<< HEAD
-=======
-
-
->>>>>>> 76de6e5 (luu code)
     public String getDeclaredMedicalHistory() {
         return declaredMedicalHistory;
     }
@@ -307,19 +265,4 @@ public class Horse extends com.raceforge.backend.common.id.BusinessEntity {
     public void setStatus(String status) {
         this.status = status;
     }
-    @Column(name="registration_number",length=100)
-    private String registrationNumber;
-    public String getRegistrationNumber(){return registrationNumber;}
-    public void setRegistrationNumber(String value){registrationNumber=value;}
-
-    @Column(name="document_type",length=50)
-    private String documentType;
-    public String getDocumentType(){return documentType;}
-    public void setDocumentType(String value){documentType=value;}
-
-    @org.hibernate.annotations.Nationalized @Column(name="document_url",length=500)
-    private String documentUrl;
-    public String getDocumentUrl(){return documentUrl;}
-    public void setDocumentUrl(String value){documentUrl=value;}
-
 }

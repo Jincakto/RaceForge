@@ -84,13 +84,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
                         .requestMatchers("/api/users/me/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
-<<<<<<< HEAD
                         .requestMatchers(HttpMethod.GET, "/api/users/**").hasAnyAuthority("ADMIN", "CLUB_MANAGER")
                         .requestMatchers("/api/users/**").hasAuthority("ADMIN")
-=======
-                        .requestMatchers("/api/users/**").hasAuthority("ADMIN")
-                        .requestMatchers("/api/registration-requests/**").hasAuthority("ADMIN")
->>>>>>> 76de6e5 (luu code)
                         .anyRequest().access((authentication, context) -> {
                             Object principal = authentication.get().getPrincipal();
                             boolean active = principal instanceof AuthenticatedUser user

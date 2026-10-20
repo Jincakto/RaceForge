@@ -35,7 +35,7 @@ public class TrainingWorkflowGuard {
   requireHealthy(pack.getHorse());return pack;
  }
  public Map<String,Object> medical(Horse horse){
-  var rows=jdbc.queryForList("SELECT TOP 1 mr.*,u.full_name AS veterinarian_name,v.body_temperature,v.resting_heart_rate,v.resting_respiratory_rate,v.weight AS measured_weight,mr.eligibility_reason AS fitness_conclusion,tm.ideal_weight,tm.body_condition_score FROM dbo.Medical_Record mr JOIN dbo.Health_Profile hp ON hp.profile_id=mr.profile_id JOIN dbo.[User] u ON u.user_id=mr.veterinarian_id LEFT JOIN dbo.Medical_Vital_Sign v ON v.medical_record_id=mr.medical_record_id LEFT JOIN dbo.Training_Medical_Context tm ON tm.medical_record_id=mr.medical_record_id WHERE hp.horse_id=? AND mr.status='CONFIRMED' ORDER BY mr.examined_at DESC,mr.confirmed_at DESC,mr.medical_record_id DESC",horse.getHorseId());
+  var rows=jdbc.queryForList("SELECT TOP 1 mr.*,u.full_name AS veterinarian_name,v.body_temperature,v.resting_heart_rate,v.resting_respiratory_rate,v.weight AS measured_weight,mr.final_conclusion AS fitness_conclusion,tm.ideal_weight,tm.body_condition_score FROM dbo.Medical_Record mr JOIN dbo.Health_Profile hp ON hp.profile_id=mr.profile_id JOIN dbo.[User] u ON u.user_id=mr.veterinarian_id LEFT JOIN dbo.Medical_Vital_Sign v ON v.medical_record_id=mr.medical_record_id LEFT JOIN dbo.Training_Medical_Context tm ON tm.medical_record_id=mr.medical_record_id WHERE hp.horse_id=? AND mr.status='CONFIRMED' ORDER BY mr.examined_at DESC,mr.confirmed_at DESC,mr.medical_record_id DESC",horse.getHorseId());
   if(rows.isEmpty())throw new BusinessRuleException("A confirmed medical fitness conclusion is required");return rows.get(0);
  }
  public void requireHealthy(Horse horse){

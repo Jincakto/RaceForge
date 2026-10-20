@@ -18,6 +18,11 @@ public abstract class BusinessEntity {
   Map.entry("Training_Stage","STG-"),
   Map.entry("Training_Recommendation","REC-"),Map.entry("User_External_Login","EXT-"),Map.entry("Training_Protocol","PRO-"),Map.entry("Care_Task","CAR-"),Map.entry("Nutrition_Plan","NUT-"),Map.entry("Supply_Item","SUP-")
  );
+ @PostPersist @PostUpdate
+ protected void ensureIndependentAccountProfile(){
+  if(this instanceof com.raceforge.backend.account.entity.User user && user.getRole()!=null)
+   BusinessIds.ensureRoleProfile(user.getUserId(),user.getRole().getRoleName());
+ }
  @PrePersist
  protected void assignBusinessId(){
   Class<?> type=getClass();while(type!=null&&!type.isAnnotationPresent(Table.class))type=type.getSuperclass();

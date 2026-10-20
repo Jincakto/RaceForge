@@ -51,7 +51,7 @@ class AccountSecurityTest {
         authenticate("ADMIN", "ACTIVE");
         mvc.perform(post("/api/admin/users").header("Authorization", "Bearer token").contentType(MediaType.APPLICATION_JSON).content(BODY))
                 .andExpect(status().isCreated());
-        verify(staff).create(eq("OWN-042"), any());
+        verify(staff).create(eq("USR-542"), any());
     }
 
     @Test void pendingAdminHasNoAdminAuthority() throws Exception {
@@ -82,9 +82,9 @@ class AccountSecurityTest {
     }
 
     private void authenticate(String name, String status) {
-        Role role = new Role(); role.setRoleId("ADMIN".equals(name) ? 7 : 1); role.setRoleName(name);
-        User user = new User(); user.setUserId("OWN-042"); user.setEmail("user@example.com"); user.setRole(role); user.setStatus(status);
-        when(jwt.parse("token")).thenReturn(new AuthenticatedUser("OWN-042", user.getEmail(), status, role.getRoleId(), name));
-        when(users.findDetailedById("OWN-042")).thenReturn(Optional.of(user));
+        Role role = new Role(); role.setRoleId("ADMIN".equals(name) ? "ROL-007" : "ROL-001"); role.setRoleName(name);
+        User user = new User(); user.setUserId("USR-542"); user.setEmail("user@example.com"); user.setRole(role); user.setStatus(status);
+        when(jwt.parse("token")).thenReturn(new AuthenticatedUser("USR-542", user.getEmail(), status, role.getRoleId(), name));
+        when(users.findDetailedById("USR-542")).thenReturn(Optional.of(user));
     }
 }

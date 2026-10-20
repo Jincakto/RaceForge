@@ -12,24 +12,11 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "[User]")
-<<<<<<< HEAD
 public class User extends com.raceforge.backend.common.id.AssignedBusinessEntity {
 
     @Id
     @Column(name = "user_id", length = 20, updatable = false)
     private String userId;
-=======
-public class User extends com.raceforge.backend.common.id.BusinessEntity {
-
-    @Id
-    @Column(name = "user_id")
-    private String userId;
-
-    @jakarta.persistence.OneToMany(mappedBy="user", cascade=jakarta.persistence.CascadeType.ALL)
-    private java.util.List<AccountRoleProfile> roleProfiles = new java.util.ArrayList<>();
-
-    public java.util.List<AccountRoleProfile> getRoleProfiles() { return roleProfiles; }
->>>>>>> 76de6e5 (luu code)
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id", nullable = false)
@@ -70,10 +57,6 @@ public class User extends com.raceforge.backend.common.id.BusinessEntity {
 
     public void setRole(Role role) {
         this.role = role;
-        if (role != null && AccountRoleProfile.supports(role.getRoleName())
-                && roleProfiles.stream().noneMatch(p -> p.getRoleName().equals(role.getRoleName()))) {
-            roleProfiles.add(new AccountRoleProfile(this, role.getRoleName()));
-        }
     }
 
     public String getFullName() {

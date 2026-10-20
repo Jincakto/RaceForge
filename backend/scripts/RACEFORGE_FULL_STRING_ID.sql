@@ -746,6 +746,7 @@ GO
 -- ============================================================
 
 CREATE TABLE Password_Reset_Token (
+    purpose VARCHAR(30) NOT NULL CONSTRAINT DF_PasswordResetToken_Purpose DEFAULT 'PASSWORD_RESET',
     [reset_token_id] VARCHAR(20) NOT NULL,
     [user_id] VARCHAR(20) NOT NULL,
     [token_hash] VARCHAR(64) NOT NULL,

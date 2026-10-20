@@ -23,15 +23,15 @@ class AdmissionMigrationTest {
         }
         Flyway.configure().dataSource(url,user,password).target("9").load().migrate();
         try(Connection c=DriverManager.getConnection(url,user,password);Statement s=c.createStatement()){
-            s.executeUpdate("INSERT dbo.[User](user_id,role_id,full_name,email,status,email_verified) VALUES ('OWN-000',5,N'Owner','owner@example.test','ACTIVE',1),('CM-000',1,N'Manager','cm@example.test','ACTIVE',1),('VET-000',3,N'Vet','vet@example.test','ACTIVE',1)");
-            s.executeUpdate("INSERT dbo.Horse(horse_id,owner_id,horse_name,status) VALUES ('HOR-000','OWN-000',N'Existing horse','ACTIVE')");
+            s.executeUpdate("INSERT dbo.[User](user_id,role_id,full_name,email,status,email_verified) VALUES ('USR-500',5,N'Owner','owner@example.test','ACTIVE',1),('USR-100',1,N'Manager','cm@example.test','ACTIVE',1),('USR-300',3,N'Vet','vet@example.test','ACTIVE',1)");
+            s.executeUpdate("INSERT dbo.Horse(horse_id,owner_id,horse_name,status) VALUES ('HOR-000','USR-500',N'Existing horse','ACTIVE')");
         }
         assertEquals(1,Flyway.configure().dataSource(url,user,password).target("10").load().migrate().migrationsExecuted);
         try(Connection c=DriverManager.getConnection(url,user,password);Statement s=c.createStatement()){
             try(ResultSet rs=s.executeQuery("SELECT a.status,h.horse_name,h.status FROM dbo.Horse_Admission a JOIN dbo.Horse h ON a.horse_id=h.horse_id")){
                 assertTrue(rs.next());assertEquals("NEEDS_REVIEW",rs.getString(1));assertEquals("Existing horse",rs.getString(2));assertEquals("ACTIVE",rs.getString(3));assertFalse(rs.next());
             }
-            String insert="INSERT dbo.Horse_Assignment(horse_id,kind,assigned_by,assignee_id,status,created_at) VALUES ('HOR-000','VET','CM-000','VET-000','PENDING',SYSDATETIME())";
+            String insert="INSERT dbo.Horse_Assignment(horse_id,kind,assigned_by,assignee_id,status,created_at) VALUES ('HOR-000','VET','USR-100','USR-300','PENDING',SYSDATETIME())";
             s.executeUpdate(insert);
             assertThrows(SQLException.class,()->s.executeUpdate(insert));
             assertThrows(SQLException.class,()->s.executeUpdate("UPDATE dbo.Horse_Assignment SET status='REJECTED'"));

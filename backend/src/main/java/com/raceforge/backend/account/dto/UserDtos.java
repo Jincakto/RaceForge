@@ -8,7 +8,7 @@ public final class UserDtos {
             @NotBlank @Size(max = 150) String fullName,
             @NotBlank @jakarta.validation.constraints.Email @Size(max = 255) String email,
             @Size(max = 20) String phone,
-            @jakarta.validation.constraints.NotNull Integer roleId
+            @jakarta.validation.constraints.NotNull String roleId
     ) {
     }
 

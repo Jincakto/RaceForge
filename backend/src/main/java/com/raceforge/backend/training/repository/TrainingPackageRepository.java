@@ -7,5 +7,4 @@ import java.util.List;
 public interface TrainingPackageRepository extends JpaRepository<TrainingPackage, String> {
 
     List<TrainingPackage> findByStatusOrderByPackageNameAsc(String status);
-
 }

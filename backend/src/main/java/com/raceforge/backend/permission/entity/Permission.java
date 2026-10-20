@@ -10,6 +10,7 @@ import jakarta.persistence.Table;
 // Maps to table Permission: permission_id INT IDENTITY, permission_name VARCHAR(100) UNIQUE,
 // description NVARCHAR(500).
 @Entity
+// Legacy mapping: @Table(name = "permission")
 @Table(name = "Permission")
 public class Permission extends com.raceforge.backend.common.id.BusinessEntity {
 

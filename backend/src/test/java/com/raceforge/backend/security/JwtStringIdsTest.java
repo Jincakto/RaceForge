@@ -24,12 +24,12 @@ class JwtStringIdsTest {
     }
     @Test void accessAndPasswordSetupTokensRoundTripStringUserIdAndNumericRole() {
         JwtService jwt=service();
-        User user=new User(); user.setUserId("VET-000"); user.setEmail("vet@example.test"); user.setStatus("ACTIVE");
-        Role role=new Role(); role.setRoleId(3); role.setRoleName("VETERINARIAN"); user.setRole(role);
+        User user=new User(); user.setUserId("USR-300"); user.setEmail("vet@example.test"); user.setStatus("ACTIVE");
+        Role role=new Role(); role.setRoleId("ROL-003"); role.setRoleName("VETERINARIAN"); user.setRole(role);
         AuthenticatedUser parsed=jwt.parse(jwt.createAccessToken(user));
-        assertEquals("VET-000",parsed.userId()); assertEquals(Integer.valueOf(3),parsed.roleId());
+        assertEquals("USR-300",parsed.userId()); assertEquals("ROL-003",parsed.roleId());
         var setup=jwt.parseGooglePasswordSetupToken(jwt.createGooglePasswordSetupToken(user));
-        assertEquals("VET-000",setup.userId());
+        assertEquals("USR-300",setup.userId());
     }
     @Test void numericLegacySubjectIsRejectedEvenWithValidSignature() {
         String token=Jwts.builder().subject("42").issuer("raceforge-test")

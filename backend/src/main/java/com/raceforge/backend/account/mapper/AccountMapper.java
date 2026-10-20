@@ -10,18 +10,6 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class AccountMapper {
-    @org.springframework.beans.factory.annotation.Autowired
-    private org.springframework.jdbc.core.JdbcTemplate jdbc;
-
-    private String profileId(User user) {
-        if (user.getRole() == null) return null;
-        if ("HEAD_TRAINER".equals(user.getRole().getRoleName())) {
-            var ids=jdbc.queryForList("SELECT CONVERT(varchar(20),trainer_id) FROM dbo.Trainer WHERE user_id=?", String.class,user.getUserId());
-            return ids.isEmpty()?null:ids.get(0);
-        }
-        return user.getRoleProfiles().stream().filter(p -> p.getRoleName().equals(user.getRole().getRoleName()))
-                .map(com.raceforge.backend.account.entity.AccountRoleProfile::getProfileId).findFirst().orElse(null);
-    }
 
     public UserResponse toUserResponse(User user) {
         return new UserResponse(
@@ -32,8 +20,7 @@ public class AccountMapper {
                 user.getStatus(),
                 user.isEmailVerified(),
                 user.getAvatarUrl(),
-                toRoleResponse(user.getRole()),
-                profileId(user)
+                toRoleResponse(user.getRole())
         );
     }
 

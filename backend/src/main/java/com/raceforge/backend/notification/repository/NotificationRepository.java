@@ -12,11 +12,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Stri
     List<Notification> findByUserIdOrderByCreatedAtDesc(String userId);
 
     Optional<Notification> findByNotificationIdAndUserId(
-<<<<<<< HEAD
-            Integer notificationId,
-=======
             String notificationId,
->>>>>>> 76de6e5 (luu code)
             String userId
     );
 

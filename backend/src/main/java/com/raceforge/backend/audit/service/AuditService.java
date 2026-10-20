@@ -14,11 +14,7 @@ public class AuditService {
         this.auditLogRepository = auditLogRepository;
     }
 
-<<<<<<< HEAD
     public void record(String actorUserId, String action, String entityType, Object entityId, String result, String reason) {
-=======
-    public void record(String actorUserId, String action, String entityType, String entityId, String result, String reason) {
->>>>>>> 76de6e5 (luu code)
         AuditLog log = new AuditLog();
         log.setUserId(actorUserId);
         log.setAction(action);

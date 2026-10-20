@@ -1,6 +1,7 @@
 package com.raceforge.backend.training.controller;
 
 import com.raceforge.backend.common.response.ApiResponse;
+import com.raceforge.backend.training.dto.SchedulingPackageResponse;
 import com.raceforge.backend.training.dto.AttendSessionRequest;
 import com.raceforge.backend.training.dto.AttendanceResponse;
 import com.raceforge.backend.training.dto.ScheduleRecurringRequest;
@@ -18,55 +19,48 @@ import org.springframework.security.access.prepost.PreAuthorize;
 
 // Shares the /api/training-sessions base path with TrainingSessionController but uses different
 // sub-paths (/recurring, /{id}/attendance, /horse/{id}), so the mappings do not collide.
-@org.springframework.validation.annotation.Validated
 @RestController
 @RequestMapping("/api/training-sessions")
 @Tag(name = "Training Schedule")
 public class TrainingScheduleController {
 
-  @Autowired
-  private TrainingScheduleService trainingScheduleService;
+        @Autowired
+        private TrainingScheduleService trainingScheduleService;
 
-  @PostMapping("/recurring")
-  @PreAuthorize("hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")
-  public ResponseEntity<ApiResponse<List<TrainingSessionResponse>>> createRecurring(
-          @Valid @RequestBody ScheduleRecurringRequest request) {
-      List<TrainingSessionResponse> created = trainingScheduleService.createRecurringSchedule(request);
-      return ResponseEntity.ok(ApiResponse.success("Training schedule created", created));
-  }
+        @PostMapping("/recurring")
+        @PreAuthorize("hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")
+        public ResponseEntity<ApiResponse<List<TrainingSessionResponse>>> createRecurring(
+                        @Valid @RequestBody ScheduleRecurringRequest request) {
+                List<TrainingSessionResponse> created = trainingScheduleService.createRecurringSchedule(request);
+                return ResponseEntity.ok(ApiResponse.success("Training schedule created", created));
+        }
 
-<<<<<<< HEAD
-=======
-  @GetMapping("/horse/{horseId}/scheduling-packages")
-  @PreAuthorize("hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")
-  public ResponseEntity<ApiResponse<List<SchedulingPackageResponse>>> schedulingPackages(
-          @PathVariable String horseId) {
-      return ResponseEntity.ok(ApiResponse.success("Scheduling packages retrieved",
-              trainingScheduleService.getSchedulingPackages(horseId)));
-  }
+        @GetMapping("/horse/{horseId}/scheduling-packages")
+        @PreAuthorize("hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")
+        public ResponseEntity<ApiResponse<List<SchedulingPackageResponse>>> schedulingPackages(
+                        @PathVariable String horseId) {
+                return ResponseEntity.ok(ApiResponse.success("Scheduling packages retrieved",
+                                trainingScheduleService.getSchedulingPackages(horseId)));
+        }
 
->>>>>>> 76de6e5 (luu code)
-  @PutMapping("/{sessionId}/attendance")
-  @PreAuthorize("hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")
-  public ResponseEntity<ApiResponse<AttendanceResponse>> submitAttendance(
-          @PathVariable String sessionId,
-          @Valid @RequestBody AttendSessionRequest request,
-          @AuthenticationPrincipal AuthenticatedUser user) {
-      AttendanceResponse response = trainingScheduleService.submitAttendance(sessionId, request, user.userId());
-      String message = response.isWarningTriggered()
-              ? "Attendance recorded, performance warning triggered"
-              : "Attendance recorded";
-      return ResponseEntity.ok(ApiResponse.success(message, response));
-  }
+        @PutMapping("/{sessionId}/attendance")
+        @PreAuthorize("hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")
+        public ResponseEntity<ApiResponse<AttendanceResponse>> submitAttendance(
+                        @PathVariable String sessionId,
+                        @Valid @RequestBody AttendSessionRequest request,
+                        @AuthenticationPrincipal AuthenticatedUser user) {
+                AttendanceResponse response = trainingScheduleService.submitAttendance(sessionId, request,
+                                user.userId());
+                String message = response.isWarningTriggered()
+                                ? "Attendance recorded, performance warning triggered"
+                                : "Attendance recorded";
+                return ResponseEntity.ok(ApiResponse.success(message, response));
+        }
 
-  @GetMapping("/horse/{horseId}")
-  @PreAuthorize("@permissionAccess.canReadHorse(authentication, #p0)")
-<<<<<<< HEAD
-  public ResponseEntity<ApiResponse<List<TrainingSessionResponse>>> getByHorse(@PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
-=======
-  public ResponseEntity<ApiResponse<List<TrainingSessionResponse>>> getByHorse(@PathVariable String horseId) {
->>>>>>> 76de6e5 (luu code)
-      return ResponseEntity.ok(ApiResponse.success(
-              "Training schedule retrieved", trainingScheduleService.getScheduleByHorseId(horseId)));
-  }
+        @GetMapping("/horse/{horseId}")
+        @PreAuthorize("@permissionAccess.canReadHorse(authentication, #p0)")
+        public ResponseEntity<ApiResponse<List<TrainingSessionResponse>>> getByHorse(@PathVariable String horseId) {
+                return ResponseEntity.ok(ApiResponse.success(
+                                "Training schedule retrieved", trainingScheduleService.getScheduleByHorseId(horseId)));
+        }
 }

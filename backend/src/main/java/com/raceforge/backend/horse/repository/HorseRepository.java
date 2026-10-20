@@ -16,7 +16,6 @@ public interface HorseRepository extends JpaRepository<Horse, String> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT h FROM Horse h WHERE h.horseId = :horseId")
-<<<<<<< HEAD
     Optional<Horse> findByIdForUpdate(@Param("horseId") String horseId);
 
     @Query("""
@@ -28,9 +27,4 @@ public interface HorseRepository extends JpaRepository<Horse, String> {
 
     @Query(value = "SELECT NEXT VALUE FOR dbo.Horse_Id_Sequence", nativeQuery = true)
     Long nextHorseNumber();
-=======
-    Optional<Horse> findByIdForUpdate(
-            @Param("horseId") String horseId
-    );
->>>>>>> 76de6e5 (luu code)
 }

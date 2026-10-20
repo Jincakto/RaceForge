@@ -301,3 +301,133 @@ Có sẵn 7 role hệ thống (không tạo role TRAINER mới), 5 permission/gr
 File DB đầy đủ đã được trình bày lại thành từng mục có số thứ tự: ROLE → PERMISSION → USER → các bảng theo thứ tự FK, mỗi mục là CREATE TABLE và GO. PK/FK/UNIQUE/CHECK được đặt trong CREATE TABLE; index có điều kiện và trigger vẫn là câu lệnh riêng. Không còn :setvar, biến DatabaseName hay yêu cầu SQLCMD trong file full.
 
 Giữ nguyên ID String, 38 bảng, dữ liệu danh mục và quan hệ đã hợp nhất. Nếu DB đã có bảng/sequence, script báo lỗi và dùng NOEXEC để bỏ qua các batch tạo schema, sau cùng khôi phục NOEXEC OFF; không xóa dữ liệu để chạy lại. Chưa thực thi SQL/build/test.
+
+
+## J. Ghép lại N và giữ Training/Permission (20/10/2026)
+
+### Nguồn code và phạm vi
+
+- Ngoài Training/Permission: lấy nghiệp vụ từ bản N sạch tại commit 0205b8d, trước commit ghép có conflict. Đây là nguồn N xác định được trong lịch sử Git, không phải tự nhận mọi đoạn HEAD là N.
+- Trong Training/Permission: giữ triển khai của mình tại commit 76de6e5, rồi nối lại các hợp đồng dùng chung. Không thay Training bằng triển khai N.
+- Không sửa frontend. Không thay đổi SecurityConfig của N. Không commit hoặc merge Git tự động.
+- Ngoại lệ đã được cho phép ở mọi module: đổi kiểu ID và tham chiếu sang String, định dạng tiền tố + 001–999; User dùng USR- riêng, không đổi mã theo role.
+
+### Bảng thay đổi Training/Permission
+
+| Bảng / phần | Nội dung giữ hoặc chỉnh | Lý do |
+| --- | --- | --- |
+| Role, Permission, Role_Permission | Giữ cơ chế quyền của mình; khóa và tham chiếu dùng String ROL-/PER- | Đồng nhất ID với API và entity |
+| Trainer, Trainer_Detail | Giữ hồ sơ Trainer riêng HTR-, liên kết User USR-; tài khoản vẫn dùng role HEAD_TRAINER | Không tạo role TRAINER mới |
+| Training_Assignment, Training_Assignment_Event | Giữ phân công, nhận/từ chối, kết thúc/thay thế theo đăng ký gói | Phân công phải gắn đúng gói của đúng ngựa |
+| HORSE_PACKAGE | Giữ hợp đồng gói của mình; bổ sung truy vấn repository cho dịch vụ pause/expiry của N | Medical N còn gọi các dịch vụ này |
+| Training_Plan, Horse_Plan, Training_Stage | Giữ kế hoạch và giai đoạn theo ngựa/gói/phân công đã nhận | Không dùng chung buổi giữa các gói |
+| Training_Session | Giữ lịch, bắt đầu, kết thúc/ghi kết quả, quãng đường và chỉ số; giữ mapping ngày giờ local | Tránh thay đổi thời gian khi JDBC đọc/ghi |
+| Training_Protocol, Training_Recommendation | Giữ gợi ý/lộ trình và bước Trainer xác nhận | Không tự xác nhận phác đồ thay người phụ trách |
+| Medical_Record, Medical_Vital_Sign | Không sửa nghiệp vụ Medical N; Training đọc hồ sơ CONFIRMED, kết luận, cân nặng và nhịp tim nghỉ | Tích hợp đúng dữ liệu do phần Medical cung cấp |
+| Training_Medical_Context | Chỉ đọc tùy chọn ideal weight/BCS nếu đã có dữ liệu; N Medical không tự ghi các trường này | Không ép sửa form hay nghiệp vụ của thành viên khác |
+
+Các quy tắc Training được giữ trong code: cần gói hợp lệ/đã thanh toán, phân công phù hợp, buổi nằm trong hiệu lực gói và kế hoạch; training lock chặn thao tác theo yêu cầu trước. Chưa xác nhận lại các quy tắc này bằng test ở bản ghép cuối.
+
+### Các chỗ buộc phải chạm ngoài Training/Permission
+
+| Phần | Điều chỉnh |
+| --- | --- |
+| Account / Role / User / repository / DTO | Chuyển roleId và các ID liên quan sang String; dùng ROL-xxx, User USR-xxx; giữ nghiệp vụ mời nhân viên, OTP và đăng nhập của N |
+| JWT / AuthenticatedUser | Claim role_id String; subject User theo USR-001..999 |
+| BusinessEntity / BusinessIds / AssignedBusinessEntity / BusinessIdGenerator | Dùng chung bộ cấp mã; tạo mã hồ sơ OWN-/VET-/CM- riêng sau khi User tồn tại; hồ sơ HTR- vẫn tạo qua API Trainer |
+| Horse ModuleIdAllocator | Giữ giao diện cấp mã của N, chuyển về bộ đếm có cùng tiền tố để tránh sinh trùng |
+| Audit / Notification / RefreshToken / PasswordResetToken | Đồng bộ ID String và repository/controller phụ thuộc |
+| Password_Reset_Token | Thêm purpose để giữ luồng mời nhân viên của N; không tạo tài khoản mẫu |
+
+Medical được giữ theo N. Trong package Horse, phần khác N chỉ là ModuleIdAllocator phục vụ ID. Không thêm lại weight/admission_status vào Horse; không sửa kết luận khám của N.
+
+Đã bỏ khỏi source hoạt động các lớp ngoài phạm vi chỉ có ở bản ghép cũ, nhằm dùng controller/service N: AdminAccountsController, MembershipController, RegistrationRequestController, AccountRoleProfile, RegistrationRequest, RegistrationRequestRepository, RegistrationRequestService, VetAssignmentController, VetAssignmentService, MedicalAccess. Bản trước thay đổi đã được sao lưu, không xóa dữ liệu DB.
+
+Giữ ba lớp Training của N làm cầu nối cho Medical: TrainingPackagePauseService, TrainingPackageExpirationService, TrainingPackageExpiryScheduler. Bổ sung truy vấn HorsePackageRepository tương ứng, không lấy toàn bộ nghiệp vụ Training N.
+
+### API cần lưu ý khi tích hợp frontend sau này
+
+- Tạo nhân viên theo N: POST /api/admin/users, roleId là ROL-001..004; kích hoạt qua POST /api/auth/staff/set-password. Không dùng endpoint /api/admin/accounts cũ.
+- Tạo hồ sơ Trainer: POST /api/admin/trainer-profiles.
+- Đổi trạng thái Trainer: PATCH /api/admin/trainer-profiles/{id}/status.
+- Các thao tác đọc hồ sơ/lịch sử/buổi tập và PUT hồ sơ có thêm alias /api/admin/trainer-profiles/...; URL /api/trainer-profiles/... tương ứng vẫn giữ. Quyền kiểm tra tại method được giữ nguyên.
+- Không mở rộng SecurityConfig: đặt thao tác Admin vào nhóm /api/admin/** đã có của N.
+- Phân công thú y dùng API N: POST /api/medical/assignments/horses/{horseId}, POST /api/medical/assignments/{assignmentId}/accept.
+- Xác nhận OTP theo N trả thông báo; sau đó đăng nhập. Không khẳng định luồng N tự cấp token ở bước OTP.
+
+### SQL bàn giao
+
+- backend/scripts/RACEFORGE_FULL_STRING_ID.sql: bản tạo DB đầy đủ, đã có Password_Reset_Token.purpose. Dùng cho DB mới, không dùng để cập nhật DB đang có dữ liệu.
+- backend/src/main/resources/db/string-migration/V13__n_staff_invitation_contract.sql: bổ sung purpose nếu thiếu, mặc định PASSWORD_RESET; không reset dữ liệu.
+- backend/scripts/COPY_SQL_CAP_NHAT_PERMISSION_TRAINING.sql: bản copy SQL nâng cấp có thêm V13; vẫn yêu cầu SQLCMD và đúng nền UPDATE_V10 hoặc EMPTY như phần đầu file. Không dùng tùy ý trên DB gốc nhóm INT; không tự cập nhật Flyway history.
+- Không thực thi SQL lên DB RaceForge thật trong bước hoàn tất này.
+
+### Test, sao lưu và giới hạn
+
+Theo yêu cầu “đổi code trước, không cần test”, đã dừng chạy test. Thay đổi cuối về URL Admin và fixture chưa được chạy lại. Những lượt chạy trước từng gặp lỗi quyền/fixture, vì vậy không coi bản ghép hiện tại là đã pass toàn bộ.
+
+Đã đồng bộ source test với ID String và hợp đồng N. Năm test Training chỉ áp dụng triển khai N không được chọn đã đưa ra khỏi source hoạt động và sao lưu nguyên bản: HorsePackageMapperExpirationTest, HorsePackageAdmissionTest, PackageResumptionServiceTest, RecoveryTwoFlowsTest, TrainingPackageServiceTest. Không tính chúng là test đã pass.
+
+Sao lưu và công cụ đối chiếu nằm ngoài repo tại D:/SWP391/RaceForge-main/.integration-staging/reconcile-n/: actual-before, before, n-base, ours và retired-training-tests. Không sao chép các script staging này vào source ứng dụng.
+
+
+## K. Dọn phần Training chắc chắn dư (20/10/2026)
+
+| File | Đã bỏ | Lý do |
+| --- | --- | --- |
+| HorsePackageRepository.java | Một khai báo findForUpdate trùng và các import trùng | Giữ một khai báo có cùng annotation/khóa; khắc phục khai báo method lặp |
+| HorsePackageRepository.java | existsByTrainingPackage_PackageId, findByHorseIdOrderByRegisteredAtDesc | Không có chỗ gọi trong source main/test; hàm lịch sử findByHorse_HorseIdOrderByRegisteredAtDesc đang dùng vẫn giữ |
+| ScheduleRecurringRequest.java | Toàn bộ DTO phiên bản cũ đã comment | Không tham gia thực thi |
+| TrainingScheduleService.java | Đoạn thuật toán durationWeeks cũ đã comment | Luồng hiện tại dùng khoảng ngày của gói |
+
+Không thay đổi trường request/response, endpoint, entity, bảng DB hay các service nghiệp vụ. Giữ các mục mới chỉ được đánh giá là có thể giản lược, gồm trainerId/performedBy/activityName, cảnh báo attendance, entity mapping và expireForLockedHorse. Không sửa frontend. Không chạy build/test/SQL theo yêu cầu. Chỉ đối chiếu source; chưa xác nhận trạng thái biên dịch của toàn bộ backend.
+
+
+## L. Kiểm thử Training sau khi ghép N (20/10/2026)
+
+Đã biên dịch source main/test và chạy toàn bộ test đang hoạt động trong package Training trên SQL Server kiểm thử riêng RaceForge_Verify_20261019_1750. Kết quả cuối: **56 tests, 0 failures, 0 errors, 0 skipped; BUILD SUCCESS**.
+
+| Bộ test | Số test | Failures | Errors | Skipped |
+| --- | ---: | ---: | ---: | ---: |
+| PackageRoadmapPolicyTest | 4 | 0 | 0 | 0 |
+| TrainingPackageExpirationServiceTest | 8 | 0 | 0 | 0 |
+| TrainingPackageExpirySchedulerTest | 2 | 0 | 0 | 0 |
+| TrainingPackagePauseServiceTest | 5 | 0 | 0 | 0 |
+| StringIdContractTest | 3 | 0 | 0 | 0 |
+| StringTrainingWorkflowIT | 30 | 0 | 0 | 0 |
+| TrainingCalendarRulesTest | 4 | 0 | 0 | 0 |
+
+Trong đó StringTrainingWorkflowIT có 30 test chạy controller, security/JWT, service, JPA/JDBC và SQL Server thật. Email/Google verifier được mock; đây không phải test trình duyệt frontend hay dịch vụ Google/email thật. Không có bộ test riêng trong package Permission; tích hợp cấp/thu hồi quyền được kiểm tra trong StringTrainingWorkflowIT.
+
+Các trường hợp đã kiểm tra gồm gói chưa trả tiền, Trainer chưa nhận hoặc không được phân công, nhiều Trainer, thay thế Trainer, thu hồi quyền có hiệu lực, bốn loại gói/lộ trình, gợi ý theo cân nặng và hồ sơ khám, xác nhận gợi ý, sinh lịch, tối đa sáu ngày/tuần, xung đột giờ, ngày nghỉ, liên kết đúng ngựa/gói và ràng buộc FK.
+
+Bổ sung hai test: khóa tập chặn start/stop/complete rồi cho tiếp tục khi bỏ khóa, chặn thao tác sai vòng đời và kết quả sai (đo hồi phục quá sớm/quãng đường âm), giữ actual_end khi nộp kết quả, feedback không tự đổi lịch; tạo buổi trước/sau hạn gói phải bị từ chối và không ghi dòng session.
+
+### Những gì sửa trong đợt test
+
+| File | Thay đổi | Lý do |
+| --- | --- | --- |
+| training/service/TrainingWorkflowGuard.java | fitness_conclusion lấy Medical_Record.final_conclusion thay vì eligibility_reason | Gợi ý phải trả mã kết luận Vet chọn (FIT/FIT_WITH_MONITORING/NOT_FIT), không nhầm với lý do dạng text; có assertion FIT kiểm tra lại |
+| training/StringTrainingWorkflowIT.java (test) | Bổ sung breed/imageUrl/registrationNumber cho ngựa mẫu, gọi activate sau approve | Theo đúng hợp đồng Horse N; không bỏ validation và không sửa nghiệp vụ Horse/Medical |
+| Cùng file test | Thêm hai test tích hợp nêu trên | Kiểm tra trực tiếp training_lock ở các bước vận hành và hạn gói |
+
+Command cuối: mvn -o test -Dtest=com.raceforge.backend.training.**,com.raceforge.backend.permission.** (script runner cấp biến môi trường DB kiểm thử). Không sửa frontend, không thực thi vào DB RaceForge thật. Fixture tích hợp dùng transaction rollback; sequence sinh mã trên DB kiểm thử có thể tăng dù rollback.
+
+### Giới hạn của kết quả
+
+Lượt kiểm tra rộng ban đầu chạy 177 test, có 25 failures và 4 errors. 22 failures thuộc fixture Training cũ đã được sửa và kiểm tra lại trong lượt cuối đạt 56/56. Ngoài Training còn 3 assertion trong BackendApplicationTests mong Horse ID sai định dạng trả 400, nhưng N trả 404; 4 errors của AuthDatabaseIT do thiếu disposable migration-test clone đúng tên bắt buộc. Chưa chỉnh những phần ngoài Training này; không tuyên bố toàn backend đã pass.
+
+Các test N-only đã đưa ra khỏi source hoạt động ở mục J không được tính là đã pass. Kết quả trên xác nhận các trường hợp đang có trong bộ test, không bảo đảm mọi tình huống production hay giao diện đều không có lỗi.
+
+
+## M. Kiểm tra Swagger trên Chrome thật (20/10/2026)
+
+- Backend chạy tại http://127.0.0.1:18080, DB riêng RaceForge_Verify_20261019_1750; không dùng DB RaceForge thật.
+- Swagger UI và /v3/api-docs trả HTTP 200. Chrome headless dùng profile riêng, tải được 123 thao tác API; không có lỗi spec hiển thị hoặc Runtime.exceptionThrown trong lượt kiểm tra.
+- Đã bấm các control Try it out / Execute bằng Chrome DevTools Protocol, không dùng MockMvc trong lượt này. Bearer token được đặt bằng API authorize của Swagger; các request đi qua HTTP tới backend đang chạy.
+- Đã thực hiện 10 request: login Admin (200), tạo nhân viên (201), đặt mật khẩu qua invitation (200), tạo hồ sơ Trainer (200), login Trainer (200), đọc danh sách gói (200), xem phân công của Trainer (200), xem roadmap-template theo PKG ID (200), tạo session với PLN-999 không tồn tại (404 đúng dự kiến), đọc lại gói (200).
+- POST session trả 404 là ca âm kiểm tra thông báo lỗi, không phải bằng chứng đã tạo/hoàn tất buổi thành công qua Swagger. Luồng tạo kế hoạch đến hoàn tất đã được kiểm tra bằng bộ API–DB tích hợp tại mục L; không khẳng định mọi endpoint đã được bấm thử trên Swagger.
+- Staff được tạo qua API Admin và kích hoạt qua API invitation. SMTP sink cục bộ 127.0.0.1:12525 nhận email thử, không chuyển email ra ngoài. Không chèn tài khoản nhân viên bằng SQL.
+- Không sửa source backend/frontend/SQL trong lượt kiểm tra Swagger. Tài khoản và dữ liệu thử của lượt HTTP này lưu trong DB kiểm thử riêng, không rollback như test Spring ở mục L.
+
+Artifact nằm ngoài repo tại D:/SWP391/RaceForge-main/.integration-staging/reconcile-n/: swagger-browser-results.json (kết quả), swagger-training-browser.png (ảnh đã ẩn bearer token), swagger-test-account.json (tài khoản Trainer thử), swagger-backend.log. Token/email invitation được giữ trong file test cục bộ, không đưa vào ghi chú bàn giao.

@@ -8,6 +8,12 @@ import com.raceforge.backend.common.exception.BusinessRuleException;
 public class BusinessIds {
  private static JdbcTemplate jdbc;
  public BusinessIds(JdbcTemplate template){jdbc=template;}
+ public static void ensureRoleProfile(String userId,String roleName){
+  String prefix=switch(roleName){case "HORSE_OWNER"->"OWN-";case "VETERINARIAN"->"VET-";case "CLUB_MANAGER"->"CM-";default->null;};
+  if(prefix==null)return;
+  Integer existing=jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Account_Role_Profile WITH(UPDLOCK,HOLDLOCK) WHERE user_id=? AND role_name=?",Integer.class,userId,roleName);
+  if(existing!=null&&existing==0)jdbc.update("INSERT dbo.Account_Role_Profile(profile_id,user_id,role_name) VALUES(?,?,?)",next(prefix),userId,roleName);
+ }
  public static String next(String prefix){
   if(jdbc==null)throw new IllegalStateException("ID generator not initialized");
   if("HOR-".equals(prefix)){

@@ -151,7 +151,7 @@ try {
     await page.getByPlaceholder('000000').fill('123456');
     await page.getByRole('button', { name: /Xác nhận|Confirm/ }).click();
     await waitForCall(requests, '/api/auth/verify-email', 'POST');
-    assert.equal(requests.find(r => r.p === '/api/auth/register').body.requestedRoleId, undefined);
+    assert.equal(requests.find(r => r.p === '/api/auth/register').body.requestedRoleId, 5, 'Public signup must request Horse Owner role only');
     assert.equal(requests.find(r => r.p === '/api/auth/verify-email').body.otp, '123456');
   }, false);
   await scenario('HORSE_OWNER', async (page, requests) => {

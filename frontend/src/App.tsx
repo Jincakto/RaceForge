@@ -433,7 +433,8 @@ function RegisterPage({ navigate, onRegister }: { navigate: (p: Page) => void; o
     if (form.password !== form.confirm) { setError("Passwords do not match"); return; }
     if (form.password.length < 8) { setError("Password must contain at least 8 characters"); return; }
     setBusy(true); setError('');
-    try { await api('/api/auth/register', 'POST', { fullName: form.name.trim(), email: form.email.trim(), phone: form.phone, password: form.password }); setShowOtp(true); }
+    // Public signup is restricted to Horse Owner. Staff roles are created by Admin.
+    try { await api('/api/auth/register', 'POST', { fullName: form.name.trim(), email: form.email.trim(), phone: form.phone, password: form.password, requestedRoleId: 5 }); setShowOtp(true); }
     catch (error) { setError(error instanceof Error ? error.message : 'Registration failed'); }
     finally { setBusy(false); }
   };

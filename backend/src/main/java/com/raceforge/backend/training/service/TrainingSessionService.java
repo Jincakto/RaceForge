@@ -157,12 +157,10 @@ public class TrainingSessionService {
     }
 
     private void captureRestingHeartRate(TrainingSession session){
-        var rows=jdbc.queryForList("SELECT TOP 1 mr.medical_record_id,mr.examined_at,v.resting_heart_rate FROM dbo.Medical_Record mr JOIN dbo.Health_Profile hp ON hp.profile_id=mr.profile_id JOIN dbo.Medical_Vital_Sign v ON v.medical_record_id=mr.medical_record_id WHERE hp.horse_id=? AND mr.status='CONFIRMED' AND v.resting_heart_rate IS NOT NULL ORDER BY mr.examined_at DESC,mr.confirmed_at DESC,mr.medical_record_id DESC",session.getHorse().getHorseId());
-        if(!rows.isEmpty()){
-            var row=rows.get(0);session.setRestingHeartRate(((Number)row.get("resting_heart_rate")).intValue());
-            session.setRestingMedicalRecordId((String)row.get("medical_record_id"));
-            session.setRestingMeasuredAt(((java.sql.Timestamp)row.get("examined_at")).toLocalDateTime());
-        }
+        var medical=workflowGuard.medical(session.getHorse());
+        session.setRestingHeartRate((Integer)medical.get("resting_heart_rate"));
+        session.setRestingMedicalRecordId((String)medical.get("medical_record_id"));
+        session.setRestingMeasuredAt((LocalDateTime)medical.get("examined_at"));
     }
 
     private static void requireBpm(Integer value,String field){

@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Single-club system: no club_id anywhere here. Roles and permissions use String ids (role_id,
+ * Single-club system: no club_id anywhere here. Roles and permissions use Integer ids (role_id,
  * permission_id) like the database; the API still accepts role/permission names and resolves
  * them to ids here.
  *

@@ -25,8 +25,8 @@ public class HorsePackageMapper {
                 entity.getEndDate(),
                 displayedRemainingDays(entity),
                 entity.getReplacedHorsePackage() == null
-                        ? null : entity.getReplacedHorsePackage().getHorsePackageId()
-        );
+                        ? null
+                        : entity.getReplacedHorsePackage().getHorsePackageId());
     }
 
     /** ACTIVE counts down live; PAUSED shows frozen days; COMPLETED is zero. */

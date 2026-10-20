@@ -5,7 +5,7 @@ import com.raceforge.backend.notification.entity.Notification;
 import java.time.Instant;
 
 public record NotificationResponse(
-        String notificationId,
+        Integer notificationId,
         String notificationType,
         String title,
         String message,

@@ -11,11 +11,12 @@ import jakarta.persistence.Table;
 // description NVARCHAR(500).
 @Entity
 @Table(name = "Permission")
-public class Permission extends com.raceforge.backend.common.id.BusinessEntity {
+public class Permission {
 
   @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
   @Column(name = "permission_id")
-  private String permissionId;
+  private Integer permissionId;
 
   @Column(name = "permission_name", nullable = false, unique = true, length = 100)
   private String permissionName;
@@ -31,11 +32,11 @@ public class Permission extends com.raceforge.backend.common.id.BusinessEntity {
       this.description = description;
   }
 
-  public String getPermissionId() {
+  public Integer getPermissionId() {
       return permissionId;
   }
 
-  public void setPermissionId(String permissionId) {
+  public void setPermissionId(Integer permissionId) {
       this.permissionId = permissionId;
   }
 

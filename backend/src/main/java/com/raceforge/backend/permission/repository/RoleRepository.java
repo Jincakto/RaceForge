@@ -10,7 +10,7 @@ import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
 
 @Repository("permissionRoleRepository")
-public interface RoleRepository extends JpaRepository<Role, String> {
+public interface RoleRepository extends JpaRepository<Role, Integer> {
 
   Optional<Role> findByRoleName(String roleName);
 

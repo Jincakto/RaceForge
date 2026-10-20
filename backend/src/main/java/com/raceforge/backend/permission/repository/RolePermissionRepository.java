@@ -7,5 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface RolePermissionRepository extends JpaRepository<RolePermission, RolePermissionId> {
 
-  List<RolePermission> findById_RoleId(String roleId);
+  List<RolePermission> findById_RoleId(Integer roleId);
 }

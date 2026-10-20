@@ -1,14 +1,11 @@
 package com.raceforge.backend.training.dto;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.NotEmpty;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.Set;
 
-/** Schedule within the registered package period; dates are not supplied as a week count. */
+/** The date range comes from the registered horse package, never from client week counts. */
 public class ScheduleRecurringRequest {
     @NotNull private String planId;
     private String horseId;

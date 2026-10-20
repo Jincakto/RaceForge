@@ -32,16 +32,11 @@ public class HorseController {
         this.horseAccess = horseAccess;
     }
 
-    @org.springframework.security.access.prepost.PreAuthorize("hasAuthority('HORSE_OWNER') and #ownerId == authentication.principal.userId")
     @PostMapping
     @PreAuthorize("hasAuthority('HORSE_OWNER')")
     public ResponseEntity<ApiResponse<HorseResponse>> createHorse(
-<<<<<<< HEAD
             @RequestParam(required = false) String ownerId,
             @AuthenticationPrincipal AuthenticatedUser actor,
-=======
-            @RequestParam String ownerId,
->>>>>>> 76de6e5 (luu code)
             @Valid @RequestBody HorseCreateRequest request) {
 
         if (ownerId != null && !ownerId.equals(actor.userId())) {
@@ -66,35 +61,17 @@ public class HorseController {
     }
 
     @GetMapping("/{horseId}")
-<<<<<<< HEAD
     @PreAuthorize("@horseAccess.read(authentication, #horseId)")
     public ResponseEntity<ApiResponse<HorseResponse>> getHorseById(@PathVariable String horseId) {
         return ResponseEntity.ok(ApiResponse.success(
                 "Horse retrieved successfully", horseService.getHorseById(horseId)));
-=======
-    public ResponseEntity<ApiResponse<HorseResponse>> getHorseById(
-            @PathVariable String horseId) {
-
-        HorseResponse horse =
-                horseService.getHorseById(horseId);
-
-        return ResponseEntity.ok(
-                ApiResponse.success(
-                        "Horse retrieved successfully",
-                        horse
-                )
-        );
->>>>>>> 76de6e5 (luu code)
     }
 
     @PutMapping("/{horseId}")
     @PreAuthorize("@horseAccess.owns(authentication, #horseId)")
     public ResponseEntity<ApiResponse<HorseResponse>> updateHorse(
             @PathVariable String horseId,
-<<<<<<< HEAD
             @AuthenticationPrincipal AuthenticatedUser actor,
-=======
->>>>>>> 76de6e5 (luu code)
             @Valid @RequestBody HorseUpdateRequest request) {
 
         return ResponseEntity.ok(ApiResponse.success(
@@ -104,12 +81,8 @@ public class HorseController {
     @PatchMapping("/{horseId}/activate")
     @PreAuthorize("hasAuthority('CLUB_MANAGER')")
     public ResponseEntity<ApiResponse<HorseResponse>> activateHorse(
-<<<<<<< HEAD
             @PathVariable String horseId,
             @AuthenticationPrincipal AuthenticatedUser actor) {
-=======
-            @PathVariable String horseId) {
->>>>>>> 76de6e5 (luu code)
 
         return ResponseEntity.ok(ApiResponse.success(
                 "Horse activated successfully", horseService.activateHorse(horseId, actor.userId())));
@@ -118,12 +91,8 @@ public class HorseController {
     @PatchMapping("/{horseId}/deactivate")
     @PreAuthorize("hasAuthority('CLUB_MANAGER')")
     public ResponseEntity<ApiResponse<HorseResponse>> deactivateHorse(
-<<<<<<< HEAD
             @PathVariable String horseId,
             @AuthenticationPrincipal AuthenticatedUser actor) {
-=======
-            @PathVariable String horseId) {
->>>>>>> 76de6e5 (luu code)
 
         return ResponseEntity.ok(ApiResponse.success(
                 "Horse deactivated successfully", horseService.deactivateHorse(horseId, actor.userId())));

@@ -3,11 +3,11 @@ package com.raceforge.backend.training.controller;
 import com.raceforge.backend.common.response.ApiResponse;
 import com.raceforge.backend.training.dto.TrainingPlanCreateRequest;
 import com.raceforge.backend.training.dto.TrainingPlanResponse;
-import com.raceforge.backend.training.dto.TrainingPlanOptionResponse;
-import java.util.List;
 import com.raceforge.backend.training.service.TrainingPlanService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import com.raceforge.backend.training.dto.TrainingPlanOptionResponse;
+import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,14 +27,14 @@ public class TrainingPlanController {
 
   @GetMapping
   public ResponseEntity<ApiResponse<List<TrainingPlanOptionResponse>>> list(
-          @PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
+          @PathVariable String horseId) {
       return ResponseEntity.ok(ApiResponse.success("Horse training plans retrieved",
               trainingPlanService.getPlansForHorse(horseId)));
   }
 
   @PostMapping
   public ResponseEntity<ApiResponse<TrainingPlanResponse>> create(
-          @PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId,
+          @PathVariable String horseId,
           @Valid @RequestBody TrainingPlanCreateRequest request,
           @AuthenticationPrincipal AuthenticatedUser user) {
 

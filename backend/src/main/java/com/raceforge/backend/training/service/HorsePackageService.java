@@ -200,7 +200,7 @@ public class HorsePackageService {
         return mapper.toResponse(saved);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<HorsePackageResponse> history(String horseId, String ownerId) {
         requireOwnerId(ownerId);
         Horse horse = horseRepository.findById(horseId)

@@ -4,7 +4,7 @@ public record AuthenticatedUser(
         String userId,
         String email,
         String status,
-        String roleId,
+        Integer roleId,
         String roleName
 ) {
 }

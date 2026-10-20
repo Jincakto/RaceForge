@@ -3,10 +3,10 @@ package com.raceforge.backend.training.service;
 import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.repository.HorseRepository;
-import com.raceforge.backend.training.dto.TrainingPlanCreateRequest;
-import com.raceforge.backend.training.dto.TrainingPlanResponse;
 import com.raceforge.backend.training.dto.TrainingPlanOptionResponse;
 import java.util.List;
+import com.raceforge.backend.training.dto.TrainingPlanCreateRequest;
+import com.raceforge.backend.training.dto.TrainingPlanResponse;
 import com.raceforge.backend.training.entity.HorsePlan;
 import com.raceforge.backend.training.entity.HorsePlanId;
 import com.raceforge.backend.training.entity.TrainingPlan;
@@ -19,8 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TrainingPlanService {
-  @Autowired
-  private com.raceforge.backend.horse.admission.AdmissionService admission;
 
   @Autowired private TrainingWorkflowGuard workflowGuard;
   @Autowired private PackageRoadmapPolicy packageRoadmaps;
@@ -59,7 +57,6 @@ public class TrainingPlanService {
       }
       Horse horse = horseRepository.findById(horseId)
               .orElseThrow(() -> new ResourceNotFoundException("Horse not found: " + horseId));
-      admission.requireCompleted(horseId);
 
       var pack=workflowGuard.assignment(request.getAssignmentId(),horseId);
       java.util.List<com.raceforge.backend.training.dto.TrainingWorkflowDtos.Stage> stages=request.getStages();

@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 // Training SQL TIME/DATETIME2 values are local wall times, shared with JDBC queries.
 // Use JDBC 4.2 java.time binding so hibernate.jdbc.time_zone does not shift them.
 @Entity @Table(name="Training_Stage")
-public class TrainingStage extends com.raceforge.backend.common.id.BusinessEntity {
+public class TrainingStage extends com.raceforge.backend.training.support.TrainingEntity {
  @Id @Column(name="stage_id",length=20) private String stageId;
  @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="plan_id",nullable=false) private TrainingPlan plan;
  @Column(name="stage_order") private int stageOrder;

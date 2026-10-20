@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "Training_Lock")
-public class TrainingLock extends com.raceforge.backend.common.id.BusinessEntity {
+public class TrainingLock {
     @Id
     @Column(name = "lock_id", length = 20)
     private String lockId;

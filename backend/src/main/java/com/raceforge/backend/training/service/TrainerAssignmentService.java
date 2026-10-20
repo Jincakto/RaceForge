@@ -10,22 +10,35 @@ import java.util.*;
 @Service @Transactional
 public class TrainerAssignmentService {
  private final JdbcTemplate jdbc; private final TrainingWorkflowGuard guard; private final AuditLogService audit;
- public TrainerAssignmentService(JdbcTemplate jdbc,TrainingWorkflowGuard guard,AuditLogService audit){this.jdbc=jdbc;this.guard=guard;this.audit=audit;}
- private static final String PROFILE="SELECT p.trainer_id,p.user_id,d.bio,d.qualifications,d.status,d.created_at,u.full_name,u.email FROM dbo.Trainer p JOIN dbo.Trainer_Detail d ON d.trainer_id=p.trainer_id JOIN dbo.[User] u ON u.user_id=p.user_id";
+ private final com.raceforge.backend.account.repository.UserRepository users;
+ private final com.raceforge.backend.horse.repository.TrainerRepository trainers;
+ public TrainerAssignmentService(JdbcTemplate jdbc,TrainingWorkflowGuard guard,AuditLogService audit,
+   com.raceforge.backend.account.repository.UserRepository users,com.raceforge.backend.horse.repository.TrainerRepository trainers){
+  this.jdbc=jdbc;this.guard=guard;this.audit=audit;this.users=users;this.trainers=trainers;
+ }
+ private static final String PROFILE="SELECT p.trainer_id,p.user_id,d.bio,d.qualifications,COALESCE(d.status,'ACTIVE') AS status,d.created_at,u.full_name,u.email FROM dbo.Trainer p LEFT JOIN dbo.Trainer_Detail d ON d.trainer_id=p.trainer_id JOIN dbo.[User] u ON u.user_id=p.user_id";
  public Map<String,Object> createProfile(ProfileRequest body){
-  var users=jdbc.queryForList("SELECT user_id FROM dbo.[User] WITH(UPDLOCK,HOLDLOCK) WHERE user_id=? AND role_id='ROL-002' AND status='ACTIVE' AND email_verified=1",body.userId());
-  if(users.isEmpty())throw new BusinessRuleException("Profile requires an active verified HEAD_TRAINER account");
-  if(jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Trainer WHERE user_id=?",Integer.class,body.userId())>0)throw new BusinessRuleException("Trainer profile already exists");
-  String id=com.raceforge.backend.common.id.BusinessIds.next("HTR-");
-  jdbc.update("INSERT dbo.Trainer(trainer_id,user_id) VALUES(?,?)",id,body.userId());
-  jdbc.update("INSERT dbo.Trainer_Detail(trainer_id,bio,qualifications) VALUES(?,?,?)",id,body.bio(),body.qualifications());return profile(id);
+  var user=eligibleUser(body.userId());
+  var existing=trainers.findByUser_UserId(user.getUserId());
+  if(existing.isPresent() && jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Trainer_Detail WHERE trainer_id=?",Integer.class,existing.get().getTrainerId())>0)
+   throw new BusinessRuleException("Trainer profile already exists");
+  var trainer=existing.orElseGet(()->{
+   var created=new com.raceforge.backend.horse.entity.Trainer();
+   created.setTrainerId(com.raceforge.backend.training.support.TrainingIds.next("HTR"));created.setUser(user);
+   return trainers.saveAndFlush(created);
+  });
+  String id=trainer.getTrainerId();
+  jdbc.update("INSERT dbo.Trainer_Detail(trainer_id,bio,qualifications) VALUES(?,?,?)",id,body.bio(),body.qualifications());
+  return profile(id);
  }
  public Map<String,Object> updateProfile(String id,ProfileUpdate body){
   var p=profile(id);var actor=guard.actor();if(!"ADMIN".equals(actor.roleName())&&!actor.userId().equals(p.get("user_id")))throw new org.springframework.security.access.AccessDeniedException("Only the profile owner or admin can update the trainer profile");
+  ensureDetail(id);
   jdbc.update("UPDATE dbo.Trainer_Detail SET bio=?,qualifications=? WHERE trainer_id=?",body.bio(),body.qualifications(),id);return profile(id);
  }
  public Map<String,Object> profileStatus(String id,String status){
   profile(id);if(!Set.of("ACTIVE","INACTIVE").contains(status))throw new BusinessRuleException("Profile status must be ACTIVE or INACTIVE");
+  ensureDetail(id);
   jdbc.update("UPDATE dbo.Trainer_Detail SET status=? WHERE trainer_id=?",status,id);
   if("INACTIVE".equals(status))jdbc.update("DELETE FROM dbo.Horse_Trainer WHERE trainer_id=?",id);
   else jdbc.update("INSERT dbo.Horse_Trainer(horse_id,trainer_id) SELECT DISTINCT a.horse_id,p.trainer_id FROM dbo.Horse_Assignment a JOIN dbo.Trainer p ON p.user_id=a.assignee_id WHERE p.trainer_id=? AND a.kind='TRAINER' AND a.status='ACCEPTED' AND NOT EXISTS(SELECT 1 FROM dbo.Horse_Trainer ht WHERE ht.horse_id=a.horse_id AND ht.trainer_id=p.trainer_id)",id);
@@ -35,10 +48,12 @@ public class TrainerAssignmentService {
  @Transactional(readOnly=true) public Map<String,Object> profile(String id){return one(PROFILE+" WHERE p.trainer_id=?",id);}
  public Map<String,Object> assign(AssignmentRequest body){
   var pack=guard.paidPackage(body.horsePackageId());
-  var p=one(PROFILE+" WHERE p.trainer_id=? AND d.status='ACTIVE' AND u.role_id='ROL-002' AND u.status='ACTIVE' AND u.email_verified=1",body.trainerId());
+  var selected=trainers.findById(body.trainerId()).orElseThrow(()->new ResourceNotFoundException("Trainer not found"));
+  eligibleUser(selected.getUser().getUserId());ensureDetail(body.trainerId());
+  var p=one(PROFILE+" WHERE p.trainer_id=? AND d.status='ACTIVE' AND u.role_id=(SELECT role_id FROM dbo.Role WHERE role_name='HEAD_TRAINER') AND u.status='ACTIVE' AND u.email_verified=1",body.trainerId());
   String user=(String)p.get("user_id");
   if(jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Horse_Assignment a JOIN dbo.Training_Assignment ta ON ta.assignment_id=a.id WHERE a.kind='TRAINER' AND ta.horse_package_id=? AND a.assignee_id=? AND a.status IN ('ASSIGNED','ACCEPTED')",Integer.class,body.horsePackageId(),user)>0)throw new BusinessRuleException("This trainer already has an open assignment for the package");
-  String id=com.raceforge.backend.common.id.BusinessIds.next("ASN-");
+  String id=com.raceforge.backend.training.support.TrainingIds.next("ASN-");
   jdbc.update("INSERT dbo.Horse_Assignment(id,horse_id,kind,assigned_by,assignee_id,status,created_at) VALUES(?,?,'TRAINER',?,?,'ASSIGNED',SYSDATETIME())",id,pack.getHorse().getHorseId(),guard.actor().userId(),user);
   jdbc.update("INSERT dbo.Training_Assignment(assignment_id,horse_package_id) VALUES(?,?)",id,body.horsePackageId());
   audit.record(guard.actor().userId(),pack.getHorse().getHorseId(),"HORSE_ASSIGNMENT",id.toString(),"TRAINER_ASSIGNED","SUCCESS",body.trainerId().toString());return details(id);
@@ -50,7 +65,7 @@ public class TrainerAssignmentService {
   if(decision.accepted()){
    guard.paidPackage((String)row.get("horse_package_id"));
    var p=profile((String)row.get("trainer_id"));if(!"ACTIVE".equals(p.get("status")))throw new BusinessRuleException("Trainer profile is inactive");
-   one("SELECT user_id FROM dbo.[User] WHERE user_id=? AND role_id='ROL-002' AND status='ACTIVE' AND email_verified=1",guard.actor().userId());
+   eligibleUser(guard.actor().userId());
    jdbc.update("INSERT dbo.Horse_Trainer(horse_id,trainer_id) SELECT ?,? WHERE NOT EXISTS(SELECT 1 FROM dbo.Horse_Trainer WITH(UPDLOCK,HOLDLOCK) WHERE horse_id=? AND trainer_id=?)",row.get("horse_id"),row.get("trainer_id"),row.get("horse_id"),row.get("trainer_id"));
   }
   jdbc.update("UPDATE dbo.Horse_Assignment SET status=?,responded_at=SYSDATETIME(),reason=? WHERE id=? AND kind='TRAINER'",decision.accepted()?"ACCEPTED":"DECLINED",decision.reason(),id);
@@ -78,4 +93,14 @@ public class TrainerAssignmentService {
  private Map<String,Object> details(String id){return one(SELECT+" WHERE a.id=? AND a.kind='TRAINER'",id);}
  private Map<String,Object> locked(String id){var row=details(id);jdbc.queryForList("SELECT horse_id FROM dbo.Horse WITH(UPDLOCK,HOLDLOCK) WHERE horse_id=?",row.get("horse_id"));jdbc.queryForList("SELECT horse_package_id FROM dbo.HORSE_PACKAGE WITH(UPDLOCK,HOLDLOCK) WHERE horse_package_id=?",row.get("horse_package_id"));jdbc.queryForList("SELECT id FROM dbo.Horse_Assignment WITH(UPDLOCK,HOLDLOCK) WHERE id=?",id);return details(id);}
  private Map<String,Object> one(String sql,Object... args){var rows=jdbc.queryForList(sql,args);if(rows.isEmpty())throw new ResourceNotFoundException("Trainer profile or assignment not found");return rows.get(0);}
+
+ private com.raceforge.backend.account.entity.User eligibleUser(String id){
+  var user=users.findByIdForUpdate(id).orElseThrow(()->new ResourceNotFoundException("Trainer account not found"));
+  if(user.getRole()==null || !"HEAD_TRAINER".equals(user.getRole().getRoleName()) || !"ACTIVE".equals(user.getStatus()) || !user.isEmailVerified())
+   throw new BusinessRuleException("Profile requires an active verified HEAD_TRAINER account");
+  return user;
+ }
+ private void ensureDetail(String id){
+  jdbc.update("INSERT dbo.Trainer_Detail(trainer_id) SELECT ? WHERE NOT EXISTS(SELECT 1 FROM dbo.Trainer_Detail WITH(UPDLOCK,HOLDLOCK) WHERE trainer_id=?)",id,id);
+ }
 }

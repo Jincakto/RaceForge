@@ -3,7 +3,7 @@ import jakarta.persistence.*;
 /** Trainer uses the agreed HTR-001 String identifier; optional biography is kept in its detail extension. */
 @Entity @Table(name="Trainer")
 @SecondaryTable(name="Trainer_Detail",pkJoinColumns=@PrimaryKeyJoinColumn(name="trainer_id"))
-public class TrainerProfile extends com.raceforge.backend.common.id.BusinessEntity {
+public class TrainerProfile extends com.raceforge.backend.training.support.TrainingEntity {
  @Id @Column(name="trainer_id") private String trainerId;
  @OneToOne(fetch=FetchType.LAZY) @JoinColumn(name="user_id",nullable=false,unique=true) private com.raceforge.backend.account.entity.User user;
  @org.hibernate.annotations.Nationalized @Column(name="bio",table="Trainer_Detail",length=1000) private String bio;

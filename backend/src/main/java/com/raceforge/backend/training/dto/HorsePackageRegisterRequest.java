@@ -1,10 +1,11 @@
 package com.raceforge.backend.training.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 
 public record HorsePackageRegisterRequest(
-        @NotBlank String horseId,
-        @NotBlank String packageId
+        @NotNull String horseId,
+        @NotNull String packageId
         ) {
 }

@@ -1,6 +1,6 @@
 package com.raceforge.backend.training.service;
 import com.raceforge.backend.common.exception.*;
-import com.raceforge.backend.common.id.BusinessIds;
+import com.raceforge.backend.training.support.TrainingIds;
 import com.raceforge.backend.training.dto.*;
 import com.raceforge.backend.training.dto.TrainingWorkflowDtos.Stage;
 import com.raceforge.backend.training.repository.TrainingPlanRepository;
@@ -30,7 +30,7 @@ public class TrainingRoadmapService {
   int ordinal=0;
   for(var part:packageRoadmaps.apply(type,stages,days)){
    Stage stage=part.activity();var phase=part.phase();
-   jdbc.update("INSERT dbo.Training_Stage(stage_id,plan_id,stage_order,start_day,end_day,activity_name,intensity,weekdays_json,session_time,phase_code,title,objective,session_end_time) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",BusinessIds.next("STG-"),planId,++ordinal,stage.startDay(),stage.endDay(),stage.activityName(),stage.intensity(),recommendations.encode(stage.daysOfWeek()),java.sql.Time.valueOf(stage.sessionTime()),phase.phaseCode(),phase.title(),phase.objective(),java.sql.Time.valueOf(stage.sessionEndTime()));
+   jdbc.update("INSERT dbo.Training_Stage(stage_id,plan_id,stage_order,start_day,end_day,activity_name,intensity,weekdays_json,session_time,phase_code,title,objective,session_end_time) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",TrainingIds.next("STG-"),planId,++ordinal,stage.startDay(),stage.endDay(),stage.activityName(),stage.intensity(),recommendations.encode(stage.daysOfWeek()),java.sql.Time.valueOf(stage.sessionTime()),phase.phaseCode(),phase.title(),phase.objective(),java.sql.Time.valueOf(stage.sessionEndTime()));
   }
   return stages(planId);
  }

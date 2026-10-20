@@ -4,14 +4,14 @@ import com.raceforge.backend.common.exception.BusinessRuleException;
 import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.repository.HorseRepository;
+import com.raceforge.backend.training.dto.SchedulingPackageResponse;
+import com.raceforge.backend.training.entity.HorsePackage;
+import com.raceforge.backend.training.repository.HorsePackageRepository;
 import com.raceforge.backend.training.dto.AttendSessionRequest;
 import com.raceforge.backend.training.dto.AttendanceResponse;
 import com.raceforge.backend.training.dto.ScheduleRecurringRequest;
 import com.raceforge.backend.training.dto.TrainingSessionResponse;
 import com.raceforge.backend.training.entity.TrainingPlan;
-import com.raceforge.backend.training.entity.HorsePackage;
-import com.raceforge.backend.training.repository.HorsePackageRepository;
-import com.raceforge.backend.training.dto.SchedulingPackageResponse;
 import com.raceforge.backend.training.entity.TrainingSession;
 import com.raceforge.backend.training.mapper.TrainingSessionMapper;
 import com.raceforge.backend.training.repository.TrainingPlanRepository;
@@ -113,9 +113,8 @@ public class TrainingScheduleService {
           throw new BusinessRuleException("Select one to six weekdays.");
       }
       LocalTime time = request.getSessionTime() != null ? request.getSessionTime() : DEFAULT_SESSION_TIME;
-
       List<LocalDate> dates = new ArrayList<>();
-      // Include both ends of the registered package period.
+      // Inclusive registered dates, including a partial final week. No rounding up to full weeks.
       for (LocalDate date = pack.getStartDate(); !date.isAfter(pack.getEndDate()); date = date.plusDays(1)) {
           if (days.contains(date.getDayOfWeek())) dates.add(date);
       }
@@ -125,7 +124,13 @@ public class TrainingScheduleService {
       calendar.validateDates(horse.getHorseId(),dates);
       List<TrainingSession> toSave = new ArrayList<>();
       for (LocalDate date : dates) {
-          horseResolver.validateSchedule(plan, horse.getHorseId(), date);
+          try {
+              horseResolver.validateSchedule(plan, horse.getHorseId(), date);
+          } catch (BusinessRuleException ex) {
+              throw new BusinessRuleException("Cannot schedule package '" + pack.getTrainingPackage().getPackageName()
+                      + "' (" + pack.getStartDate() + " to " + pack.getEndDate() + "): "
+                      + ex.getMessage() + " Invalid date: " + date + ". No sessions were created.");
+          }
           LocalDateTime when = LocalDateTime.of(date, time);
           // BR-C03: checked up front so the caller gets a clear 409 instead of a raw DB error.
           if (sessionRepository.existsByHorse_HorseIdAndScheduledStart(horse.getHorseId(), when)) {

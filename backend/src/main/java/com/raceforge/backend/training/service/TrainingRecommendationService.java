@@ -1,7 +1,7 @@
 package com.raceforge.backend.training.service;
 
 import com.raceforge.backend.common.exception.*;
-import com.raceforge.backend.common.id.BusinessIds;
+import com.raceforge.backend.training.support.TrainingIds;
 import com.raceforge.backend.training.dto.TrainingWorkflowDtos.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -36,11 +36,11 @@ public class TrainingRecommendationService {
    URI uri;try{uri=URI.create(source);}catch(Exception ex){throw new BusinessRuleException("Invalid source URL");}
    if(!"https".equals(uri.getScheme())||!Set.of("www.merckvetmanual.com","www.msdvetmanual.com","extension.umn.edu","horses.extension.org","extension.purdue.edu","www.extension.purdue.edu","horsereport.vetmed.ucdavis.edu","cehhorsereport.vetmed.ucdavis.edu","ceh.vetmed.ucdavis.edu").contains(uri.getHost()))throw new BusinessRuleException("Sources must be HTTPS official veterinary or university-extension URLs");
   }
-  String id=BusinessIds.next("PRO-");jdbc.update("INSERT dbo.Training_Protocol(protocol_id,protocol_name,package_type,min_weight,max_weight,stages_json,sources_json,rationale,status,created_by) VALUES(?,?,?,?,?,?,?,?,'DRAFT',?)",id,body.name(),body.packageType(),body.minWeight(),body.maxWeight(),encode(body.stages()),encode(body.sources()),body.rationale(),guard.actor().userId());return protocol(id);
+  String id=TrainingIds.next("PRO-");jdbc.update("INSERT dbo.Training_Protocol(protocol_id,protocol_name,package_type,min_weight,max_weight,stages_json,sources_json,rationale,status,created_by) VALUES(?,?,?,?,?,?,?,?,'DRAFT',?)",id,body.name(),body.packageType(),body.minWeight(),body.maxWeight(),encode(body.stages()),encode(body.sources()),body.rationale(),guard.actor().userId());return protocol(id);
  }
  public Map<String,Object> approveProtocol(String id){
   // Global protocol publication is serialized so overlapping active bands cannot race.
-  jdbc.queryForList("SELECT prefix FROM dbo.Id_Counter WITH(UPDLOCK,HOLDLOCK) WHERE prefix='PRO-'");
+  jdbc.queryForList("SELECT prefix FROM dbo.Id_Counter WITH(UPDLOCK,HOLDLOCK) WHERE prefix='PRO'");
   var p=protocol(id);if(!"DRAFT".equals(p.get("status")))throw new BusinessRuleException("Only draft protocols can be approved");
   validateStages(decodeStages((String)p.get("stages_json")),3660);
   int overlap=jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Training_Protocol WHERE status='APPROVED' AND package_type=? AND min_weight<? AND max_weight>?",Integer.class,p.get("package_type"),p.get("max_weight"),p.get("min_weight"));
@@ -82,7 +82,7 @@ public class TrainingRecommendationService {
   snapshot.put("packageType",pack.getTrainingPackage().getPackageType());snapshot.put("roadmapVersion",PackageRoadmapPolicy.VERSION);
   snapshot.put("roadmapStages",packageRoadmaps.apply(pack.getTrainingPackage().getPackageType(),clipStages(decodeStages((String)protocol.get("stages_json")),packageDays),packageDays));
   snapshot.put("packageName",pack.getTrainingPackage().getPackageName());snapshot.put("startDate",pack.getStartDate());snapshot.put("endDate",pack.getEndDate());snapshot.put("protocolId",protocol.get("protocol_id"));snapshot.put("stages",clipStages(decodeStages((String)protocol.get("stages_json")),(int)java.time.temporal.ChronoUnit.DAYS.between(pack.getStartDate(),pack.getEndDate())+1));snapshot.put("sources",json.readTree((String)protocol.get("sources_json")));snapshot.put("rationale",protocol.get("rationale"));snapshot.put("requiresTrainerConfirmation",true);snapshot.put("ruleVersion","VET_PROTOCOL_WEIGHT_BANDS_V1");snapshot.put("limitations","Protocol workloads are configured and approved by a veterinarian. The cited general sources do not validate these exact numeric workload settings. Weight alone does not establish fitness.");
-  String id=BusinessIds.next("REC-");jdbc.update("INSERT dbo.Training_Recommendation(recommendation_id,horse_package_id,assignment_id,medical_record_id,protocol_id,generated_by,snapshot_json) VALUES(?,?,?,?,?,?,?)",id,packageId,request.assignmentId(),medical.get("medical_record_id"),protocol.get("protocol_id"),guard.actor().userId(),encode(snapshot));
+  String id=TrainingIds.next("REC-");jdbc.update("INSERT dbo.Training_Recommendation(recommendation_id,horse_package_id,assignment_id,medical_record_id,protocol_id,generated_by,snapshot_json) VALUES(?,?,?,?,?,?,?)",id,packageId,request.assignmentId(),medical.get("medical_record_id"),protocol.get("protocol_id"),guard.actor().userId(),encode(snapshot));
   snapshot.put("recommendationId",id);return snapshot;
  }
  @Transactional(readOnly=true) public List<Stage> stagesForPlan(String id,String packageId,String assignmentId){

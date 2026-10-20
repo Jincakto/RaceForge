@@ -17,6 +17,7 @@ import java.util.Map;
 public class TrainingWorkflowGuard {
  private final JdbcTemplate jdbc;
  private final HorsePackageRepository packages;
+ @org.springframework.beans.factory.annotation.Autowired private com.raceforge.backend.training.support.TrainingMedicalReader medicalReader;
  @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
  public TrainingWorkflowGuard(JdbcTemplate jdbc,HorsePackageRepository packages){this.jdbc=jdbc;this.packages=packages;}
  public AuthenticatedUser actor(){
@@ -34,23 +35,16 @@ public class TrainingWorkflowGuard {
   if(!"ACTIVE".equals(pack.getStatus())||!"PAID".equals(pack.getPaymentStatus())||pack.getStartDate()==null||pack.getEndDate()==null||pack.getEndDate().isBefore(pack.getStartDate())||pack.getEndDate().isBefore(LocalDate.now()))throw new BusinessRuleException("Horse package must be active, paid and within its valid period");
   requireHealthy(pack.getHorse());return pack;
  }
- public Map<String,Object> medical(Horse horse){
-  var rows=jdbc.queryForList("SELECT TOP 1 mr.*,u.full_name AS veterinarian_name,v.body_temperature,v.resting_heart_rate,v.resting_respiratory_rate,v.weight AS measured_weight,mr.eligibility_reason AS fitness_conclusion,tm.ideal_weight,tm.body_condition_score FROM dbo.Medical_Record mr JOIN dbo.Health_Profile hp ON hp.profile_id=mr.profile_id JOIN dbo.[User] u ON u.user_id=mr.veterinarian_id LEFT JOIN dbo.Medical_Vital_Sign v ON v.medical_record_id=mr.medical_record_id LEFT JOIN dbo.Training_Medical_Context tm ON tm.medical_record_id=mr.medical_record_id WHERE hp.horse_id=? AND mr.status='CONFIRMED' ORDER BY mr.examined_at DESC,mr.confirmed_at DESC,mr.medical_record_id DESC",horse.getHorseId());
-  if(rows.isEmpty())throw new BusinessRuleException("A confirmed medical fitness conclusion is required");return rows.get(0);
- }
+ public Map<String,Object> medical(Horse horse){return medicalReader.snapshot(horse.getHorseId());}
  public void requireHealthy(Horse horse){
   if(!"APPROVED".equals(horse.getAdmissionStatus())||!"ACTIVE".equals(horse.getStatus())||Boolean.TRUE.equals(horse.getTrainingLocked())||!"READY".equals(horse.getHealthStatus()))throw new BusinessRuleException("Horse must be admitted, active, medically ready and unlocked");
   if(jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Training_Lock WHERE horse_id=? AND unlocked_at IS NULL",Integer.class,horse.getHorseId())>0)throw new BusinessRuleException("Horse has an active medical training lock");
   var medical=medical(horse);
   if(!Boolean.TRUE.equals(medical.get("training_eligible"))||(medical.get("final_conclusion")==null || !java.util.Set.of("FIT","FIT_WITH_MONITORING").contains(medical.get("final_conclusion"))))throw new BusinessRuleException("Latest confirmed examination does not authorize training");
  }
- public java.math.BigDecimal weight(Horse horse){
-  var rows=jdbc.queryForList("SELECT TOP 1 v.weight FROM dbo.Medical_Record mr JOIN dbo.Health_Profile hp ON hp.profile_id=mr.profile_id LEFT JOIN dbo.Medical_Vital_Sign v ON v.medical_record_id=mr.medical_record_id WHERE hp.horse_id=? AND mr.status='CONFIRMED' ORDER BY mr.examined_at DESC,mr.confirmed_at DESC,mr.medical_record_id DESC",horse.getHorseId());
-  if(rows.isEmpty())return null;Object value=rows.get(0).get("weight");
-  return value instanceof java.math.BigDecimal number?number:null;
- }
+ public java.math.BigDecimal weight(Horse horse){return medicalReader.weight(horse.getHorseId());}
  public boolean canAccessPackage(String packageId,String userId){
-  return jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Horse_Assignment a JOIN dbo.Training_Assignment ta ON ta.assignment_id=a.id JOIN dbo.Trainer p ON p.user_id=a.assignee_id JOIN dbo.Trainer_Detail d ON d.trainer_id=p.trainer_id JOIN dbo.Horse_Trainer ht ON ht.horse_id=a.horse_id AND ht.trainer_id=p.trainer_id JOIN dbo.[User] u ON u.user_id=p.user_id WHERE a.kind='TRAINER' AND ta.horse_package_id=? AND p.user_id=? AND a.status='ACCEPTED' AND d.status='ACTIVE' AND u.status='ACTIVE' AND u.email_verified=1 AND u.role_id='ROL-002'",Integer.class,packageId,userId)>0;
+  return jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Horse_Assignment a JOIN dbo.Training_Assignment ta ON ta.assignment_id=a.id JOIN dbo.Trainer p ON p.user_id=a.assignee_id JOIN dbo.Trainer_Detail d ON d.trainer_id=p.trainer_id JOIN dbo.Horse_Trainer ht ON ht.horse_id=a.horse_id AND ht.trainer_id=p.trainer_id JOIN dbo.[User] u ON u.user_id=p.user_id WHERE a.kind='TRAINER' AND ta.horse_package_id=? AND p.user_id=? AND a.status='ACCEPTED' AND d.status='ACTIVE' AND u.status='ACTIVE' AND u.email_verified=1 AND u.role_id=(SELECT role_id FROM dbo.Role WHERE role_name='HEAD_TRAINER')",Integer.class,packageId,userId)>0;
  }
  public HorsePackage assignedPackage(String packageId){
   var user=actor();if(!"HEAD_TRAINER".equals(user.roleName())||!canAccessPackage(packageId,user.userId()))throw new org.springframework.security.access.AccessDeniedException("An accepted trainer assignment is required");

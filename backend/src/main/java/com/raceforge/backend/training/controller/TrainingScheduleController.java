@@ -5,10 +5,10 @@ import com.raceforge.backend.training.dto.AttendSessionRequest;
 import com.raceforge.backend.training.dto.AttendanceResponse;
 import com.raceforge.backend.training.dto.ScheduleRecurringRequest;
 import com.raceforge.backend.training.dto.TrainingSessionResponse;
-import com.raceforge.backend.training.dto.SchedulingPackageResponse;
 import com.raceforge.backend.training.service.TrainingScheduleService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import com.raceforge.backend.training.dto.SchedulingPackageResponse;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -59,7 +59,7 @@ public class TrainingScheduleController {
 
   @GetMapping("/horse/{horseId}")
   @PreAuthorize("@permissionAccess.canReadHorse(authentication, #p0)")
-  public ResponseEntity<ApiResponse<List<TrainingSessionResponse>>> getByHorse(@PathVariable @jakarta.validation.constraints.Pattern(regexp = "HOR-[0-9]{3}") String horseId) {
+  public ResponseEntity<ApiResponse<List<TrainingSessionResponse>>> getByHorse(@PathVariable String horseId) {
       return ResponseEntity.ok(ApiResponse.success(
               "Training schedule retrieved", trainingScheduleService.getScheduleByHorseId(horseId)));
   }

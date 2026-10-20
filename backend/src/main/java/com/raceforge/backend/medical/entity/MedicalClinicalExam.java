@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 
 @Entity
 @Table(name = "Medical_Clinical_Exam")
-public class MedicalClinicalExam extends com.raceforge.backend.common.id.BusinessEntity {
+public class MedicalClinicalExam {
 
     @Id
     @Column(name = "clinical_exam_id", length = 20)
@@ -20,12 +20,7 @@ public class MedicalClinicalExam extends com.raceforge.backend.common.id.Busines
     @Column(name = "condition_status", nullable = false, length = 20)
     private String conditionStatus;
 
-<<<<<<< HEAD
     // NORMAL or ABNORMAL. The veterinarian describes any abnormality in notes.
-=======
-
-
->>>>>>> 76de6e5 (luu code)
     @Column(name = "notes", length = 500)
     private String notes;
 
@@ -64,13 +59,6 @@ public class MedicalClinicalExam extends com.raceforge.backend.common.id.Busines
         this.conditionStatus = conditionStatus;
     }
 
-<<<<<<< HEAD
-=======
-
-
-
-
->>>>>>> 76de6e5 (luu code)
     public String getNotes() {
         return notes;
     }

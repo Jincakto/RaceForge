@@ -45,9 +45,14 @@ public class PackageResumptionService {
      * This does not create a Recovery registration or charge the Horse Owner.
      */
     @Transactional
-    public HorsePackageResponse resumeOriginalPackage(String recoveryRegistrationId, String reason, String managerId) {
-        HorsePackage recovery = horsePackageRepository.findById(recoveryRegistrationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Recovery registration not found"));
+    public HorsePackageResponse resumeWithoutRecovery(
+            String originalRegistrationId,
+            String reason,
+            String managerId
+    ) {
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessRuleException("CM confirmation reason is required");
+        }
 
         HorsePackage original = horsePackageRepository.findById(originalRegistrationId)
                 .orElseThrow(() -> new ResourceNotFoundException(

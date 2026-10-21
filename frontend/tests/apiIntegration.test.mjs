@@ -42,10 +42,86 @@ const denied = (status = 403) => new Response(JSON.stringify({ success: false, m
 const user = role => mapping.userFromApi({ userId: role === 'owner' ? 'OWN-001' : 'HTR-001', fullName: 'Test User', email: 'test@example.invalid', emailVerified: true, status: 'ACTIVE', role: { roleName: mapping.ROLE_NAMES[role], roleId: mapping.ROLE_IDS[role] } });
 const horse = () => mapping.horseFromApi({ horseId:'HOR-007', ownerId:'OWN-001', horseName:'Thunder', dateOfBirth:'2020-01-02', gender:'GELDING', admissionStatus:'APPROVED', healthStatus:'READY', trainerIds:['HTR-001','HTR-002'], registrationNumber:'704ABC000000001', imageUrl:'https://example.invalid/horse.jpg', documentUrl:'https://example.invalid/ueln.pdf' }, []);
 const state = () => ({ user:user('owner'), users:[], horses:[horse()], packages:[], enrollments:[], trainingPlans:[], trainingSessions:[], notifications:[], healthRecords:[], horseClubRequests:[] });
+test('owner treats a missing health profile as no examination records, while preserving other errors', async () => {
+  for (const [status, message, expectedWarnings] of [
+    [404, 'Health profile not found', 0],
+    [404, 'Horse not found', 1],
+    [403, 'Denied', 1],
+    [500, 'Health profile not found', 1],
+  ]) {
+    globalThis.fetch = async url => {
+      if (url === '/api/horses') return ok([{horseId:'HOR-002',horseName:'Brown',ownerId:'OWN-001',admissionStatus:'PENDING'}]);
+      if (url === '/api/medical/horses/HOR-002/records') return new Response(JSON.stringify({success:false,message}), {status});
+      return ok([]);
+    };
+    const warnings = [];
+    const data = await mapping.loadRemote(user('owner'), message => warnings.push(message));
+    assert.equal(data.horses.length, 1);
+    assert.deepEqual(data.healthRecords, []);
+    assert.equal(warnings.length, expectedWarnings, `${status}: ${message}`);
+    if (expectedWarnings) assert.match(warnings[0], /Examination records HOR-002/);
+  }
+});
+test('admin login loads administration data without calling business APIs', async () => {
+  const urls = [];
+  globalThis.fetch = async url => {
+    urls.push(url);
+    if (url.startsWith('/api/users')) return ok([]);
+    if (url.startsWith('/api/admin/permissions/')) return ok([]);
+    return denied();
+  };
+  const warnings = [];
+  const data = await mapping.loadRemote(user('admin'), message => warnings.push(message));
+  assert.deepEqual(warnings, []);
+  assert.ok(urls.some(url => url.startsWith('/api/users')));
+  assert.equal(Object.keys(data.serverPermissions).length, 6);
+  assert.ok(urls.every(url => url.startsWith('/api/users') || url.startsWith('/api/admin/permissions/')));
+});
 function actions(snapshot) {
   const events = [];
   return { events, remote: makeRemoteActions({ getState:() => snapshot, reload:async () => { events.push('reload'); }, success:message => events.push(message), error:message => events.push(`error:${message}`), navigate:page => events.push(`page:${page}`) }) };
 }
+
+test('package create and edit send the DTO and use the server response', async () => {
+  const draft = {name:' Normal ',packageType:'RACING',description:'Training',durationDays:30,price:5000000};
+  for (const id of [undefined, 'PKG-001']) {
+    const {remote,events} = actions(state());
+    globalThis.fetch = async (url, init) => {
+      assert.equal(url, id ? `/api/training-packages/${id}` : '/api/training-packages');
+      assert.equal(init.method, id ? 'PUT' : 'POST');
+      assert.deepEqual(JSON.parse(init.body), {packageName:'Normal',packageType:'RACING',description:'Training',durationDays:30,price:5000000});
+      return ok({packageId:'PKG-001',packageName:'Normal',packageType:'RACING',durationDays:30,price:5000000,status:'ACTIVE'});
+    };
+    const result = await remote.savePackage({...draft,id});
+    assert.equal(result.ok, true);
+    assert.equal(result.data.id, 'PKG-001');
+    assert.ok(events.includes('reload'));
+  }
+});
+
+test('package status sends ACTIVE or INACTIVE and maps the response', async () => {
+  for (const active of [true, false]) {
+    const {remote} = actions(state());
+    globalThis.fetch = async (url, init) => {
+      assert.equal(url, '/api/training-packages/PKG-001/status');
+      assert.equal(init.method, 'PATCH');
+      assert.deepEqual(JSON.parse(init.body), {status:active ? 'ACTIVE' : 'INACTIVE'});
+      return ok({packageId:'PKG-001',packageName:'Normal',status:active ? 'ACTIVE' : 'INACTIVE'});
+    };
+    const result = await remote.togglePackage('PKG-001', active);
+    assert.equal(result.ok, true);
+    assert.equal(result.data.active, active);
+  }
+});
+
+test('unavailable package routes report failure without success or reload', async () => {
+  const {remote,events} = actions(state());
+  globalThis.fetch = async () => denied(404);
+  assert.equal((await remote.savePackage({id:'PKG-001',name:'Normal'})).ok, false);
+  assert.equal((await remote.togglePackage('PKG-001', false)).ok, false);
+  assert.equal(events.length, 2);
+  assert.ok(events.every(event => event.startsWith('error:')));
+});
 
 test('attaches bearer auth and cookie credentials, unwraps the BE response', async () => {
   api.setAccessToken('access');

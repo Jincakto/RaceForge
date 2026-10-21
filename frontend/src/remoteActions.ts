@@ -130,10 +130,9 @@ export function makeRemoteActions(env: Env) {
       });
     },
     savePackage: (draft: PackageDraft) => result<TrainingPackage>('package', async () => {
-      if (draft.id) unavailable("editing training packages");
-      return packageFromApi(await request('/training-packages', 'POST', { packageName: draft.name.trim(), packageType: draft.packageType, description: draft.description, durationDays: draft.durationDays, price: draft.price }));
+      return packageFromApi(await request(draft.id ? `/training-packages/${enc(draft.id)}` : '/training-packages', draft.id ? 'PUT' : 'POST', { packageName: draft.name.trim(), packageType: draft.packageType, description: draft.description, durationDays: draft.durationDays, price: draft.price }));
     }),
-    togglePackage: (_id: string, _active: boolean) => result<TrainingPackage>('package-status', async () => unavailable("enabling or disabling training packages")),
+    togglePackage: (id: string, active: boolean) => result<TrainingPackage>('package-status', async () => packageFromApi(await request(`/training-packages/${enc(id)}/status`, 'PATCH', { status: active ? 'ACTIVE' : 'INACTIVE' }))),
     assignTrainer: (enrollmentId: string, userId: string, reason = '') => result<Enrollment>(`assign-${enrollmentId}`, async () => {
       const state = getState(); const e = state.enrollments.find(e => e.id === enrollmentId); if (!e) throw new Error("Package not found.");
       const trainerId = state.users.find(u => u.id === userId)?.trainerProfileId;

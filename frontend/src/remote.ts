@@ -115,7 +115,8 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
   if (user.role === 'admin' || user.role === 'manager') data.users = await read("Accounts", async () => (await allPages('/users')).map(userFromApi), [user]);
   const notifications = user.role === 'admin' ? [] : await read("Notifications", () => request<any[]>('/notifications'), []);
   data.notifications = notifications.map(w => ({ id: String(w.notificationId), type: w.notificationType || 'info', message: w.message, time: dateText(w.createdAt), read: w.read, toUserIds: [user.id] }));
-  const trainerProfiles: Wire[] = ['admin', 'manager'].includes(user.role || '') ? await read("Trainer profiles", () => request('/trainer-profiles'), []) : [];
+  // Admin loads account and permission data only; the business API rejects admin sessions.
+  const trainerProfiles: Wire[] = user.role === 'manager' ? await read("Trainer profiles", () => request('/trainer-profiles'), []) : [];
   for (const p of trainerProfiles) {
     const found = data.users.find(u => u.id === p.user_id);
     if (found) { found.trainerProfileId = p.trainer_id; found.bio = p.bio || ''; found.certifications = p.qualifications || ''; }
@@ -159,7 +160,14 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
       horse.vetAssign = { status: ['ACCEPTED','COMPLETED'].includes(current.status) ? 'accepted' : current.status === 'ASSIGNED' ? 'pending' : 'declined', history: [...assignments].reverse().map(a => ({ time: dateText(a.createdAt), from: null, to: a.veterinarianName, by: a.assignedBy, reason: a.reason || a.status })) };
     }
     if (['manager', 'owner', 'veterinarian'].includes(user.role || '')) {
-      const records = await read(`Examination records ${horse.id}`, () => request<Wire[]>(`/medical/horses/${enc(horse.id)}/records`), []);
+      const records = await read(`Examination records ${horse.id}`, async () => {
+        try { return await request<Wire[]>(`/medical/horses/${enc(horse.id)}/records`); }
+        catch (error) {
+          // A horse can exist before veterinary assignment creates its health profile.
+          if (error instanceof ApiError && error.status === 404 && /^Health profile not found(?:$| \[)/.test(error.message)) return [];
+          throw error;
+        }
+      }, []);
       const mapped = records.map(w => recordFromApi(w, horse.id, data.users));
       data.healthRecords.push(...mapped);
       const latest = [...mapped].filter(r => r.status === 'confirmed').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];

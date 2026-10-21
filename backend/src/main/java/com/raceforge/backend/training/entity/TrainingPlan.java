@@ -5,7 +5,7 @@ import jakarta.persistence.*;
 // Maps to table Training_Plan. The horses a plan applies to are in Horse_Plan (see HorsePlan).
 @Entity
 @Table(name = "Training_Plan")
-public class TrainingPlan extends com.raceforge.backend.training.support.TrainingEntity {
+public class TrainingPlan extends com.raceforge.backend.training.entity.TrainingEntity {
 
   @Id
   @Column(name = "plan_id")

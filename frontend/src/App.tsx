@@ -48,7 +48,7 @@ type Page =
   | 'performance' | 'race-results' | 'reports'
   | 'staff' | 'member-requests' | 'notifications' | 'profile'
   | 'accounts' | 'permissions' | 'audit-log'
-  | 'training-register' | 'vet-assign' | 'post-exam' | 'training-protocols' | 'rehab-center' | 'inventory' | 'inventory-log';
+  | 'training-register' | 'vet-assign' | 'post-exam' | 'rehab-center' | 'inventory' | 'inventory-log';
 
 interface AppState {
   user: AppUser | null;
@@ -640,7 +640,6 @@ const NAV_ITEMS: Partial<Record<Role, { icon: string; label: string; page: Page;
     { icon: '🏥', label: "Medical records", page: 'health-records' },
     { icon: '📝', label: "Health examination", page: 'vet-health-form' },
     { icon: '🩺', label: "Post-training exams & locks", page: 'post-exam', badge: 'vetTodo' },
-    { icon: '📋', label: 'Training protocols', page: 'training-protocols' },
     { icon: '🔔', label: "Notifications", page: 'notifications' },
   ],
   groom: [
@@ -1275,8 +1274,13 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onActivateHorse, onSh
 
       {tab === 'training' && !isVetRole && (
         <div className="space-y-6">
-          <TrainerHistoryTab horse={horse} trainers={state.users.filter(u => u.role === 'head_trainer' && u.clubId === horse.clubId && !u.locked)} canEdit={user.role === 'manager' && horse.clubId === user.clubId} today={TODAY}
-            onChange={async (list, text, reason) => { try { await onUpdateHorse({ ...horse, trainerHistory: list, changeLog: logChange(horse, user.name, text) }); onAudit(`Assigned trainer: ${text}`, `${horse.name} (${dispId('HRS', horse.id)})`, reason); } catch {} }} />
+          <TrainerHistoryTab horse={horse} trainers={state.users.filter(u => u.role === 'head_trainer')} canEdit={false} today={TODAY} onChange={async () => {}} />
+          {user.role === 'manager' && <Card className="p-4 space-y-3">
+            <h3 className="font-semibold">Assign trainers through a paid package</h3>
+            <p className="text-sm text-gray-600">Select the horse's active, paid package, then choose a trainer. The trainer must accept before creating a training plan or sessions.</p>
+            {state.enrollments.filter(e => e.horseId === horse.id && e.apiStatus === 'ACTIVE' && e.paymentStatus === 'PAID').map(e => <div key={e.id} className="rounded-lg border border-gray-200 p-3 text-sm"><strong>{e.packageName}</strong><div>{e.startedAt} – {e.expiresAt}</div></div>)}
+            <Btn variant="gold" onClick={() => navigate('trainer-assign')}>Open package trainer assignments</Btn>
+          </Card>}
           <div className="space-y-3">
             <div className="flex items-center justify-between"><h3 className="font-semibold">Training roadmap</h3>{(user.role === 'head_trainer' || user.role === 'manager') && <Btn variant="secondary" size="sm" onClick={() => navigate('training-hub')}>Open training page →</Btn>}</div>
             {state.trainingPlans.filter(p => p.horseId === horse.id).map(p => (
@@ -2571,6 +2575,7 @@ function ProfilePage({ user, state, navigate, onLogout, onSave, onError }:
         {user.certifications && <div className="mt-3"><div className="text-xs font-semibold text-gray-500 uppercase mb-1">Certifications</div><div className="text-sm text-gray-700">{user.certifications}</div></div>}
         <Btn variant="gold" className="mt-4" onClick={async () => { try { await request('/users/me', 'PUT', { fullName: name.trim(), phone: user.phone || '', avatarUrl: user.avatarUrl || null }); onSave('Profile updated successfully.'); } catch (e) { onError((e as Error).message); } }}>Save</Btn>
       </Card>
+      {user.role === 'veterinarian' && <TrainingProtocolsPage />}
       {user.role === 'head_trainer' && <TrainerProfileForm key={user.id} user={state.users.find(u => u.id === user.id) || user} />}
       {myClub && user.role !== 'manager' && <Card className="p-5"><h3 className="font-semibold mb-3">My Club</h3><div className="flex items-center gap-3"><div className="w-12 h-12 rounded-xl bg-[#1a2844] text-white flex items-center justify-center font-serif font-bold text-lg">{myClub.logoLetter}</div><div><div className="font-semibold">{myClub.name}</div><div className="text-sm text-gray-500">📍 {myClub.location} · Founded {myClub.founded}</div></div></div></Card>}
       <Btn variant="danger" onClick={onLogout}>Sign out</Btn>
@@ -2608,6 +2613,7 @@ function PostExamPage({ state, navigate, onSave, onPostExam, onUnlock, onManualL
     <div className="space-y-6 max-w-4xl">
       <div><h2 className="text-xl font-serif font-bold text-[#0f1729]">Post-training examinations and locks</h2><p className="text-sm text-gray-500">Only veterinarians may apply or release a TRAINING LOCK</p></div>
 
+      <TrainingProtocolsPage />
       <section className="space-y-3">
         <h3 className="font-semibold flex items-center gap-2">🩺 Awaiting pre-training examination <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">{awaiting.length}</span></h3>
         {awaiting.length === 0 && <Card className="p-5 text-sm text-gray-400 text-center">No horses are awaiting examination</Card>}
@@ -2734,7 +2740,6 @@ function RehabCenterPage({ state, onActivate }:
 // ── Page titles ───────────────────────────────────────────────────────────────
 
 const PAGE_TITLES: Partial<Record<Page, string>> = {
-  'training-protocols': 'Training protocols',
   accounts: 'Account management', permissions: 'Permissions', 'audit-log': 'Audit log',
   dashboard: 'Overview', 'horse-list': 'Horses in the club', 'horse-detail': 'Horse details',
   'horse-create': 'Register a new horse', 'horse-edit': 'Edit horse', 'my-horses': 'My horses',
@@ -2936,9 +2941,6 @@ export default function App() {
       case 'vet-assign':
         if (state.user!.role !== 'veterinarian') return <NoAccess text="Only veterinarians may access this page" />;
         return <VetAssignedPage user={state.user!} horses={state.horses} requests={state.horseClubRequests} onRespond={remote.respondVet} onExam={id => setState(s => ({ ...s, examHorseId: id, page: 'vet-health-form' }))} onOpenHorse={id => setState(s => ({ ...s, selectedHorseId: id, page: 'horse-detail' }))} />;
-      case 'training-protocols':
-        if (state.user!.role !== 'veterinarian') return <NoAccess text="Only veterinarians may access this page" />;
-        return <TrainingProtocolsPage />;
       case 'post-exam':
         if (state.user!.role !== 'veterinarian') return <NoAccess text="Only veterinarians may access this page" />;
         return <PostExamPage state={state} navigate={navigate} onSave={showSuccess} onPostExam={remote.postExam} onUnlock={async (...args) => { const r = await remote.unlock(...args); return r.ok ? null : r.message; }} onManualLock={() => "Complete an examination and confirm NOT_FIT to apply a training lock on the server."} />;

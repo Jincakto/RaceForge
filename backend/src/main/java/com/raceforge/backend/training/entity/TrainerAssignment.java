@@ -3,7 +3,7 @@ import jakarta.persistence.*;
 /** TRAINER requests share Horse_Assignment with VET requests. Assignee is always User, not a profile code. */
 @Entity @Table(name="Horse_Assignment")
 @SecondaryTable(name="Training_Assignment",pkJoinColumns=@PrimaryKeyJoinColumn(name="assignment_id",referencedColumnName="id"))
-public class TrainerAssignment extends com.raceforge.backend.training.support.TrainingEntity {
+public class TrainerAssignment extends com.raceforge.backend.training.entity.TrainingEntity {
  @Id @Column(name="id") private String assignmentId;
  @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="horse_package_id",table="Training_Assignment") private HorsePackage horsePackage;
  @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="horse_id",nullable=false) private com.raceforge.backend.horse.entity.Horse horse;

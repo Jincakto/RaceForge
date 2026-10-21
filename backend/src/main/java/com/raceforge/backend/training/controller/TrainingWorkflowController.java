@@ -41,14 +41,6 @@ public class TrainingWorkflowController {
  public Object replace(@PathVariable String id,@Valid @RequestBody Replacement body){return ApiResponse.success("Replacement pending trainer acceptance",assignments.replace(id,body));}
  @GetMapping("/horse-packages/{id}/trainer-assignments")
  public Object forPackage(@PathVariable String id){return ApiResponse.success("Package assignment history",assignments.forPackage(id));}
- @PostMapping("/training-protocols") @PreAuthorize("hasAuthority('VETERINARIAN')")
- public Object protocol(@Valid @RequestBody ProtocolRequest body){return ApiResponse.success("Draft protocol created",recommendations.createProtocol(body));}
- @GetMapping("/training-protocols") @PreAuthorize("hasAnyAuthority('VETERINARIAN','HEAD_TRAINER','CLUB_MANAGER')")
- public Object protocols(){return ApiResponse.success("Training protocols",recommendations.protocols());}
- @PostMapping("/training-protocols/{id}/approve") @PreAuthorize("hasAuthority('VETERINARIAN')")
- public Object approve(@PathVariable String id){return ApiResponse.success("Protocol approved by veterinarian",recommendations.approveProtocol(id));}
- @PostMapping("/training-protocols/{id}/retire") @PreAuthorize("hasAuthority('VETERINARIAN')")
- public Object retire(@PathVariable String id){return ApiResponse.success("Protocol retired",recommendations.retireProtocol(id));}
  @PostMapping("/horse-packages/{id}/training-recommendations") @PreAuthorize(TRAINER)
  public Object recommend(@PathVariable String id,@Valid @RequestBody RecommendationRequest body){return ApiResponse.success("Draft suggestion requires trainer confirmation",recommendations.recommend(id,body));}
  @GetMapping("/horse-packages/{id}/training-context") @PreAuthorize(TRAINER)

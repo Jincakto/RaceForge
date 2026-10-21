@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 // Use JDBC 4.2 java.time binding so hibernate.jdbc.time_zone does not shift them.
 @Entity
 @Table(name = "Training_Session")
-public class TrainingSession extends com.raceforge.backend.training.support.TrainingEntity {
+public class TrainingSession extends com.raceforge.backend.training.entity.TrainingEntity {
 
   @Column(name = "resting_heart_rate")
   private Integer restingHeartRate;

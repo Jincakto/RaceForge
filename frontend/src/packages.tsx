@@ -167,8 +167,8 @@ export function TrainerAssignPage({ user, users, horses, enrollments, onAssign }
   const [flash, setFlash] = useState('');
   const [trainerSearch, setTrainerSearch] = useState('');
 
-  const trainers = users.filter(u => u.role === 'head_trainer' && u.clubId === user.clubId && u.status === 'active');
-  const myEnr = enrollments.filter(e => isCurrent(e) && horses.some(h => h.id === e.horseId && h.clubId === user.clubId));
+  const trainers = users.filter(u => u.role === 'head_trainer' && u.clubId === user.clubId && u.status === 'active' && !u.locked && !!u.trainerProfileId);
+  const myEnr = enrollments.filter(e => isCurrent(e) && !e.directAssignmentId && e.apiStatus === 'ACTIVE' && e.paymentStatus === 'PAID' && horses.some(h => h.id === e.horseId && h.clubId === user.clubId));
   const count = (s: Enrollment['trainerStatus']) => myEnr.filter(e => e.trainerStatus === s).length;
   const rows = myEnr.filter(e => tab === 'all' || e.trainerStatus === tab);
   const load = (id: string) => myEnr.filter(e => e.trainerId === id).length;
@@ -260,6 +260,7 @@ export function TrainerAssignPage({ user, users, horses, enrollments, onAssign }
             <div className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">
               <div className="flex items-center gap-2"><strong>{horses.find(x => x.id === dlg.horseId)?.name}</strong><IdChip kind="ENR" id={dlg.id} /></div>
               <div className="mt-0.5">Package {dlg.packageName}{replacing ? ` · Current: ${dlg.trainerName}` : ''}</div>
+              <div className="mt-1">Valid: {dlg.startedAt} – {dlg.expiresAt} · Paid</div>
             </div>
             <Select label="Trainer" required value={trainerId} onChange={v => { setTrainerId(v); setErr(''); }}
               options={[{ value: '', label: "— Select a trainer —" }, ...trainers.filter(t => t.id !== dlg.trainerId || !replacing).map(t => ({ value: t.id, label: `${t.name} (${load(t.id)} assigned packages)` }))]}

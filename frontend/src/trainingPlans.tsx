@@ -1,3 +1,5 @@
+import { trainingTimestamp } from './trainingTimestamp';
+import { RecoveryReview } from './RecoveryReview';
 import { recommendationFor, recommendationView } from './recommendations';
 import { request } from './api';
 import { useEffect, useMemo, useState } from 'react';
@@ -122,6 +124,7 @@ export function TrainingHubPage(props: HubProps) {
   const [accepting, setAccepting] = useState<Enrollment | null>(null);
   const [absentFor, setAbsentFor] = useState<TrainingSession | null>(null);
   const [completing, setCompleting] = useState<string | null>(null);
+  const [reviewing, setReviewing] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [weekAnchor, setWeekAnchor] = useState(TODAY);
 
@@ -268,7 +271,9 @@ export function TrainingHubPage(props: HubProps) {
                     {isTrainer && (s.canStop || s.canComplete) && completing !== s.id && <Btn size="sm" variant="primary" onClick={async () => { setActionError(''); if (s.canStop) { const stopped = await props.onStopSession(s.id); if (!stopped.ok) { setActionError(stopped.message); return; } } setCompleting(s.id); }}>{s.canStop ? 'Stop exercise & record recovery' : 'Record recovery results'}</Btn>}
                   </div>
                 </div>
-                {completing === s.id && <ResultForm onCancel={() => setCompleting(null)} onSubmit={async r => { const err = await props.onCompleteSession(s.id, r); setActionError(err || ''); if (!err) setCompleting(null); return err; }} />}
+                {completing === s.id && <ResultForm onCancel={() => setCompleting(null)} onSubmit={async r => { const err = await props.onCompleteSession(s.id, r); setActionError(err || ''); if (!err) { setCompleting(null); setReviewing(s.id); } return err; }} />}
+                {isTrainer && s.status === 'Completed' && reviewing !== s.id && <Btn size="sm" variant="secondary" onClick={() => setReviewing(s.id)}>View recovery review</Btn>}
+                {isTrainer && reviewing === s.id && <RecoveryReview sessionId={s.id} onReview={() => { setTab('sessions'); setStatusFilter('Scheduled'); setReviewing(null); }} />}
                 {s.result && <div className="mt-3 grid grid-cols-4 gap-3 border-t border-gray-100 pt-3">{[["Time (seconds)", s.result.time], ["Speed", `${s.result.speed} km/h`], ["Heart rate", `${s.result.heartRate} bpm`], ["Two-minute recovery heart rate", `${s.result.performanceScore} bpm`]].map(([k, v]) => <div key={k} className="rounded-lg bg-gray-50 p-2 text-center"><div className="text-xs text-gray-500">{k}</div><div className="font-mono text-sm font-bold">{v}</div></div>)}</div>}
               </Card>
             );
@@ -331,10 +336,13 @@ export function TrainingHubPage(props: HubProps) {
 
 function ResultForm({ onSubmit, onCancel }: { onSubmit: (r: ResultT) => string | null | Promise<string | null>; onCancel: () => void }) {
   const [f, setF] = useState({ time: '', speed: '', hr: '', score: '', notes: '' });
+  const [saving,setSaving]=useState(false);
+  const [measuredAt,setMeasuredAt]=useState('');
   const [e, setE] = useState<Record<string, string>>({});
   const [err, setErr] = useState('');
   const set = (k: keyof typeof f) => (v: string) => { setF(p => ({ ...p, [k]: v })); setE(p => ({ ...p, [k]: '' })); };
   const submit = async () => {
+    if (saving || !measuredAt) return;
     const x: Record<string, string> = {};
     if (!/^\d+(?:[.,]\d{1,2})?$/.test(f.time.trim())) x.time = "Enter the actual distance in km, with up to 2 decimal places.";
     const sp = Number(f.speed);
@@ -346,8 +354,7 @@ function ResultForm({ onSubmit, onCancel }: { onSubmit: (r: ResultT) => string |
     if (f.notes.length > 300) x.notes = "Comments cannot exceed 300 characters.";
     setE(x);
     if (Object.keys(x).length) return;
-    const r = await onSubmit({ time: f.time.trim(), speed: String(sp), heartRate: hr, notes: f.notes.trim(), performanceScore: sc });
-    if (r) setErr(r);
+    setSaving(true);try { const r = await onSubmit({ time: f.time.trim(), speed: String(sp), heartRate: hr, notes: f.notes.trim(), performanceScore: sc, recoveryMeasuredAt: measuredAt || undefined }); if (r) setErr(r); } finally { setSaving(false); }
   };
   return (
     <div className="mt-4 border-t border-gray-100 pt-4">
@@ -356,11 +363,11 @@ function ResultForm({ onSubmit, onCancel }: { onSubmit: (r: ResultT) => string |
         <Input label="Actual distance (km)" required value={f.time} onChange={set('time')} placeholder="VD: 1.2" hint="Completed distance, up to 2 decimal places" error={e.time} />
         <Input label="Average speed (km/h)" required type="number" value={f.speed} onChange={set('speed')} placeholder="VD: 58.6" hint="0–100" error={e.speed} />
         <Input label="End-of-exercise heart rate (bpm)" required type="number" value={f.hr} onChange={set('hr')} placeholder="VD: 188" hint="20–250" error={e.hr} />
-        <Input label="Heart rate after two-minute recovery (bpm)" required type="number" value={f.score} onChange={set('score')} placeholder="VD: 85" hint="Measure at least 2 minutes after exercise stops; 20–250 bpm" error={e.score} />
+        <Input label="Heart rate after two-minute recovery (bpm)" required type="number" value={f.score} onChange={value => { set('score')(value); setMeasuredAt(trainingTimestamp()); }} placeholder="VD: 85" hint="Enter the two-minute recovery reading; 20–250 bpm" error={e.score} />
         <div className="col-span-2"><Textarea label="Comments" value={f.notes} onChange={set('notes')} rows={2} placeholder="Condition, technique, progress..." hint={`${f.notes.length}/300`} />{e.notes && <p className="text-xs text-red-600">{e.notes}</p>}</div>
       </div>
       {err && <div className="mt-3"><ErrorBox text={err} /></div>}
-      <div className="mt-4 flex gap-2"><Btn variant="gold" onClick={submit}>💾 Save and complete</Btn><Btn variant="secondary" onClick={onCancel}>Cancel</Btn></div>
+      <div className="mt-4 flex gap-2"><Btn variant="gold" disabled={saving || !measuredAt} onClick={submit}>💾 Save and complete</Btn><Btn variant="secondary" onClick={onCancel}>Cancel</Btn></div>
     </div>
   );
 }
@@ -400,7 +407,7 @@ function SessionGenerator({ state, horseId, planId, init, onClose, onDone, onGen
         const days: string[] = typeof stage.weekdays_json === 'string' ? JSON.parse(stage.weekdays_json) : stage.daysOfWeek || [];
         for (let day = Number(stage.start_day || stage.startDay); day <= Number(stage.end_day || stage.endDay); day++) {
           const date = addDays(startDate, day-1);
-          if (days.includes(dayKeys[parseD(date).getDay()])) output.push({ date, time: String(stage.session_time || stage.sessionTime).slice(0,5), type: stage.activity_name || stage.activityName, distance: "As prescribed in the protocol", targetTime: '', notes: stage.objective || '' });
+          if (days.includes(dayKeys[parseD(date).getDay()])) output.push({ date, time: String(stage.session_time || stage.sessionTime).slice(0,5), type: stage.activity_name || stage.activityName, distance: "According to the saved training plan", targetTime: '', notes: stage.objective || '' });
         }
       }
       setRows(output);
@@ -555,7 +562,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
     void recommendationFor(en.id, en.assignmentId).then(value => {
       if (!active) return;
       setSug(recommendationView(value));
-      setF(p => ({ ...p, start: dToIso(en.startedAt), weeks: String(Math.ceil(diffDays(en.startedAt, en.expiresAt)/7)) }));
+      setF(p => ({ ...p, level: '', start: dToIso(en.startedAt), weeks: String(Math.ceil(diffDays(en.startedAt, en.expiresAt)/7)) }));
       setWeekdays([...new Set<number>((value.stages || []).flatMap((s: any) => s.daysOfWeek.map((day: string) => ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'].indexOf(day))))]);
       setTime(value.stages?.[0]?.sessionTime?.slice(0,5) || '07:30');
     }).catch(e => { if (active) setSubmitErr((e as Error).message); });
@@ -576,12 +583,12 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
   const validate = (): boolean => {
     const x: Record<string, string> = {};
     if (step === 0) {
-      if (!sug && horse) x.horse = "No valid protocol is available from the server. Check the error message below.";
+      if (!sug && horse) x.horse = "No package roadmap suggestion is available from the server. Check the error message below.";
       if (!horse) x.horse = "Select a horse.";
       else { const b = trainerPlanBlockReason(horse, state.enrollments, me.id); if (b) x.horse = `Cannot select "${horse.name}": ${b}.`; }
     }
     if (step === 1) {
-      if (!sug) x.health = "Cannot load the recommendation. Check that a suitable veterinarian-approved protocol exists.";
+      if (!sug) x.health = "Cannot load the recommendation. Reload the package roadmap suggestion.";
       if (!rec) x.health = "This horse has no examination record — a veterinarian must examine it before a roadmap can be created.";
       else if (decision === 'not-eligible') x.health = "Latest examination conclusion: NOT FIT for training. A roadmap cannot be created.";
     }
@@ -590,7 +597,6 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
       if (g.length < 10 || g.length > 300) x.goal = "Goal must contain 10–300 characters.";
       if (!Number.isInteger(weeks) || weeks < 1 || weeks > 12) x.weeks = "Number of weeks must be between 1 and 12.";
       if (!validDate(startD)) x.start = "Select a start date."; else if (diffDays(TODAY, startD) < 0) x.start = "Start date cannot be in the past.";
-      if (INTENSITY_LEVELS.indexOf(level as typeof INTENSITY_LEVELS[number]) > sugLevel) x.level = `Intensity exceeds the recommended limit (maximum "${INTENSITY_LEVELS[sugLevel]} ") for the horse's current condition.`;
       if (en && validDate(startD) && diffDays(startD, en.expiresAt) < 0) x.start = `Start date is after the package expiry date (${en.expiresAt}).`;
     }
     if (step === 3) {
@@ -650,7 +656,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
             </div>
           ) : <ErrorBox text="This horse has no examination record." />}
           <div className="rounded-xl border border-[#c9973b]/30 bg-[#c9973b]/5 p-4 text-sm">
-            <div className="font-semibold text-[#8a6420]">Recommended intensity: {INTENSITY_LEVELS[sugLevel]}  · phase {sug.phase}  · protocol selected by the server</div>
+            <div className="font-semibold text-[#8a6420]">Recommended intensity: {INTENSITY_LEVELS[sugLevel]}  · phase {sug.phase}  · package planning default; trainer review required</div>
             <div className="mt-1 text-gray-600">{sug.sessionsPerWeek}  sessions/week · {sug.restDaysPerWeek}  rest days</div>
             {sug.warnings.map(w => <div key={w} className="mt-1 text-xs text-amber-700">⚠ {w}</div>)}
           </div>
@@ -666,7 +672,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
             <Select label="Main distance" required value={f.distance} onChange={set('distance')} options={DISTANCES.map(v => ({ value: v, label: v }))} />
             <Input label="Number of weeks" required type="number" value={f.weeks} onChange={set('weeks')} hint="1–12 weeks" error={errs.weeks} />
             <Input label="Start date" required type="date" value={f.start} min={dToIso(TODAY)} onChange={set('start')} hint="Today or later" error={errs.start} />
-            <Select label="Intensity" required value={level} onChange={set('level')} options={INTENSITY_LEVELS.map(v => ({ value: v, label: v }))} hint={`Recommended maximum: ${INTENSITY_LEVELS[sugLevel]}`} error={errs.level} />
+            <Select label="Intensity" required value={level} onChange={set('level')} options={INTENSITY_LEVELS.map(v => ({ value: v, label: v }))} hint={`Suggested starting intensity: ${INTENSITY_LEVELS[sugLevel]}`} error={errs.level} />
           </div>
           <div>
             <Textarea label="Goals" required value={f.goal} onChange={set('goal')} rows={3} placeholder="e.g. Improve sprint speed for a 1200 m race" hint={`10–300 characters · ${f.goal.length}/300`} />

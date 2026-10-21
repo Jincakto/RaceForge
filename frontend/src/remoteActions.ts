@@ -1,3 +1,4 @@
+import { trainingTimestamp } from './trainingTimestamp';
 import { idPath as enc, request } from './api';
 import { staffRoleId, ROLE_NAMES, isoDate, enrollmentFromApi, horsePayload, medicalPayload, packageFromApi, planFromApi, recordFromApi, sessionFromApi } from './remote';
 import type { RemoteSlice } from './remote';
@@ -69,11 +70,7 @@ export function makeRemoteActions(env: Env) {
         if (JSON.stringify(next.editRequests) !== JSON.stringify(prev.editRequests)) unavailable("requesting changes to an approved profile");
         if (JSON.stringify(next.achievements) !== JSON.stringify(prev.achievements)) unavailable("standalone achievements; enter race results in the race history tab to save prizes");
         if (JSON.stringify(next.trainerHistory) !== JSON.stringify(prev.trainerHistory)) {
-          const before = new Set((prev.trainerHistory || []).filter(t => t.to === null).map(t => t.trainerId));
-          const after = new Set((next.trainerHistory || []).filter(t => t.to === null).map(t => t.trainerId));
-          for (const id of after) if (!before.has(id)) await request(`/horses/${enc(next.id)}/trainers`, 'POST', { trainerId: id });
-          for (const id of before) if (!after.has(id)) await request(`/horses/${enc(next.id)}/trainers/${enc(id)}`, 'DELETE');
-          return;
+          throw new Error("Assign trainers through a paid horse package on the Trainer assignments page.");
         }
         if (JSON.stringify(horsePayload(next)) !== JSON.stringify(horsePayload(prev))) await request(`/horses/${enc(next.id)}`, 'PUT', horsePayload(next));
         for (const old of prev.raceHistory) if (!next.raceHistory.some(r => r.id === old.id)) await request(`/horses/race-history/${enc(old.id)}`, 'DELETE');
@@ -130,11 +127,13 @@ export function makeRemoteActions(env: Env) {
       });
     },
     savePackage: (draft: PackageDraft) => result<TrainingPackage>('package', async () => {
-      return packageFromApi(await request(draft.id ? `/training-packages/${enc(draft.id)}` : '/training-packages', draft.id ? 'PUT' : 'POST', { packageName: draft.name.trim(), packageType: draft.packageType, description: draft.description, durationDays: draft.durationDays, price: draft.price }));
+      if (draft.id) unavailable("editing training packages");
+      return packageFromApi(await request('/training-packages', 'POST', { packageName: draft.name.trim(), packageType: draft.packageType, description: draft.description, durationDays: draft.durationDays, price: draft.price }));
     }),
-    togglePackage: (id: string, active: boolean) => result<TrainingPackage>('package-status', async () => packageFromApi(await request(`/training-packages/${enc(id)}/status`, 'PATCH', { status: active ? 'ACTIVE' : 'INACTIVE' }))),
+    togglePackage: (_id: string, _active: boolean) => result<TrainingPackage>('package-status', async () => unavailable("enabling or disabling training packages")),
     assignTrainer: (enrollmentId: string, userId: string, reason = '') => result<Enrollment>(`assign-${enrollmentId}`, async () => {
       const state = getState(); const e = state.enrollments.find(e => e.id === enrollmentId); if (!e) throw new Error("Package not found.");
+      if (e.directAssignmentId || e.apiStatus !== 'ACTIVE' || e.paymentStatus !== 'PAID') throw new Error("Select an active, paid horse package before assigning a trainer.");
       const trainerId = state.users.find(u => u.id === userId)?.trainerProfileId;
       if (!trainerId) throw new Error("The trainer has no professional profile. Ask an administrator to open Account management and select Create trainer profile, then refresh the list.");
       await request(e.assignmentId ? `/trainer-assignments/${enc(e.assignmentId)}/replace` : '/trainer-assignments', 'POST', e.assignmentId ? { trainerId, reason } : { trainerId, horsePackageId: enrollmentId });
@@ -142,7 +141,7 @@ export function makeRemoteActions(env: Env) {
     }),
     respondAssign: (enrollmentId: string, accepted: boolean, reason = '') => result<null>(`respond-${enrollmentId}`, async () => {
       const entry = getState().enrollments.find(e => e.id === enrollmentId);
-      if (entry?.directAssignmentId) { await request(`/trainers/assignments/${enc(entry.directAssignmentId)}/${accepted ? 'accept' : 'decline'}`, 'POST', accepted ? undefined : { reason }); return null; }
+      if (entry?.directAssignmentId || !entry) throw new Error("A package-linked trainer assignment is required.");
       const id = entry?.assignmentId; if (!id) throw new Error("Assignment ID not found.");
       await request(`/trainer-assignments/${enc(id)}/respond`, 'POST', { accepted, reason }); return null;
     }),
@@ -151,11 +150,29 @@ export function makeRemoteActions(env: Env) {
       const e = state.enrollments.find(e => e.horseId === draft.horseId && e.trainerId === state.user?.id && e.trainerStatus === 'confirmed' && e.status === 'active');
       if (!e?.assignmentId) throw new Error("A paid package and an accepted trainer assignment are required.");
       const recommendation = await recommendationFor(e.id, e.assignmentId);
-      const expectedDays = [...new Set<number>((recommendation.stages || []).flatMap((s: any) => s.daysOfWeek.map((d: string) => ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'].indexOf(d))))].sort();
-      if (draft.weekdays && JSON.stringify([...draft.weekdays].sort()) !== JSON.stringify(expectedDays)) throw new Error("The selected schedule differs from the recommended protocol. Keep the veterinarian-approved schedule.");
-      if (draft.time && recommendation.stages.some((s: any) => s.sessionTime.slice(0,5) !== draft.time)) throw new Error("The selected time differs from the protocol. Use the time in the approved protocol.");
+      const dayNames = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+      if (draft.weekdays && (draft.weekdays.length < 1 || draft.weekdays.length > 6 || new Set(draft.weekdays).size !== draft.weekdays.length || draft.weekdays.some(day => !Number.isInteger(day) || day < 0 || day > 6))) throw new Error("Select 1–6 distinct weekdays.");
+      const seconds = (value: string): number => {
+        const match = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);
+        if (!match || Number(match[1]) > 23 || Number(match[2]) > 59 || Number(match[3] || 0) > 59) throw new Error("Enter a valid session time.");
+        return Number(match[1])*3600 + Number(match[2])*60 + Number(match[3] || 0);
+      };
+      const clock = (value: number) => [Math.floor(value/3600), Math.floor(value%3600/60), value%60].map(n => String(n).padStart(2,'0')).join(':');
+      if (!Array.isArray(recommendation.stages) || !recommendation.stages.length) throw new Error("No roadmap stages are available. Reload the suggestion.");
+      const selectedIntensity = draft.workload ? ({Low:'LOW',Medium:'MODERATE',High:'HIGH'} as Record<string,string>)[draft.workload] : undefined;
+      if (draft.workload && !selectedIntensity) throw new Error("Select a valid training intensity.");
+      const stages = recommendation.stages.map((stage: any) => {
+        const duration = seconds(stage.sessionEndTime) - seconds(stage.sessionTime);
+        if (duration <= 0) throw new Error("Session end time must be after its start time.");
+        const start = draft.time !== undefined ? seconds(draft.time) : seconds(stage.sessionTime);
+        const end = start + duration;
+        if (end >= 24*3600) throw new Error("The selected start time and stage duration must end within the same day. Choose an earlier start time.");
+        const days = draft.weekdays ? draft.weekdays.map(day => dayNames[day]) : stage.daysOfWeek;
+        if (!Array.isArray(days) || days.length < 1 || days.length > 6 || new Set(days).size !== days.length || days.some((day: string) => !dayNames.includes(day))) throw new Error("Select 1–6 distinct weekdays.");
+        return { ...stage, intensity: selectedIntensity || stage.intensity, daysOfWeek: days, sessionTime: clock(start), sessionEndTime: clock(end) };
+      });
       if (isoDate(draft.startDate) !== isoDate(e.startedAt) || isoDate(draft.endDate) !== isoDate(e.expiresAt)) throw new Error("Roadmap dates must match the paid package term.");
-      const plan = await request(`/horses/${enc(draft.horseId)}/training-plans`, 'POST', { planName: draft.phase, goal: draft.goals, startDate: isoDate(e.startedAt), endDate: isoDate(e.expiresAt), assignmentId: e.assignmentId, recommendationId: recommendation.recommendationId, recommendationConfirmed: true, stages: recommendation.stages, notes: `${recommendation.rationale || ''}\n${recommendation.limitations || ''}` });
+      const plan = await request(`/horses/${enc(draft.horseId)}/training-plans`, 'POST', { planName: draft.phase, goal: draft.goals, startDate: isoDate(e.startedAt), endDate: isoDate(e.expiresAt), assignmentId: e.assignmentId, recommendationId: recommendation.recommendationId, recommendationConfirmed: true, stages, notes: `${recommendation.rationale || ''}\n${recommendation.limitations || ''}` });
       return planFromApi(plan, e);
     }),
     generateSessions: (horseId: string, planId: string, drafts: SessionDraft[]) => result<TrainingSession[]>(`generate-${planId}`, async () => {
@@ -166,7 +183,7 @@ export function makeRemoteActions(env: Env) {
         const pad = (n: number) => String(n).padStart(2, '0');
         return [sessionFromApi(await request('/training-sessions', 'POST', { planId, horseId, scheduledTime: start, scheduledEnd: `${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}:00` }), getState().user || undefined)];
       }
-      // Only the stored, veterinarian-approved roadmap may be bulk-generated.
+      // Only the stored, trainer-confirmed roadmap may be bulk-generated.
       const stored = await request<any[]>(`/training-plans/${enc(planId)}/stages`);
       const plan = getState().trainingPlans.find(p => p.id === planId);
       const enrollment = getState().enrollments.find(e => e.id === plan?.horsePackageId);
@@ -180,7 +197,7 @@ export function makeRemoteActions(env: Env) {
           if (days.includes(dayNames[dt.getDay()])) expected.push({ date: `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`, time: String(stage.session_time || stage.sessionTime).slice(0,5), type: stage.activity_name || stage.activityName });
         }
       }
-      if (drafts.length !== expected.length || drafts.some((d, i) => d.date !== expected[i].date || d.time !== expected[i].time || d.type !== expected[i].type)) throw new Error("The preview differs from the approved protocol. Reload the preview before generating sessions.");
+      if (drafts.length !== expected.length || drafts.some((d, i) => d.date !== expected[i].date || d.time !== expected[i].time || d.type !== expected[i].type)) throw new Error("The preview differs from the saved training plan. Reload the preview before generating sessions.");
       const generated = await request(`/training-plans/${enc(planId)}/generate-sessions`, 'POST', { confirmed: true });
       return (Array.isArray(generated) ? generated : generated.sessions || []).map((w: any) => sessionFromApi(w, getState().user || undefined));
     }),
@@ -202,7 +219,7 @@ export function makeRemoteActions(env: Env) {
         await run(`complete-${id}`, async () => {
           const distance = Number(result.time.replace(',', '.'));
           if (!Number.isFinite(distance) || distance < 0) throw new Error("Actual distance must be a non-negative number of kilometers.");
-          const recoveryMeasuredAt = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok', year:'numeric', month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false }).format(new Date()).replace(' ', 'T');
+          const recoveryMeasuredAt = result.recoveryMeasuredAt || trainingTimestamp();
           await request(`/training-sessions/${enc(id)}/complete`, 'PATCH', { distance, avgSpeed: Number(result.speed), endExerciseHeartRate: result.heartRate, recoveryHeartRate2Min: result.performanceScore, recoveryMeasuredAt, performanceNotes: result.notes });
         }); return null;
       } catch (e) { error((e as Error).message); return (e as Error).message; }

@@ -17,7 +17,7 @@ import java.util.Map;
 public class TrainingWorkflowGuard {
  private final JdbcTemplate jdbc;
  private final HorsePackageRepository packages;
- @org.springframework.beans.factory.annotation.Autowired private com.raceforge.backend.training.support.TrainingMedicalReader medicalReader;
+ @org.springframework.beans.factory.annotation.Autowired private com.raceforge.backend.training.service.TrainingMedicalReader medicalReader;
  @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
  public TrainingWorkflowGuard(JdbcTemplate jdbc,HorsePackageRepository packages){this.jdbc=jdbc;this.packages=packages;}
  public AuthenticatedUser actor(){
@@ -41,6 +41,24 @@ public class TrainingWorkflowGuard {
   if(jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Training_Lock WHERE horse_id=? AND unlocked_at IS NULL",Integer.class,horse.getHorseId())>0)throw new BusinessRuleException("Horse has an active medical training lock");
   var medical=medical(horse);
   if(!Boolean.TRUE.equals(medical.get("training_eligible"))||(medical.get("final_conclusion")==null || !java.util.Set.of("FIT","FIT_WITH_MONITORING").contains(medical.get("final_conclusion"))))throw new BusinessRuleException("Latest confirmed examination does not authorize training");
+ }
+ /** Conservative package enrolment policy, not certification of fitness to race. */
+ public void requireRacingEligible(Horse horse) {
+  var medical=medical(horse);
+  if(!Boolean.TRUE.equals(medical.get("training_eligible")))
+   throw new BusinessRuleException("RACING registration requires medical authorization for training");
+  if(!"FIT".equals(medical.get("final_conclusion")))
+   throw new BusinessRuleException("RACING registration requires a FIT conclusion; conditional fitness requires veterinary reassessment");
+  if(medical.get("body_temperature")==null || medical.get("resting_heart_rate")==null
+     || medical.get("resting_respiratory_rate")==null)
+   throw new BusinessRuleException("RACING registration requires temperature, resting heart rate and resting respiratory rate in the latest confirmed examination");
+  Object count=medical.get("movement_legs_count");
+  if(!(count instanceof Number) || ((Number)count).intValue()==0)
+   throw new BusinessRuleException("RACING registration requires a MOVEMENT_LEGS examination in the latest confirmed medical record");
+  if(((Number)count).intValue()!=1)
+   throw new BusinessRuleException("RACING registration cannot use duplicate MOVEMENT_LEGS examination results; veterinary correction is required");
+  if(!"NORMAL".equals(medical.get("movement_legs_status")))
+   throw new BusinessRuleException("RACING registration requires a NORMAL MOVEMENT_LEGS examination result");
  }
  public java.math.BigDecimal weight(Horse horse){return medicalReader.weight(horse.getHorseId());}
  public boolean canAccessPackage(String packageId,String userId){

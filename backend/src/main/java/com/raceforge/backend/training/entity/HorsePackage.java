@@ -8,7 +8,7 @@ import com.raceforge.backend.horse.entity.Horse;
 
 @Entity
 @Table(name = "HORSE_PACKAGE")
-public class HorsePackage extends com.raceforge.backend.training.support.TrainingEntity {
+public class HorsePackage extends com.raceforge.backend.training.entity.TrainingEntity {
 
     @Id
     @Column(name = "horse_package_id", nullable = false, length = 20)

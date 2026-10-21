@@ -8,7 +8,11 @@ import ts from 'typescript';
 
 // Run the actual TS adapters without Vite or a database; HTTP is the test boundary.
 const dir = await mkdtemp(path.join(tmpdir(), 'raceforge-api-tests-'));
+<<<<<<< HEAD
 for (const name of ['api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
+=======
+for (const name of ['trainingTimestamp', 'api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
+>>>>>>> a0f9749 (Luu tam code local)
   const source = await readFile(new URL(`../src/${name}.ts`, import.meta.url), 'utf8');
   const code = ts.transpileModule(source.replace('import.meta.env', '({})'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText
     .replace(/(['"])(\.\/[^'"]+)\1/g, (_, quote, specifier) => `${quote}${specifier}.mjs${quote}`);
@@ -42,6 +46,7 @@ const denied = (status = 403) => new Response(JSON.stringify({ success: false, m
 const user = role => mapping.userFromApi({ userId: role === 'owner' ? 'OWN-001' : 'HTR-001', fullName: 'Test User', email: 'test@example.invalid', emailVerified: true, status: 'ACTIVE', role: { roleName: mapping.ROLE_NAMES[role], roleId: mapping.ROLE_IDS[role] } });
 const horse = () => mapping.horseFromApi({ horseId:'HOR-007', ownerId:'OWN-001', horseName:'Thunder', dateOfBirth:'2020-01-02', gender:'GELDING', admissionStatus:'APPROVED', healthStatus:'READY', trainerIds:['HTR-001','HTR-002'], registrationNumber:'704ABC000000001', imageUrl:'https://example.invalid/horse.jpg', documentUrl:'https://example.invalid/ueln.pdf' }, []);
 const state = () => ({ user:user('owner'), users:[], horses:[horse()], packages:[], enrollments:[], trainingPlans:[], trainingSessions:[], notifications:[], healthRecords:[], horseClubRequests:[] });
+<<<<<<< HEAD
 test('owner treats a missing health profile as no examination records, while preserving other errors', async () => {
   for (const [status, message, expectedWarnings] of [
     [404, 'Health profile not found', 0],
@@ -77,11 +82,14 @@ test('admin login loads administration data without calling business APIs', asyn
   assert.equal(Object.keys(data.serverPermissions).length, 6);
   assert.ok(urls.every(url => url.startsWith('/api/users') || url.startsWith('/api/admin/permissions/')));
 });
+=======
+>>>>>>> a0f9749 (Luu tam code local)
 function actions(snapshot) {
   const events = [];
   return { events, remote: makeRemoteActions({ getState:() => snapshot, reload:async () => { events.push('reload'); }, success:message => events.push(message), error:message => events.push(`error:${message}`), navigate:page => events.push(`page:${page}`) }) };
 }
 
+<<<<<<< HEAD
 test('package create and edit send the DTO and use the server response', async () => {
   const draft = {name:' Normal ',packageType:'RACING',description:'Training',durationDays:30,price:5000000};
   for (const id of [undefined, 'PKG-001']) {
@@ -123,6 +131,8 @@ test('unavailable package routes report failure without success or reload', asyn
   assert.ok(events.every(event => event.startsWith('error:')));
 });
 
+=======
+>>>>>>> a0f9749 (Luu tam code local)
 test('attaches bearer auth and cookie credentials, unwraps the BE response', async () => {
   api.setAccessToken('access');
   globalThis.fetch = async (url, init) => { assert.equal(url, '/api/horses'); assert.equal(init.credentials, 'include'); assert.equal(init.headers.Authorization, 'Bearer access'); return ok([{ horseId:'HOR-007' }]); };
@@ -280,7 +290,11 @@ test('completion sends actual exercise/recovery fields and does not invent a max
   globalThis.fetch = async (url, init) => { assert.equal(url,'/api/training-sessions/SES-001/complete'); assert.equal(init.method,'PATCH'); payload=JSON.parse(init.body); return ok({}); };
   assert.equal(await remote.completeSession('SES-001',{ time:'1.25',speed:'18.2',heartRate:180,performanceScore:88,notes:'Measured recovery' }),null);
   assert.equal(payload.distance,1.25); assert.equal(payload.endExerciseHeartRate,180); assert.equal(payload.recoveryHeartRate2Min,88); assert.equal(payload.avgSpeed,18.2);
+<<<<<<< HEAD
   assert.match(payload.recoveryMeasuredAt,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/); assert.ok(!('maxSpeed' in payload));
+=======
+  assert.match(payload.recoveryMeasuredAt,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/); assert.ok(!('maxSpeed' in payload));
+>>>>>>> a0f9749 (Luu tam code local)
 });
 
 test('medical confirmation failure keeps its draft ID and retries using the draft update API', async () => {
@@ -353,7 +367,11 @@ test('only admin can create a profile for an activated Trainer', async () => {
 });
 test('trainer assignment uses profile ID, not account ID', async () => {
   const target={...user('head_trainer'),trainerProfileId:'HTR-099'};
+<<<<<<< HEAD
   const snapshot={...state(),user:user('manager'),users:[target],enrollments:[{id:'HPG-001',horseId:'HOR-007'}]}; const {remote}=actions(snapshot);
+=======
+  const snapshot={...state(),user:user('manager'),users:[target],enrollments:[{id:'HPG-001',horseId:'HOR-007',apiStatus:'ACTIVE',paymentStatus:'PAID'}]}; const {remote}=actions(snapshot);
+>>>>>>> a0f9749 (Luu tam code local)
   globalThis.fetch=async(url,init)=>{assert.equal(url,'/api/trainer-assignments'); assert.deepEqual(JSON.parse(init.body),{trainerId:'HTR-099',horsePackageId:'HPG-001'}); return ok({});};
   assert.equal((await remote.assignTrainer('HPG-001',target.id)).ok,true);
 });
@@ -400,3 +418,103 @@ test('published protocol weight intervals are half-open and package-specific',()
   assert.equal(protocols.protocolOverlap({...active,protocol_id:'PRO-2',min_weight:500,max_weight:550},[active]),false);
   assert.equal(protocols.protocolOverlap({...active,protocol_id:'PRO-2',package_type:'RECOVERY'},[active]),false);
 });
+<<<<<<< HEAD
+=======
+
+
+test('unpaid and paused packages cannot create trainer assignments', async () => {
+  const target={...user('head_trainer'),trainerProfileId:'HTR-099'};
+  const enrollment={id:'HPG-001',horseId:'HOR-007',apiStatus:'ACTIVE',paymentStatus:'PENDING'};
+  const snapshot={...state(),user:user('manager'),users:[target],enrollments:[enrollment]};
+  const {remote}=actions(snapshot); let calls=0;
+  globalThis.fetch=async()=>{calls++; return ok({});};
+  assert.equal((await remote.assignTrainer(enrollment.id,target.id)).ok,false);
+  enrollment.paymentStatus='PAID'; enrollment.apiStatus='PAUSED';
+  assert.equal((await remote.assignTrainer(enrollment.id,target.id)).ok,false);
+  assert.equal(calls,0);
+});
+
+test('trainer responds only through the package assignment endpoint', async () => {
+  const enrollment={id:'HPG-001',assignmentId:'ASN-003'};
+  const {remote}=actions({...state(),user:user('head_trainer'),enrollments:[enrollment]});
+  globalThis.fetch=async(url,init)=>{assert.equal(url,'/api/trainer-assignments/ASN-003/respond');assert.deepEqual(JSON.parse(init.body),{accepted:true,reason:''});return ok({});};
+  assert.equal((await remote.respondAssign(enrollment.id,true)).ok,true);
+});
+
+test('legacy horse-only assignments cannot be accepted as package work', async () => {
+  const {remote}=actions({...state(),user:user('head_trainer'),enrollments:[{id:'direct:ASN-003',directAssignmentId:'ASN-003'}]});
+  let calls=0;globalThis.fetch=async()=>{calls++;return ok({});};
+  assert.equal((await remote.respondAssign('direct:ASN-003',true)).ok,false);
+  assert.equal(calls,0);
+});
+
+
+function scheduleFixture(key) {
+  const trainer=user('head_trainer');
+  const enrollment={id:key,horseId:'HOR-007',trainerId:trainer.id,trainerStatus:'confirmed',status:'active',assignmentId:'ASN-003',startedAt:'21/10/2026',expiresAt:'19/11/2026'};
+  const draft={horseId:'HOR-007',phase:'Foundation',goals:'Review',startDate:enrollment.startedAt,endDate:enrollment.expiresAt,weekdays:[2,4],time:'09:15'};
+  const suggestion={recommendationId:'REC-001',stages:[
+    {startDay:1,endDay:15,activityName:'Foundation',intensity:'LOW',daysOfWeek:['MONDAY'],sessionTime:'07:00:00',sessionEndTime:'07:30:00'},
+    {startDay:16,endDay:30,activityName:'Review',intensity:'LOW',daysOfWeek:['FRIDAY'],sessionTime:'08:00:00',sessionEndTime:'08:45:00'}]};
+  return {enrollment,draft,suggestion,remote:actions({...state(),user:trainer,enrollments:[enrollment]}).remote};
+}
+
+test('trainer-selected days and start time are sent with each stage duration preserved', async()=>{
+  const {remote,draft,suggestion}=scheduleFixture('HPG-editable-schedule');let posted;
+  globalThis.fetch=async(url,init)=>{
+    if(url.endsWith('/training-recommendations')) return ok(suggestion);
+    assert.equal(url,'/api/horses/HOR-007/training-plans');posted=JSON.parse(init.body);return ok({planId:'PLN-001',planName:'Foundation',status:'ACTIVE'});
+  };
+  assert.equal((await remote.createPlan(draft)).ok,true);
+  assert.deepEqual(posted.stages.map(s=>s.daysOfWeek),[['TUESDAY','THURSDAY'],['TUESDAY','THURSDAY']]);
+  assert.deepEqual(posted.stages.map(s=>[s.sessionTime,s.sessionEndTime]),[['09:15:00','09:45:00'],['09:15:00','10:00:00']]);
+  assert.equal(suggestion.stages[0].sessionTime,'07:00:00');
+  assert.equal(posted.recommendationConfirmed,true);
+});
+
+test('invalid weekdays, invalid times, overnight stages and changed package dates block plan writes', async()=>{
+  const cases=[{weekdays:[]},{weekdays:[0,1,2,3,4,5,6]},{weekdays:[1,1]},{weekdays:[7]},{time:'25:00'},{time:'09:99'},{time:'23:30'},{startDate:'22/10/2026'}];
+  for(const [i,changes] of cases.entries()){
+    const {remote,draft,suggestion}=scheduleFixture('HPG-invalid-schedule-'+i);let writes=0;
+    globalThis.fetch=async(url)=>{if(url.endsWith('/training-recommendations'))return ok(suggestion);writes++;return ok({});};
+    assert.equal((await remote.createPlan({...draft,...changes})).ok,false,JSON.stringify(changes));assert.equal(writes,0);
+  }
+});
+
+test('stage with an invalid original duration cannot be moved into a valid-looking window',async()=>{
+  const {remote,draft,suggestion}=scheduleFixture('HPG-invalid-duration');suggestion.stages[0].sessionEndTime='06:00:00';let writes=0;
+  globalThis.fetch=async(url)=>{if(url.endsWith('/training-recommendations'))return ok(suggestion);writes++;return ok({});};
+  assert.equal((await remote.createPlan(draft)).ok,false);assert.equal(writes,0);
+});
+
+
+test('completion preserves the recorded recovery timestamp instead of replacing it at save',async()=>{
+ const {remote}=actions(state());let captured;
+ globalThis.fetch=async(url,init)=>{if(url.endsWith('/complete'))captured=JSON.parse(init.body);return ok({});};
+ const result=await remote.completeSession('SES-001',{time:'2.00',speed:'10',heartRate:160,performanceScore:110,notes:'',recoveryMeasuredAt:'2026-10-21T07:32:00'});
+ assert.equal(result,null);assert.equal(captured.recoveryMeasuredAt,'2026-10-21T07:32:00');
+});
+
+
+test('recovery timestamp is ISO LocalDateTime with a decimal point, including midnight', async()=>{
+ const {trainingTimestamp}=await import(pathToFileURL(path.join(dir,'trainingTimestamp.mjs')).href);
+ assert.equal(trainingTimestamp(new Date('2026-10-21T06:46:37.669Z')),'2026-10-21T13:46:37.669');
+ assert.equal(trainingTimestamp(new Date('2026-10-21T17:00:00.001Z')),'2026-10-22T00:00:00.001');
+ assert.match(trainingTimestamp(),/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}$/);
+});
+
+
+test('trainer selected intensity reaches all plan stages without a LOW cap',async()=>{
+ for(const [workload,intensity] of [['Low','LOW'],['Medium','MODERATE'],['High','HIGH']]){
+  const {remote,draft,suggestion}=scheduleFixture('HPG-intensity-'+workload);let posted;
+  globalThis.fetch=async(url,init)=>{if(url.endsWith('/training-recommendations'))return ok(suggestion);posted=JSON.parse(init.body);return ok({planId:'PLN-001',planName:'Training',status:'ACTIVE'});};
+  assert.equal((await remote.createPlan({...draft,workload})).ok,true);assert.ok(posted.stages.every(s=>s.intensity===intensity));
+ }
+});
+
+test('invalid intensity does not create a training plan',async()=>{
+ const {remote,draft,suggestion}=scheduleFixture('HPG-bad-intensity');let writes=0;
+ globalThis.fetch=async(url)=>{if(url.endsWith('/training-recommendations'))return ok(suggestion);writes++;return ok({});};
+ assert.equal((await remote.createPlan({...draft,workload:'INVALID'})).ok,false);assert.equal(writes,0);
+});
+>>>>>>> a0f9749 (Luu tam code local)

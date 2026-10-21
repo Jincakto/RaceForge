@@ -48,4 +48,47 @@ class HorsePackageAdmissionTest {
         verify(packages, never()).findById("PKG-012");
         verify(registrations, never()).saveAndFlush(any());
     }
+
+    @Test
+    void racingRejectionDoesNotPersistRegistration() {
+        TrainingWorkflowGuard guard=mock(TrainingWorkflowGuard.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service,"workflowGuard",guard);
+        Horse horse=approvedHorse();
+        var pack=new com.raceforge.backend.training.entity.TrainingPackage();
+        pack.setStatus("ACTIVE");pack.setPackageType("RACING");
+        when(packages.findById("PKG-012")).thenReturn(Optional.of(pack));
+        doThrow(new BusinessRuleException("RACING requires FIT")).when(guard).requireRacingEligible(horse);
+        assertThrows(BusinessRuleException.class,()->service.register(new HorsePackageRegisterRequest("HOR-001","PKG-012"),"7"));
+        var order=inOrder(guard);order.verify(guard).requireHealthy(horse);order.verify(guard).requireRacingEligible(horse);
+        verify(registrations,never()).saveAndFlush(any());
+        verifyNoInteractions(ids,events);
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings={"BASIC","PERFORMANCE","RACING"})
+    void onlyRacingInvokesAdditionalGuardAndValidRegistrationIsSaved(String type) {
+        TrainingWorkflowGuard guard=mock(TrainingWorkflowGuard.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service,"workflowGuard",guard);
+        Horse horse=approvedHorse();
+        var pack=new com.raceforge.backend.training.entity.TrainingPackage();
+        pack.setStatus("ACTIVE");pack.setPackageType(type);
+        when(packages.findById("PKG-012")).thenReturn(Optional.of(pack));
+        var profile=new com.raceforge.backend.medical.entity.HealthProfile();profile.setProfileId("HPR-001");
+        when(profiles.findByHorse_HorseId("HOR-001")).thenReturn(Optional.of(profile));
+        var initial=new com.raceforge.backend.medical.entity.MedicalRecord();initial.setExamType("INITIAL");initial.setStatus("CONFIRMED");
+        when(medicalRecords.findByHealthProfile_ProfileIdOrderByExaminedAtDesc("HPR-001")).thenReturn(java.util.List.of(initial));
+        when(ids.next("HPG")).thenReturn("HPG-001");
+        when(registrations.saveAndFlush(any())).thenAnswer(invocation->invocation.getArgument(0));
+        assertDoesNotThrow(()->service.register(new HorsePackageRegisterRequest("HOR-001","PKG-012"),"7"));
+        verify(guard).requireHealthy(horse);
+        verify(guard,times("RACING".equals(type)?1:0)).requireRacingEligible(horse);
+        verify(registrations).saveAndFlush(argThat(registration->"PENDING".equals(registration.getStatus())&&registration.getHorse()==horse));
+    }
+
+    private Horse approvedHorse() {
+        User owner=new User();owner.setUserId("7");
+        Horse horse=new Horse();horse.setHorseId("HOR-001");horse.setOwner(owner);
+        horse.setAdmissionStatus("APPROVED");horse.setHealthStatus("READY");horse.setTrainingLocked(false);
+        when(horses.findById("HOR-001")).thenReturn(Optional.of(horse));return horse;
+    }
 }

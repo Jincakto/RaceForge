@@ -330,6 +330,7 @@ export interface TrainingSession {
   postExamDone?: boolean;
   attendance?: { status: 'present' | 'absent'; at: string; note?: string };
   result?: {
+    recoveryMeasuredAt?: string;
     time: string;
     speed: string;
     heartRate: number;

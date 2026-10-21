@@ -21,9 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Locale;
+
 
 @Service
 public class HorsePackageService {
@@ -65,6 +64,7 @@ public class HorsePackageService {
 
     @Transactional
     public HorsePackageResponse register(HorsePackageRegisterRequest request, String ownerId) {
+            System.out.println("========== ENTER REGISTER ==========");
         requireOwnerId(ownerId);
 
       Horse horse = horseRepository.findById(request.horseId())
@@ -80,9 +80,21 @@ public class HorsePackageService {
             throw new BusinessRuleException("This training package is not available");
         }
 
-        workflowGuard.requireHealthy(horse);
+       boolean recovery = "RECOVERY".equalsIgnoreCase(
+        trainingPackage.getPackageType());
+
+        // Mọi loại gói đều yêu cầu ngựa ACTIVE
+        if (!"ACTIVE".equalsIgnoreCase(horse.getStatus())) {
+            throw new BusinessRuleException("Horse must be active");
+        }
+        // Chỉ gói thường mới yêu cầu ngựa khỏe mạnh
+        if (!recovery) {
+            workflowGuard.requireHealthy(horse);
+        }
+
         HealthProfile profile = healthProfileRepository.findByHorse_HorseId(horse.getHorseId())
-                .orElseThrow(() -> new BusinessRuleException("Initial medical examination is required"));
+                .orElseThrow(() -> new BusinessRuleException(
+                        "Initial medical examination is required"));
         boolean initialConfirmed = medicalRecordRepository
                 .findByHealthProfile_ProfileIdOrderByExaminedAtDesc(profile.getProfileId())
                 .stream().anyMatch(this::isConfirmedInitial);
@@ -90,7 +102,6 @@ public class HorsePackageService {
             throw new BusinessRuleException("A confirmed INITIAL examination is required before registration");
         }
 
-        boolean recovery = "RECOVERY".equals(trainingPackage.getPackageType());
         boolean locked = Boolean.TRUE.equals(horse.getTrainingLocked());
         if (locked && !recovery) {
             throw new BusinessRuleException("Training is locked: only a veterinarian-authorized recovery package is allowed");

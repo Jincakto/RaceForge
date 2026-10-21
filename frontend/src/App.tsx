@@ -295,16 +295,6 @@ const ROLE_LABELS: Record<Role, string> = {
   veterinarian: 'Veterinarian', groom: 'Groom', owner: 'Horse Owner',
 };
 
-const DEMO_ACCOUNTS = [
-  { email: 'admin@raceforce.vn', password: '123456', role: 'Administrator', icon: '🛡', color: 'bg-rose-700' },
-  { email: 'manager@raceforce.vn', password: '123456', role: 'Club Manager', icon: '🏛', color: 'bg-[#1a2844]' },
-  { email: 'trainer@raceforce.vn', password: '123456', role: 'Trainer', icon: '🏇', color: 'bg-blue-700' },
-  { email: 'vet@raceforce.vn', password: '123456', role: 'Veterinarian', icon: '🩺', color: 'bg-emerald-700' },
-  { email: 'groom@raceforce.vn', password: '123456', role: 'Groom', icon: '🧹', color: 'bg-amber-600' },
-  { email: 'owner@raceforce.vn', password: '123456', role: 'Horse Owner', icon: '👤', color: 'bg-purple-700' },
-  { email: 'owner2@raceforce.vn', password: '123456', role: 'Horse Owner (new)', icon: '👤', color: 'bg-purple-500' },
-];
-
 // ── Homepage ──────────────────────────────────────────────────────────────────
 
 function HomePage({ navigate }: { navigate: (p: Page) => void }) {
@@ -442,19 +432,7 @@ function LoginPage({ navigate, users, onLogin }: { navigate: (p: Page) => void; 
           <p className="text-center text-gray-500 text-sm mt-5">No account yet? <button onClick={() => navigate('register')} className="text-[#c9973b] hover:underline font-medium">Register</button></p>
           <p className="mt-2 text-center text-xs text-gray-500">Staff accounts are issued by an administrator.</p>
 
-          {/* Quick Login Demo */}
-          <div className="mt-7 border-t border-white/10 pt-6">
-            <p className="text-gray-500 text-xs text-center mb-3 uppercase tracking-wider font-medium">Quick sign-in (demo)</p>
-            <div className="grid grid-cols-2 gap-2">
-              {DEMO_ACCOUNTS.map(acc => (
-                <button key={acc.email} disabled={!!setup || forgot || loading} onClick={() => { setEmail(acc.email); setPassword(''); setError('Enter the password for this server account.'); }}
-                  className="flex items-center gap-2 p-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all text-left">
-                  <span className={`w-7 h-7 rounded-lg ${acc.color} flex items-center justify-center text-white text-sm flex-shrink-0`}>{acc.icon}</span>
-                  <div className="min-w-0"><div className="text-white text-xs font-medium truncate">{acc.role}</div></div>
-                </button>
-              ))}
-            </div>
-          </div>
+
         </div>
       </div>
       <div className="w-[42%] relative hidden lg:block">

@@ -34,12 +34,10 @@ const ok = data => new Response(JSON.stringify({ success:true, data, message:'OK
 const appSource=await readFile(new URL('../src/App.tsx',import.meta.url),'utf8');
 const ast=ts.createSourceFile('App.tsx',appSource,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 const login=ast.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='LoginPage');
-const demos=ast.statements.find(node=>ts.isVariableStatement(node)&&node.declarationList.declarations.some(d=>ts.isIdentifier(d.name)&&d.name.text==='DEMO_ACCOUNTS'));
 await writeFile(path.join(dir,'LoginPage.mjs'),compile(`
 import { useState, useMemo, useRef } from 'react';
 import { auth } from './api';
 import { passwordSetupLink, createPasswordSetupSubmitter, passwordSetupError, requestPasswordReset } from './passwordSetup';
-${demos.getText(ast)}
 ${login.getText(ast)}
 export { LoginPage };
 `));
@@ -139,6 +137,7 @@ test('the existing login UI presents password setup without accepting an account
 });
 test('ordinary login retains its normal label and editable email',()=>{
   const html=renderToStaticMarkup(createElement(LoginPage,{navigate:()=>{},users:[],onLogin:()=>{}}));
+  assert.doesNotMatch(html,/Quick sign-in|demo|admin@raceforce\.vn/);
   assert.match(html,/Sign in →/); assert.match(html,/autoComplete="current-password"/);
   assert.doesNotMatch(html,/<input[^>]*type="email"[^>]*disabled=""/);
 });

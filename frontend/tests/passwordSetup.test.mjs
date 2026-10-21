@@ -34,12 +34,10 @@ const ok = data => new Response(JSON.stringify({ success:true, data, message:'OK
 const appSource=await readFile(new URL('../src/App.tsx',import.meta.url),'utf8');
 const ast=ts.createSourceFile('App.tsx',appSource,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 const login=ast.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='LoginPage');
-const demos=ast.statements.find(node=>ts.isVariableStatement(node)&&node.declarationList.declarations.some(d=>ts.isIdentifier(d.name)&&d.name.text==='DEMO_ACCOUNTS'));
 await writeFile(path.join(dir,'LoginPage.mjs'),compile(`
 import { useState, useMemo, useRef } from 'react';
 import { auth } from './api';
 import { passwordSetupLink, createPasswordSetupSubmitter, passwordSetupError, requestPasswordReset } from './passwordSetup';
-${demos.getText(ast)}
 ${login.getText(ast)}
 export { LoginPage };
 `));
@@ -98,8 +96,8 @@ test('ordinary password reset uses the separate reset endpoint', async () => {
 test('short, blank and oversized passwords and empty tokens never reach BE', async () => {
   let calls=0; globalThis.fetch=async()=>{calls++; return ok({});};
   const submit=flow.createPasswordSetupSubmitter({token:'staff',invitation:true});
-  for (const password of ['short','        ','x'.repeat(101)]) await assert.rejects(submit(password),/8 đến 100/);
-  await assert.rejects(flow.createPasswordSetupSubmitter({token:'',invitation:true})('Password123'),/thiếu mã xác thực/);
+  for (const password of ['short','        ','x'.repeat(101)]) await assert.rejects(submit(password),/8–100/);
+  await assert.rejects(flow.createPasswordSetupSubmitter({token:'',invitation:true})('Password123'),/missing a verification token/);
   assert.equal(calls,0);
 });
 
@@ -117,7 +115,7 @@ test('expired or already-used invitation reports how to obtain a new email', asy
     globalThis.fetch=async()=>new Response(JSON.stringify({success:false,message,data:{code:'INVALID_INVITATION'}}),{status:400});
     let issue;
     try { await flow.createPasswordSetupSubmitter({token:'bad',invitation:true})('Password123'); } catch(e) {issue=e;}
-    assert.match(flow.passwordSetupError(issue,true),/nhờ admin gửi lại lời mời/);
+    assert.match(flow.passwordSetupError(issue,true),/administrator to resend the invitation/);
   }
 });
 
@@ -126,19 +124,20 @@ test('network errors keep a clear error and allow another attempt', async () => 
   globalThis.fetch=async()=>{if(++calls===1)throw new Error('offline'); return ok({});};
   const submit=flow.createPasswordSetupSubmitter({token:'staff',invitation:true});
   let issue; try {await submit('Password123');}catch(e){issue=e;}
-  assert.match(flow.passwordSetupError(issue,true),/Không kết nối được máy chủ/);
+  assert.match(flow.passwordSetupError(issue,true),/Cannot connect to the server/);
   await submit('Password123'); assert.equal(calls,2);
 });
 
 test('the existing login UI presents password setup without accepting an account email',()=>{
   globalThis.window.location.search='?invitation=true&token=staff';
   const html=renderToStaticMarkup(createElement(LoginPage,{navigate:()=>{},users:[],onLogin:()=>{}}));
-  assert.match(html,/Activate staff account/); assert.match(html,/>Đặt mật khẩu<\/button>/);
+  assert.match(html,/Activate staff account/); assert.match(html,/>Set password<\/button>/);
   assert.match(html,/<input[^>]*type="email"[^>]*disabled=""/);
   assert.match(html,/autoComplete="new-password"/); assert.doesNotMatch(html,/token=staff/);
 });
 test('ordinary login retains its normal label and editable email',()=>{
   const html=renderToStaticMarkup(createElement(LoginPage,{navigate:()=>{},users:[],onLogin:()=>{}}));
+  assert.doesNotMatch(html,/Quick sign-in|demo|admin@raceforce\.vn/);
   assert.match(html,/Sign in →/); assert.match(html,/autoComplete="current-password"/);
   assert.doesNotMatch(html,/<input[^>]*type="email"[^>]*disabled=""/);
 });
@@ -147,13 +146,13 @@ test('forgot password sends only recipient email, with no role selector', async 
   let calls=0;
   globalThis.fetch=async(url,init)=>{calls++; assert.equal(url,'/api/auth/forgot-password'); assert.deepEqual(JSON.parse(init.body),{email:'staff@example.com'}); return ok({});};
   await flow.requestPasswordReset(' staff@example.com ');
-  await assert.rejects(flow.requestPasswordReset('bad'),/email hợp lệ/);
+  await assert.rejects(flow.requestPasswordReset('bad'),/valid email address/);
   assert.equal(calls,1);
 });
 test('password-link form requires two new password fields',()=>{
   globalThis.window.location.search='?token=reset';
   const html=renderToStaticMarkup(createElement(LoginPage,{navigate:()=>{},users:[],onLogin:()=>{}}));
   assert.equal((html.match(/autoComplete="new-password"/g)||[]).length,2);
-  assert.match(html,/Nhập lại mật khẩu mới/);
+  assert.match(html,/Confirm new password/);
   assert.doesNotMatch(html,/Forgot password\?/);
 });

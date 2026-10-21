@@ -15,7 +15,7 @@ export async function request<T = any>(path: string, method = 'GET', body?: unkn
       headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-  } catch { throw new ApiError('Không kết nối được máy chủ. Kiểm tra BE và cấu hình API.', 0); }
+  } catch { throw new ApiError("Cannot connect to the server. Check the backend and API configuration.", 0); }
   if (response.status === 401 && retry && !path.startsWith('/auth/')) {
     try {
       refreshFlight ??= request<any>('/auth/refresh', 'POST', {}, false).then(data => { accessToken = data.accessToken; }).finally(() => { refreshFlight = undefined; });
@@ -35,8 +35,8 @@ export async function request<T = any>(path: string, method = 'GET', body?: unkn
     const fields = typeof candidateFields === 'string' ? candidateFields.trim()
       : candidateFields && Object.keys(candidateFields).length ? candidateFields : undefined;
     const message = payload?.message || detail?.message || (raw.trim() === 'Invalid CORS request'
-      ? 'Máy chủ từ chối nguồn truy cập (CORS). Hãy khởi động lại FE để áp dụng cấu hình proxy API.'
-      : `API trả lỗi HTTP ${response.status}`);
+      ? "The server rejected the request origin (CORS). Restart the frontend to apply the API proxy settings."
+      : `API returned HTTP error ${response.status}`);
     const diagnostic = typeof detail?.errorId === 'string' ? ` [HTTP ${response.status}; ${method} ${path.split('?')[0]}; errorId: ${detail.errorId}]` : '';
     throw new ApiError((fields ? `${message}: ${typeof fields === 'string' ? fields : JSON.stringify(fields)}` : message) + diagnostic, response.status, detail);
   }
@@ -47,7 +47,7 @@ export async function request<T = any>(path: string, method = 'GET', body?: unkn
       && payload && typeof payload.notificationId === 'number' && typeof payload.read === 'boolean') return payload as T;
   if (endpoint === '/notifications/unread-count' && method === 'GET'
       && payload && typeof payload.unreadCount === 'number') return payload as T;
-  if (!payload || typeof payload.success !== 'boolean') throw new ApiError('Máy chủ trả dữ liệu không đúng định dạng API.', response.status);
+  if (!payload || typeof payload.success !== 'boolean') throw new ApiError("The server returned an invalid API response.", response.status);
   return payload.data as T;
 }
 export const auth = {

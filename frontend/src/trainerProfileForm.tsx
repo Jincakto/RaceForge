@@ -31,24 +31,24 @@ export function TrainerProfileForm({ user }: { user: AppUser }) {
   const save = async () => {
     if (!profile || busy || flight.current) return;
     flight.current = true; setBusy(true); setError(''); setNotice('');
-    try { const p = await saveOwnTrainerProfile(profile, user.id, bio, qualifications); setProfile(p); setBio(p.bio || ''); setQualifications(p.qualifications || ''); setNotice('Đã lưu hồ sơ chuyên môn trên máy chủ.'); }
+    try { const p = await saveOwnTrainerProfile(profile, user.id, bio, qualifications); setProfile(p); setBio(p.bio || ''); setQualifications(p.qualifications || ''); setNotice("Professional profile saved on the server."); }
     catch (e) { setError((e as Error).message); }
     finally { flight.current = false; setBusy(false); }
   };
   return <Card className="p-6 space-y-4">
-    <h3 className="font-serif text-lg font-bold text-[#0f1729]">Hồ sơ chuyên môn Trainer</h3>
+    <h3 className="font-serif text-lg font-bold text-[#0f1729]">Trainer professional profile</h3>
     {!profile && <>
-      <p className="text-sm text-gray-500">Admin tạo hồ sơ sau khi tài khoản được kích hoạt. Nhập mã hồ sơ Trainer do admin cung cấp để tải thông tin của bạn.</p>
-      <Input label="Mã hồ sơ Trainer" value={profileId} onChange={v => { setProfileId(v); setError(''); }} placeholder="HTR-..." />
-      <Btn variant="secondary" disabled={busy} onClick={load}>{busy ? 'Đang tải...' : 'Tải hồ sơ'}</Btn>
+      <p className="text-sm text-gray-500">An administrator creates the profile after account activation. Enter the trainer profile ID provided by your administrator to load your details.</p>
+      <Input label="Trainer profile ID" value={profileId} onChange={v => { setProfileId(v); setError(''); }} placeholder="HTR-..." />
+      <Btn variant="secondary" disabled={busy} onClick={load}>{busy ? "Loading..." : "Load profile"}</Btn>
     </>}
     {profile && <>
-      <p className="text-sm text-gray-500">Mã hồ sơ: {profile.trainer_id} · {profile.status || 'ACTIVE'}</p>
+      <p className="text-sm text-gray-500">Profile ID: {profile.trainer_id} · {profile.status || 'ACTIVE'}</p>
       <fieldset disabled={busy} className="space-y-4">
-        <Textarea label="Giới thiệu & kinh nghiệm" value={bio} onChange={setBio} rows={5} hint={`${bio.length}/1000 ký tự`} />
-        <Textarea label="Chứng chỉ & bằng cấp" value={qualifications} onChange={setQualifications} rows={5} hint={`${qualifications.length}/1000 ký tự · Nhập tên chứng chỉ, đơn vị cấp và năm cấp.`} />
+        <Textarea label="Introduction and experience" value={bio} onChange={setBio} rows={5} hint={`${bio.length}/1000 characters`} />
+        <Textarea label="Certifications and qualifications" value={qualifications} onChange={setQualifications} rows={5} hint={`${qualifications.length}/1000 characters · Enter the certificate name, issuing organization and year.`} />
       </fieldset>
-      <Btn variant="gold" disabled={busy || bio.length > 1000 || qualifications.length > 1000} onClick={save}>{busy ? 'Đang lưu...' : 'Lưu hồ sơ chuyên môn'}</Btn>
+      <Btn variant="gold" disabled={busy || bio.length > 1000 || qualifications.length > 1000} onClick={save}>{busy ? "Saving..." : "Save professional profile"}</Btn>
     </>}
     {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
     {notice && <p role="status" className="text-sm text-emerald-700">{notice}</p>}

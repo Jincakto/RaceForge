@@ -19,8 +19,8 @@ export function createPasswordSetupSubmitter(link: PasswordSetupLink) {
   let pending: Promise<unknown> | undefined;
   return (newPassword: string): Promise<unknown> => {
     if (pending) return pending;
-    if (!link.token.trim()) return Promise.reject(new Error('Liên kết thiếu mã xác thực. Vui lòng mở lại liên kết trong email.'));
-    if (!newPassword.trim() || newPassword.length < 8 || newPassword.length > 100) return Promise.reject(new Error('Mật khẩu phải có từ 8 đến 100 ký tự.'));
+    if (!link.token.trim()) return Promise.reject(new Error("The link is missing a verification token. Open the link from your email again."));
+    if (!newPassword.trim() || newPassword.length < 8 || newPassword.length > 100) return Promise.reject(new Error("Password must contain 8–100 characters."));
     pending = request(link.invitation ? '/auth/staff/set-password' : '/auth/reset-password', 'POST', { token: link.token, newPassword })
       .finally(() => { pending = undefined; });
     return pending;
@@ -31,14 +31,14 @@ export function passwordSetupError(error: unknown, invitation: boolean): string 
   const code = error instanceof ApiError ? (error.details as { code?: string } | undefined)?.code : undefined;
   if (code === 'INVALID_INVITATION' || code === 'INVALID_RESET_TOKEN') {
     return invitation
-      ? 'Liên kết đặt mật khẩu không hợp lệ, đã hết hạn hoặc đã được dùng. Vui lòng nhờ admin gửi lại lời mời và mở email mới nhất.'
-      : 'Liên kết đặt lại mật khẩu không hợp lệ, đã hết hạn hoặc đã được dùng. Vui lòng yêu cầu liên kết mới.';
+      ? "This password setup link is invalid, expired or already used. Ask your administrator to resend the invitation and open the latest email."
+      : "This password reset link is invalid, expired or already used. Request a new link.";
   }
-  return error instanceof Error ? error.message : 'Không thể đặt mật khẩu. Vui lòng thử lại.';
+  return error instanceof Error ? error.message : "Unable to set password. Please try again.";
 }
 
 export async function requestPasswordReset(email: string): Promise<unknown> {
   const normalized = email.trim();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) throw new Error('Vui lòng nhập email hợp lệ.');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) throw new Error("Enter a valid email address.");
   return request('/auth/forgot-password', 'POST', { email: normalized });
 }

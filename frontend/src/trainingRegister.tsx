@@ -11,12 +11,12 @@ interface Props {
   onPurchase: (horseId: string, packageId: string, renewOfId?: string, successful?: boolean) => Promise<Res<Enrollment>>;
 }
 
-const STEPS = ['Chọn gói', 'Chọn ngựa', 'Xem lại', 'Thanh toán', 'Biên lai'];
+const STEPS = ["Choose package", "Choose horse", "Review", "Payment", "Receipt"];
 type Scenario = 'success' | 'fail' | 'cancel';
 
 function StepBar({ step }: { step: number }) {
   return (
-    <div className="flex items-center" role="list" aria-label="Tiến trình đăng ký">
+    <div className="flex items-center" role="list" aria-label="Registration progress">
       {STEPS.map((l, i) => (
         <div key={l} role="listitem" className="flex flex-1 items-center last:flex-none">
           <div className="flex flex-col items-center gap-1">
@@ -32,14 +32,14 @@ function StepBar({ step }: { step: number }) {
 
 export function ReceiptView({ e, horseName }: { e: Enrollment; horseName: string }) {
   const rows: [string, React.ReactNode][] = [
-    ['Mã đăng ký', <IdChip kind="ENR" id={e.id} />],
-    ['Gói huấn luyện', `${e.packageName} · ${e.sessionsTotal} buổi`],
-    ['Ngựa', horseName],
-    ['Chủ ngựa', e.ownerName],
-    ['Hiệu lực', `${e.startedAt} – ${e.expiresAt}`],
-    ['Số tiền', <span className="font-serif text-lg font-bold text-[#c9973b]">{money(e.amount)}</span>],
-    ['Thời gian thanh toán', e.paidAt],
-    ['Phương thức', e.paymentMethod],
+    ["Registration ID", <IdChip kind="ENR" id={e.id} />],
+    ["Training package", `${e.packageName} · ${e.sessionsTotal} sessions`],
+    ["Horses", horseName],
+    ["Horse Owner", e.ownerName],
+    ["Validity", `${e.startedAt} – ${e.expiresAt}`],
+    ["Amount", <span className="font-serif text-lg font-bold text-[#c9973b]">{money(e.amount)}</span>],
+    ["Payment time", e.paidAt],
+    ["Method", e.paymentMethod],
   ];
   return (
     <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 bg-white">
@@ -55,7 +55,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
   const myHorses = state.horses.filter(h => h.ownerId === user.id);
   const myEnr = state.enrollments.filter(e => myHorses.some(h => h.id === e.horseId)).slice().reverse();
   const activePkgs = state.packages.filter(p => p.active);
-  const horseName = (id: string) => state.horses.find(h => h.id === id)?.name || 'Ngựa';
+  const horseName = (id: string) => state.horses.find(h => h.id === id)?.name || "Horses";
 
   const [mode, setMode] = useState<'list' | 'wizard'>('list');
   const [step, setStep] = useState(0);
@@ -88,27 +88,27 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
 
   const next = () => {
     setFieldError('');
-    if (step === 0 && !pkg) { setFieldError('Vui lòng chọn một gói huấn luyện.'); return; }
+    if (step === 0 && !pkg) { setFieldError("Select a training package."); return; }
     if (step === 1) {
-      if (!horse) { setFieldError('Vui lòng chọn ngựa.'); return; }
+      if (!horse) { setFieldError("Select a horse."); return; }
       const r = purchaseBlockReason(horse, state.enrollments, state.healthRecords, !!renewOf, pkg?.packageType);
-      if (r) { setFieldError(`Ngựa "${horse.name}" không thể đăng ký: ${r}.`); return; }
+      if (r) { setFieldError(`Horse "${horse.name}" cannot register: ${r}.`); return; }
     }
     setStep(s => s + 1);
   };
 
   const pay = () => {
     if (paying) return;
-    const blocked = horse ? purchaseBlockReason(horse, state.enrollments, state.healthRecords, !!renewOf, pkg?.packageType) : 'Vui lòng chọn ngựa.';
+    const blocked = horse ? purchaseBlockReason(horse, state.enrollments, state.healthRecords, !!renewOf, pkg?.packageType) : "Select a horse.";
     if (blocked) { setPayMsg({ kind: 'error', text: blocked }); return; }
     setPayMsg(null); setPaying(true);
     timer.current = window.setTimeout(async () => {
 
-      if (scenario === 'cancel') { setPaying(false); setPayMsg({ kind: 'cancel', text: 'Bạn đã hủy thanh toán. Chưa tạo đăng ký — bạn có thể thử lại bất cứ lúc nào.' }); return; }
+      if (scenario === 'cancel') { setPaying(false); setPayMsg({ kind: 'cancel', text: "Payment cancelled. No registration was created — you may try again at any time." }); return; }
       const r = await onPurchase(horseId, pkgId, renewOf?.id, scenario === 'success');
       setPaying(false);
       if (!r.ok) { setPayMsg({ kind: 'error', text: r.message }); return; }
-      if (r.data.paymentStatus !== 'PAID') { setPayMsg({ kind: 'fail', text: 'BE đã ghi nhận thanh toán mô phỏng thất bại. Chưa kích hoạt gói.' }); return; }
+      if (r.data.paymentStatus !== 'PAID') { setPayMsg({ kind: 'fail', text: "Simulated payment failure recorded. The package has not been activated." }); return; }
       setReceipt(r.data); setStep(4);
     }, 1200);
   };
@@ -119,15 +119,15 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
     return (
       <div className="max-w-5xl space-y-5">
         <div className="flex items-start justify-between gap-4">
-          <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">Gói huấn luyện của tôi</h2><p className="text-sm text-gray-500">Chọn gói → chọn ngựa → xem lại → thanh toán · Chấp nhận kết luận đủ điều kiện hoặc cần theo dõi</p></div>
-          <Btn variant="gold" onClick={() => start()}>+ Đăng ký gói mới</Btn>
+          <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">My training packages</h2><p className="text-sm text-gray-500">Choose package → choose horse → review → pay · Fit and fit-with-monitoring conclusions are accepted</p></div>
+          <Btn variant="gold" onClick={() => start()}>+ Register a new package</Btn>
         </div>
-        {myHorses.length > 0 && !hasEligible && <Card className="border-l-4 border-amber-400 bg-amber-50 p-4 text-sm text-amber-800">Hiện chưa có ngựa nào có thể đăng ký gói mới. Xem lý do ở bước chọn ngựa.</Card>}
+        {myHorses.length > 0 && !hasEligible && <Card className="border-l-4 border-amber-400 bg-amber-50 p-4 text-sm text-amber-800">No horses can currently register for a new package. See the reason in the horse selection step.</Card>}
         {myEnr.length === 0 ? (
           <Card className="p-10 text-center">
             <div className="mb-2 text-4xl">🎯</div>
-            <div className="mb-3 font-semibold text-gray-600">{myHorses.length === 0 ? 'Bạn chưa có ngựa nào' : 'Bạn chưa đăng ký gói huấn luyện nào'}</div>
-            {myHorses.length === 0 ? <Btn variant="gold" onClick={() => navigate('horse-create')}>+ Đăng ký ngựa mới</Btn> : <Btn variant="gold" onClick={() => start()}>Đăng ký gói đầu tiên</Btn>}
+            <div className="mb-3 font-semibold text-gray-600">{myHorses.length === 0 ? "You have no horses yet" : "You have not registered for any training packages"}</div>
+            {myHorses.length === 0 ? <Btn variant="gold" onClick={() => navigate('horse-create')}>+ Register a new horse</Btn> : <Btn variant="gold" onClick={() => start()}>Register for your first package</Btn>}
           </Card>
         ) : myEnr.map(e => {
           const t = enrollmentTerm(e);
@@ -137,37 +137,37 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
             <Card key={e.id} className={`p-5 ${live && (t.warn || t.expired) ? 'border-l-4 border-amber-400' : ''}`}>
               <div className="flex flex-wrap items-center gap-2">
                 <IdChip kind="ENR" id={e.id} />
-                <span className="font-semibold text-[#0f1729]">Gói {e.packageName}</span>
+                <span className="font-semibold text-[#0f1729]">Package {e.packageName}</span>
                 <span className="text-sm text-gray-500">· {horseName(e.horseId)}</span>
                 <Badge status={e.status === 'paused' ? 'Paused' : e.status === 'completed' ? 'Completed' : 'Active'} />
                 {live && <TrainerStatusPill status={e.trainerStatus} />}
               </div>
               <div className="mt-2 grid gap-1 text-sm text-gray-600 sm:grid-cols-2">
-                <div>Thời hạn: <strong>{t.text}</strong></div>
-                <div>{live ? (t.expired ? <span className="font-medium text-red-600">Đã hết hạn</span> : <>Còn <strong className={t.warn ? 'text-amber-700' : ''}>{t.left} ngày</strong></>) : 'Đã kết thúc'}</div>
-                <div>Huấn luyện viên: {e.trainerName ? e.trainerName : <span className="italic text-gray-400">chưa phân công</span>}</div>
-                <div>Số tiền: {money(e.amount)}</div>
+                <div>Term: <strong>{t.text}</strong></div>
+                <div>{live ? (t.expired ? <span className="font-medium text-red-600">Expired</span> : <>Remaining <strong className={t.warn ? 'text-amber-700' : ''}>{t.left}  days</strong></>) : "Ended"}</div>
+                <div>Trainer: {e.trainerName ? e.trainerName : <span className="italic text-gray-400">not assigned</span>}</div>
+                <div>Amount: {money(e.amount)}</div>
               </div>
               <div className="mt-3">
-                <div className="mb-1 flex justify-between text-xs text-gray-500"><span>Đã tập {e.sessionsDone}/{e.sessionsTotal} buổi</span><span>{pct}%</span></div>
+                <div className="mb-1 flex justify-between text-xs text-gray-500"><span>Completed {e.sessionsDone}/{e.sessionsTotal}  sessions</span><span>{pct}%</span></div>
                 <div className="h-2 w-full rounded-full bg-gray-200"><div className="h-2 rounded-full bg-[#c9973b]" style={{ width: `${pct}%` }} /></div>
               </div>
-              {live && e.trainerStatus === 'unassigned' && <div className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Đang chờ Quản lý phân công huấn luyện viên. Bạn sẽ nhận thông báo khi có kết quả.</div>}
-              {live && e.trainerStatus === 'pending' && <div className="mt-3 rounded-lg bg-sky-50 p-3 text-xs text-sky-800">Đã phân công {e.trainerName} — đang chờ huấn luyện viên xác nhận.</div>}
+              {live && e.trainerStatus === 'unassigned' && <div className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Awaiting trainer assignment by the manager. You will be notified once assigned.</div>}
+              {live && e.trainerStatus === 'pending' && <div className="mt-3 rounded-lg bg-sky-50 p-3 text-xs text-sky-800">Assigned {e.trainerName}  — awaiting trainer confirmation.</div>}
               {live && (t.warn || t.expired) && (
                 <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                  <span className="text-sm text-amber-800">{t.expired ? 'Gói đã hết hạn.' : `Gói sắp hết hạn — còn ${t.left} ngày (cảnh báo khi còn ≤ ${EXPIRY_WARN_DAYS} ngày).`} Gia hạn để tiếp tục huấn luyện.</span>
-                  <Btn size="sm" variant="gold" onClick={() => start(e)}>Gia hạn</Btn>
+                  <span className="text-sm text-amber-800">{t.expired ? "Package expired." : `Package expires soon — remaining ${t.left} days (alert when remaining ≤ ${EXPIRY_WARN_DAYS} days).`}  Renew to continue training.</span>
+                  <Btn size="sm" variant="gold" onClick={() => start(e)}>Renew</Btn>
                 </div>
               )}
-              <div className="mt-3 flex gap-2"><Btn size="sm" variant="secondary" onClick={() => setViewReceipt(e)}>Xem biên lai</Btn></div>
+              <div className="mt-3 flex gap-2"><Btn size="sm" variant="secondary" onClick={() => setViewReceipt(e)}>View receipt</Btn></div>
             </Card>
           );
         })}
         {viewReceipt && (
-          <Modal title="Biên lai thanh toán" onClose={() => setViewReceipt(null)}>
+          <Modal title="Payment receipt" onClose={() => setViewReceipt(null)}>
             <ReceiptView e={viewReceipt} horseName={horseName(viewReceipt.horseId)} />
-            <div className="mt-4 text-right"><Btn variant="secondary" onClick={() => setViewReceipt(null)}>Đóng</Btn></div>
+            <div className="mt-4 text-right"><Btn variant="secondary" onClick={() => setViewReceipt(null)}>Close</Btn></div>
           </Modal>
         )}
       </div>
@@ -179,22 +179,22 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
   return (
     <div className="max-w-4xl space-y-6">
       <div className="flex items-start justify-between">
-        <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">{renewOf ? `Gia hạn gói ${renewOf.packageName}` : 'Đăng ký gói huấn luyện'}</h2><p className="text-sm text-gray-500">Bước {step + 1}/{STEPS.length}: {STEPS[step]}</p></div>
-        {step < 4 && !paying && <Btn variant="ghost" onClick={leave}>Hủy</Btn>}
+        <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">{renewOf ? `Renew package ${renewOf.packageName}` : "Training package registration"}</h2><p className="text-sm text-gray-500">Step {step + 1}/{STEPS.length}: {STEPS[step]}</p></div>
+        {step < 4 && !paying && <Btn variant="ghost" onClick={leave}>Cancel</Btn>}
       </div>
       <Card className="px-6 py-5"><StepBar step={step} /></Card>
 
       {step === 0 && (
         <div className="space-y-4">
-          <p className="text-sm text-gray-500">Chọn gói huấn luyện <span className="text-red-500">*</span></p>
-          {activePkgs.length === 0 ? <Card className="p-8 text-center text-sm text-gray-500">Hiện chưa có gói nào đang áp dụng. Vui lòng liên hệ Quản lý CLB.</Card> : (
+          <p className="text-sm text-gray-500">Choose training package <span className="text-red-500">*</span></p>
+          {activePkgs.length === 0 ? <Card className="p-8 text-center text-sm text-gray-500">No packages are currently available. Contact the club manager.</Card> : (
             <div className="grid gap-4 md:grid-cols-3">
               {activePkgs.map(p => (
                 <button key={p.id} onClick={() => { setPkgId(p.id); setFieldError(''); }} className={`rounded-xl border-2 bg-white p-5 text-left transition-all ${pkgId === p.id ? 'border-[#c9973b] shadow-md' : 'border-gray-200 hover:border-[#c9973b]/60'}`}>
-                  <div className="mb-1 flex items-center gap-2"><IdChip kind="PKG" id={p.id} />{p.popular && <span className="rounded-full bg-[#c9973b]/15 px-2 py-0.5 text-[10px] font-medium text-[#8a6420]">Phổ biến</span>}</div>
+                  <div className="mb-1 flex items-center gap-2"><IdChip kind="PKG" id={p.id} />{p.popular && <span className="rounded-full bg-[#c9973b]/15 px-2 py-0.5 text-[10px] font-medium text-[#8a6420]">Popular</span>}</div>
                   <div className="font-serif text-lg font-bold text-[#0f1729]">{p.name}</div>
                   <div className="mt-1 font-serif text-xl font-bold text-[#c9973b]">{money(p.price)}</div>
-                  <div className="mt-2 text-sm text-gray-600">{p.sessions} buổi · {p.durationDays} ngày</div>
+                  <div className="mt-2 text-sm text-gray-600">{p.sessions}  sessions · {p.durationDays}  days</div>
                   <p className="mt-2 text-xs text-gray-500">{p.description}</p>
                   {p.focus && <ul className="mt-2 space-y-0.5 text-xs text-gray-600">{p.focus.map(f => <li key={f}>✓ {f}</li>)}</ul>}
                 </button>
@@ -206,8 +206,8 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
 
       {step === 1 && (
         <div className="space-y-3">
-          <p className="text-sm text-gray-500">Chọn ngựa <span className="text-red-500">*</span> · Ngựa cần theo dõi vẫn có thể đăng ký với cường độ phù hợp</p>
-          {horsesToShow.length === 0 && <Card className="p-8 text-center text-sm text-gray-500">Bạn chưa có ngựa nào.</Card>}
+          <p className="text-sm text-gray-500">Choose horse <span className="text-red-500">*</span>  · Horses requiring monitoring may register with an appropriate intensity</p>
+          {horsesToShow.length === 0 && <Card className="p-8 text-center text-sm text-gray-500">You have no horses yet.</Card>}
           {horsesToShow.map(h => {
             const reason = purchaseBlockReason(h, state.enrollments, state.healthRecords, !!renewOf, pkg?.packageType);
             const sel = horseId === h.id;
@@ -216,7 +216,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
             return (
               <button key={h.id} disabled={!!reason} onClick={() => { setHorseId(h.id); setFieldError(''); }} className={`flex w-full items-center gap-4 rounded-xl border-2 bg-white p-4 text-left ${reason ? 'cursor-not-allowed border-gray-200 opacity-50' : sel ? 'border-[#c9973b] shadow-md' : 'border-gray-200 hover:border-[#c9973b]/60'}`}>
                 {h.imageUrl ? <img src={h.imageUrl || undefined} alt="" className="h-12 w-12 rounded-lg bg-gray-200 object-cover" /> : <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 text-xl">🐎</div>}
-                <div className="flex-1"><div className="font-semibold text-[#0f1729]">{h.name}</div><div className="text-xs text-gray-500">{h.breed} · {h.age} tuổi</div>{watch && !reason && <div className="mt-1 text-xs font-medium text-amber-700">Cần theo dõi: {exam?.followUpNote || exam?.trainingNote || 'Giảm cường độ và theo dõi phản ứng.'}</div>}</div>
+                <div className="flex-1"><div className="font-semibold text-[#0f1729]">{h.name}</div><div className="text-xs text-gray-500">{h.breed} · {h.age}  years old</div>{watch && !reason && <div className="mt-1 text-xs font-medium text-amber-700">Needs monitoring: {exam?.followUpNote || exam?.trainingNote || "Reduce intensity and monitor the response."}</div>}</div>
                 {reason ? <span className="rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600">{reason}</span> : <span className={`h-5 w-5 rounded-full border-2 ${sel ? 'border-[#c9973b] bg-[#c9973b]' : 'border-gray-300'}`} />}
               </button>
             );
@@ -226,24 +226,24 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
 
       {step === 2 && pkg && horse && (
         <Card className="space-y-4 p-6">
-          <h3 className="font-serif text-lg font-bold">Xem lại đăng ký</h3>
+          <h3 className="font-serif text-lg font-bold">Review registration</h3>
           <div className="divide-y divide-gray-100 rounded-xl border border-gray-200">
-            {([['Gói', `${pkg.name} · ${pkg.sessions} buổi`], ['Ngựa', horse.name], ['Chủ ngựa', user.name], ['Hiệu lực', `${TODAY} – ${addDaysLabel(TODAY, pkg.durationDays)} (${pkg.durationDays} ngày)`], ['Tổng thanh toán', money(pkg.price)]] as [string, string][]).map(([k, v]) => (
+            {([["Package", `${pkg.name} · ${pkg.sessions} sessions`], ["Horses", horse.name], ["Horse Owner", user.name], ["Validity", `${TODAY} – ${addDaysLabel(TODAY, pkg.durationDays)} (${pkg.durationDays} days)`], ["Total payment", money(pkg.price)]] as [string, string][]).map(([k, v]) => (
               <div key={k} className="flex justify-between px-4 py-2.5 text-sm"><span className="text-gray-500">{k}</span><span className="font-medium">{v}</span></div>
             ))}
           </div>
-          {followUp && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><b>Cần theo dõi:</b> {followUp}<br /><span className="text-xs">Gợi ý: giảm cường độ và theo dõi phản ứng trong các buổi đầu.</span></div>}
-          {renewOf ? <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Gia hạn tạo một gói mới (mã ENR mới). Gói cũ {renewOf.id} sẽ kết thúc; {Math.max(0, renewOf.sessionsTotal - renewOf.sessionsDone)} buổi chưa dùng của gói cũ không được chuyển sang. Huấn luyện viên hiện tại được giữ nguyên.</div>
-            : <div className="rounded-lg bg-sky-50 p-3 text-sm text-sky-800">Sau khi thanh toán, Quản lý sẽ phân công huấn luyện viên và huấn luyện viên cần xác nhận.</div>}
+          {followUp && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><b>Needs monitoring:</b> {followUp}<br /><span className="text-xs">Recommendation: reduce intensity and monitor the response during initial sessions.</span></div>}
+          {renewOf ? <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Renewal creates a new package with a new registration ID. The previous package {renewOf.id}  will end; {Math.max(0, renewOf.sessionsTotal - renewOf.sessionsDone)}  unused sessions from the previous package do not carry over. The current trainer is retained.</div>
+            : <div className="rounded-lg bg-sky-50 p-3 text-sm text-sky-800">After payment, the manager assigns a trainer, who must accept the assignment.</div>}
         </Card>
       )}
 
       {step === 3 && pkg && horse && (
         <Card className="space-y-4 p-6">
-          <div className="flex items-center justify-between"><h3 className="font-serif text-lg font-bold">Thanh toán mô phỏng</h3><span className="font-serif text-xl font-bold text-[#c9973b]">{money(pkg.price)}</span></div>
-          <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-500">Đây là cổng thanh toán giả lập. Chọn kết quả muốn thử để kiểm tra các tình huống.</div>
+          <div className="flex items-center justify-between"><h3 className="font-serif text-lg font-bold">Simulated payment</h3><span className="font-serif text-xl font-bold text-[#c9973b]">{money(pkg.price)}</span></div>
+          <div className="rounded-lg bg-gray-50 p-3 text-xs text-gray-500">This is a simulated payment gateway. Select an outcome to test a scenario.</div>
           <div className="grid gap-2 sm:grid-cols-3">
-            {([['success', 'Thành công'], ['fail', 'Thất bại'], ['cancel', 'Hủy thanh toán']] as [Scenario, string][]).map(([k, l]) => (
+            {([['success', "Success"], ['fail', "Failure"], ['cancel', "Cancel payment"]] as [Scenario, string][]).map(([k, l]) => (
               <label key={k} className={`flex cursor-pointer items-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium ${scenario === k ? 'border-[#c9973b] bg-[#c9973b]/5' : 'border-gray-200'}`}>
                 <input type="radio" name="scenario" checked={scenario === k} disabled={paying} onChange={() => { setScenario(k); setPayMsg(null); }} />{l}
               </label>
@@ -252,18 +252,18 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
           {payMsg && (
             <div className={`rounded-lg border p-3 text-sm ${payMsg.kind === 'cancel' ? 'border-gray-200 bg-gray-50 text-gray-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
               {payMsg.text}
-              <div className="mt-2 flex gap-2"><Btn size="sm" variant="gold" onClick={pay}>Thử lại</Btn><Btn size="sm" variant="secondary" onClick={() => { setPayMsg(null); setStep(2); }}>Quay lại xem lại</Btn></div>
+              <div className="mt-2 flex gap-2"><Btn size="sm" variant="gold" onClick={pay}>Retry</Btn><Btn size="sm" variant="secondary" onClick={() => { setPayMsg(null); setStep(2); }}>Back to review</Btn></div>
             </div>
           )}
-          {!payMsg && <Btn variant="gold" disabled={paying} onClick={pay}>{paying ? 'Đang xử lý thanh toán...' : `Thanh toán ${money(pkg.price)}`}</Btn>}
+          {!payMsg && <Btn variant="gold" disabled={paying} onClick={pay}>{paying ? "Processing payment..." : `Payment ${money(pkg.price)}`}</Btn>}
         </Card>
       )}
 
       {step === 4 && receipt && (
         <Card className="space-y-4 p-6">
-          <div className="text-center"><div className="mb-1 text-4xl">✅</div><h3 className="font-serif text-xl font-bold text-emerald-700">Thanh toán thành công</h3><p className="text-sm text-gray-500">{receipt.trainerStatus === 'confirmed' ? 'Gói mới đã được kích hoạt, huấn luyện viên được giữ nguyên.' : 'Quản lý sẽ phân công huấn luyện viên cho ngựa của bạn.'}</p></div>
+          <div className="text-center"><div className="mb-1 text-4xl">✅</div><h3 className="font-serif text-xl font-bold text-emerald-700">Payment successful</h3><p className="text-sm text-gray-500">{receipt.trainerStatus === 'confirmed' ? "The new package is active and the trainer has been retained." : "The manager will assign a trainer to your horse."}</p></div>
           <ReceiptView e={receipt} horseName={horseName(receipt.horseId)} />
-          <div className="flex justify-center"><Btn variant="primary" onClick={leave}>Về danh sách gói</Btn></div>
+          <div className="flex justify-center"><Btn variant="primary" onClick={leave}>Back to packages</Btn></div>
         </Card>
       )}
 
@@ -271,18 +271,18 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
 
       {step < 3 && (
         <div className="flex justify-between">
-          <Btn variant="secondary" disabled={step === 0} onClick={() => { setFieldError(''); setStep(s => s - 1); }}>← Quay lại</Btn>
-          {step === 2 ? <Btn variant="gold" onClick={() => setConfirmOpen(true)}>Tiếp tục thanh toán</Btn> : <Btn variant="gold" onClick={next}>Tiếp tục →</Btn>}
+          <Btn variant="secondary" disabled={step === 0} onClick={() => { setFieldError(''); setStep(s => s - 1); }}>← Back</Btn>
+          {step === 2 ? <Btn variant="gold" onClick={() => setConfirmOpen(true)}>Continue to payment</Btn> : <Btn variant="gold" onClick={next}>Continue →</Btn>}
         </div>
       )}
-      {step === 3 && !paying && !payMsg && <div><Btn variant="secondary" onClick={() => setStep(2)}>← Quay lại</Btn></div>}
+      {step === 3 && !paying && !payMsg && <div><Btn variant="secondary" onClick={() => setStep(2)}>← Back</Btn></div>}
 
       {confirmOpen && pkg && horse && (
-        <Modal title="Bạn có chắc muốn đăng ký gói?" onClose={() => setConfirmOpen(false)}>
-          <p className="text-sm text-gray-600">Gói <strong>{pkg.name}</strong> cho ngựa <strong>{horse.name}</strong> — <strong>{money(pkg.price)}</strong>. Bạn sẽ chuyển sang bước thanh toán.</p>
+        <Modal title="Confirm package registration?" onClose={() => setConfirmOpen(false)}>
+          <p className="text-sm text-gray-600">Package <strong>{pkg.name}</strong>  for horse <strong>{horse.name}</strong> — <strong>{money(pkg.price)}</strong>. You will proceed to payment.</p>
           <div className="mt-5 flex justify-end gap-2">
-            <Btn variant="secondary" onClick={() => setConfirmOpen(false)}>Quay lại</Btn>
-            <Btn variant="gold" onClick={() => { setConfirmOpen(false); setPayMsg(null); setStep(3); }}>Xác nhận</Btn>
+            <Btn variant="secondary" onClick={() => setConfirmOpen(false)}>Back</Btn>
+            <Btn variant="gold" onClick={() => { setConfirmOpen(false); setPayMsg(null); setStep(3); }}>Confirm</Btn>
           </div>
         </Modal>
       )}

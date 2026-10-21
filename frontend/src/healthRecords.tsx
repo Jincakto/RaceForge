@@ -25,7 +25,7 @@ function OverlayModal({ title, onClose, children }: { title: string; onClose: ()
       <div role="dialog" aria-modal="true" onClick={e => e.stopPropagation()} className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
         <div className="sticky top-0 flex items-center justify-between border-b border-gray-100 bg-white px-6 py-4">
           <h3 className="font-serif text-lg font-bold text-[#0f1729]">{title}</h3>
-          <button onClick={onClose} aria-label="Đóng" className="text-gray-400 hover:text-gray-700">✕</button>
+          <button onClick={onClose} aria-label="Close" className="text-gray-400 hover:text-gray-700">✕</button>
         </div>
         <div className="p-6">{children}</div>
       </div>
@@ -37,11 +37,11 @@ function OverlayModal({ title, onClose, children }: { title: string; onClose: ()
 function Delta({ cur, prev, def, unit }: { cur: number; prev: number; def?: VitalDef; unit: string }) {
   if (isNaN(cur) || isNaN(prev)) return <span className="text-gray-300">—</span>;
   const diff = Math.round((cur - prev) * 100) / 100;
-  if (diff === 0) return <span className="text-gray-500">＝ Không đổi</span>;
+  if (diff === 0) return <span className="text-gray-500">＝ Unchanged</span>;
   const dist = (v: number) => (def ? (v < def.lo ? def.lo - v : v > def.hi ? v - def.hi : 0) : 0);
   let tone = 'text-gray-600';
   if (def) tone = dist(cur) < dist(prev) ? 'text-emerald-600' : dist(cur) > dist(prev) ? 'text-red-600' : 'text-gray-600';
-  return <span className={`font-medium ${tone}`}>{diff > 0 ? '▲ tăng' : '▼ giảm'} {fmtNum(Math.abs(diff))} {unit}</span>;
+  return <span className={`font-medium ${tone}`}>{diff > 0 ? "▲ increased" : "▼ decreased"} {fmtNum(Math.abs(diff))} {unit}</span>;
 }
 
 function regionsOf(r: HealthRecord): { key: string; label: string; ok: boolean; note: string }[] {
@@ -98,7 +98,7 @@ export function HealthRecordsPage({ state, navigate }: { state: RecState; naviga
   const rows = filtered.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE);
   const hasFilter = !!(q || from || to || dec !== 'all');
   const reset = () => { setQ(''); setFrom(''); setTo(''); setDec('all'); setPage(1); };
-  const dateErr = from && to && isoKey(from) > isoKey(to) ? 'Ngày bắt đầu phải trước ngày kết thúc.' : '';
+  const dateErr = from && to && isoKey(from) > isoKey(to) ? "Start date must precede end date." : '';
 
   const togglePick = (r: HealthRecord) => setPicked(p => {
     if (p.includes(r.id)) return p.filter(x => x !== r.id);
@@ -113,48 +113,48 @@ export function HealthRecordsPage({ state, navigate }: { state: RecState; naviga
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-serif text-xl font-bold text-[#0f1729]">Lịch sử khám</h2>
-          <p className="text-sm text-gray-500">{isVet ? 'Hồ sơ khám của các ngựa được giao cho bạn.' : user.role === 'owner' ? 'Hồ sơ khám của ngựa bạn sở hữu.' : 'Hồ sơ khám của ngựa trong câu lạc bộ.'}</p>
+          <h2 className="font-serif text-xl font-bold text-[#0f1729]">Medical records</h2>
+          <p className="text-sm text-gray-500">{isVet ? "Examination records for horses assigned to you." : user.role === 'owner' ? "Examination records for your horses." : "Examination records for horses in the club."}</p>
         </div>
         {isVet
-          ? <Btn variant="gold" onClick={() => navigate('vet-health-form')}>+ Khám mới</Btn>
-          : <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500">Chế độ xem — chỉ thú y được tạo hồ sơ khám</div>}
+          ? <Btn variant="gold" onClick={() => navigate('vet-health-form')}>+ New examination</Btn>
+          : <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500">Read only — only veterinarians may create examination records</div>}
       </div>
 
       <Card className="p-4">
         <div className="grid gap-3 md:grid-cols-4">
           <div className="md:col-span-2">
-            <Input label="Tìm kiếm" value={q} onChange={v => { setQ(v); setPage(1); }} placeholder="Tên ngựa, mã MED/HRS hoặc tên bác sĩ" hint="Ví dụ: Red Comet, MED-000004, Le Thi An." />
+            <Input label="Search" value={q} onChange={v => { setQ(v); setPage(1); }} placeholder="Horse name, MED/HRS ID or veterinarian name" hint="e.g. Red Comet, MED-000004, Le Thi An." />
           </div>
-          <Select label="Kết luận" value={dec} onChange={v => { setDec(v); setPage(1); }} hint="Lọc theo kết luận của bác sĩ."
-            options={[{ value: 'all', label: 'Tất cả' }, { value: 'eligible', label: DECISION_LABEL.eligible }, { value: 'conditional', label: DECISION_LABEL.conditional }, { value: 'not-eligible', label: DECISION_LABEL['not-eligible'] }]} />
-          <div className="flex items-end"><Btn variant="secondary" onClick={reset} disabled={!hasFilter}>Xóa bộ lọc</Btn></div>
-          <Input label="Từ ngày" type="date" value={from} onChange={v => { setFrom(v); setPage(1); }} hint="Ngày khám sớm nhất." error={dateErr} />
-          <Input label="Đến ngày" type="date" value={to} onChange={v => { setTo(v); setPage(1); }} hint="Ngày khám muộn nhất." />
+          <Select label="Decision" value={dec} onChange={v => { setDec(v); setPage(1); }} hint="Filter by the veterinarian's conclusion."
+            options={[{ value: 'all', label: "All" }, { value: 'eligible', label: DECISION_LABEL.eligible }, { value: 'conditional', label: DECISION_LABEL.conditional }, { value: 'not-eligible', label: DECISION_LABEL['not-eligible'] }]} />
+          <div className="flex items-end"><Btn variant="secondary" onClick={reset} disabled={!hasFilter}>Clear filters</Btn></div>
+          <Input label="From date" type="date" value={from} onChange={v => { setFrom(v); setPage(1); }} hint="Earliest examination date." error={dateErr} />
+          <Input label="To date" type="date" value={to} onChange={v => { setTo(v); setPage(1); }} hint="Latest examination date." />
         </div>
       </Card>
 
       {picked.length > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#c9973b]/40 bg-[#c9973b]/10 px-4 py-2.5 text-sm">
-          <span>Đã chọn <b>{picked.length}</b>/3 hồ sơ của {horseMap.get(pickedRecs[0]?.horseId)?.name}. Chỉ so sánh được các hồ sơ của cùng một ngựa.</span>
-          <Btn size="sm" variant="gold" disabled={picked.length < 2} onClick={() => setComparing(true)}>So sánh</Btn>
-          <Btn size="sm" variant="ghost" onClick={() => setPicked([])}>Bỏ chọn</Btn>
+          <span>Selected <b>{picked.length}</b>/3 records for {horseMap.get(pickedRecs[0]?.horseId)?.name}. Only records for the same horse can be compared.</span>
+          <Btn size="sm" variant="gold" disabled={picked.length < 2} onClick={() => setComparing(true)}>Compare</Btn>
+          <Btn size="sm" variant="ghost" onClick={() => setPicked([])}>Clear selection</Btn>
         </div>
       )}
 
       {filtered.length === 0 ? (
         <Card className="p-10 text-center">
           <div className="mb-3 text-4xl">🏥</div>
-          <div className="font-serif text-lg font-bold text-[#0f1729]">{all.length === 0 ? 'Chưa có hồ sơ khám nào' : 'Không có hồ sơ khớp bộ lọc'}</div>
-          <p className="mx-auto mt-1 max-w-md text-sm text-gray-500">{all.length === 0 ? (isVet ? 'Hãy khám ngựa được giao để tạo hồ sơ đầu tiên.' : 'Hồ sơ sẽ xuất hiện sau khi thú y hoàn tất lần khám đầu tiên.') : 'Thử đổi từ khóa hoặc nới khoảng ngày.'}</p>
-          {all.length === 0 && isVet ? <Btn variant="gold" className="mt-4" onClick={() => navigate('vet-health-form')}>Khám ngay</Btn> : hasFilter && <Btn variant="secondary" className="mt-4" onClick={reset}>Xóa bộ lọc</Btn>}
+          <div className="font-serif text-lg font-bold text-[#0f1729]">{all.length === 0 ? "No medical records yet" : "No records match the filters"}</div>
+          <p className="mx-auto mt-1 max-w-md text-sm text-gray-500">{all.length === 0 ? (isVet ? "Examine an assigned horse to create the first record." : "Records will appear after the veterinarian completes the first examination.") : "Try another search term or a wider date range."}</p>
+          {all.length === 0 && isVet ? <Btn variant="gold" className="mt-4" onClick={() => navigate('vet-health-form')}>Examine now</Btn> : hasFilter && <Btn variant="secondary" className="mt-4" onClick={reset}>Clear filters</Btn>}
         </Card>
       ) : (
         <Card className="overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-                <tr><th className="w-10 px-3 py-3" title="Chọn để so sánh"></th><th className="px-3 py-3">Mã hồ sơ</th><th className="px-3 py-3">Ngày khám</th><th className="px-3 py-3">Bác sĩ</th><th className="px-3 py-3">Ngựa</th><th className="px-3 py-3">Kết luận</th><th className="px-3 py-3"></th></tr>
+                <tr><th className="w-10 px-3 py-3" title="Select to compare"></th><th className="px-3 py-3">Record ID</th><th className="px-3 py-3">Examination date</th><th className="px-3 py-3">Veterinarian</th><th className="px-3 py-3">Horses</th><th className="px-3 py-3">Decision</th><th className="px-3 py-3"></th></tr>
               </thead>
               <tbody>
                 {rows.map(r => {
@@ -162,13 +162,13 @@ export function HealthRecordsPage({ state, navigate }: { state: RecState; naviga
                   const on = picked.includes(r.id);
                   return (
                     <tr key={r.id} className={`border-t border-gray-100 hover:bg-[#c9973b]/5 ${on ? 'bg-[#c9973b]/10' : ''}`}>
-                      <td className="px-3 py-3"><input type="checkbox" checked={on} onChange={() => togglePick(r)} aria-label={`Chọn ${dispId('MED', r.id)} để so sánh`} className="h-4 w-4 accent-[#c9973b]" /></td>
+                      <td className="px-3 py-3"><input type="checkbox" checked={on} onChange={() => togglePick(r)} aria-label={`Select ${dispId('MED', r.id)} to compare`} className="h-4 w-4 accent-[#c9973b]" /></td>
                       <td className="px-3 py-3"><IdChip kind="MED" id={r.id} /></td>
                       <td className="whitespace-nowrap px-3 py-3 text-gray-700">{r.date}</td>
                       <td className="px-3 py-3 text-gray-700">{vetName(r)}</td>
-                      <td className="px-3 py-3"><div className="flex items-center gap-2"><img src={h.imageUrl} alt="" className="h-8 w-8 rounded-lg bg-gray-200 object-cover" /><div><div className="font-medium text-[#0f1729]">{h.name}</div><div className="text-[11px] text-gray-400">{dispId('HRS', h.id)}</div></div></div></td>
+                      <td className="px-3 py-3"><div className="flex items-center gap-2">{h.imageUrl ? <img src={h.imageUrl || undefined} alt="" className="h-8 w-8 rounded-lg bg-gray-200 object-cover" /> : <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">🐎</div>}<div><div className="font-medium text-[#0f1729]">{h.name}</div><div className="text-[11px] text-gray-400">{dispId('HRS', h.id)}</div></div></div></td>
                       <td className="max-w-xs px-3 py-3"><DecisionPill d={recordDecision(r)} small /><div className="mt-1 line-clamp-2 text-xs text-gray-500">{r.conclusion || r.diagnosis || r.notes}</div></td>
-                      <td className="px-3 py-3 text-right"><Btn size="sm" variant="secondary" onClick={() => setOpenId(r.id)}>Chi tiết</Btn></td>
+                      <td className="px-3 py-3 text-right"><Btn size="sm" variant="secondary" onClick={() => setOpenId(r.id)}>Details</Btn></td>
                     </tr>
                   );
                 })}
@@ -176,9 +176,9 @@ export function HealthRecordsPage({ state, navigate }: { state: RecState; naviga
             </table>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 px-4 py-3 text-xs text-gray-500">
-            <span>Hiển thị {(cur - 1) * PAGE_SIZE + 1}–{Math.min(cur * PAGE_SIZE, filtered.length)} trên {filtered.length} hồ sơ</span>
+            <span>Showing {(cur - 1) * PAGE_SIZE + 1}–{Math.min(cur * PAGE_SIZE, filtered.length)}  of {filtered.length}  records</span>
             <div className="flex items-center gap-2">
-              <Btn size="sm" variant="secondary" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>← Trước</Btn>
+              <Btn size="sm" variant="secondary" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>← Previous</Btn>
               <span>Trang {cur}/{pages}</span>
               <Btn size="sm" variant="secondary" disabled={cur >= pages} onClick={() => setPage(cur + 1)}>Sau →</Btn>
             </div>
@@ -203,30 +203,30 @@ function RecordDetail({ rec, horse, vet, all, onClose }: { rec: HealthRecord; ho
   const val = (r: HealthRecord | undefined, k: 'temperature' | 'heartRate' | 'respRate' | 'weight') => { const t = r?.vitals?.[k]; return t && t.trim() ? Number(t.replace(',', '.')) : NaN; };
 
   return (
-    <OverlayModal title="Chi tiết hồ sơ khám" onClose={onClose}>
+    <OverlayModal title="Medical record details" onClose={onClose}>
       <div className="space-y-5 text-sm">
         <div className="flex flex-wrap items-center gap-3">
-          <img src={horse.imageUrl} alt="" className="h-14 w-14 rounded-xl bg-gray-200 object-cover" />
+          {horse.imageUrl ? <img src={horse.imageUrl || undefined} alt="" className="h-14 w-14 rounded-xl bg-gray-200 object-cover" /> : <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-xl">🐎</div>}
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-2"><span className="font-serif text-lg font-bold text-[#0f1729]">{horse.name}</span><IdChip kind="HRS" id={horse.id} /></div>
-            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500"><IdChip kind="MED" id={rec.id} /><span>{rec.date}</span><span>· Bác sĩ {vet}</span><span>· {rec.type}</span></div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-gray-500"><IdChip kind="MED" id={rec.id} /><span>{rec.date}</span><span>· Veterinarian {vet}</span><span>· {rec.type}</span></div>
           </div>
           <DecisionPill d={dec} />
         </div>
 
         <div className="rounded-xl border-l-4 border-[#c9973b] bg-[#c9973b]/10 p-4">
-          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#8a6620]">Kết luận của bác sĩ</div>
-          <p className="text-gray-800">{rec.conclusion || rec.diagnosis || rec.notes || 'Hồ sơ không có câu kết luận.'}</p>
-          {rec.recommendations && <p className="mt-2 text-xs text-gray-600"><b>Khuyến nghị:</b> {rec.recommendations}</p>}
-          {rec.medications && rec.medications !== 'None' && <p className="mt-1 text-xs text-gray-600"><b>Thuốc / chỉ định:</b> {rec.medications}</p>}
+          <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#8a6620]">Veterinarian decision</div>
+          <p className="text-gray-800">{rec.conclusion || rec.diagnosis || rec.notes || "This record has no conclusion."}</p>
+          {rec.recommendations && <p className="mt-2 text-xs text-gray-600"><b>Recommendations:</b> {rec.recommendations}</p>}
+          {rec.medications && rec.medications !== 'None' && <p className="mt-1 text-xs text-gray-600"><b>Medication / instructions:</b> {rec.medications}</p>}
         </div>
 
         <div>
-          <div className="mb-2 flex items-center justify-between"><h4 className="font-serif text-base font-bold text-[#0f1729]">Chỉ số sinh tồn</h4>
-            <span className="text-xs text-gray-500">{prev ? `So với lần khám ${prev.date} (${dispId('MED', prev.id)})` : 'Lần khám đầu tiên'}</span></div>
+          <div className="mb-2 flex items-center justify-between"><h4 className="font-serif text-base font-bold text-[#0f1729]">Vital signs</h4>
+            <span className="text-xs text-gray-500">{prev ? `Compared with examination ${prev.date} (${dispId('MED', prev.id)})` : "First examination"}</span></div>
           <div className="overflow-x-auto rounded-xl border border-gray-200">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500"><tr><th className="px-3 py-2">Chỉ số</th><th className="px-3 py-2">Giá trị</th><th className="px-3 py-2">Ngưỡng bình thường</th><th className="px-3 py-2">Trạng thái</th><th className="px-3 py-2">So với lần trước</th></tr></thead>
+              <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500"><tr><th className="px-3 py-2">Measurement</th><th className="px-3 py-2">Value</th><th className="px-3 py-2">Reference range</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Compared with previous</th></tr></thead>
               <tbody>
                 {VITAL_DEFS.map(d => {
                   const raw = rec.vitals?.[d.key] ?? '';
@@ -238,36 +238,36 @@ function RecordDetail({ rec, horse, vet, all, onClose }: { rec: HealthRecord; ho
                       <td className="px-3 py-2">{raw.trim() ? `${fmtNum(c)} ${d.unit}` : '—'}</td>
                       <td className="px-3 py-2 text-gray-500">{rangeText(d)}</td>
                       <td className="px-3 py-2">{raw.trim() ? <VitalStatusPill s={s} /> : '—'}</td>
-                      <td className="px-3 py-2 text-xs">{prev ? <Delta cur={c} prev={val(prev, d.key)} def={d} unit={d.unit} /> : <span className="text-gray-400">Lần khám đầu tiên</span>}</td>
+                      <td className="px-3 py-2 text-xs">{prev ? <Delta cur={c} prev={val(prev, d.key)} def={d} unit={d.unit} /> : <span className="text-gray-400">First examination</span>}</td>
                     </tr>
                   );
                 })}
                 {rec.vitals?.weight?.trim() && (
-                  <tr className="border-t border-gray-100"><td className="px-3 py-2 font-medium">Cân nặng</td><td className="px-3 py-2">{fmtNum(val(rec, 'weight'))} kg</td><td className="px-3 py-2 text-gray-400">—</td><td className="px-3 py-2 text-gray-400">—</td>
-                    <td className="px-3 py-2 text-xs">{prev ? <Delta cur={val(rec, 'weight')} prev={val(prev, 'weight')} unit="kg" /> : <span className="text-gray-400">Lần khám đầu tiên</span>}</td></tr>
+                  <tr className="border-t border-gray-100"><td className="px-3 py-2 font-medium">Weight</td><td className="px-3 py-2">{fmtNum(val(rec, 'weight'))} kg</td><td className="px-3 py-2 text-gray-400">—</td><td className="px-3 py-2 text-gray-400">—</td>
+                    <td className="px-3 py-2 text-xs">{prev ? <Delta cur={val(rec, 'weight')} prev={val(prev, 'weight')} unit="kg" /> : <span className="text-gray-400">First examination</span>}</td></tr>
                 )}
               </tbody>
             </table>
           </div>
           <p className="mt-1.5 text-[11px] italic text-amber-700">{THRESHOLD_SOURCE}</p>
-          <p className="mt-0.5 text-[11px] text-gray-400">Màu mũi tên: xanh = tiến gần ngưỡng bình thường, đỏ = xa ngưỡng hơn.</p>
+          <p className="mt-0.5 text-[11px] text-gray-400">Arrow color: green = closer to the reference range; red = further away.</p>
         </div>
 
         {regs.length > 0 && (
           <div>
-            <div className="mb-2 flex items-center justify-between"><h4 className="font-serif text-base font-bold text-[#0f1729]">Khám lâm sàng theo vùng</h4>
-              <span className="text-xs text-gray-500">{abn} vùng bất thường{prev && prevRegs.length ? ` (lần trước: ${prevRegs.filter(r => !r.ok).length})` : ''}</span></div>
+            <div className="mb-2 flex items-center justify-between"><h4 className="font-serif text-base font-bold text-[#0f1729]">Regional clinical examination</h4>
+              <span className="text-xs text-gray-500">{abn}  abnormal regions{prev && prevRegs.length ? ` (previous: ${prevRegs.filter(r => !r.ok).length})` : ''}</span></div>
             <div className="grid gap-2 sm:grid-cols-2">
               {regs.map(r => (
                 <div key={r.key} className={`rounded-lg border px-3 py-2 ${r.ok ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50'}`}>
-                  <div className="flex items-center justify-between"><span className="font-medium text-gray-800">{r.label}</span><span className={`text-xs font-medium ${r.ok ? 'text-emerald-700' : 'text-red-700'}`}>{r.ok ? '✓ Bình thường' : '⚠ Bất thường'}</span></div>
+                  <div className="flex items-center justify-between"><span className="font-medium text-gray-800">{r.label}</span><span className={`text-xs font-medium ${r.ok ? 'text-emerald-700' : 'text-red-700'}`}>{r.ok ? "✓ Normal" : "⚠ Abnormal"}</span></div>
                   {!r.ok && r.note && <div className="mt-0.5 text-xs text-gray-600">{r.note}</div>}
                 </div>
               ))}
             </div>
           </div>
         )}
-        {!prev && <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">Lần khám đầu tiên của ngựa này — chưa có dữ liệu để so sánh.</p>}
+        {!prev && <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">First examination for this horse — no previous data to compare.</p>}
       </div>
     </OverlayModal>
   );
@@ -277,10 +277,10 @@ function CompareModal({ recs, horse, vetName, onClose }: { recs: HealthRecord[];
   const num = (r: HealthRecord, k: 'temperature' | 'heartRate' | 'respRate' | 'weight') => { const t = r.vitals?.[k]; return t && t.trim() ? Number(t.replace(',', '.')) : NaN; };
   const metrics: { key: 'temperature' | 'heartRate' | 'respRate' | 'weight'; label: string; unit: string; def?: VitalDef }[] = [
     ...VITAL_DEFS.map(d => ({ key: d.key, label: d.label, unit: d.unit, def: d })),
-    { key: 'weight' as const, label: 'Cân nặng', unit: 'kg' },
+    { key: 'weight' as const, label: "Weight", unit: 'kg' },
   ];
   return (
-    <OverlayModal title={`So sánh các lần khám — ${horse.name}`} onClose={onClose}>
+    <OverlayModal title={`Compare examinations — ${horse.name}`} onClose={onClose}>
       <div className="overflow-x-auto rounded-xl border border-gray-200">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
@@ -301,12 +301,12 @@ function CompareModal({ recs, horse, vetName, onClose }: { recs: HealthRecord[];
                 })}
               </tr>
             ))}
-            <tr className="border-t border-gray-100"><td className="px-3 py-2 font-medium">Vùng bất thường</td>{recs.map(r => { const g = regionsOf(r); return <td key={r.id} className="px-3 py-2">{g.length ? `${g.filter(x => !x.ok).length}/${g.length}` : '—'}</td>; })}</tr>
-            <tr className="border-t border-gray-100"><td className="px-3 py-2 font-medium">Kết luận</td>{recs.map(r => <td key={r.id} className="px-3 py-2 align-top"><DecisionPill d={recordDecision(r)} small /><div className="mt-1 text-xs text-gray-500">{r.conclusion || r.diagnosis || ''}</div></td>)}</tr>
+            <tr className="border-t border-gray-100"><td className="px-3 py-2 font-medium">Abnormal regions</td>{recs.map(r => { const g = regionsOf(r); return <td key={r.id} className="px-3 py-2">{g.length ? `${g.filter(x => !x.ok).length}/${g.length}` : '—'}</td>; })}</tr>
+            <tr className="border-t border-gray-100"><td className="px-3 py-2 font-medium">Decision</td>{recs.map(r => <td key={r.id} className="px-3 py-2 align-top"><DecisionPill d={recordDecision(r)} small /><div className="mt-1 text-xs text-gray-500">{r.conclusion || r.diagnosis || ''}</div></td>)}</tr>
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-[11px] text-gray-400">Các lần khám xếp theo thời gian; mũi tên so với lần ngay trước (xanh = tiến gần ngưỡng bình thường, đỏ = xa hơn).</p>
+      <p className="mt-2 text-[11px] text-gray-400">Examinations are ordered by time; arrows compare with the immediately preceding record (green = closer to the reference range; red = further away).</p>
     </OverlayModal>
   );
 }

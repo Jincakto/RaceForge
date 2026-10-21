@@ -1,0 +1,46 @@
+--- a/backend/src/main/java/com/raceforge/backend/account/AccountConstants.java
++++ b/backend/src/main/java/com/raceforge/backend/account/AccountConstants.java
+@@ -4,12 +4,12 @@
+ 
+ public final class AccountConstants {
+ 
+-    public static final Integer ROLE_MANAGER = 1;
+-    public static final Integer ROLE_HEAD_TRAINER = 2;
+-    public static final Integer ROLE_VETERINARIAN = 3;
+-    public static final Integer ROLE_GROOM = 4;
+-    public static final Integer ROLE_HORSE_OWNER = 5;
+-    public static final Integer ROLE_ADMIN = 7;
++    public static final Integer ROLE_MANAGER = 2;
++    public static final Integer ROLE_HEAD_TRAINER = 3;
++    public static final Integer ROLE_VETERINARIAN = 4;
++    public static final Integer ROLE_GROOM = 5;
++    public static final Integer ROLE_HORSE_OWNER = 6;
++    public static final Integer ROLE_ADMIN = 1;
+     public static final Set<Integer> STAFF_ROLES = Set.of(ROLE_MANAGER, ROLE_HEAD_TRAINER, ROLE_VETERINARIAN, ROLE_GROOM);
+     public static final String STATUS_INVITED = "INVITED";
+     public static final Set<Integer> BUSINESS_ROLES = Set.of(
+--- a/backend/src/main/java/com/raceforge/backend/common/id/BusinessIdGenerator.java
++++ b/backend/src/main/java/com/raceforge/backend/common/id/BusinessIdGenerator.java
+@@ -1,6 +1,7 @@
+ package com.raceforge.backend.common.id;
+ 
+ import com.raceforge.backend.common.exception.ApiException;
++import com.raceforge.backend.account.AccountConstants;
+ import java.sql.SQLException;
+ import java.util.Map;
+ import java.util.Set;
+@@ -10,7 +11,13 @@
+ 
+ @Component
+ public class BusinessIdGenerator {
+-    public static final Map<Integer, String> USER_PREFIXES = Map.of(1,"CM",2,"HTR",3,"VET",4,"GRM",5,"OWN",7,"ADM");
++    public static final Map<Integer, String> USER_PREFIXES = Map.of(
++            AccountConstants.ROLE_MANAGER, "CM",
++            AccountConstants.ROLE_HEAD_TRAINER, "HTR",
++            AccountConstants.ROLE_VETERINARIAN, "VET",
++            AccountConstants.ROLE_GROOM, "GRM",
++            AccountConstants.ROLE_HORSE_OWNER, "OWN",
++            AccountConstants.ROLE_ADMIN, "ADM");
+     private static final Set<String> PREFIXES = Set.of("HOR","OWN","VET","HTR","CM","PKG","MED","ADM","GRM");
+     private final JdbcTemplate jdbc;
+     public BusinessIdGenerator(JdbcTemplate jdbc) { this.jdbc = jdbc; }

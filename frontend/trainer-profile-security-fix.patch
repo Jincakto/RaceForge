@@ -1,0 +1,12 @@
+diff --git a/backend/src/main/java/com/raceforge/backend/security/SecurityConfig.java b/backend/src/main/java/com/raceforge/backend/security/SecurityConfig.java
+--- a/backend/src/main/java/com/raceforge/backend/security/SecurityConfig.java
++++ b/backend/src/main/java/com/raceforge/backend/security/SecurityConfig.java
+@@ -85,6 +85,8 @@
+                         .requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
+                         .requestMatchers(HttpMethod.GET, "/api/users/**").hasAnyAuthority("ADMIN", "CLUB_MANAGER")
+                         .requestMatchers("/api/users/**").hasAuthority("ADMIN")
++                        .requestMatchers("/api/trainer-profiles", "/api/trainer-profiles/**")
++                        .hasAnyAuthority("ADMIN", "CLUB_MANAGER", "HEAD_TRAINER")
+                         .anyRequest().access((authentication, context) -> {
+                             Object principal = authentication.get().getPrincipal();
+                             boolean active = principal instanceof AuthenticatedUser user

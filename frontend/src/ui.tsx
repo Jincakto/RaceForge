@@ -32,19 +32,17 @@ export function Badge({ status }: { status: string }) {
     'Base Building': 'bg-blue-100 text-blue-800 border-blue-200',
     Foundation: 'bg-teal-100 text-teal-800 border-teal-200',
     Recovery: 'bg-gray-100 text-gray-600 border-gray-200',
-    'Chuẩn bị thi đấu': 'bg-orange-100 text-orange-800 border-orange-200',
-    'Xây nền tảng': 'bg-blue-100 text-blue-800 border-blue-200',
-    'Làm quen': 'bg-teal-100 text-teal-800 border-teal-200',
-    'Phục hồi': 'bg-gray-100 text-gray-600 border-gray-200',
-    'Tăng cường': 'bg-amber-100 text-amber-800 border-amber-200',
+    "Race preparation": 'bg-orange-100 text-orange-800 border-orange-200',
+    "Orientation": 'bg-teal-100 text-teal-800 border-teal-200',
+    "Intensive": 'bg-amber-100 text-amber-800 border-amber-200',
   };
   const labels: Record<string, string> = {
-    Eligible: 'Đủ điều kiện', Monitor: 'Cần theo dõi', Injured: 'Chấn thương', Retired: 'Giải nghệ', 'Pending Vet': 'Chờ khám',
-    Active: 'Đang tập', Resting: 'Nghỉ ngơi', Inactive: 'Chưa tập', 'Pending Approval': 'Chờ duyệt', Completed: 'Hoàn thành',
-    Scheduled: 'Đã lên lịch', 'Not Performed': 'Không thực hiện', Paused: 'Tạm dừng', 'In Progress': 'Đang diễn ra', Pending: 'Chờ xử lý',
-    pending: 'Chờ duyệt', approved: 'Đã duyệt', rejected: 'Từ chối', expired: 'Hết hạn', Normal: 'Bình thường',
-    admin: 'Quản trị viên', manager: 'Quản lý CLB', head_trainer: 'Huấn luyện viên', veterinarian: 'Thú y', groom: 'Nhân viên chăm sóc', owner: 'Chủ ngựa',
-    'Competition Prep': 'Chuẩn bị thi đấu', 'Base Building': 'Xây nền tảng', Foundation: 'Làm quen', Recovery: 'Phục hồi',
+    Eligible: 'Eligible', Monitor: 'Needs monitoring', Injured: 'Injured', Retired: 'Retired', 'Pending Vet': 'Awaiting examination',
+    Active: 'Active', Resting: 'Resting', Inactive: 'Inactive', 'Pending Approval': 'Pending approval', Completed: 'Completed',
+    Scheduled: 'Scheduled', 'Not Performed': 'Not performed', Paused: 'Paused', 'In Progress': 'In progress', Pending: 'Pending',
+    pending: 'Pending', approved: 'Approved', rejected: 'Rejected', expired: 'Expired', Normal: 'Normal',
+    admin: 'Administrator', manager: 'Club Manager', head_trainer: 'Trainer', veterinarian: 'Veterinarian', groom: 'Groom', owner: 'Horse Owner',
+    'Competition Prep': 'Race preparation', 'Base Building': 'Base building', Foundation: 'Orientation', Recovery: 'Recovery',
   };
   return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${map[status] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>{labels[status] || status}</span>;
 }
@@ -78,7 +76,7 @@ export function Select({ label, value, onChange, options, error = '', hint = '',
     <div>
       {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>}
       <select value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b] bg-white">
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        {options.map((o, index) => <option key={`${o.value}-${index}`} value={o.value}>{o.label}</option>)}
       </select>
       {error ? <p className="text-xs text-red-600 mt-0.5">{error}</p> : hint && <p className="text-xs text-gray-400 mt-0.5">{hint}</p>}
     </div>

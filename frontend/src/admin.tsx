@@ -114,13 +114,13 @@ function Field({ label, error, required, hint, children }: { label: string; erro
   );
 }
 
-export function NoPermission({ text = 'Bạn không có quyền truy cập chức năng này.' }: { text?: string }) {
+export function NoPermission({ text = "You do not have permission to access this feature." }: { text?: string }) {
   return (
     <Card className="mx-auto mt-10 max-w-md p-10 text-center">
       <div className="mb-3 text-4xl">🔒</div>
-      <h3 className="font-serif text-lg font-bold text-[#0f1729]">Không có quyền truy cập</h3>
+      <h3 className="font-serif text-lg font-bold text-[#0f1729]">Access denied</h3>
       <p className="mt-1 text-sm text-gray-500">{text}</p>
-      <p className="mt-3 text-xs text-gray-400">Liên hệ Quản trị viên nếu bạn cho rằng đây là nhầm lẫn.</p>
+      <p className="mt-3 text-xs text-gray-400">Contact your administrator if you believe this is a mistake.</p>
     </Card>
   );
 }
@@ -133,35 +133,35 @@ export function AdminDashboard({ users, audit, navigate }: { users: AppUser[]; a
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="font-serif text-xl font-bold text-[#0f1729]">Quản trị hệ thống</h2>
-        <p className="text-sm text-gray-500">Tài khoản, phân quyền và nhật ký thay đổi.</p>
+        <h2 className="font-serif text-xl font-bold text-[#0f1729]">System administration</h2>
+        <p className="text-sm text-gray-500">Accounts, permissions and change history.</p>
       </div>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
-          { l: 'Tổng tài khoản', v: users.length }, { l: 'Nhân sự CLB', v: STAFF_ROLES.reduce((a, r) => a + count(r), 0) },
-          { l: 'Chủ ngựa', v: count('owner') }, { l: 'Đang bị khóa', v: locked },
+          { l: "Total accounts", v: users.length }, { l: "Club staff", v: STAFF_ROLES.reduce((a, r) => a + count(r), 0) },
+          { l: "Horse Owner", v: count('owner') }, { l: "Locked accounts", v: locked },
         ].map(s => (
           <Card key={s.l} className="p-5"><div className="text-xs font-medium uppercase tracking-wider text-gray-500">{s.l}</div><div className="mt-1 font-serif text-3xl font-bold text-[#1a2844]">{s.v}</div></Card>
         ))}
       </div>
       <div className="grid gap-4 lg:grid-cols-3">
         {[
-          { p: 'accounts', t: 'Quản lý tài khoản', d: 'Create staff accounts and lock or unlock access.' },
-          { p: 'permissions', t: 'Phân quyền', d: 'Ma trận vai trò × chức năng, bật/tắt quyền có ghi lý do.' },
-          { p: 'audit-log', t: 'Nhật ký thay đổi', d: 'Ai, lúc nào, làm gì — toàn bộ thao tác nhạy cảm.' },
+          { p: 'accounts', t: "Account management", d: 'Create staff accounts and lock or unlock access.' },
+          { p: 'permissions', t: "Permissions", d: "Role and feature permissions, with a reason recorded for each change." },
+          { p: 'audit-log', t: "Audit log", d: "Who changed what and when — all sensitive operations." },
         ].map(c => (
           <Card key={c.p} onClick={() => navigate(c.p)} className="p-5"><div className="font-semibold text-[#0f1729]">{c.t}</div><p className="mt-1 text-sm text-gray-500">{c.d}</p></Card>
         ))}
       </div>
       <Card className="p-5">
-        <h3 className="mb-3 font-semibold text-[#0f1729]">Hoạt động gần đây</h3>
+        <h3 className="mb-3 font-semibold text-[#0f1729]">Recent activity</h3>
         {audit.slice(0, 5).map(a => (
           <div key={a.id} className="flex items-baseline gap-3 border-b border-gray-100 py-2 text-sm last:border-0">
             <span className="w-32 shrink-0 font-mono text-xs text-gray-400">{a.time}</span>
             <span><b>{a.actor}</b> {a.action} <span className="text-gray-500">{a.target}</span></span>
           </div>
         ))}
-        {audit.length === 0 && <p className="text-sm text-gray-400">Chưa có hoạt động nào.</p>}
+        {audit.length === 0 && <p className="text-sm text-gray-400">No activity yet.</p>}
       </Card>
     </div>
   );
@@ -205,65 +205,65 @@ export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleL
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between">
-        <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">Quản lý tài khoản</h2><p className="text-sm text-gray-500">{filtered.length} tài khoản · Chủ ngựa tự đăng ký công khai; nhân sự do Admin tạo.</p></div>
-        <Btn onClick={() => setShowCreate(true)}>+ Tạo tài khoản nhân sự</Btn>
+        <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">Account management</h2><p className="text-sm text-gray-500">{filtered.length}  accounts · Horse owners register publicly; staff accounts are created by an administrator.</p></div>
+        <Btn onClick={() => setShowCreate(true)}>+ Create staff account</Btn>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search by account name or ID…" aria-label="Search accounts by name or ID" className="w-72 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]" />
-        <div className="w-48"><Select value={roleF} onChange={v => { setRoleF(v); setPage(1); }} options={[{ value: 'all', label: 'Mọi vai trò' }, ...(Object.keys(ROLE_NAME) as Role[]).map(r => ({ value: r, label: ROLE_NAME[r] }))]} /></div>
-        <div className="w-40"><Select value={statusF} onChange={v => { setStatusF(v); setPage(1); }} options={[{ value: 'all', label: 'Mọi trạng thái' }, { value: 'active', label: 'Đang hoạt động' }, { value: 'locked', label: 'Đã khóa' }]} /></div>
+        <div className="w-48"><Select value={roleF} onChange={v => { setRoleF(v); setPage(1); }} options={[{ value: 'all', label: "All roles" }, ...(Object.keys(ROLE_NAME) as Role[]).map(r => ({ value: r, label: ROLE_NAME[r] }))]} /></div>
+        <div className="w-40"><Select value={statusF} onChange={v => { setStatusF(v); setPage(1); }} options={[{ value: 'all', label: "All statuses" }, { value: 'active', label: "Active" }, { value: 'locked', label: "Locked" }]} /></div>
       </div>
       {profileError && <p role="alert" className="text-sm text-red-600">{profileError}</p>}
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
-          <thead><tr className="border-b border-gray-200 bg-gray-50">{['Mã', 'Người dùng', 'Vai trò', 'Trung tâm', 'Trạng thái', 'Thao tác'].map(h => <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-gray-200 bg-gray-50">{["ID", "User", "Role", "Club", "Status", "Actions"].map(h => <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{h}</th>)}</tr></thead>
           <tbody>
             {rows.map(u => {
               const club = clubs.find(c => c.id === u.clubId);
               const self = u.id === actor.id;
               return (
                 <tr key={u.id} className="border-b border-gray-100 last:border-0">
-                  <td className="px-5 py-3"><IdChip kind="USR" id={u.id} />{u.trainerProfileId && <div className="mt-1 text-xs text-gray-500">Hồ sơ: {u.trainerProfileId}</div>}</td>
+                  <td className="px-5 py-3"><IdChip kind="USR" id={u.id} />{u.trainerProfileId && <div className="mt-1 text-xs text-gray-500">Profile: {u.trainerProfileId}</div>}</td>
                   <td className="px-5 py-3"><div className="font-medium text-[#0f1729]">{u.name}</div><div className="text-xs text-gray-500">{u.email}</div></td>
-                  <td className="px-5 py-3">{u.role ? <Badge status={u.role} /> : <span className="text-xs text-gray-400">Chưa có vai trò</span>}</td>
+                  <td className="px-5 py-3">{u.role ? <Badge status={u.role} /> : <span className="text-xs text-gray-400">No role assigned</span>}</td>
                   <td className="px-5 py-3 text-xs text-gray-600">{club?.name || '—'}</td>
-                  <td className="px-5 py-3">{u.locked ? <span className="rounded-full border border-red-200 bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">Đã khóa</span> : <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">Hoạt động</span>}</td>
+                  <td className="px-5 py-3">{u.locked ? <span className="rounded-full border border-red-200 bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">Locked</span> : <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">Active</span>}</td>
                   <td className="px-5 py-3">
-                    {self ? <span className="text-xs text-gray-400">Tài khoản của bạn</span> : (
+                    {self ? <span className="text-xs text-gray-400">Your account</span> : (
                       <div className="flex flex-wrap gap-1.5">
                         {u.role === 'head_trainer' && !u.trainerProfileId && <Btn size="sm" variant="secondary" disabled={!!profilePending || u.status !== 'active' || !!u.locked} onClick={async () => {
                           setProfilePending(u.id); setProfileError('');
                           try { await onCreateTrainerProfile(u.id); } catch (e) { setProfileError((e as Error).message); }
                           finally { setProfilePending(null); }
-                        }}>{profilePending === u.id ? 'Đang tạo...' : 'Tạo hồ sơ Trainer'}</Btn>}
-                        <Btn size="sm" variant={u.locked ? 'secondary' : 'danger'} onClick={() => setDialog({ kind: 'lock', user: u })}>{u.locked ? 'Mở khóa' : 'Khóa'}</Btn>
+                        }}>{profilePending === u.id ? "Creating..." : "Create trainer profile"}</Btn>}
+                        <Btn size="sm" variant={u.locked ? 'secondary' : 'danger'} onClick={() => setDialog({ kind: 'lock', user: u })}>{u.locked ? "Unlock" : "Lock"}</Btn>
                       </div>
                     )}
                   </td>
                 </tr>
               );
             })}
-            {rows.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-gray-400">Không có tài khoản phù hợp với bộ lọc.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={6} className="px-5 py-12 text-center text-gray-400">No accounts match the filters.</td></tr>}
           </tbody>
         </table>
         <div className="flex items-center justify-between border-t border-gray-100 px-5 py-3 text-xs text-gray-500">
           <span>Trang {cur}/{pages}</span>
-          <div className="flex gap-2"><Btn size="sm" variant="secondary" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>← Trước</Btn><Btn size="sm" variant="secondary" disabled={cur >= pages} onClick={() => setPage(cur + 1)}>Sau →</Btn></div>
+          <div className="flex gap-2"><Btn size="sm" variant="secondary" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>← Previous</Btn><Btn size="sm" variant="secondary" disabled={cur >= pages} onClick={() => setPage(cur + 1)}>Sau →</Btn></div>
         </div>
       </Card>
 
       {showCreate && <CreateAccountModal users={users} clubs={clubs} onClose={() => setShowCreate(false)} onCreate={async u => { await onCreate(u); setShowCreate(false); }} />}
 
       {dialog?.kind === 'lock' && (
-        <ReasonDialog title={dialog.user.locked ? 'Mở khóa tài khoản' : 'Khóa tài khoản'} danger={!dialog.user.locked} confirmLabel={dialog.user.locked ? 'Mở khóa' : 'Khóa tài khoản'} onClose={() => setDialog(null)}
-          description={<p>{dialog.user.locked ? 'Người dùng sẽ đăng nhập lại được.' : 'Người dùng sẽ không thể đăng nhập cho đến khi được mở khóa.'} Tài khoản: <b>{dialog.user.name}</b>.</p>}
+        <ReasonDialog title={dialog.user.locked ? "Unlock account" : "Lock account"} danger={!dialog.user.locked} confirmLabel={dialog.user.locked ? "Unlock" : "Lock account"} onClose={() => setDialog(null)}
+          description={<p>{dialog.user.locked ? "The user will be able to sign in again." : "The user cannot sign in until the account is unlocked."}  Account: <b>{dialog.user.name}</b>.</p>}
           onConfirm={async reason => { await onToggleLock(dialog.user.id, reason); setDialog(null); }} />
       )}
       {newPwd && (
-        <Modal title="Mật khẩu tạm thời" onClose={() => setNewPwd(null)}>
-          <p className="text-sm text-gray-600">Mật khẩu của <b>{newPwd.name}</b> — chỉ hiển thị một lần:</p>
-          <div className="my-4 flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3 font-mono text-lg tracking-wider text-[#1a2844]">{newPwd.pwd}<Btn size="sm" variant="secondary" onClick={() => navigator.clipboard?.writeText(newPwd.pwd)}>Sao chép</Btn></div>
-          <div className="flex justify-end"><Btn onClick={() => setNewPwd(null)}>Đã ghi lại</Btn></div>
+        <Modal title="Temporary password" onClose={() => setNewPwd(null)}>
+          <p className="text-sm text-gray-600">Password for <b>{newPwd.name}</b>  — shown once only:</p>
+          <div className="my-4 flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3 font-mono text-lg tracking-wider text-[#1a2844]">{newPwd.pwd}<Btn size="sm" variant="secondary" onClick={() => navigator.clipboard?.writeText(newPwd.pwd)}>Copy</Btn></div>
+          <div className="flex justify-end"><Btn onClick={() => setNewPwd(null)}>Done</Btn></div>
         </Modal>
       )}
     </div>
@@ -283,12 +283,12 @@ function CreateAccountModal({ users, clubs, onCreate, onClose }: { users: AppUse
   const submit = async () => {
     const e: Record<string, string> = {};
     const name = f.name.trim();
-    if (!name) e.name = 'Vui lòng nhập họ tên.'; else if (name.length < 2 || name.length > 60) e.name = 'Họ tên từ 2 đến 60 ký tự.';
-    if (!f.email.trim()) e.email = 'Vui lòng nhập email.';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim())) e.email = 'Email không hợp lệ (ví dụ: ten@raceforce.vn).';
-    else if (users.some(u => u.email.toLowerCase() === f.email.trim().toLowerCase())) e.email = 'Email này đã được sử dụng.';
-    if (f.phone && !/^0\d{9}$/.test(f.phone.replace(/\s/g, ''))) e.phone = 'Số điện thoại gồm 10 chữ số, bắt đầu bằng 0.';
-    if (!f.clubId) e.clubId = 'Vui lòng chọn trung tâm.';
+    if (!name) e.name = "Enter a full name."; else if (name.length < 2 || name.length > 60) e.name = "Full name must contain 2–60 characters.";
+    if (!f.email.trim()) e.email = "Enter an email address.";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim())) e.email = "Enter a valid email address (e.g. name@raceforce.vn).";
+    else if (users.some(u => u.email.toLowerCase() === f.email.trim().toLowerCase())) e.email = "This email address is already in use.";
+    if (f.phone && !/^0\d{9}$/.test(f.phone.replace(/\s/g, ''))) e.phone = "Phone number must contain 10 digits and start with 0.";
+    if (!f.clubId) e.clubId = "Select a center.";
     setErrors(e);
     if (Object.keys(e).length) return;
     const initials = name.split(/\s+/).map(w => w[0]).slice(-2).join('').toUpperCase();
@@ -296,22 +296,22 @@ function CreateAccountModal({ users, clubs, onCreate, onClose }: { users: AppUse
   };
 
   return (
-    <Modal title="Tạo tài khoản nhân sự" onClose={onClose} wide>
+    <Modal title="Create staff account" onClose={onClose} wide>
       <div className="space-y-4">
-        <Field label="Họ và tên" required error={errors.name}><Input value={f.name} onChange={set('name')} placeholder="Nguyễn Văn A" /></Field>
+        <Field label="Full name" required error={errors.name}><Input value={f.name} onChange={set('name')} placeholder="Alex Smith" /></Field>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Email" required error={errors.email}><Input value={f.email} onChange={set('email')} placeholder="ten@raceforce.vn" /></Field>
-          <Field label="Số điện thoại" error={errors.phone}><Input value={f.phone} onChange={set('phone')} placeholder="0912345678" /></Field>
+          <Field label="Phone number" error={errors.phone}><Input value={f.phone} onChange={set('phone')} placeholder="0912345678" /></Field>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Vai trò" required><Select value={f.role} onChange={set('role')} options={STAFF_ROLES.map(r => ({ value: r, label: ROLE_NAME[r] }))} /></Field>
-          <Field label="Trung tâm" required error={errors.clubId}><Select value={f.clubId} onChange={set('clubId')} options={clubs.map(c => ({ value: c.id, label: c.name }))} /></Field>
+          <Field label="Role" required><Select value={f.role} onChange={set('role')} options={STAFF_ROLES.map(r => ({ value: r, label: ROLE_NAME[r] }))} /></Field>
+          <Field label="Club" required error={errors.clubId}><Select value={f.clubId} onChange={set('clubId')} options={clubs.map(c => ({ value: c.id, label: c.name }))} /></Field>
         </div>
-        <Field label="Đặt mật khẩu" hint="BE gửi email mời. Nhân sự tự đặt mật khẩu qua liên kết trong email.">
-          <Input value="Gửi lời mời qua email" onChange={() => {}} />
+        <Field label="Set password" hint="An invitation email will be sent. Staff set their own password using the email link.">
+          <Input value="Send invitation email" onChange={() => {}} />
         </Field>
       </div>
-      <div className="mt-6 flex justify-end gap-2"><Btn variant="secondary" onClick={onClose}>Hủy</Btn><Btn onClick={submit}>Tạo tài khoản</Btn></div>
+      <div className="mt-6 flex justify-end gap-2"><Btn variant="secondary" onClick={onClose}>Cancel</Btn><Btn onClick={submit}>Create account</Btn></div>
     </Modal>
   );
 }
@@ -325,17 +325,17 @@ export function PermissionMatrixPage({ rolePerms, audit, onToggle }: {
   const [pending, setPending] = useState<{ role: Role; page: string; on: boolean } | null>(null);
   const groups = Array.from(new Set(FEATURES.map(f => f.group)));
   const feat = pending && FEATURES.find(f => f.page === pending.page);
-  const permLog = audit.filter(a => a.action.startsWith('Phân quyền')).slice(0, 6);
+  const permLog = audit.filter(a => a.action.startsWith("Permissions")).slice(0, 6);
   return (
     <div className="space-y-5">
-      <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">Phân quyền</h2><p className="text-sm text-gray-500">Ma trận vai trò × chức năng. Mỗi thay đổi cần lý do và được ghi nhật ký. Menu của từng vai trò cập nhật ngay.</p></div>
+      <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">Permissions</h2><p className="text-sm text-gray-500">Role and feature permissions. Each change requires a reason and is logged. Role menus update immediately.</p></div>
       <Card className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Chức năng</th>
+              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Feature</th>
               {MATRIX_ROLES.map(r => <th key={r} className="px-3 py-3 text-center text-xs font-semibold text-gray-500">{ROLE_NAME[r]}</th>)}
-              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500">Quản trị viên</th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500">Administrator</th>
             </tr>
           </thead>
           <tbody>
@@ -349,14 +349,14 @@ export function PermissionMatrixPage({ rolePerms, audit, onToggle }: {
                       const on = (rolePerms[r] || []).includes(f.page);
                       return (
                         <td key={r} className="px-3 py-2.5 text-center">
-                          <button role="switch" disabled={!permissionForPage(r, f.page)} title={permissionForPage(r, f.page) || 'BE quy định trực tiếp theo vai trò'} aria-checked={on} aria-label={`${f.label} — ${ROLE_NAME[r]}`} onClick={() => setPending({ role: r, page: f.page, on: !on })}
+                          <button role="switch" disabled={!permissionForPage(r, f.page)} title={permissionForPage(r, f.page) || "Controlled by the server for this role"} aria-checked={on} aria-label={`${f.label} — ${ROLE_NAME[r]}`} onClick={() => setPending({ role: r, page: f.page, on: !on })}
                             className={`relative h-5 w-9 rounded-full transition-colors ${on ? 'bg-emerald-500' : 'bg-gray-300'}`}>
                             <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${on ? 'left-[18px]' : 'left-0.5'}`} />
                           </button>
                         </td>
                       );
                     })}
-                    <td className="px-3 py-2.5 text-center text-xs text-gray-400">Toàn quyền</td>
+                    <td className="px-3 py-2.5 text-center text-xs text-gray-400">Full access</td>
                   </tr>
                 ))}
               </React.Fragment>
@@ -365,13 +365,13 @@ export function PermissionMatrixPage({ rolePerms, audit, onToggle }: {
         </table>
       </Card>
       <Card className="p-5">
-        <h3 className="mb-3 font-semibold text-[#0f1729]">Thay đổi phân quyền gần đây</h3>
-        {permLog.map(a => <div key={a.id} className="border-b border-gray-100 py-2 text-sm last:border-0"><span className="font-mono text-xs text-gray-400">{a.time}</span> · <b>{a.actor}</b> {a.action} <span className="text-gray-500">{a.target}</span>{a.reason && <span className="block text-xs italic text-gray-400">Lý do: {a.reason}</span>}</div>)}
-        {permLog.length === 0 && <p className="text-sm text-gray-400">Chưa có thay đổi nào.</p>}
+        <h3 className="mb-3 font-semibold text-[#0f1729]">Recent permission changes</h3>
+        {permLog.map(a => <div key={a.id} className="border-b border-gray-100 py-2 text-sm last:border-0"><span className="font-mono text-xs text-gray-400">{a.time}</span> · <b>{a.actor}</b> {a.action} <span className="text-gray-500">{a.target}</span>{a.reason && <span className="block text-xs italic text-gray-400">Reason: {a.reason}</span>}</div>)}
+        {permLog.length === 0 && <p className="text-sm text-gray-400">No changes yet.</p>}
       </Card>
       {pending && feat && (
-        <ReasonDialog title={pending.on ? 'Cấp quyền' : 'Thu hồi quyền'} danger={!pending.on} confirmLabel="Xác nhận" onClose={() => setPending(null)}
-          description={<p>{pending.on ? 'Cấp' : 'Thu hồi'} quyền <b>{feat.label}</b> {pending.on ? 'cho' : 'của'} vai trò <b>{ROLE_NAME[pending.role]}</b>.</p>}
+        <ReasonDialog title={pending.on ? "Grant permission" : "Revoke permission"} danger={!pending.on} confirmLabel="Confirm" onClose={() => setPending(null)}
+          description={<p>{pending.on ? "Grant" : "Revoke"}  permission <b>{feat.label}</b> {pending.on ? 'for' : "for"}  role <b>{ROLE_NAME[pending.role]}</b>.</p>}
           onConfirm={async reason => { await onToggle(pending.role, pending.page, pending.on, reason); setPending(null); }} />
       )}
     </div>
@@ -388,11 +388,11 @@ export function AuditLogPage({ audit }: { audit: AuditEntry[] }) {
   const cur = Math.min(page, pages);
   return (
     <div className="space-y-5">
-      <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">Nhật ký thay đổi</h2><p className="text-sm text-gray-500">{list.length} bản ghi · chỉ đọc</p></div>
-      <input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Tìm theo người thực hiện, hành động, đối tượng…" className="w-80 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]" />
+      <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">Audit log</h2><p className="text-sm text-gray-500">{list.length}  records · read only</p></div>
+      <input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search by actor, action or target…" className="w-80 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]" />
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
-          <thead><tr className="border-b border-gray-200 bg-gray-50">{['Thời gian', 'Người thực hiện', 'Hành động', 'Đối tượng', 'Lý do'].map(h => <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{h}</th>)}</tr></thead>
+          <thead><tr className="border-b border-gray-200 bg-gray-50">{["Time", "Performed by", "Action", "Target", "Reason"].map(h => <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{h}</th>)}</tr></thead>
           <tbody>
             {list.slice((cur - 1) * 10, cur * 10).map(a => (
               <tr key={a.id} className="border-b border-gray-100 align-top last:border-0">
@@ -403,12 +403,12 @@ export function AuditLogPage({ audit }: { audit: AuditEntry[] }) {
                 <td className="px-5 py-3 text-xs italic text-gray-500">{a.reason || '—'}</td>
               </tr>
             ))}
-            {list.length === 0 && <tr><td colSpan={5} className="px-5 py-12 text-center text-gray-400">Chưa có bản ghi nào.</td></tr>}
+            {list.length === 0 && <tr><td colSpan={5} className="px-5 py-12 text-center text-gray-400">No records yet.</td></tr>}
           </tbody>
         </table>
         <div className="flex items-center justify-between border-t border-gray-100 px-5 py-3 text-xs text-gray-500">
           <span>Trang {cur}/{pages}</span>
-          <div className="flex gap-2"><Btn size="sm" variant="secondary" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>← Trước</Btn><Btn size="sm" variant="secondary" disabled={cur >= pages} onClick={() => setPage(cur + 1)}>Sau →</Btn></div>
+          <div className="flex gap-2"><Btn size="sm" variant="secondary" disabled={cur <= 1} onClick={() => setPage(cur - 1)}>← Previous</Btn><Btn size="sm" variant="secondary" disabled={cur >= pages} onClick={() => setPage(cur + 1)}>Sau →</Btn></div>
         </div>
       </Card>
     </div>

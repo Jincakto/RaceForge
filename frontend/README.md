@@ -39,3 +39,8 @@ Nếu cổng 5173 đang bận, Vite sẽ báo lỗi và dừng; hãy dừng phi�
 khi chạy lại. Link mời nhân sự mở màn hình đặt mật khẩu dù trình duyệt đang có
 phiên đăng nhập khác. Sau khi đặt mật khẩu thành công, đăng nhập bằng email
 nhân sự và mật khẩu mới; role vẫn do BE quản lý.
+
+
+### English interface
+
+All application-owned labels, form hints, validation messages, notifications and default content are authored in English in the React source. The application no longer runs the legacy DOM translation observer, so names, medical notes, IDs and other user-entered values are displayed as provided. Currency remains VND and uses English number separators; API date formats are unchanged. Vietnamese gender aliases are retained only as compatibility input keys. Run `npm test` for the source-language audit and API contract tests.

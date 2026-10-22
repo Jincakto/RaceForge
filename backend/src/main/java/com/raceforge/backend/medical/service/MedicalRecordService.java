@@ -247,7 +247,8 @@ public class MedicalRecordService {
                     record.getTrainingLockReason().trim());
         }
         // Deliberately do not auto-unlock on FIT / FIT_WITH_MONITORING.
-        medicalAssignments.complete(horse.getHorseId(), veterinarianId, medicalRecordId);
+        // Assignment remains accepted: a veterinarian may examine this horse
+        // again without new approval from the Club Manager.
         auditLogService.record(veterinarianId, horse.getHorseId(), "MEDICAL_RECORD",
                 medicalRecordId, "MEDICAL_RECORD_CONFIRMED", "SUCCESS", null);
         return buildResponse(record);

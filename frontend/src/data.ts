@@ -307,6 +307,9 @@ export interface TrainingPlan {
 }
 
 export interface TrainingSession {
+  horsePackageId?: string;
+  endTime?: string;
+  intensity?: string;
   actualEnd?: string;
   canStart?: boolean;
   canStop?: boolean;
@@ -402,6 +405,7 @@ export interface HealthRecord {
 // Factors: health status, age, weight, resting heart rate, race history
 
 export interface TrainingSuggestion {
+  stages?: import('./trainingSchedule').RoadmapStage[];
   approvedIntensity?: 'LOW' | 'MODERATE' | 'HIGH';
   sessionCount?: number;
   phase: string;

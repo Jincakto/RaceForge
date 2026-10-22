@@ -74,16 +74,9 @@ export function PackageCatalogPage({ packages, enrollments, onSave, onToggle }: 
                 </div>
               </div>
               <p className="mt-2 text-sm text-gray-600">{p.description || "No description"}</p>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
-                <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Sessions</div><div className="font-mono text-sm font-bold">{p.sessions}</div></div>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs">
                 <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Duration</div><div className="font-mono text-sm font-bold">{p.durationDays}  days</div></div>
                 <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Registered</div><div className="font-mono text-sm font-bold">{usage(p.id)}</div></div>
-              </div>
-              <div className="mt-4 flex gap-2">
-                <Btn size="sm" variant="secondary" onClick={() => { setEditing(p); setActionError(''); }}>Edit</Btn>
-                {p.active
-                  ? <Btn size="sm" variant="danger" onClick={() => setConfirmOff(p)}>Disable</Btn>
-                  : <Btn size="sm" variant="gold" onClick={async () => { const r = await onToggle(p.id, true); setActionError(r.ok ? '' : r.message); }}>Enable</Btn>}
               </div>
             </Card>
           ))}
@@ -229,7 +222,7 @@ export function TrainerAssignPage({ user, users, horses, enrollments, onAssign }
                   <TrainerStatusPill status={e.trainerStatus} />
                   {e.status === 'paused' && <Badge status="Paused" />}
                 </div>
-                <div className="mt-1 text-sm text-gray-600">Horse Owner: {e.ownerName}  · Package {e.packageName} · {e.sessionsTotal}  sessions · Expires {e.expiresAt}  (remaining {Math.max(0, daysLeft(e))}  days)</div>
+                <div className="mt-1 text-sm text-gray-600">Horse Owner: {e.ownerName}  · Package {e.packageName} · Expires {e.expiresAt}  (remaining {Math.max(0, daysLeft(e))}  days)</div>
                 <div className="mt-0.5 text-sm text-gray-500">Trainer: {e.trainerName || <span className="italic text-gray-400">not assigned</span>}</div>
                 {hist && (
                   <div className="mt-3 space-y-2 rounded-xl border border-gray-100 bg-gray-50 p-3">

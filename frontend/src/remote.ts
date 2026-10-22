@@ -1,3 +1,4 @@
+import { packageSessions } from './trainingSchedule';
 import { ApiError, allPages, idPath as enc, request, rows } from './api';
 import type { AppUser, Horse, HealthRecord, Enrollment, TrainingPackage, TrainingPlan, TrainingSession, HorseClubRequest, AppNotification, Role } from './data';
 
@@ -89,7 +90,7 @@ export function planFromApi(w: Wire, en?: Enrollment): TrainingPlan {
 }
 export function sessionFromApi(w: Wire, user?: AppUser): TrainingSession {
   const statuses: Record<string, TrainingSession['status']> = { SCHEDULED: 'Scheduled', COMPLETED: 'Completed', CANCELLED: 'Cancelled', IN_PROGRESS: 'In Progress', STOPPED: 'In Progress', NOT_PERFORMED: 'Not Performed', MISSED: 'Not Performed' };
-  return { id: w.sessionId, horseId: w.horseId, planId: w.planId, date: dateText(w.scheduledStart), time: w.scheduledStart?.slice(11, 16) || '', type: w.activityName || w.stageTitle || w.intensity || '', trainerId: w.recordedBy || user?.id || '', trainerName: user?.name || '', assignedStaffIds: [], assignedStaffNames: [], status: w.status === 'SCHEDULED' && w.actualStart ? 'In Progress' : statuses[w.status] || 'Scheduled', distance: String(w.distance ?? ''), targetTime: '', notes: w.notes || '', conflictChecked: true, actualEnd: w.actualEnd, canStart: w.canStart, canStop: w.canStop, canComplete: w.canComplete,
+  return { id: w.sessionId, horsePackageId: w.horsePackageId, endTime: w.scheduledEnd?.slice(11,16), intensity: w.intensity, horseId: w.horseId, planId: w.planId, date: dateText(w.scheduledStart), time: w.scheduledStart?.slice(11, 16) || '', type: w.activityName || w.stageTitle || w.intensity || '', trainerId: w.recordedBy || user?.id || '', trainerName: user?.name || '', assignedStaffIds: [], assignedStaffNames: [], status: w.status === 'SCHEDULED' && w.actualStart ? 'In Progress' : statuses[w.status] || 'Scheduled', distance: String(w.distance ?? ''), targetTime: '', notes: w.notes || '', conflictChecked: true, actualEnd: w.actualEnd, canStart: w.canStart, canStop: w.canStop, canComplete: w.canComplete,
     ...(w.status === 'COMPLETED' ? { result: { time: String(w.actualDurationSeconds || ''), speed: String(w.avgSpeed || ''), heartRate: w.endExerciseHeartRate ?? w.heartRate ?? 0, notes: w.evaluation || w.notes || '', performanceScore: w.recoveryHeartRate2Min ?? 0 } } : {}),
   };
 }
@@ -195,8 +196,8 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
     const a = assignments.find(a => a.status === 'ACCEPTED') || assignments.find(a => a.status === 'ASSIGNED');
     if (a) { e.trainerId = a.assignee_id; e.trainerName = a.trainer_name; e.trainerStatus = a.status === 'ACCEPTED' ? 'confirmed' : 'pending'; e.assignmentId = a.assignment_id || a.id; }
     e.assignHistory = [...assignments].reverse().map(a => ({ time: dateText(a.created_at), kind: a.status === 'ACCEPTED' ? 'confirm' : a.status === 'DECLINED' ? 'decline' : 'assign', from: null, to: a.trainer_name, by: a.assigned_by_name, reason: a.reason || a.status }));
-    const sessions = data.trainingSessions.filter(s => s.horseId === e.horseId); e.sessionsTotal = sessions.length; e.sessionsDone = sessions.filter(s => s.status === 'Completed').length;
-    e.scheduleConfirmed = e.trainerStatus === 'confirmed';
+    const sessions = packageSessions(data.trainingSessions, data.trainingPlans, e.id); e.sessionsTotal = sessions.length; e.sessionsDone = sessions.filter(s => s.status === 'Completed').length;
+    e.scheduleConfirmed = sessions.length > 0;
     const packageType = data.packages.find(p => p.id === e.packageId)?.packageType;
     if (packageType === 'RECOVERY' && e.status === 'active') {
       const horse = data.horses.find(h => h.id === e.horseId);

@@ -33,7 +33,7 @@ function StepBar({ step }: { step: number }) {
 export function ReceiptView({ e, horseName }: { e: Enrollment; horseName: string }) {
   const rows: [string, React.ReactNode][] = [
     ["Registration ID", <IdChip kind="ENR" id={e.id} />],
-    ["Training package", `${e.packageName} · ${e.sessionsTotal} sessions`],
+    ["Training package", e.packageName],
     ["Horses", horseName],
     ["Horse Owner", e.ownerName],
     ["Validity", `${e.startedAt} – ${e.expiresAt}`],
@@ -149,7 +149,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
                 <div>Amount: {money(e.amount)}</div>
               </div>
               <div className="mt-3">
-                <div className="mb-1 flex justify-between text-xs text-gray-500"><span>Completed {e.sessionsDone}/{e.sessionsTotal}  sessions</span><span>{pct}%</span></div>
+                <div className="mb-1 flex justify-between text-xs text-gray-500"><span>Created {e.sessionsTotal} sessions / Completed {e.sessionsDone}</span><span>{pct}%</span></div>
                 <div className="h-2 w-full rounded-full bg-gray-200"><div className="h-2 rounded-full bg-[#c9973b]" style={{ width: `${pct}%` }} /></div>
               </div>
               {live && e.trainerStatus === 'unassigned' && <div className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Awaiting trainer assignment by the manager. You will be notified once assigned.</div>}
@@ -194,7 +194,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
                   <div className="mb-1 flex items-center gap-2"><IdChip kind="PKG" id={p.id} />{p.popular && <span className="rounded-full bg-[#c9973b]/15 px-2 py-0.5 text-[10px] font-medium text-[#8a6420]">Popular</span>}</div>
                   <div className="font-serif text-lg font-bold text-[#0f1729]">{p.name}</div>
                   <div className="mt-1 font-serif text-xl font-bold text-[#c9973b]">{money(p.price)}</div>
-                  <div className="mt-2 text-sm text-gray-600">{p.sessions}  sessions · {p.durationDays}  days</div>
+                  <div className="mt-2 text-sm text-gray-600">{p.durationDays} days</div>
                   <p className="mt-2 text-xs text-gray-500">{p.description}</p>
                   {p.focus && <ul className="mt-2 space-y-0.5 text-xs text-gray-600">{p.focus.map(f => <li key={f}>✓ {f}</li>)}</ul>}
                 </button>
@@ -233,7 +233,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
             ))}
           </div>
           {followUp && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><b>Needs monitoring:</b> {followUp}<br /><span className="text-xs">Recommendation: reduce intensity and monitor the response during initial sessions.</span></div>}
-          {renewOf ? <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Renewal creates a new package with a new registration ID. The previous package {renewOf.id}  will end; {Math.max(0, renewOf.sessionsTotal - renewOf.sessionsDone)}  unused sessions from the previous package do not carry over. The current trainer is retained.</div>
+          {renewOf ? <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">A new registration is subject to the current package and medical requirements. Trainer assignment is managed separately.</div>
             : <div className="rounded-lg bg-sky-50 p-3 text-sm text-sky-800">After payment, the manager assigns a trainer, who must accept the assignment.</div>}
         </Card>
       )}

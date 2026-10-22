@@ -190,7 +190,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
           {activePkgs.length === 0 ? <Card className="p-8 text-center text-sm text-gray-500">No packages are currently available. Contact the club manager.</Card> : (
             <div className="grid gap-4 md:grid-cols-3">
               {activePkgs.map(p => (
-                <button key={p.id} onClick={() => { setPkgId(p.id); setFieldError(''); }} className={`rounded-xl border-2 bg-white p-5 text-left transition-all ${pkgId === p.id ? 'border-[#c9973b] shadow-md' : 'border-gray-200 hover:border-[#c9973b]/60'}`}>
+                <button key={p.id} onClick={() => { setPkgId(p.id); setHorseId(''); setFieldError(''); }} className={`rounded-xl border-2 bg-white p-5 text-left transition-all ${pkgId === p.id ? 'border-[#c9973b] shadow-md' : 'border-gray-200 hover:border-[#c9973b]/60'}`}>
                   <div className="mb-1 flex items-center gap-2"><IdChip kind="PKG" id={p.id} />{p.popular && <span className="rounded-full bg-[#c9973b]/15 px-2 py-0.5 text-[10px] font-medium text-[#8a6420]">Popular</span>}</div>
                   <div className="font-serif text-lg font-bold text-[#0f1729]">{p.name}</div>
                   <div className="mt-1 font-serif text-xl font-bold text-[#c9973b]">{money(p.price)}</div>
@@ -206,11 +206,11 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
 
       {step === 1 && (
         <div className="space-y-3">
-          <p className="text-sm text-gray-500">Choose horse <span className="text-red-500">*</span>  · Horses requiring monitoring may register with an appropriate intensity</p>
+          <p className="text-sm text-gray-500">Choose horse <span className="text-red-500">*</span>  · Only horses cleared for the selected package can be selected</p>
           {horsesToShow.length === 0 && <Card className="p-8 text-center text-sm text-gray-500">You have no horses yet.</Card>}
           {horsesToShow.map(h => {
             const reason = purchaseBlockReason(h, state.enrollments, state.healthRecords, !!renewOf, pkg?.packageType);
-            const sel = horseId === h.id;
+            const sel = !reason && horseId === h.id;
             const exam = state.healthRecords.filter(r => r.horseId === h.id).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))[0];
             const watch = exam?.decision === 'conditional' || exam?.trainingEligibility === 'conditional';
             return (
@@ -272,7 +272,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
       {step < 3 && (
         <div className="flex justify-between">
           <Btn variant="secondary" disabled={step === 0} onClick={() => { setFieldError(''); setStep(s => s - 1); }}>← Back</Btn>
-          {step === 2 ? <Btn variant="gold" onClick={() => setConfirmOpen(true)}>Continue to payment</Btn> : <Btn variant="gold" onClick={next}>Continue →</Btn>}
+          {step === 2 ? <Btn variant="gold" onClick={() => setConfirmOpen(true)}>Continue to payment</Btn> : <Btn variant="gold" disabled={step === 1 && (!horse || !!purchaseBlockReason(horse, state.enrollments, state.healthRecords, !!renewOf, pkg?.packageType))} onClick={next}>Continue →</Btn>}
         </div>
       )}
       {step === 3 && !paying && !payMsg && <div><Btn variant="secondary" onClick={() => setStep(2)}>← Back</Btn></div>}

@@ -1,4 +1,3 @@
-import { TrainingProtocolsPage } from './trainingProtocolsPage';
 import { TrainerProfileForm } from './trainerProfileForm';
 import { permissionForPage } from './permissionApi';
 import { clearRecommendations } from './recommendations';
@@ -809,7 +808,7 @@ function HeadTrainerDashboard({ state, navigate }: { state: AppState; navigate: 
       <div><h2 className="text-xl font-serif font-bold text-[#0f1729]">Training overview</h2></div>
       {horses.filter(h => h.lock).map(h => <Card key={h.id} className="p-4 border-l-4 border-red-500 bg-red-50" onClick={() => navigate('training-hub')}><div className="flex items-center gap-3"><span className="text-xl">🔒</span><div className="flex-1"><div className="font-semibold text-red-800">{h.name}  — TRAINING LOCKED</div><div className="text-sm text-red-600">{h.lock!.reason}  · Package paused; strenuous sessions marked "Not Performed"</div></div><span className="text-red-600 text-sm font-medium">Xem →</span></div></Card>)}
       {state.enrollments.filter(e => e.trainerId === state.user!.id && e.trainerStatus === 'pending').map(e => <Card key={e.id} className="p-4 border-l-4 border-sky-400 bg-sky-50" onClick={() => navigate('training-hub')}><div className="text-sm font-semibold text-sky-900">New assignment for horse "{state.horses.find(h => h.id === e.horseId)?.name}" — awaiting your response</div></Card>)}
-      {state.enrollments.filter(e => e.trainerId === state.user!.id && e.trainerStatus === 'confirmed' && e.status === 'active' && !e.scheduleConfirmed).map(e => <Card key={e.id} className="p-4 border-l-4 border-amber-400 bg-amber-50" onClick={() => navigate('training-hub')}><div className="flex items-center gap-3"><span className="text-xl">📅</span><div className="flex-1"><div className="font-semibold text-amber-800">{horses.find(h => h.id === e.horseId)?.name}  — schedule needs to be created or confirmed</div><div className="text-sm text-amber-600">Package {e.packageName}  · remaining {e.sessionsTotal - e.sessionsDone}  sessions</div></div><span className="text-amber-600 text-sm font-medium">Open →</span></div></Card>)}
+      {state.enrollments.filter(e => e.trainerId === state.user!.id && e.trainerStatus === 'confirmed' && e.status === 'active' && !e.scheduleConfirmed).map(e => <Card key={e.id} className="p-4 border-l-4 border-amber-400 bg-amber-50" onClick={() => navigate('training-hub')}><div className="flex items-center gap-3"><span className="text-xl">📅</span><div className="flex-1"><div className="font-semibold text-amber-800">{horses.find(h => h.id === e.horseId)?.name}  — schedule needs to be created or confirmed</div><div className="text-sm text-amber-600">Package {e.packageName}  · {e.sessionsTotal} sessions created</div></div><span className="text-amber-600 text-sm font-medium">Open →</span></div></Card>)}
       <div className="grid grid-cols-4 gap-4">
         <StatCard label="Horses in training" value={horses.filter(h => h.trainingStatus === 'Active').length} color="navy" />
         <StatCard label="Active training plans" value={state.trainingPlans.filter(p => p.status === 'Active').length} color="gold" />
@@ -1322,7 +1321,7 @@ function HorseDetailPage({ state, navigate, onUpdateHorse, onActivateHorse, onSh
         <div className="space-y-3">
           <div className="flex items-center justify-between"><h3 className="font-semibold">Training packages for {horse.name}</h3>{isOwner && isApproved && <Btn variant="gold" size="sm" onClick={() => navigate('training-register')}>Register for a package →</Btn>}</div>
           {horseEnrollments.map(e => {
-            const pct = Math.round(e.sessionsDone / e.sessionsTotal * 100);
+            const pct = Math.round(e.sessionsDone / Math.max(1,e.sessionsTotal) * 100);
             return (
               <Card key={e.id} className="p-5">
                 <div className="flex flex-wrap items-center gap-2"><IdChip kind="ENR" id={e.id} /><span className="font-semibold">{e.packageName}</span><Badge status={e.status === 'active' ? 'Active' : e.status === 'paused' ? 'Paused' : 'Completed'} /></div>
@@ -2575,7 +2574,6 @@ function ProfilePage({ user, state, navigate, onLogout, onSave, onError }:
         {user.certifications && <div className="mt-3"><div className="text-xs font-semibold text-gray-500 uppercase mb-1">Certifications</div><div className="text-sm text-gray-700">{user.certifications}</div></div>}
         <Btn variant="gold" className="mt-4" onClick={async () => { try { await request('/users/me', 'PUT', { fullName: name.trim(), phone: user.phone || '', avatarUrl: user.avatarUrl || null }); onSave('Profile updated successfully.'); } catch (e) { onError((e as Error).message); } }}>Save</Btn>
       </Card>
-      {user.role === 'veterinarian' && <TrainingProtocolsPage />}
       {user.role === 'head_trainer' && <TrainerProfileForm key={user.id} user={state.users.find(u => u.id === user.id) || user} />}
       {myClub && user.role !== 'manager' && <Card className="p-5"><h3 className="font-semibold mb-3">My Club</h3><div className="flex items-center gap-3"><div className="w-12 h-12 rounded-xl bg-[#1a2844] text-white flex items-center justify-center font-serif font-bold text-lg">{myClub.logoLetter}</div><div><div className="font-semibold">{myClub.name}</div><div className="text-sm text-gray-500">📍 {myClub.location} · Founded {myClub.founded}</div></div></div></Card>}
       <Btn variant="danger" onClick={onLogout}>Sign out</Btn>
@@ -2613,7 +2611,6 @@ function PostExamPage({ state, navigate, onSave, onPostExam, onUnlock, onManualL
     <div className="space-y-6 max-w-4xl">
       <div><h2 className="text-xl font-serif font-bold text-[#0f1729]">Post-training examinations and locks</h2><p className="text-sm text-gray-500">Only veterinarians may apply or release a TRAINING LOCK</p></div>
 
-      <TrainingProtocolsPage />
       <section className="space-y-3">
         <h3 className="font-semibold flex items-center gap-2">🩺 Awaiting pre-training examination <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">{awaiting.length}</span></h3>
         {awaiting.length === 0 && <Card className="p-5 text-sm text-gray-400 text-center">No horses are awaiting examination</Card>}
@@ -2931,7 +2928,7 @@ export default function App() {
       case 'vet-health-form':
         if (state.user!.role !== 'veterinarian') return <HealthRecordsPage state={state} navigate={navigate} />;
         return <VetHealthFormPage state={state} navigate={navigate} onSave={showSuccess} onSaveRecord={remote.saveHealth} today={TODAY} onConsumeExamHorse={() => setState(s => ({ ...s, examHorseId: null }))} />;
-      case 'training-hub': return <TrainingHubPage state={state} navigate={navigate as (p: string) => void} onCreatePlan={remote.createPlan} onGenerate={remote.generateSessions} onCheckIn={remote.checkIn} onRespond={remote.respondAssign} onStartSession={remote.startSession} onCompleteSession={remote.completeSession} onStopSession={remote.stopSession} onConfirmSchedule={() => "Sessions are generated and confirmed through the roadmap API."} />;
+      case 'training-hub': return <TrainingHubPage state={state} navigate={navigate as (p: string) => void} onCreatePlan={remote.createPlan} onGenerate={remote.generateSessions} onCreateSingle={remote.createSingleSession} onCheckIn={remote.checkIn} onRespond={remote.respondAssign} onStartSession={remote.startSession} onCompleteSession={remote.completeSession} onStopSession={remote.stopSession} onConfirmSchedule={() => "Sessions are generated and confirmed through the roadmap API."} />;
       case 'care-hub': return <CareHubPage state={state} navigate={navigate} onComplete={() => ({ ok: false, message: "The care API is not available yet.", shortages: [] })} onUndo={() => "The care API is not available yet."} onReceive={() => "The inventory API is not available yet."} onReport={() => "The incident API is not available yet."} />;
       case 'inventory': return <InventoryPage state={state} navigate={navigate} onAdd={() => "The inventory API is not available yet."} onReceive={() => "The inventory API is not available yet."} onEdit={() => "The inventory API is not available yet."} onAdjust={() => "The inventory API is not available yet."} onDelete={() => "The inventory API is not available yet."} />;
       case 'inventory-log': return <InventoryLogPage state={state} navigate={navigate} />;

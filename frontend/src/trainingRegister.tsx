@@ -3,7 +3,7 @@ import type { AppUser, Horse, Enrollment, TrainingPackage, Res, HealthRecord } f
 import { Badge, Btn, Card } from './ui';
 import { IdChip, Modal } from './admin';
 import { TrainerStatusPill } from './packages';
-import { money, purchaseBlockReason, enrollmentTerm, isCurrent, EXPIRY_WARN_DAYS, TODAY } from './trainingLogic';
+import { money, latestHealthRecord, enrollmentLabel, purchaseBlockReason, enrollmentTerm, isCurrent, EXPIRY_WARN_DAYS, TODAY } from './trainingLogic';
 
 interface Props {
   state: { user: AppUser | null; horses: Horse[]; enrollments: Enrollment[]; packages: TrainingPackage[]; healthRecords: HealthRecord[] };
@@ -33,7 +33,7 @@ function StepBar({ step }: { step: number }) {
 export function ReceiptView({ e, horseName }: { e: Enrollment; horseName: string }) {
   const rows: [string, React.ReactNode][] = [
     ["Registration ID", <IdChip kind="ENR" id={e.id} />],
-    ["Training package", `${e.packageName} · ${e.sessionsTotal} sessions`],
+    ["Training package", e.packageName],
     ["Horses", horseName],
     ["Horse Owner", e.ownerName],
     ["Validity", `${e.startedAt} – ${e.expiresAt}`],
@@ -74,7 +74,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
 
   const pkg = state.packages.find(p => p.id === pkgId);
   const horse = myHorses.find(h => h.id === horseId);
-  const latestExam = horse ? state.healthRecords.filter(r => r.horseId === horse.id).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))[0] : undefined;
+  const latestExam = horse ? latestHealthRecord(state.healthRecords, horse.id) : undefined;
   const followUp = latestExam?.decision === 'conditional' || latestExam?.trainingEligibility === 'conditional' ? latestExam.followUpNote || latestExam.trainingNote || latestExam.conclusion : '';
 
   const start = (renew?: Enrollment) => {
@@ -91,7 +91,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
     if (step === 0 && !pkg) { setFieldError("Select a training package."); return; }
     if (step === 1) {
       if (!horse) { setFieldError("Select a horse."); return; }
-      const r = purchaseBlockReason(horse, state.enrollments, state.healthRecords, !!renewOf, pkg?.packageType);
+      const r = state.enrollments.some(e=>e.horseId===horse.id&&e.packageId===pkgId&&e.paymentStatus==='PENDING') ? null : purchaseBlockReason(horse,state.enrollments,state.healthRecords,false,pkg?.packageType);
       if (r) { setFieldError(`Horse "${horse.name}" cannot register: ${r}.`); return; }
     }
     setStep(s => s + 1);
@@ -99,7 +99,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
 
   const pay = () => {
     if (paying) return;
-    const blocked = horse ? purchaseBlockReason(horse, state.enrollments, state.healthRecords, !!renewOf, pkg?.packageType) : "Select a horse.";
+    const blocked = horse ? state.enrollments.some(e=>e.horseId===horse.id&&e.packageId===pkgId&&e.paymentStatus==='PENDING') ? null : purchaseBlockReason(horse,state.enrollments,state.healthRecords,false,pkg?.packageType) : 'Select a horse.';
     if (blocked) { setPayMsg({ kind: 'error', text: blocked }); return; }
     setPayMsg(null); setPaying(true);
     timer.current = window.setTimeout(async () => {
@@ -115,11 +115,11 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
 
   // ── Danh sách ──
   if (mode === 'list') {
-    const hasEligible = myHorses.some(h => !purchaseBlockReason(h, state.enrollments, state.healthRecords));
+    const hasEligible = myHorses.some(h => activePkgs.some(p=>!purchaseBlockReason(h,state.enrollments,state.healthRecords,false,p.packageType)));
     return (
       <div className="max-w-5xl space-y-5">
         <div className="flex items-start justify-between gap-4">
-          <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">My training packages</h2><p className="text-sm text-gray-500">Choose package → choose horse → review → pay · Fit and fit-with-monitoring conclusions are accepted</p></div>
+          <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">My training packages</h2><p className="text-sm text-gray-500">Choose package → choose horse → review → pay · Eligibility is checked by the server for the selected package type</p></div>
           <Btn variant="gold" onClick={() => start()}>+ Register a new package</Btn>
         </div>
         {myHorses.length > 0 && !hasEligible && <Card className="border-l-4 border-amber-400 bg-amber-50 p-4 text-sm text-amber-800">No horses can currently register for a new package. See the reason in the horse selection step.</Card>}
@@ -131,7 +131,6 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
           </Card>
         ) : myEnr.map(e => {
           const t = enrollmentTerm(e);
-          const pct = Math.round(e.sessionsDone / Math.max(1, e.sessionsTotal) * 100);
           const live = isCurrent(e);
           return (
             <Card key={e.id} className={`p-5 ${live && (t.warn || t.expired) ? 'border-l-4 border-amber-400' : ''}`}>
@@ -139,7 +138,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
                 <IdChip kind="ENR" id={e.id} />
                 <span className="font-semibold text-[#0f1729]">Package {e.packageName}</span>
                 <span className="text-sm text-gray-500">· {horseName(e.horseId)}</span>
-                <Badge status={e.status === 'paused' ? 'Paused' : e.status === 'completed' ? 'Completed' : 'Active'} />
+                <Badge status={enrollmentLabel(e)} />
                 {live && <TrainerStatusPill status={e.trainerStatus} />}
               </div>
               <div className="mt-2 grid gap-1 text-sm text-gray-600 sm:grid-cols-2">
@@ -148,18 +147,12 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
                 <div>Trainer: {e.trainerName ? e.trainerName : <span className="italic text-gray-400">not assigned</span>}</div>
                 <div>Amount: {money(e.amount)}</div>
               </div>
-              <div className="mt-3">
-                <div className="mb-1 flex justify-between text-xs text-gray-500"><span>Completed {e.sessionsDone}/{e.sessionsTotal}  sessions</span><span>{pct}%</span></div>
-                <div className="h-2 w-full rounded-full bg-gray-200"><div className="h-2 rounded-full bg-[#c9973b]" style={{ width: `${pct}%` }} /></div>
-              </div>
-              {live && e.trainerStatus === 'unassigned' && <div className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Awaiting trainer assignment by the manager. You will be notified once assigned.</div>}
+              <p className="mt-3 text-sm text-gray-600">Created: {e.sessionsTotal} · Completed: {e.sessionsDone} · Cancelled / missed: {e.sessionsCancelled || 0}</p>
+              {e.status==='active' && e.trainerStatus === 'unassigned' && <div className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Awaiting trainer assignment by the manager. You will be notified once assigned.</div>}
               {live && e.trainerStatus === 'pending' && <div className="mt-3 rounded-lg bg-sky-50 p-3 text-xs text-sky-800">Assigned {e.trainerName}  — awaiting trainer confirmation.</div>}
-              {live && (t.warn || t.expired) && (
-                <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                  <span className="text-sm text-amber-800">{t.expired ? "Package expired." : `Package expires soon — remaining ${t.left} days (alert when remaining ≤ ${EXPIRY_WARN_DAYS} days).`}  Renew to continue training.</span>
-                  <Btn size="sm" variant="gold" onClick={() => start(e)}>Renew</Btn>
-                </div>
-              )}
+              {live && t.warn && <p className="mt-3 text-sm text-amber-800">Package expires in {t.left} days. Registration again is available after this package ends, subject to server approval.</p>}
+              {!live && <Btn size="sm" variant="gold" onClick={()=>start(e)}>Register again</Btn>}
+              {e.paymentStatus==='PENDING' && <Btn size="sm" variant="gold" onClick={()=>{start(e);setStep(2);}}>Retry payment</Btn>}
               <div className="mt-3 flex gap-2"><Btn size="sm" variant="secondary" onClick={() => setViewReceipt(e)}>View receipt</Btn></div>
             </Card>
           );
@@ -179,7 +172,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
   return (
     <div className="max-w-4xl space-y-6">
       <div className="flex items-start justify-between">
-        <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">{renewOf ? `Renew package ${renewOf.packageName}` : "Training package registration"}</h2><p className="text-sm text-gray-500">Step {step + 1}/{STEPS.length}: {STEPS[step]}</p></div>
+        <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">{renewOf ? `Register package ${renewOf.packageName} again` : "Training package registration"}</h2><p className="text-sm text-gray-500">Step {step + 1}/{STEPS.length}: {STEPS[step]}</p></div>
         {step < 4 && !paying && <Btn variant="ghost" onClick={leave}>Cancel</Btn>}
       </div>
       <Card className="px-6 py-5"><StepBar step={step} /></Card>
@@ -194,7 +187,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
                   <div className="mb-1 flex items-center gap-2"><IdChip kind="PKG" id={p.id} />{p.popular && <span className="rounded-full bg-[#c9973b]/15 px-2 py-0.5 text-[10px] font-medium text-[#8a6420]">Popular</span>}</div>
                   <div className="font-serif text-lg font-bold text-[#0f1729]">{p.name}</div>
                   <div className="mt-1 font-serif text-xl font-bold text-[#c9973b]">{money(p.price)}</div>
-                  <div className="mt-2 text-sm text-gray-600">{p.sessions}  sessions · {p.durationDays}  days</div>
+                  <div className="mt-2 text-sm text-gray-600">{p.packageType} · {p.durationDays} days</div>
                   <p className="mt-2 text-xs text-gray-500">{p.description}</p>
                   {p.focus && <ul className="mt-2 space-y-0.5 text-xs text-gray-600">{p.focus.map(f => <li key={f}>✓ {f}</li>)}</ul>}
                 </button>
@@ -204,6 +197,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
         </div>
       )}
 
+      {pkg?.packageType==='RACING' && step<4 && <Card className="border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">RACING requires the latest confirmed examination to conclude FIT, allow training, include temperature, resting heart rate and respiratory rate, and contain exactly one NORMAL movement / legs examination. The server validates these conditions when registering and paying.</Card>}
       {step === 1 && (
         <div className="space-y-3">
           <p className="text-sm text-gray-500">Choose horse <span className="text-red-500">*</span>  · Horses requiring monitoring may register with an appropriate intensity</p>
@@ -211,7 +205,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
           {horsesToShow.map(h => {
             const reason = purchaseBlockReason(h, state.enrollments, state.healthRecords, !!renewOf, pkg?.packageType);
             const sel = horseId === h.id;
-            const exam = state.healthRecords.filter(r => r.horseId === h.id).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))[0];
+            const exam = latestHealthRecord(state.healthRecords, h.id);
             const watch = exam?.decision === 'conditional' || exam?.trainingEligibility === 'conditional';
             return (
               <button key={h.id} disabled={!!reason} onClick={() => { setHorseId(h.id); setFieldError(''); }} className={`flex w-full items-center gap-4 rounded-xl border-2 bg-white p-4 text-left ${reason ? 'cursor-not-allowed border-gray-200 opacity-50' : sel ? 'border-[#c9973b] shadow-md' : 'border-gray-200 hover:border-[#c9973b]/60'}`}>
@@ -228,13 +222,12 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
         <Card className="space-y-4 p-6">
           <h3 className="font-serif text-lg font-bold">Review registration</h3>
           <div className="divide-y divide-gray-100 rounded-xl border border-gray-200">
-            {([["Package", `${pkg.name} · ${pkg.sessions} sessions`], ["Horses", horse.name], ["Horse Owner", user.name], ["Validity", `${TODAY} – ${addDaysLabel(TODAY, pkg.durationDays)} (${pkg.durationDays} days)`], ["Total payment", money(pkg.price)]] as [string, string][]).map(([k, v]) => (
+            {([["Package", pkg.name], ["Horses", horse.name], ["Horse Owner", user.name], ["Validity", `${TODAY} – ${addDaysLabel(TODAY, pkg.durationDays)} (${pkg.durationDays} days)`], ["Total payment", money(pkg.price)]] as [string, string][]).map(([k, v]) => (
               <div key={k} className="flex justify-between px-4 py-2.5 text-sm"><span className="text-gray-500">{k}</span><span className="font-medium">{v}</span></div>
             ))}
           </div>
           {followUp && <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><b>Needs monitoring:</b> {followUp}<br /><span className="text-xs">Recommendation: reduce intensity and monitor the response during initial sessions.</span></div>}
-          {renewOf ? <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">Renewal creates a new package with a new registration ID. The previous package {renewOf.id}  will end; {Math.max(0, renewOf.sessionsTotal - renewOf.sessionsDone)}  unused sessions from the previous package do not carry over. The current trainer is retained.</div>
-            : <div className="rounded-lg bg-sky-50 p-3 text-sm text-sky-800">After payment, the manager assigns a trainer, who must accept the assignment.</div>}
+          <div className="rounded-lg bg-sky-50 p-3 text-sm text-sky-800">Each registration has its own package term and trainer assignment. The server checks whether registration is allowed; no existing package is ended automatically.</div>
         </Card>
       )}
 
@@ -261,7 +254,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
 
       {step === 4 && receipt && (
         <Card className="space-y-4 p-6">
-          <div className="text-center"><div className="mb-1 text-4xl">✅</div><h3 className="font-serif text-xl font-bold text-emerald-700">Payment successful</h3><p className="text-sm text-gray-500">{receipt.trainerStatus === 'confirmed' ? "The new package is active and the trainer has been retained." : "The manager will assign a trainer to your horse."}</p></div>
+          <div className="text-center"><div className="mb-1 text-4xl">✅</div><h3 className="font-serif text-xl font-bold text-emerald-700">Payment successful</h3><p className="text-sm text-gray-500">The manager will assign a trainer to your horse.</p></div>
           <ReceiptView e={receipt} horseName={horseName(receipt.horseId)} />
           <div className="flex justify-center"><Btn variant="primary" onClick={leave}>Back to packages</Btn></div>
         </Card>

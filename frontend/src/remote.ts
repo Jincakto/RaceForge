@@ -1,3 +1,4 @@
+import { sessionsForEnrollment } from './trainingLogic';
 import { ApiError, allPages, idPath as enc, request, rows } from './api';
 import type { AppUser, Horse, HealthRecord, Enrollment, TrainingPackage, TrainingPlan, TrainingSession, HorseClubRequest, AppNotification, Role } from './data';
 
@@ -60,7 +61,7 @@ export function recordFromApi(w: Wire, horseId: string, users: AppUser[]): Healt
   const conclusion = ({ FIT: 'eligible', FIT_WITH_MONITORING: 'conditional', NOT_FIT: 'not-eligible' } as const)[w.finalConclusion as 'FIT'];
   const v = w.vitalSign || {};
   const regions = Object.fromEntries((w.clinicalExams || []).map((r: Wire) => [({ EYES: 'eyes', NOSE: 'nose', MOUTH: 'mouth', MOVEMENT_LEGS: 'movement' } as Record<string, string>)[r.examinationArea] || r.examinationArea, { ok: r.conditionStatus === 'NORMAL', note: r.notes || '' }]));
-  return { id: w.medicalRecordId, horseId, date: dateText(w.examinedAt), createdAt: new Date(w.createdAt || w.examinedAt).getTime(), type: ({ INITIAL: "Intake examination", PERIODIC: "Routine examination", FOLLOW_UP: "Follow-up" } as Record<string, string>)[w.examType] || w.examType,
+  return { examinedAt: w.examinedAt, confirmedAt: w.confirmedAt, id: w.medicalRecordId, horseId, date: dateText(w.examinedAt), createdAt: new Date(w.createdAt || w.examinedAt).getTime(), type: ({ INITIAL: "Intake examination", PERIODIC: "Routine examination", FOLLOW_UP: "Follow-up" } as Record<string, string>)[w.examType] || w.examType,
     vet: users.find(u => u.id === w.veterinarianId)?.name || w.veterinarianId, vetId: w.veterinarianId,
     notes: w.notes || '', result: conclusion === 'eligible' ? 'Eligible' : conclusion === 'conditional' ? 'Monitor' : conclusion === 'not-eligible' ? 'Injured' : 'Pending Vet',
     medications: w.medication || '', isPostTraining: w.examType === 'FOLLOW_UP', intake: w.examType === 'INITIAL', vetClearanceGranted: w.trainingEligible === true,
@@ -80,7 +81,7 @@ export function medicalPayload(rec: HealthRecord, profileId: string) {
 }
 export function enrollmentFromApi(w: Wire, packages: TrainingPackage[], horse?: Horse): Enrollment {
   return { id: w.horsePackageId, horseId: w.horseId, packageId: w.packageId, packageName: w.packageName, sessionsTotal: 0, sessionsDone: 0,
-    status: ['COMPLETED', 'EXPIRED', 'CANCELLED', 'FAILED'].includes(w.status) || w.paymentStatus === 'FAILED' ? 'completed' : w.status === 'PAUSED' ? 'paused' : 'active',
+    status: w.status === 'CANCELLED' ? 'cancelled' : w.status === 'FAILED' || w.paymentStatus === 'FAILED' ? 'failed' : ['COMPLETED','EXPIRED'].includes(w.status) ? 'completed' : w.status === 'PAUSED' ? 'paused' : w.status === 'PENDING' || w.paymentStatus === 'PENDING' ? 'pending' : 'active',
     trainerId: '', trainerName: '', trainerStatus: 'unassigned', assignHistory: [], startedAt: dateText(w.startDate), expiresAt: dateText(w.endDate), amount: Number(w.totalPrice), paidAt: w.paymentStatus === 'PAID' ? dateText(w.registeredAt) : '', paymentMethod: "Simulation", ownerName: horse?.ownerName || '', scheduleConfirmed: false, paymentStatus: w.paymentStatus, apiStatus: w.status,
   };
 }
@@ -89,7 +90,7 @@ export function planFromApi(w: Wire, en?: Enrollment): TrainingPlan {
 }
 export function sessionFromApi(w: Wire, user?: AppUser): TrainingSession {
   const statuses: Record<string, TrainingSession['status']> = { SCHEDULED: 'Scheduled', COMPLETED: 'Completed', CANCELLED: 'Cancelled', IN_PROGRESS: 'In Progress', STOPPED: 'In Progress', NOT_PERFORMED: 'Not Performed', MISSED: 'Not Performed' };
-  return { id: w.sessionId, horseId: w.horseId, planId: w.planId, date: dateText(w.scheduledStart), time: w.scheduledStart?.slice(11, 16) || '', type: w.activityName || w.stageTitle || w.intensity || '', trainerId: w.recordedBy || user?.id || '', trainerName: user?.name || '', assignedStaffIds: [], assignedStaffNames: [], status: w.status === 'SCHEDULED' && w.actualStart ? 'In Progress' : statuses[w.status] || 'Scheduled', distance: String(w.distance ?? ''), targetTime: '', notes: w.notes || '', conflictChecked: true, actualEnd: w.actualEnd, canStart: w.canStart, canStop: w.canStop, canComplete: w.canComplete,
+  return { horsePackageId: w.horsePackageId, scheduledEnd: w.scheduledEnd, id: w.sessionId, horseId: w.horseId, planId: w.planId, date: dateText(w.scheduledStart), time: w.scheduledStart?.slice(11, 16) || '', type: w.activityName || w.stageTitle || w.intensity || '', trainerId: w.recordedBy || user?.id || '', trainerName: user?.name || '', assignedStaffIds: [], assignedStaffNames: [], status: w.status === 'SCHEDULED' && w.actualStart ? 'In Progress' : statuses[w.status] || 'Scheduled', distance: String(w.distance ?? ''), targetTime: '', notes: w.notes || '', conflictChecked: true, actualEnd: w.actualEnd, canStart: w.canStart, canStop: w.canStop, canComplete: w.canComplete,
     ...(w.status === 'COMPLETED' ? { result: { time: String(w.actualDurationSeconds || ''), speed: String(w.avgSpeed || ''), heartRate: w.endExerciseHeartRate ?? w.heartRate ?? 0, notes: w.evaluation || w.notes || '', performanceScore: w.recoveryHeartRate2Min ?? 0 } } : {}),
   };
 }
@@ -115,7 +116,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
   if (user.role === 'admin' || user.role === 'manager') data.users = await read("Accounts", async () => (await allPages('/users')).map(userFromApi), [user]);
   const notifications = user.role === 'admin' ? [] : await read("Notifications", () => request<any[]>('/notifications'), []);
   data.notifications = notifications.map(w => ({ id: String(w.notificationId), type: w.notificationType || 'info', message: w.message, time: dateText(w.createdAt), read: w.read, toUserIds: [user.id] }));
-  const trainerProfiles: Wire[] = ['admin', 'manager'].includes(user.role || '') ? await read("Trainer profiles", () => request('/trainer-profiles'), []) : [];
+  const trainerProfiles: Wire[] = user.role === 'manager' ? await read("Trainer profiles", () => request('/trainer-profiles'), []) : [];
   for (const p of trainerProfiles) {
     const found = data.users.find(u => u.id === p.user_id);
     if (found) { found.trainerProfileId = p.trainer_id; found.bio = p.bio || ''; found.certifications = p.qualifications || ''; }
@@ -152,7 +153,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
       horse.vetAssign = { status: ['ACCEPTED','COMPLETED'].includes(current.status) ? 'accepted' : current.status === 'ASSIGNED' ? 'pending' : 'declined', history: [...assignments].reverse().map(a => ({ time: dateText(a.createdAt), from: null, to: a.veterinarianName, by: a.assignedBy, reason: a.reason || a.status })) };
     }
     if (['manager', 'owner', 'veterinarian'].includes(user.role || '')) {
-      const records = await read(`Examination records ${horse.id}`, () => request<Wire[]>(`/medical/horses/${enc(horse.id)}/records`), []);
+      const records = await read(`Examination records ${horse.id}`, async () => {try{return await request<Wire[]>(`/medical/horses/${enc(horse.id)}/records`);}catch(error){if(error instanceof ApiError&&error.status===404&&/^Health profile not found(?:$| \[)/.test(error.message))return [];throw error;}}, []);
       const mapped = records.map(w => recordFromApi(w, horse.id, data.users));
       data.healthRecords.push(...mapped);
       const latest = [...mapped].filter(r => r.status === 'confirmed').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
@@ -184,7 +185,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
         const e = enrollmentFromApi({ horsePackageId: a.horse_package_id, horseId: a.horse_id, packageId: '', packageName: context.packageName, status: context.packageStatus, paymentStatus: context.paymentStatus, totalPrice: 0, startDate: context.startDate, endDate: context.endDate }, [], data.horses.find(h => h.id === a.horse_id));
         data.enrollments.push(e);
         const m = context.latestMedical;
-        if (m?.medical_record_id) data.healthRecords.push(recordFromApi({ medicalRecordId: m.medical_record_id, veterinarianId: m.veterinarian_name, finalConclusion: m.fitness_conclusion, examinedAt: m.examined_at, createdAt: m.examined_at, status: 'CONFIRMED', vitalSign: { weight: context.weightKg, restingHeartRate: m.resting_heart_rate, bodyTemperature: m.body_temperature, restingRespiratoryRate: m.resting_respiratory_rate } }, a.horse_id, data.users));
+        if (m?.medical_record_id) data.healthRecords.push(recordFromApi({ medicalRecordId: m.medical_record_id, veterinarianId: m.veterinarian_name, finalConclusion: m.fitness_conclusion, examinedAt: m.examined_at, confirmedAt: m.confirmed_at, createdAt: m.examined_at, status: 'CONFIRMED', vitalSign: { weight: context.weightKg, restingHeartRate: m.resting_heart_rate, bodyTemperature: m.body_temperature, restingRespiratoryRate: m.resting_respiratory_rate } }, a.horse_id, data.users));
         const horse = data.horses.find(h => h.id === a.horse_id); if (horse) horse.weight = Number(context.weightKg || 0);
       }
     }
@@ -195,7 +196,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
     const a = assignments.find(a => a.status === 'ACCEPTED') || assignments.find(a => a.status === 'ASSIGNED');
     if (a) { e.trainerId = a.assignee_id; e.trainerName = a.trainer_name; e.trainerStatus = a.status === 'ACCEPTED' ? 'confirmed' : 'pending'; e.assignmentId = a.assignment_id || a.id; }
     e.assignHistory = [...assignments].reverse().map(a => ({ time: dateText(a.created_at), kind: a.status === 'ACCEPTED' ? 'confirm' : a.status === 'DECLINED' ? 'decline' : 'assign', from: null, to: a.trainer_name, by: a.assigned_by_name, reason: a.reason || a.status }));
-    const sessions = data.trainingSessions.filter(s => s.horseId === e.horseId); e.sessionsTotal = sessions.length; e.sessionsDone = sessions.filter(s => s.status === 'Completed').length;
+
     e.scheduleConfirmed = e.trainerStatus === 'confirmed';
     const packageType = data.packages.find(p => p.id === e.packageId)?.packageType;
     if (packageType === 'RECOVERY' && e.status === 'active') {
@@ -203,7 +204,12 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
       if (horse) horse.rehab = { packageId: e.packageId, name: e.packageName, durationWeeks: Math.ceil((data.packages.find(p => p.id === e.packageId)?.durationDays || 0)/7), activatedAt: e.startedAt, activatedBy: '' };
     }
   }
-  for (const p of data.trainingPlans) { const e = data.enrollments.find(e => e.id === p.horsePackageId) || data.enrollments.find(e => e.horseId === p.horseId && e.trainerStatus === 'confirmed' && e.status === 'active'); if (e) { p.startDate ||= e.startedAt; p.endDate ||= e.expiresAt; p.horsePackageId ||= e.id; p.assignmentId ||= e.assignmentId; } }
+  for (const p of data.trainingPlans) { const e = data.enrollments.find(e => e.id === p.horsePackageId) || data.enrollments.find(e => e.assignmentId && e.assignmentId === p.assignmentId); if (e) { p.startDate ||= e.startedAt; p.endDate ||= e.expiresAt; p.horsePackageId ||= e.id; p.assignmentId ||= e.assignmentId; } }
+  for (const e of data.enrollments) {
+    const sessions=sessionsForEnrollment(e,data.trainingSessions,data.trainingPlans);
+    e.sessionsTotal=sessions.length; e.sessionsDone=sessions.filter(s=>s.status==='Completed').length;
+    e.sessionsCancelled=sessions.filter(s=>['Cancelled','Not Performed'].includes(s.status)).length;
+  }
   if (errors.size) report([...errors].join('\n'));
   return data;
 }

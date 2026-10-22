@@ -1,3 +1,4 @@
+import { buildStageSchedule, selectStages, singleStageSession } from './trainingSchedule';
 import { trainingTimestamp } from './trainingTimestamp';
 import { idPath as enc, request } from './api';
 import { staffRoleId, ROLE_NAMES, isoDate, enrollmentFromApi, horsePayload, medicalPayload, packageFromApi, planFromApi, recordFromApi, sessionFromApi } from './remote';
@@ -10,6 +11,7 @@ import { recommendationFor } from './recommendations';
 interface State extends RemoteSlice { user: AppUser | null; }
 interface Env { getState: () => State; reload: () => Promise<void>; success: (message: string) => void; error: (message: string) => void; navigate: (page: string) => void; }
 const locks = new Set<string>();
+const pendingPayments = new Map<string,string>();
 const createdRegistrations = new Map<string, { id: string; raceKeys: Set<string> }>();
 export function makeRemoteActions(env: Env) {
   const { getState, reload, success, error, navigate } = env;
@@ -119,10 +121,15 @@ export function makeRemoteActions(env: Env) {
       return result(`purchase-${horseId}`, async () => {
         const state = getState();
         const pending = state.enrollments.find(e => e.horseId === horseId && e.packageId === packageId && e.paymentStatus === 'PENDING');
-        const registered = pending ? { horsePackageId: pending.id } : await request('/horse-packages/register', 'POST', { horseId, packageId });
+        const key=`${state.user?.id}:${horseId}:${packageId}`;
+        const pendingId=pending?.id || pendingPayments.get(key);
+        const registered = pendingId ? {horsePackageId:pendingId} : await request('/horse-packages/register','POST',{horseId,packageId});
+        pendingPayments.set(key,registered.horsePackageId);
         // Preserve an unpaid registration if payment fails; a later attempt resumes it.
         const isRecovery = state.packages.find(p => p.id === packageId)?.packageType === 'RECOVERY';
         const paid = await request(`/horse-packages/${enc(registered.horsePackageId)}/${isRecovery ? 'simulate-recovery-payment' : 'simulate-payment'}`, 'POST', { successful });
+        if(paid.paymentStatus!=='PENDING')pendingPayments.delete(key);
+        if(successful && paid.paymentStatus!=='PAID')throw new Error(paid.message || paid.eligibilityReason || 'Payment did not activate this registration.');
         return enrollmentFromApi(paid, state.packages, state.horses.find(h => h.id === horseId));
       });
     },
@@ -150,56 +157,35 @@ export function makeRemoteActions(env: Env) {
       const e = state.enrollments.find(e => e.horseId === draft.horseId && e.trainerId === state.user?.id && e.trainerStatus === 'confirmed' && e.status === 'active');
       if (!e?.assignmentId) throw new Error("A paid package and an accepted trainer assignment are required.");
       const recommendation = await recommendationFor(e.id, e.assignmentId);
-      const dayNames = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
-      if (draft.weekdays && (draft.weekdays.length < 1 || draft.weekdays.length > 6 || new Set(draft.weekdays).size !== draft.weekdays.length || draft.weekdays.some(day => !Number.isInteger(day) || day < 0 || day > 6))) throw new Error("Select 1–6 distinct weekdays.");
-      const seconds = (value: string): number => {
-        const match = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);
-        if (!match || Number(match[1]) > 23 || Number(match[2]) > 59 || Number(match[3] || 0) > 59) throw new Error("Enter a valid session time.");
-        return Number(match[1])*3600 + Number(match[2])*60 + Number(match[3] || 0);
-      };
-      const clock = (value: number) => [Math.floor(value/3600), Math.floor(value%3600/60), value%60].map(n => String(n).padStart(2,'0')).join(':');
-      if (!Array.isArray(recommendation.stages) || !recommendation.stages.length) throw new Error("No roadmap stages are available. Reload the suggestion.");
-      const selectedIntensity = draft.workload ? ({Low:'LOW',Medium:'MODERATE',High:'HIGH'} as Record<string,string>)[draft.workload] : undefined;
-      if (draft.workload && !selectedIntensity) throw new Error("Select a valid training intensity.");
-      const stages = recommendation.stages.map((stage: any) => {
-        const duration = seconds(stage.sessionEndTime) - seconds(stage.sessionTime);
-        if (duration <= 0) throw new Error("Session end time must be after its start time.");
-        const start = draft.time !== undefined ? seconds(draft.time) : seconds(stage.sessionTime);
-        const end = start + duration;
-        if (end >= 24*3600) throw new Error("The selected start time and stage duration must end within the same day. Choose an earlier start time.");
-        const days = draft.weekdays ? draft.weekdays.map(day => dayNames[day]) : stage.daysOfWeek;
-        if (!Array.isArray(days) || days.length < 1 || days.length > 6 || new Set(days).size !== days.length || days.some((day: string) => !dayNames.includes(day))) throw new Error("Select 1–6 distinct weekdays.");
-        return { ...stage, intensity: selectedIntensity || stage.intensity, daysOfWeek: days, sessionTime: clock(start), sessionEndTime: clock(end) };
-      });
+      const stages=selectStages(recommendation.stages || [],draft);
+      buildStageSchedule(stages,e.startedAt,e.expiresAt);
       if (isoDate(draft.startDate) !== isoDate(e.startedAt) || isoDate(draft.endDate) !== isoDate(e.expiresAt)) throw new Error("Roadmap dates must match the paid package term.");
-      const plan = await request(`/horses/${enc(draft.horseId)}/training-plans`, 'POST', { planName: draft.phase, goal: draft.goals, startDate: isoDate(e.startedAt), endDate: isoDate(e.expiresAt), assignmentId: e.assignmentId, recommendationId: recommendation.recommendationId, recommendationConfirmed: true, stages, notes: `${recommendation.rationale || ''}\n${recommendation.limitations || ''}` });
+      const plan = await request(`/horses/${enc(draft.horseId)}/training-plans`, 'POST', { planName: draft.phase, goal: draft.goals, startDate: isoDate(e.startedAt), endDate: isoDate(e.expiresAt), assignmentId: e.assignmentId, recommendationId: recommendation.recommendationId, recommendationConfirmed: true, stages: stages.map(({startDay,endDay,activityName,intensity,daysOfWeek,sessionTime,sessionEndTime})=>({startDay,endDay,activityName,intensity,daysOfWeek,sessionTime,sessionEndTime})), notes: `${recommendation.rationale || ''}\n${recommendation.limitations || ''}` });
       return planFromApi(plan, e);
     }),
     generateSessions: (horseId: string, planId: string, drafts: SessionDraft[]) => result<TrainingSession[]>(`generate-${planId}`, async () => {
-      if (drafts.length === 1) {
-        const d = drafts[0];
-        const start = `${isoDate(d.date)}T${d.time}:00`;
-        const end = new Date(`${isoDate(d.date)}T${d.time}:00`); end.setHours(end.getHours() + 1);
-        const pad = (n: number) => String(n).padStart(2, '0');
-        return [sessionFromApi(await request('/training-sessions', 'POST', { planId, horseId, scheduledTime: start, scheduledEnd: `${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}:00` }), getState().user || undefined)];
-      }
-      // Only the stored, trainer-confirmed roadmap may be bulk-generated.
-      const stored = await request<any[]>(`/training-plans/${enc(planId)}/stages`);
-      const plan = getState().trainingPlans.find(p => p.id === planId);
-      const enrollment = getState().enrollments.find(e => e.id === plan?.horsePackageId);
-      if (!enrollment?.startedAt) throw new Error("Package term not found.");
-      const dayNames = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
-      const expected: { date: string; time: string; type: string }[] = [];
-      for (const stage of stored) {
-        const days = typeof stage.weekdays_json === 'string' ? JSON.parse(stage.weekdays_json) : stage.daysOfWeek;
-        for (let day = Number(stage.start_day || stage.startDay); day <= Number(stage.end_day || stage.endDay); day++) {
-          const dt = new Date(`${isoDate(enrollment.startedAt)}T12:00:00`); dt.setDate(dt.getDate()+day-1);
-          if (days.includes(dayNames[dt.getDay()])) expected.push({ date: `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`, time: String(stage.session_time || stage.sessionTime).slice(0,5), type: stage.activity_name || stage.activityName });
-        }
-      }
-      if (drafts.length !== expected.length || drafts.some((d, i) => d.date !== expected[i].date || d.time !== expected[i].time || d.type !== expected[i].type)) throw new Error("The preview differs from the saved training plan. Reload the preview before generating sessions.");
+      const state=getState();
+      const current=await request<any[]>(`/training-sessions/horse/${enc(horseId)}`);
+      if(state.trainingSessions.some(s=>s.planId===planId)||current.some(s=>s.planId===planId))throw new Error('Sessions already exist for this roadmap. The full schedule cannot be generated again.');
+      const stored=await request<any[]>(`/training-plans/${enc(planId)}/stages`);
+      const plan=state.trainingPlans.find(p=>p.id===planId);
+      const e=state.enrollments.find(e=>e.id===plan?.horsePackageId);
+      if(!e)throw new Error('Package term not found.');
+      const expected=buildStageSchedule(stored,e.startedAt,e.expiresAt);
+      if(!expected.length)throw new Error('No sessions match the saved roadmap.');
+      if(drafts.length!==expected.length||drafts.some((d,i)=>['date','time','endTime','type','intensity'].some(key=>d[key as keyof SessionDraft]!==expected[i][key as keyof SessionDraft])))throw new Error('The preview differs from the saved training plan. Reload the preview before generating sessions.');
       const generated = await request(`/training-plans/${enc(planId)}/generate-sessions`, 'POST', { confirmed: true });
       return (Array.isArray(generated) ? generated : generated.sessions || []).map((w: any) => sessionFromApi(w, getState().user || undefined));
+    }),
+    createSingleSession: (horseId: string, planId: string, drafts: SessionDraft[]) => result<TrainingSession[]>(`single-${planId}`, async () => {
+      if(drafts.length!==1)throw new Error('Select one session.');
+      const state=getState(),plan=state.trainingPlans.find(p=>p.id===planId);
+      const e=state.enrollments.find(e=>e.id===plan?.horsePackageId);
+      if(!e||plan?.horseId!==horseId)throw new Error('Package-linked roadmap not found.');
+      const stages=await request<any[]>(`/training-plans/${enc(planId)}/stages`);
+      const d=singleStageSession(stages,e.startedAt,e.expiresAt,drafts[0].date,drafts[0].time);
+      const saved=await request('/training-sessions','POST',{planId,horseId,scheduledTime:`${isoDate(d.date)}T${d.time}`,scheduledEnd:`${isoDate(d.date)}T${d.endTime}`});
+      return [sessionFromApi(saved,state.user||undefined)];
     }),
     checkIn: (id: string, present: boolean, note = '') => result<null>(`attendance-${id}`, async () => {
       if (present) { await request(`/training-sessions/${enc(id)}/start`, 'PATCH'); return null; }

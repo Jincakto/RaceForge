@@ -40,8 +40,12 @@ export const money = (n: number) => `${Math.round(n).toLocaleString('en-US')} VN
 // ── Enrollment helpers ───────────────────────────────────────────────────────
 
 export const daysLeft = (e: Pick<Enrollment, 'expiresAt'>) => diffDays(TODAY, e.expiresAt);
-export const isCurrent = (e: Enrollment) => e.status !== 'completed';
-export const currentEnrollment = (list: Enrollment[], horseId: string) => list.find(e => e.horseId === horseId && isCurrent(e));
+export const isCurrent = (e: Enrollment) => ['pending','active','paused'].includes(e.status);
+export const enrollmentLabel = (e: Enrollment) => ({pending:'Awaiting payment',active:'Active',paused:'Paused',completed:e.apiStatus==='EXPIRED'?'Expired':'Completed',cancelled:'Cancelled',failed:'Failed'})[e.status];
+export function sessionsForEnrollment(e: Enrollment, sessions: TrainingSession[], plans: TrainingPlan[]) {
+  return sessions.filter(s=>s.horsePackageId ? s.horsePackageId===e.id : plans.some(p=>p.id===s.planId&&p.horsePackageId===e.id));
+}
+export const currentEnrollment = (list: Enrollment[], horseId: string) => list.find(e => e.horseId === horseId && e.status==='active') || list.find(e=>e.horseId===horseId&&isCurrent(e));
 
 export function enrollmentTerm(e: Enrollment): { text: string; left: number; warn: boolean; expired: boolean } {
   const left = daysLeft(e);
@@ -53,14 +57,16 @@ export const TRAINER_STATUS_LABEL: Record<Enrollment['trainerStatus'], string> =
 };
 
 /** Lý do ngựa không thể đăng ký gói mới (null = chọn được). */
-function latestHealthRecord(records: HealthRecord[], horseId: string): HealthRecord | undefined {
-  return records.filter(r => r.horseId === horseId).sort((a, b) =>
-    (b.createdAt ?? 0) - (a.createdAt ?? 0) || parseD(b.date).getTime() - parseD(a.date).getTime(),
-  )[0];
+export function latestHealthRecord(records: HealthRecord[], horseId: string): HealthRecord | undefined {
+  // Match TrainingMedicalReader: CONFIRMED only, examinedAt, confirmedAt, then ID.
+  return records.filter(r => r.horseId === horseId && r.status === 'confirmed').sort((a,b)=>
+    (b.examinedAt||'').localeCompare(a.examinedAt||'') || (b.confirmedAt||'').localeCompare(a.confirmedAt||'') || (a.id<b.id?1:a.id>b.id?-1:0))[0];
 }
 
 /** Điều kiện đăng ký dựa trên hồ sơ khám đã xác nhận gần nhất. */
 export function purchaseBlockReason(h: Horse, enrollments: Enrollment[], records: HealthRecord[] = [], allowActive = false, packageType?: string): string | null {
+  // RACING fitness is evaluated by the server using complete medical data.
+  if(packageType==='RACING')return null;
   if (h.approvalStatus !== 'approved' || !h.clubId) return "Club admission has not been approved";
   if (h.trainingStatus !== 'Active') return "This horse is not active. Ask a club manager to activate it from the horse profile";
   const latest = latestHealthRecord(records, h.id);
@@ -72,9 +78,9 @@ export function purchaseBlockReason(h: Horse, enrollments: Enrollment[], records
   const allowed = latest.decision === 'eligible' || latest.decision === 'conditional'
     || latest.trainingEligibility === 'eligible' || latest.trainingEligibility === 'conditional';
   if (!allowed) return "Examination record has no confirmed conclusion";
-  if (!allowActive) {
+  {
     const cur = currentEnrollment(enrollments, h.id);
-    if (cur && cur.paymentStatus !== 'PENDING' && daysLeft(cur) >= 0) return "An active package already exists";
+    if (cur && cur.status !== 'pending') return "An active package already exists";
   }
   return null;
 }
@@ -93,36 +99,35 @@ export function trainerPlanBlockReason(h: Horse, enrollments: Enrollment[], trai
 
 // ── Session validation (preview + final) ─────────────────────────────────────
 
-export interface SessionDraft { date: string; time: string; type: string; distance: string; targetTime: string; notes: string }
+export interface SessionDraft { date: string; time: string; endTime?: string; intensity?: string; stageId?: string; stageTitle?: string; type: string; distance: string; targetTime: string; notes: string }
 
 export interface SessionCheckCtx {
   sessions: TrainingSession[];
   enrollments: Enrollment[];
   horseId: string;
   trainerId: string;
+  enrollmentId?: string;
 }
 
 /** Trả về lỗi theo từng dòng và lỗi chung. */
 export function checkSessionDrafts(ctx: SessionCheckCtx, drafts: SessionDraft[]): { rows: string[]; global: string } {
-  const en = currentEnrollment(ctx.enrollments, ctx.horseId);
+  const en = ctx.enrollmentId ? ctx.enrollments.find(e=>e.id===ctx.enrollmentId) : currentEnrollment(ctx.enrollments, ctx.horseId);
   const live = ctx.sessions.filter(s => s.status === 'Scheduled' || s.status === 'In Progress');
   const rows = drafts.map((d, i) => {
     if (!validDate(d.date)) return "Invalid date";
     if (diffDays(TODAY, d.date) < 0) return "Date cannot be in the past";
     if (!validTime(d.time)) return "Invalid time";
+    if (en && diffDays(en.startedAt,d.date)<0) return "Before the package start date";
+    if (d.endTime && d.endTime <= d.time) return "Session must end within the same day";
     if (en && diffDays(d.date, en.expiresAt) < 0) return `After the package expiry date (${en.expiresAt})`;
-    const clash = live.find(s => s.date === d.date && s.time === d.time && (s.horseId === ctx.horseId || s.trainerId === ctx.trainerId));
+    const clash = live.find(s => s.date === d.date && s.time < (d.endTime || d.time+'~') && (s.scheduledEnd?.slice(11,19) || s.time+'~') > d.time && (s.horseId === ctx.horseId || s.trainerId === ctx.trainerId));
     if (clash) return clash.horseId === ctx.horseId ? "Time conflicts with another session for this horse" : "The trainer already has another session at this time";
-    if (drafts.some((x, j) => j < i && x.date === d.date && x.time === d.time)) return "Time conflicts with a previous row";
+    if (drafts.some((x, j) => j < i && x.date === d.date && x.time < (d.endTime || d.time+'~') && (x.endTime || x.time+'~') > d.time)) return "Time conflicts with a previous row";
     if (d.notes.length > 300) return "Notes cannot exceed 300 characters";
     return '';
   });
   let global = '';
   if (!en) global = "This horse has no current training package.";
-  else {
-    const remain = en.sessionsTotal - en.sessionsDone - live.filter(s => s.horseId === ctx.horseId).length;
-    if (en.sessionsTotal > 0 && drafts.length > remain) global = `Exceeds the remaining package sessions: available ${Math.max(0, remain)} unscheduled sessions; creating ${drafts.length} sessions.`;
-  }
   return { rows, global };
 }
 

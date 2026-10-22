@@ -23,9 +23,8 @@ interface CatalogProps {
   onToggle: (id: string, active: boolean) => Promise<Res<TrainingPackage>>;
 }
 
-export function PackageCatalogPage({ packages, enrollments, onSave, onToggle }: CatalogProps) {
+export function PackageCatalogPage({ packages, enrollments, onSave }: CatalogProps) {
   const [editing, setEditing] = useState<TrainingPackage | 'new' | null>(null);
-  const [confirmOff, setConfirmOff] = useState<TrainingPackage | null>(null);
   const [actionError, setActionError] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
@@ -75,15 +74,9 @@ export function PackageCatalogPage({ packages, enrollments, onSave, onToggle }: 
               </div>
               <p className="mt-2 text-sm text-gray-600">{p.description || "No description"}</p>
               <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
-                <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Sessions</div><div className="font-mono text-sm font-bold">{p.sessions}</div></div>
+                <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Type</div><div className="text-sm font-bold">{p.packageType}</div></div>
                 <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Duration</div><div className="font-mono text-sm font-bold">{p.durationDays}  days</div></div>
                 <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Registered</div><div className="font-mono text-sm font-bold">{usage(p.id)}</div></div>
-              </div>
-              <div className="mt-4 flex gap-2">
-                <Btn size="sm" variant="secondary" onClick={() => { setEditing(p); setActionError(''); }}>Edit</Btn>
-                {p.active
-                  ? <Btn size="sm" variant="danger" onClick={() => setConfirmOff(p)}>Disable</Btn>
-                  : <Btn size="sm" variant="gold" onClick={async () => { const r = await onToggle(p.id, true); setActionError(r.ok ? '' : r.message); }}>Enable</Btn>}
               </div>
             </Card>
           ))}
@@ -92,15 +85,7 @@ export function PackageCatalogPage({ packages, enrollments, onSave, onToggle }: 
 
       {editing && <PackageForm pkg={editing === 'new' ? null : editing} others={packages} onSave={onSave} onClose={() => setEditing(null)} />}
 
-      {confirmOff && (
-        <Modal title="Deactivate package?" onClose={() => setConfirmOff(null)}>
-          <p className="text-sm text-gray-600">Package <strong>{confirmOff.name}</strong>  will be hidden from horse owners' registration list. Existing registrations continue normally{usage(confirmOff.id) > 0 ? ` (${usage(confirmOff.id)} existing registrations)` : ''}.</p>
-          <div className="mt-5 flex justify-end gap-2">
-            <Btn variant="secondary" onClick={() => setConfirmOff(null)}>Cancel</Btn>
-            <Btn variant="danger" onClick={async () => { const r = await onToggle(confirmOff.id, false); setActionError(r.ok ? '' : r.message); setConfirmOff(null); }}>Confirm disable</Btn>
-          </div>
-        </Modal>
-      )}
+
     </div>
   );
 }

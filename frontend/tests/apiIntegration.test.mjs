@@ -8,11 +8,7 @@ import ts from 'typescript';
 
 // Run the actual TS adapters without Vite or a database; HTTP is the test boundary.
 const dir = await mkdtemp(path.join(tmpdir(), 'raceforge-api-tests-'));
-<<<<<<< HEAD
-for (const name of ['api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
-=======
-for (const name of ['trainingTimestamp', 'api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
->>>>>>> a0f9749 (Luu tam code local)
+for (const name of ['trainingSchedule', 'trainingTimestamp', 'api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile']) {
   const source = await readFile(new URL(`../src/${name}.ts`, import.meta.url), 'utf8');
   const code = ts.transpileModule(source.replace('import.meta.env', '({})'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText
     .replace(/(['"])(\.\/[^'"]+)\1/g, (_, quote, specifier) => `${quote}${specifier}.mjs${quote}`);
@@ -21,7 +17,6 @@ for (const name of ['trainingTimestamp', 'api', 'remote', 'remoteActions', 'perm
 const api = await import(pathToFileURL(path.join(dir, 'api.mjs')).href);
 const mapping = await import(pathToFileURL(path.join(dir, 'remote.mjs')).href);
 const { makeRemoteActions } = await import(pathToFileURL(path.join(dir, 'remoteActions.mjs')).href);
-const protocols = await import(pathToFileURL(path.join(dir, 'trainingProtocols.mjs')).href);
 const { loadOwnTrainerProfile, saveOwnTrainerProfile } = await import(pathToFileURL(path.join(dir, 'trainerProfile.mjs')).href);
 const { purchaseBlockReason } = await import(pathToFileURL(path.join(dir, 'trainingLogic.mjs')).href);
 const { apiProxyOrigin } = await import(pathToFileURL(path.join(dir, 'proxyOrigin.mjs')).href);
@@ -46,7 +41,6 @@ const denied = (status = 403) => new Response(JSON.stringify({ success: false, m
 const user = role => mapping.userFromApi({ userId: role === 'owner' ? 'OWN-001' : 'HTR-001', fullName: 'Test User', email: 'test@example.invalid', emailVerified: true, status: 'ACTIVE', role: { roleName: mapping.ROLE_NAMES[role], roleId: mapping.ROLE_IDS[role] } });
 const horse = () => mapping.horseFromApi({ horseId:'HOR-007', ownerId:'OWN-001', horseName:'Thunder', dateOfBirth:'2020-01-02', gender:'GELDING', admissionStatus:'APPROVED', healthStatus:'READY', trainerIds:['HTR-001','HTR-002'], registrationNumber:'704ABC000000001', imageUrl:'https://example.invalid/horse.jpg', documentUrl:'https://example.invalid/ueln.pdf' }, []);
 const state = () => ({ user:user('owner'), users:[], horses:[horse()], packages:[], enrollments:[], trainingPlans:[], trainingSessions:[], notifications:[], healthRecords:[], horseClubRequests:[] });
-<<<<<<< HEAD
 test('owner treats a missing health profile as no examination records, while preserving other errors', async () => {
   for (const [status, message, expectedWarnings] of [
     [404, 'Health profile not found', 0],
@@ -82,44 +76,16 @@ test('admin login loads administration data without calling business APIs', asyn
   assert.equal(Object.keys(data.serverPermissions).length, 6);
   assert.ok(urls.every(url => url.startsWith('/api/users') || url.startsWith('/api/admin/permissions/')));
 });
-=======
->>>>>>> a0f9749 (Luu tam code local)
 function actions(snapshot) {
   const events = [];
   return { events, remote: makeRemoteActions({ getState:() => snapshot, reload:async () => { events.push('reload'); }, success:message => events.push(message), error:message => events.push(`error:${message}`), navigate:page => events.push(`page:${page}`) }) };
 }
 
-<<<<<<< HEAD
-test('package create and edit send the DTO and use the server response', async () => {
-  const draft = {name:' Normal ',packageType:'RACING',description:'Training',durationDays:30,price:5000000};
-  for (const id of [undefined, 'PKG-001']) {
-    const {remote,events} = actions(state());
-    globalThis.fetch = async (url, init) => {
-      assert.equal(url, id ? `/api/training-packages/${id}` : '/api/training-packages');
-      assert.equal(init.method, id ? 'PUT' : 'POST');
-      assert.deepEqual(JSON.parse(init.body), {packageName:'Normal',packageType:'RACING',description:'Training',durationDays:30,price:5000000});
-      return ok({packageId:'PKG-001',packageName:'Normal',packageType:'RACING',durationDays:30,price:5000000,status:'ACTIVE'});
-    };
-    const result = await remote.savePackage({...draft,id});
-    assert.equal(result.ok, true);
-    assert.equal(result.data.id, 'PKG-001');
-    assert.ok(events.includes('reload'));
-  }
-});
-
-test('package status sends ACTIVE or INACTIVE and maps the response', async () => {
-  for (const active of [true, false]) {
-    const {remote} = actions(state());
-    globalThis.fetch = async (url, init) => {
-      assert.equal(url, '/api/training-packages/PKG-001/status');
-      assert.equal(init.method, 'PATCH');
-      assert.deepEqual(JSON.parse(init.body), {status:active ? 'ACTIVE' : 'INACTIVE'});
-      return ok({packageId:'PKG-001',packageName:'Normal',status:active ? 'ACTIVE' : 'INACTIVE'});
-    };
-    const result = await remote.togglePackage('PKG-001', active);
-    assert.equal(result.ok, true);
-    assert.equal(result.data.active, active);
-  }
+test('package creation posts the supported DTO', async()=>{
+ const {remote}=actions(state());let payload;
+ globalThis.fetch=async(url,init)=>{assert.equal(url,'/api/training-packages');assert.equal(init.method,'POST');payload=JSON.parse(init.body);return ok({packageId:'PKG-001',packageName:'Normal',status:'ACTIVE'});};
+ assert.equal((await remote.savePackage({name:' Normal ',packageType:'RACING',description:'Training',durationDays:30,price:5000000})).ok,true);
+ assert.deepEqual(payload,{packageName:'Normal',packageType:'RACING',description:'Training',durationDays:30,price:5000000});
 });
 
 test('unavailable package routes report failure without success or reload', async () => {
@@ -131,8 +97,6 @@ test('unavailable package routes report failure without success or reload', asyn
   assert.ok(events.every(event => event.startsWith('error:')));
 });
 
-=======
->>>>>>> a0f9749 (Luu tam code local)
 test('attaches bearer auth and cookie credentials, unwraps the BE response', async () => {
   api.setAccessToken('access');
   globalThis.fetch = async (url, init) => { assert.equal(url, '/api/horses'); assert.equal(init.credentials, 'include'); assert.equal(init.headers.Authorization, 'Bearer access'); return ok([{ horseId:'HOR-007' }]); };
@@ -207,7 +171,7 @@ test('records payment failure on BE without claiming a successful payment', asyn
     return ok({ horsePackageId:'HP-001', horseId:'HOR-007', packageId:'PKG-001', paymentStatus:'FAILED', status:'CANCELLED', totalPrice:100 });
   };
   const r = await remote.purchasePackage('HOR-007','PKG-001',undefined,false);
-  assert.equal(r.ok,true); assert.equal(r.data.paymentStatus,'FAILED'); assert.equal(r.data.status,'completed');
+  assert.equal(r.ok,true); assert.equal(r.data.paymentStatus,'FAILED'); assert.equal(r.data.status,'cancelled');
   assert.deepEqual(calls[1][1],{ successful:false }); assert.equal(calls[1][0],'/api/horse-packages/HP-001/simulate-payment'); assert.equal(events[0],'reload');
 });
 
@@ -290,11 +254,7 @@ test('completion sends actual exercise/recovery fields and does not invent a max
   globalThis.fetch = async (url, init) => { assert.equal(url,'/api/training-sessions/SES-001/complete'); assert.equal(init.method,'PATCH'); payload=JSON.parse(init.body); return ok({}); };
   assert.equal(await remote.completeSession('SES-001',{ time:'1.25',speed:'18.2',heartRate:180,performanceScore:88,notes:'Measured recovery' }),null);
   assert.equal(payload.distance,1.25); assert.equal(payload.endExerciseHeartRate,180); assert.equal(payload.recoveryHeartRate2Min,88); assert.equal(payload.avgSpeed,18.2);
-<<<<<<< HEAD
-  assert.match(payload.recoveryMeasuredAt,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/); assert.ok(!('maxSpeed' in payload));
-=======
   assert.match(payload.recoveryMeasuredAt,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/); assert.ok(!('maxSpeed' in payload));
->>>>>>> a0f9749 (Luu tam code local)
 });
 
 test('medical confirmation failure keeps its draft ID and retries using the draft update API', async () => {
@@ -338,7 +298,7 @@ test('a confirmed fit exam cannot bypass inactive horse status', () => {
   assert.match(purchaseBlockReason({...h,trainingStatus:'Inactive'},[],[rec]),/not active/);
   assert.equal(purchaseBlockReason({...h,trainingStatus:'Active'},[],[rec]),null);
   assert.match(purchaseBlockReason({...h,trainingStatus:'Active',lock:{reason:'medical'}},[],[rec]),/locked/);
-  assert.match(purchaseBlockReason({...h,trainingStatus:'Active'},[],[{...rec,status:'draft'}]),/draft/);
+  assert.match(purchaseBlockReason({...h,trainingStatus:'Active'},[],[{...rec,status:'draft'}]),/No examination record/);
   assert.match(purchaseBlockReason({...h,trainingStatus:'Active',approvalStatus:'pending'},[],[rec]),/approved/);
 });
 test('manager activates an approved horse using the existing API and reloads', async () => {
@@ -367,11 +327,7 @@ test('only admin can create a profile for an activated Trainer', async () => {
 });
 test('trainer assignment uses profile ID, not account ID', async () => {
   const target={...user('head_trainer'),trainerProfileId:'HTR-099'};
-<<<<<<< HEAD
-  const snapshot={...state(),user:user('manager'),users:[target],enrollments:[{id:'HPG-001',horseId:'HOR-007'}]}; const {remote}=actions(snapshot);
-=======
   const snapshot={...state(),user:user('manager'),users:[target],enrollments:[{id:'HPG-001',horseId:'HOR-007',apiStatus:'ACTIVE',paymentStatus:'PAID'}]}; const {remote}=actions(snapshot);
->>>>>>> a0f9749 (Luu tam code local)
   globalThis.fetch=async(url,init)=>{assert.equal(url,'/api/trainer-assignments'); assert.deepEqual(JSON.parse(init.body),{trainerId:'HTR-099',horsePackageId:'HPG-001'}); return ok({});};
   assert.equal((await remote.assignTrainer('HPG-001',target.id)).ok,true);
 });
@@ -398,29 +354,6 @@ test('trainer profile reports missing records and server errors without pretendi
   globalThis.fetch=async()=>denied();
   await assert.rejects(saveOwnTrainerProfile({trainer_id:'HTR-099',user_id:'HTR-001'},'HTR-001','bio','cert'),e=>e.status===403);
 });
-
-const protocolDraft=()=>({name:'Vet authored protocol',packageType:'BASIC',minWeight:400,maxWeight:500,rationale:'Test rationale',sources:['https://www.merckvetmanual.com/test'],stages:[{startDay:1,endDay:7,activityName:'Vet authored activity',intensity:'LOW',daysOfWeek:['MONDAY'],sessionTime:'08:00',sessionEndTime:'08:30'}]});
-test('protocol APIs preserve vet-authored content and use draft/approval/retire endpoints', async()=>{
-  const calls=[];globalThis.fetch=async(url,init)=>{calls.push({url,init});return ok({});};
-  const draft=protocolDraft();await protocols.createProtocol(draft);await protocols.changeProtocolStatus('PRO-001','approve');await protocols.changeProtocolStatus('PRO-001','retire');
-  assert.deepEqual(JSON.parse(calls[0].init.body),draft);
-  assert.deepEqual(calls.map(c=>c.url),['/api/training-protocols','/api/training-protocols/PRO-001/approve','/api/training-protocols/PRO-001/retire']);
-});
-test('invalid protocol weight, stages and source are blocked before HTTP', async()=>{
-  let calls=0;globalThis.fetch=async()=>{calls++;return ok({});};
-  for(const change of [{minWeight:0},{maxWeight:400},{sources:['https://example.com']},{sources:[]},{rationale:''},{stages:[]},{stages:[{...protocolDraft().stages[0],sessionEndTime:'07:00'}]},{stages:[...protocolDraft().stages,...protocolDraft().stages]}]) {
-    assert.throws(()=>protocols.createProtocol({...protocolDraft(),...change}));
-  }assert.equal(calls,0);
-});
-test('published protocol weight intervals are half-open and package-specific',()=>{
-  const active={protocol_id:'PRO-1',package_type:'BASIC',min_weight:400,max_weight:500,status:'APPROVED'};
-  assert.equal(protocols.protocolOverlap({...active,protocol_id:'PRO-2',min_weight:450,max_weight:550},[active]),true);
-  assert.equal(protocols.protocolOverlap({...active,protocol_id:'PRO-2',min_weight:500,max_weight:550},[active]),false);
-  assert.equal(protocols.protocolOverlap({...active,protocol_id:'PRO-2',package_type:'RECOVERY'},[active]),false);
-});
-<<<<<<< HEAD
-=======
-
 
 test('unpaid and paused packages cannot create trainer assignments', async () => {
   const target={...user('head_trainer'),trainerProfileId:'HTR-099'};
@@ -517,4 +450,90 @@ test('invalid intensity does not create a training plan',async()=>{
  globalThis.fetch=async(url)=>{if(url.endsWith('/training-recommendations'))return ok(suggestion);writes++;return ok({});};
  assert.equal((await remote.createPlan({...draft,workload:'INVALID'})).ok,false);assert.equal(writes,0);
 });
->>>>>>> a0f9749 (Luu tam code local)
+
+const schedule = await import(pathToFileURL(path.join(dir,'trainingSchedule.mjs')).href);
+const logic = await import(pathToFileURL(path.join(dir,'trainingLogic.mjs')).href);
+
+test('Training selects only confirmed medical records by examined timestamp, confirmation timestamp and ID',()=>{
+ const record=(id,examinedAt,confirmedAt,status='confirmed')=>({...mapping.recordFromApi({medicalRecordId:id,examinedAt,confirmedAt,status:status==='confirmed'?'CONFIRMED':'DRAFT',createdAt:'2099-01-01'},'HOR-007',[])});
+ const list=[record('MED-900','2026-10-30T10:00:00','2026-10-30T11:00:00','draft'),record('MED-001','2026-10-21T10:00:00','2026-10-21T11:00:00'),record('MED-003','2026-10-21T10:00:00','2026-10-21T12:00:00'),record('MED-002','2026-10-21T10:00:00','2026-10-21T12:00:00')];
+ assert.equal(logic.latestHealthRecord(list,'HOR-007').id,'MED-003');
+ assert.equal(list[1].examinedAt,'2026-10-21T10:00:00');assert.equal(list[1].confirmedAt,'2026-10-21T11:00:00');
+ assert.equal(logic.latestHealthRecord([list[0]],'HOR-007'),undefined);
+});
+
+test('RACING goes to backend with incomplete local Medical and displays its rejection without success',async()=>{
+ assert.equal(purchaseBlockReason({...horse(),healthStatus:'Pending Vet'},[],[],false,'RACING'),null);
+ const {remote,events}=actions(state());
+ globalThis.fetch=async()=>new Response(JSON.stringify({success:false,message:'RACING requires exactly one NORMAL MOVEMENT_LEGS examination'}),{status:400});
+ const r=await remote.purchasePackage('HOR-007','PKG-RACING');assert.equal(r.ok,false);assert.match(r.message,/exactly one NORMAL/);assert.ok(events.every(e=>e.startsWith('error:')));
+});
+
+test('registration statuses stay distinct and an ended package never becomes active because sessions are unfinished',()=>{
+ for(const [status,paymentStatus,expected] of [['PENDING','PENDING','pending'],['ACTIVE','PAID','active'],['PAUSED','PAID','paused'],['COMPLETED','PAID','completed'],['CANCELLED','FAILED','cancelled'],['FAILED','FAILED','failed']]){
+ const e=mapping.enrollmentFromApi({horsePackageId:'HP-1',status,paymentStatus},[]);assert.equal(e.status,expected);assert.notEqual(logic.enrollmentLabel(e),expected==='pending'?'Active':'unexpected');
+ }
+});
+
+test('sessions are counted by registration, falling back to plan only when direct linkage is absent',()=>{
+ const plans=[{id:'PL-1',horsePackageId:'HP-1'},{id:'PL-2',horsePackageId:'HP-2'}];
+ const sessions=[{id:'S1',horseId:'H',horsePackageId:'HP-1',planId:'PL-2'},{id:'S2',horseId:'H',horsePackageId:'HP-2',planId:'PL-1'},{id:'S3',horseId:'H',planId:'PL-1'},{id:'S4',horseId:'H',planId:'unknown'}];
+ assert.deepEqual(logic.sessionsForEnrollment({id:'HP-1'},sessions,plans).map(s=>s.id),['S1','S3']);
+ assert.deepEqual(logic.sessionsForEnrollment({id:'HP-2'},sessions,plans).map(s=>s.id),['S2']);
+ assert.equal(mapping.sessionFromApi({horsePackageId:'HP-1'}).horsePackageId,'HP-1');
+});
+
+test('multi-stage preview uses actual partial weeks and Trainer choices exactly as plan payload',async()=>{
+ const {remote,draft,suggestion}=scheduleFixture('HP-preview');let posted;
+ globalThis.fetch=async(url,init)=>{if(url.endsWith('/training-recommendations'))return ok(suggestion);posted=JSON.parse(init.body);return ok({planId:'PL-1'});};
+ const preview=schedule.buildStageSchedule(schedule.selectStages(suggestion.stages,draft),draft.startDate,draft.endDate);
+ assert.equal((await remote.createPlan(draft)).ok,true);
+ assert.deepEqual(preview,schedule.buildStageSchedule(posted.stages,draft.startDate,draft.endDate));
+ assert.ok(preview.some(s=>s.type==='Foundation'));assert.ok(preview.some(s=>s.type==='Review'));
+ const one=schedule.buildStageSchedule([{startDay:1,endDay:3,activityName:'Walk',intensity:'LOW',daysOfWeek:['MONDAY'],sessionTime:'23:00:00',sessionEndTime:'23:30:00'}],'26/10/2026','28/10/2026');assert.equal(one.length,1);
+ assert.throws(()=>schedule.selectStages(suggestion.stages,{time:'23:30'}),/same day/);
+});
+
+function generationFixture(){
+ const enrollment={id:'HP-G',horseId:'HOR-007',startedAt:'26/10/2026',expiresAt:'28/10/2026'};
+ const snapshot={...state(),enrollments:[enrollment],trainingPlans:[{id:'PL-G',horseId:'HOR-007',horsePackageId:enrollment.id}]};
+ const stages=[{stage_id:'ST-1',start_day:1,end_day:3,activity_name:'Walk',intensity:'LOW',weekdays_json:'["MONDAY"]',session_time:'08:00:00',session_end_time:'08:25:00'}];
+ return {snapshot,stages,rows:schedule.buildStageSchedule(stages,enrollment.startedAt,enrollment.expiresAt)};
+}
+
+test('bulk generation with one session always uses generate-sessions',async()=>{
+ const {snapshot,stages,rows}=generationFixture(),{remote}=actions(snapshot);const paths=[];
+ globalThis.fetch=async(url,init)=>{paths.push(url);if(url.endsWith('/stages'))return ok(stages);if(url.endsWith('/generate-sessions')){assert.deepEqual(JSON.parse(init.body),{confirmed:true});return ok([{sessionId:'S1'}]);}return ok([]);};
+ assert.equal((await remote.generateSessions('HOR-007','PL-G',rows)).ok,true);
+ assert.ok(paths.includes('/api/training-plans/PL-G/generate-sessions'));assert.ok(!paths.includes('/api/training-sessions'));
+});
+
+test('existing sessions block full generation even when local state is stale',async()=>{
+ const {snapshot,stages,rows}=generationFixture(),{remote}=actions(snapshot);let writes=0;
+ globalThis.fetch=async(url,init)=>{if(init.method==='POST')writes++;return ok(url.endsWith('/stages')?stages:[{planId:'PL-G'}]);};
+ const r=await remote.generateSessions('HOR-007','PL-G',rows);assert.equal(r.ok,false);assert.match(r.message,/already exist/);assert.equal(writes,0);
+});
+
+test('single session keeps saved stage duration, and rejects crossing midnight',async()=>{
+ const {snapshot,stages}=generationFixture(),{remote}=actions(snapshot);let posted;
+ globalThis.fetch=async(url,init)=>{if(url.endsWith('/stages'))return ok(stages);assert.equal(url,'/api/training-sessions');posted=JSON.parse(init.body);return ok({sessionId:'S1'});};
+ assert.equal((await remote.createSingleSession('HOR-007','PL-G',[{date:'26/10/2026',time:'23:00'}])).ok,true);
+ assert.equal(posted.scheduledEnd,'2026-10-26T23:25:00');
+ assert.equal((await remote.createSingleSession('HOR-007','PL-G',[{date:'26/10/2026',time:'23:50'}])).ok,false);
+});
+
+test('session validation has no quota and still checks package dates and overlapping times',()=>{
+ const ctx={sessions:[],enrollments:[{id:'HP',horseId:'HOR-007',status:'active',startedAt:'26/10/2099',expiresAt:'29/10/2099',sessionsTotal:0,sessionsDone:0}],horseId:'HOR-007',trainerId:'T'};
+ const d={date:'26/10/2099',time:'08:00',endTime:'08:30',notes:''};
+ assert.equal(logic.checkSessionDrafts(ctx,[d]).global,'');assert.equal(logic.checkSessionDrafts(ctx,[d]).rows[0],'');
+ assert.match(logic.checkSessionDrafts(ctx,[{...d,date:'30/10/2099'}]).rows[0],/expiry/);
+ assert.match(logic.checkSessionDrafts(ctx,[d,{...d,time:'08:15'}]).rows[1],/conflicts/);
+});
+
+test('completion and feedback are separate operations: note failure cannot undo saved readings',async()=>{
+ const {remote,events}=actions(state());let payload;
+ globalThis.fetch=async(url,init)=>{if(url.endsWith('/complete')){payload=JSON.parse(init.body);return ok({});}return denied(500);};
+ assert.equal(await remote.completeSession('S-note',{time:'1.2',speed:'10',heartRate:180,performanceScore:100,notes:'Measured'}),null);
+ await assert.rejects(api.request('/training-sessions/S-note/feedback'));
+ assert.equal(payload.endExerciseHeartRate,180);assert.equal(payload.recoveryHeartRate2Min,100);assert.ok(events.includes('reload'));
+});

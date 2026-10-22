@@ -169,7 +169,8 @@ export interface Enrollment {
   packageName: string;
   sessionsTotal: number;
   sessionsDone: number;
-  status: 'active' | 'paused' | 'completed';
+  status: 'pending' | 'active' | 'paused' | 'completed' | 'cancelled' | 'failed';
+  sessionsCancelled?: number;
   trainerId: string;
   trainerName: string;
   trainerStatus: TrainerAssignStatus;
@@ -307,6 +308,8 @@ export interface TrainingPlan {
 }
 
 export interface TrainingSession {
+  horsePackageId?: string;
+  scheduledEnd?: string;
   actualEnd?: string;
   canStart?: boolean;
   canStop?: boolean;
@@ -340,6 +343,8 @@ export interface TrainingSession {
 }
 
 export interface HealthRecord {
+  examinedAt?: string;
+  confirmedAt?: string;
   profileId?: string;
   id: string;
   horseId: string;

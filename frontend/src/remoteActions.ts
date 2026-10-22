@@ -1,5 +1,5 @@
 import { trainingTimestamp } from './trainingTimestamp';
-import { idPath as enc, request } from './api';
+import { ApiError, idPath as enc, request } from './api';
 import { staffRoleId, ROLE_NAMES, isoDate, enrollmentFromApi, horsePayload, medicalPayload, packageFromApi, planFromApi, recordFromApi, sessionFromApi } from './remote';
 import type { RemoteSlice } from './remote';
 import type { AppUser, Horse, HealthRecord, Res, Enrollment, TrainingPackage, TrainingPlan, TrainingSession, Role } from './data';
@@ -219,10 +219,19 @@ export function makeRemoteActions(env: Env) {
         await run(`complete-${id}`, async () => {
           const distance = Number(result.time.replace(',', '.'));
           if (!Number.isFinite(distance) || distance < 0) throw new Error("Actual distance must be a non-negative number of kilometers.");
-          const recoveryMeasuredAt = result.recoveryMeasuredAt || trainingTimestamp();
+          const speed = Number(result.speed);
+          if (!Number.isFinite(speed) || speed < 0 || speed > 100) throw new Error('Speed must be between 0 and 100 km/h.');
+          if ([result.heartRate, result.performanceScore].some(v => !Number.isInteger(v) || v < 20 || v > 250)) throw new Error('Heart rate must be an integer between 20 and 250 bpm.');
+          if (!result.recoveryMeasuredAt) throw new Error('Record the two-minute recovery reading before completing the session.');
+          const recoveryMeasuredAt = result.recoveryMeasuredAt;
           await request(`/training-sessions/${enc(id)}/complete`, 'PATCH', { distance, avgSpeed: Number(result.speed), endExerciseHeartRate: result.heartRate, recoveryHeartRate2Min: result.performanceScore, recoveryMeasuredAt, performanceNotes: result.notes });
         }); return null;
-      } catch (e) { error((e as Error).message); return (e as Error).message; }
+      } catch (e) {
+        const message = e instanceof ApiError && e.status === 409
+          ? `Could not complete session ${id}: ${e.message} The server rejected the save; check the backend log for the specific conflict.`
+          : e instanceof Error ? e.message : 'Unable to complete the session.';
+        return message;
+      }
     },
   };
 }

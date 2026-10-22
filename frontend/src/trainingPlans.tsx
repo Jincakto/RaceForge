@@ -345,6 +345,7 @@ function ResultForm({ onSubmit, onCancel }: { onSubmit: (r: ResultT) => string |
     if (saving || !measuredAt) return;
     const x: Record<string, string> = {};
     if (!/^\d+(?:[.,]\d{1,2})?$/.test(f.time.trim())) x.time = "Enter the actual distance in km, with up to 2 decimal places.";
+    if (Number(f.time.replace(',', '.')) > 999999.99) x.time = "Actual distance cannot exceed 999999.99 km.";
     const sp = Number(f.speed);
     if (f.speed.trim() === '' || isNaN(sp) || sp < 0 || sp > 100) x.speed = "Speed must be between 0 and 100 km/h.";
     const hr = Number(f.hr);
@@ -354,7 +355,7 @@ function ResultForm({ onSubmit, onCancel }: { onSubmit: (r: ResultT) => string |
     if (f.notes.length > 300) x.notes = "Comments cannot exceed 300 characters.";
     setE(x);
     if (Object.keys(x).length) return;
-    setSaving(true);try { const r = await onSubmit({ time: f.time.trim(), speed: String(sp), heartRate: hr, notes: f.notes.trim(), performanceScore: sc, recoveryMeasuredAt: measuredAt || undefined }); if (r) setErr(r); } finally { setSaving(false); }
+    setErr(''); setSaving(true);try { const r = await onSubmit({ time: f.time.trim(), speed: String(sp), heartRate: hr, notes: f.notes.trim(), performanceScore: sc, recoveryMeasuredAt: measuredAt || undefined }); if (r) setErr(r); } catch (error) { setErr(error instanceof Error ? error.message : 'Unable to complete the session. Please try again.'); } finally { setSaving(false); }
   };
   return (
     <div className="mt-4 border-t border-gray-100 pt-4">
@@ -367,7 +368,7 @@ function ResultForm({ onSubmit, onCancel }: { onSubmit: (r: ResultT) => string |
         <div className="col-span-2"><Textarea label="Comments" value={f.notes} onChange={set('notes')} rows={2} placeholder="Condition, technique, progress..." hint={`${f.notes.length}/300`} />{e.notes && <p className="text-xs text-red-600">{e.notes}</p>}</div>
       </div>
       {err && <div className="mt-3"><ErrorBox text={err} /></div>}
-      <div className="mt-4 flex gap-2"><Btn variant="gold" disabled={saving || !measuredAt} onClick={submit}>💾 Save and complete</Btn><Btn variant="secondary" onClick={onCancel}>Cancel</Btn></div>
+      <div className="mt-4 flex gap-2"><Btn variant="gold" disabled={saving || !measuredAt} onClick={submit}>{saving ? "Saving…" : "💾 Save and complete"}</Btn><Btn variant="secondary" onClick={onCancel}>Cancel</Btn></div>
     </div>
   );
 }

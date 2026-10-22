@@ -1,0 +1,32 @@
+package com.raceforge.backend.medical.dto;
+
+public class MedicalClinicalExamRequest {
+
+    private String examinationArea;
+    private String conditionStatus;
+    private String notes;
+
+    public String getExaminationArea() {
+        return examinationArea;
+    }
+
+    public void setExaminationArea(String examinationArea) {
+        this.examinationArea = examinationArea;
+    }
+
+    public String getConditionStatus() {
+        return conditionStatus;
+    }
+
+    public void setConditionStatus(String conditionStatus) {
+        this.conditionStatus = conditionStatus;
+    }
+
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
+    }
+}

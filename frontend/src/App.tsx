@@ -9,7 +9,7 @@ import {
   requestPasswordReset,
   restoreSessionForLocation,
 } from "./passwordSetup";
-import { auth, request, ApiError } from "./api";
+import { auth, request, ApiError, allPages } from "./api";
 import { loadRemote, userFromApi, CENTER } from "./remote";
 import { makeRemoteActions } from "./remoteActions";
 import { VetHealthFormPage, nextMedId, REGION_DEFS } from "./vetForm";
@@ -7393,9 +7393,24 @@ function StaffPage({
   navigate: (p: Page) => void;
   onUpdatePermissions: (userId: string, pages: Page[]) => void;
 }) {
-  const myClub = state.clubs.find((c) => c.managerId === state.user!.id);
-  const members = state.users.filter(
-    (u) => u.clubId === myClub?.id && u.id !== state.user!.id,
+  const [accounts, setAccounts] = useState<AppUser[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [accountsError, setAccountsError] = useState('');
+  const [accountsVersion, setAccountsVersion] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setLoadingAccounts(true);
+    setAccountsError('');
+    allPages('/users').then(rows => {
+      const users = rows.map(userFromApi);
+      if (active) setAccounts(users);
+    }).catch(error => {
+      if (active) setAccountsError((error as Error).message);
+    }).finally(() => { if (active) setLoadingAccounts(false); });
+    return () => { active = false; };
+  }, [state.user!.id, accountsVersion]);
+  const members = accounts.filter(
+    (u) => !!state.user!.clubId && u.clubId === state.user!.clubId && u.id !== state.user!.id,
   );
   const [permModalUserId, setPermModalUserId] = useState<string | null>(null);
   const permMember = members.find((m) => m.id === permModalUserId);
@@ -7427,11 +7442,13 @@ function StaffPage({
           <div>
             <h2 className="text-xl font-serif font-bold">Staff</h2>
             <p className="text-sm text-gray-500">
-              {members.length} members · staff accounts are issued by an
+              {loadingAccounts ? 'Loading members...' : accountsError ? 'Unable to load members' : `${members.length} members`} · staff accounts are issued by an
               administrator
             </p>
           </div>
+          <Btn variant="secondary" disabled={loadingAccounts} onClick={() => setAccountsVersion(v => v + 1)}>Refresh list</Btn>
         </div>
+        {accountsError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600">Unable to load staff accounts: {accountsError}</p>}
         <div className="grid grid-cols-2 gap-4">
           {members.map((m) => {
             const extraCount = grantedPages(m.id).filter(
@@ -7477,7 +7494,7 @@ function StaffPage({
             );
           })}
         </div>
-        {members.length === 0 && (
+        {!loadingAccounts && !accountsError && members.length === 0 && (
           <Card className="p-10 text-center">
             <div className="text-4xl mb-3">👥</div>
             <div className="font-semibold text-gray-600">No members yet</div>

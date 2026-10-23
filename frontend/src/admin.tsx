@@ -175,14 +175,11 @@ type AccountDialog =
 
 const PAGE_SIZE = 8;
 
-export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleLock, onCreateTrainerProfile }: {
+export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleLock }: {
   actor: AppUser; users: AppUser[]; clubs: Club[];
   onCreate: (u: AppUser) => Promise<unknown>;
   onToggleLock: (id: string, reason: string) => Promise<unknown>;
-  onCreateTrainerProfile: (id: string) => Promise<unknown>;
 }) {
-  const [profilePending, setProfilePending] = useState<string | null>(null);
-  const [profileError, setProfileError] = useState('');
   const [q, setQ] = useState('');
   const [roleF, setRoleF] = useState('all');
   const [statusF, setStatusF] = useState('all');
@@ -213,7 +210,6 @@ export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleL
         <div className="w-48"><Select value={roleF} onChange={v => { setRoleF(v); setPage(1); }} options={[{ value: 'all', label: "All roles" }, ...(Object.keys(ROLE_NAME) as Role[]).map(r => ({ value: r, label: ROLE_NAME[r] }))]} /></div>
         <div className="w-40"><Select value={statusF} onChange={v => { setStatusF(v); setPage(1); }} options={[{ value: 'all', label: "All statuses" }, { value: 'active', label: "Active" }, { value: 'locked', label: "Locked" }]} /></div>
       </div>
-      {profileError && <p role="alert" className="text-sm text-red-600">{profileError}</p>}
       <Card className="overflow-hidden">
         <table className="w-full text-sm">
           <thead><tr className="border-b border-gray-200 bg-gray-50">{["ID", "User", "Role", "Club", "Status", "Actions"].map(h => <th key={h} className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">{h}</th>)}</tr></thead>
@@ -227,15 +223,10 @@ export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleL
                   <td className="px-5 py-3"><div className="font-medium text-[#0f1729]">{u.name}</div><div className="text-xs text-gray-500">{u.email}</div></td>
                   <td className="px-5 py-3">{u.role ? <Badge status={u.role} /> : <span className="text-xs text-gray-400">No role assigned</span>}</td>
                   <td className="px-5 py-3 text-xs text-gray-600">{club?.name || '—'}</td>
-                  <td className="px-5 py-3">{u.locked ? <span className="rounded-full border border-red-200 bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">Locked</span> : <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">Active</span>}</td>
+                  <td className="px-5 py-3">{u.locked ? <span className="rounded-full border border-red-200 bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">Locked</span> : u.status === 'active' ? <span className="rounded-full border border-emerald-200 bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800">Active</span> : <span className="rounded-full border border-amber-200 bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">Invited / pending</span>}</td>
                   <td className="px-5 py-3">
                     {self ? <span className="text-xs text-gray-400">Your account</span> : (
                       <div className="flex flex-wrap gap-1.5">
-                        {u.role === 'head_trainer' && !u.trainerProfileId && <Btn size="sm" variant="secondary" disabled={!!profilePending || u.status !== 'active' || !!u.locked} onClick={async () => {
-                          setProfilePending(u.id); setProfileError('');
-                          try { await onCreateTrainerProfile(u.id); } catch (e) { setProfileError((e as Error).message); }
-                          finally { setProfilePending(null); }
-                        }}>{profilePending === u.id ? "Creating..." : "Create trainer profile"}</Btn>}
                         <Btn size="sm" variant={u.locked ? 'secondary' : 'danger'} onClick={() => setDialog({ kind: 'lock', user: u })}>{u.locked ? "Unlock" : "Lock"}</Btn>
                       </div>
                     )}
@@ -289,7 +280,7 @@ function CreateAccountModal({ users, clubs, onCreate, onClose }: { users: AppUse
     if (!name) e.name = "Enter a full name."; else if (name.length < 2 || name.length > 60) e.name = "Full name must contain 2–60 characters.";
     if (!f.email.trim()) e.email = "Enter an email address.";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim())) e.email = "Enter a valid email address (e.g. name@raceforce.vn).";
-    else if (users.some(u => u.email.toLowerCase() === f.email.trim().toLowerCase())) e.email = "This email address is already in use.";
+    else if (users.some(u => u.email.toLowerCase() === f.email.trim().toLowerCase())) e.email = "This email address is already in use. For an unfinished Trainer profile, close this dialog and use Create trainer profile on the account row.";
     if (f.phone && !/^0\d{9}$/.test(f.phone.replace(/\s/g, ''))) e.phone = "Phone number must contain 10 digits and start with 0.";
     setErrors(e);
     if (Object.keys(e).length) return;

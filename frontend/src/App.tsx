@@ -8465,7 +8465,6 @@ export default function App() {
             users={state.users}
             clubs={state.clubs}
             onCreate={remote.createAccount}
-            onCreateTrainerProfile={remote.createTrainerProfile}
             onToggleLock={remote.toggleLock}
           />
         );

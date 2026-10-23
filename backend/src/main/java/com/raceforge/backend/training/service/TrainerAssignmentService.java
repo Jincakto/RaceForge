@@ -29,8 +29,9 @@ public class TrainerAssignmentService {
 
   private static final String PROFILE = "SELECT p.trainer_id,p.user_id,d.bio,d.qualifications,COALESCE(d.status,'ACTIVE') AS status,d.created_at,u.full_name,u.email FROM dbo.Trainer p LEFT JOIN dbo.Trainer_Detail d ON d.trainer_id=p.trainer_id JOIN dbo.[User] u ON u.user_id=p.user_id";
 
-  public Map<String, Object> createProfile(ProfileRequest body) {
-    var user = eligibleUser(body.userId());
+  public Map<String, Object> createOwnProfile(ProfileUpdate body) {
+    // An authenticated ACTIVE HEAD_TRAINER can create only their own profile.
+    var user = eligibleUser(guard.actor().userId());
     var existing = trainers.findByUser_UserId(user.getUserId());
     if (existing.isPresent() && jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Trainer_Detail WHERE trainer_id=?",
         Integer.class, existing.get().getTrainerId()) > 0)
@@ -82,6 +83,22 @@ public class TrainerAssignmentService {
   @Transactional(readOnly = true)
   public Map<String, Object> profile(String id) {
     return one(PROFILE + " WHERE p.trainer_id=?", id);
+  }
+
+  @Transactional(readOnly = true)
+  public Map<String, Object> myProfile() {
+    // Missing profile is a valid state: FE should display the create form.
+    var rows = jdbc.queryForList(PROFILE + " WHERE p.user_id=? AND d.trainer_id IS NOT NULL", guard.actor().userId());
+    return rows.isEmpty() ? null : rows.get(0);
+  }
+
+  @Transactional(readOnly = true)
+  public Map<String, Object> profileForActor(String id) {
+    var p = profile(id);
+    var actor = guard.actor();
+    if (!Set.of("ADMIN", "CLUB_MANAGER").contains(actor.roleName()) && !actor.userId().equals(p.get("user_id")))
+      throw new org.springframework.security.access.AccessDeniedException("Cannot read another trainer's profile");
+    return p;
   }
 
   public Map<String, Object> assign(AssignmentRequest body) {

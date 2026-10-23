@@ -234,6 +234,8 @@ export function VetAssignedPage({ user, horses, requests, onRespond, onExam, onO
 }) {
   const mine = horses.filter(h => h.vetId === user.id && h.vetAssign);
   const [respond, setRespond] = useState<{ horse: Horse; accept: boolean } | null>(null);
+  const [accepting, setAccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState('');
   const [history, setHistory] = useState<Horse | null>(null);
   const reqOf = (h: Horse) => requests.find(r => r.horseId === h.id);
   return (
@@ -257,7 +259,7 @@ export function VetAssignedPage({ user, horses, requests, onRespond, onExam, onO
                 <div className="mt-1 text-xs"><span className={`rounded-full border px-2 py-0.5 font-medium ${status === 'pending' ? 'border-sky-200 bg-sky-50 text-sky-700' : status === 'accepted' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>{VET_STATUS[status]}</span></div>
               </div>
               <div className="flex flex-wrap gap-2">
-                {status === 'pending' && <><Btn size="sm" onClick={() => setRespond({ horse: h, accept: true })}>Accept</Btn><Btn size="sm" variant="danger" onClick={() => setRespond({ horse: h, accept: false })}>Decline</Btn></>}
+                {status === 'pending' && <><Btn size="sm" onClick={() => { setAcceptError(''); setRespond({ horse: h, accept: true }); }}>Accept</Btn><Btn size="sm" variant="danger" onClick={() => setRespond({ horse: h, accept: false })}>Decline</Btn></>}
                 {status === 'accepted' && st === 3 && <Btn size="sm" variant="gold" onClick={() => onExam(h.id)}>Examine now</Btn>}
                 <Btn size="sm" variant="ghost" onClick={() => onOpenHorse(h.id)}>Profile</Btn>
                 <Btn size="sm" variant="ghost" onClick={() => setHistory(h)}>History</Btn>
@@ -267,10 +269,26 @@ export function VetAssignedPage({ user, horses, requests, onRespond, onExam, onO
           </Card>
         );
       })}
-      {respond && (
-        <ReasonDialog title={respond.accept ? 'Accept examination' : 'Decline examination'} danger={!respond.accept} confirmLabel={respond.accept ? 'Accept' : 'Decline'} onClose={() => setRespond(null)}
-          description={<p>{respond.accept ? 'You will be responsible for the intake examination of' : 'The Club Manager must assign another veterinarian. You are declining'} <b>{respond.horse.name}</b>.</p>}
-          onConfirm={async reason => { await onRespond(respond.horse.id, respond.accept, reason); setRespond(null); }} />
+      {respond?.accept && (
+        <Modal title="Accept examination" onClose={() => { if (!accepting) setRespond(null); }}>
+          <p className="text-sm text-gray-600">You will be responsible for the intake examination of <b>{respond.horse.name}</b>.</p>
+          {acceptError && <p role="alert" className="mt-3 text-sm text-red-600">{acceptError}</p>}
+          <div className="mt-5 flex justify-end gap-2">
+            <Btn variant="secondary" disabled={accepting} onClick={() => setRespond(null)}>Cancel</Btn>
+            <Btn disabled={accepting} onClick={async () => {
+              if (accepting) return;
+              setAccepting(true); setAcceptError('');
+              try { await onRespond(respond.horse.id, true, ''); setRespond(null); }
+              catch (error) { setAcceptError((error as Error).message); }
+              finally { setAccepting(false); }
+            }}>{accepting ? 'Accepting...' : 'Accept'}</Btn>
+          </div>
+        </Modal>
+      )}
+      {respond && !respond.accept && (
+        <ReasonDialog title="Decline examination" danger confirmLabel="Decline" onClose={() => setRespond(null)}
+          description={<p>The Club Manager must assign another veterinarian. You are declining <b>{respond.horse.name}</b>.</p>}
+          onConfirm={async reason => { await onRespond(respond.horse.id, false, reason); setRespond(null); }} />
       )}
       {history && <AssignHistory horse={history} onClose={() => setHistory(null)} />}
     </div>

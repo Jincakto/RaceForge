@@ -89,7 +89,15 @@ export function makeRemoteActions(env: Env) {
       await request(`/horses/${enc(id)}/activate`, 'PATCH');
     }, "Horse activated. Health and training lock requirements still apply when registering for a package."),
     submitHorse: (id: string) => fire(`submit-${id}`, () => request(`/horses/${enc(id)}/admission`, 'POST')),
-    approveHorse: (id: string) => fire(`review-${id}`, () => request(`/horses/${enc(id)}/admission/approve`, 'POST', { note: "Examination records and supporting evidence reviewed." })),
+    approveHorse: (id: string) => fire(`review-${id}`, async () => {
+      await request(`/horses/${enc(id)}/admission/approve`, 'POST', { note: "Examination records and supporting evidence reviewed." });
+      try {
+        await request(`/horses/${enc(id)}/activate`, 'PATCH');
+      } catch (cause) {
+        await reload();
+        throw new Error(`Horse admission was approved, but activation failed. Retry activation from the horse profile. ${(cause as Error).message}`);
+      }
+    }, "Horse admitted to the club and activated."),
     rejectHorse: (id: string, note: string) => fire(`review-${id}`, () => request(`/horses/${enc(id)}/admission/reject`, 'POST', { note })),
     assignVet: (horseId: string, veterinarianId: string, _reason: string) => fire(`vet-${horseId}`, () => request(`/medical/assignments/horses/${enc(horseId)}`, 'POST', { veterinarianId })),
     respondVet: (horseId: string, accepted: boolean, reason: string) => fire(`vet-response-${horseId}`, () => {

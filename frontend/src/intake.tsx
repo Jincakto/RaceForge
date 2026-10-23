@@ -219,7 +219,7 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
       )}
       {approveFor && (
         <Modal title="Confirm club admission" onClose={() => setApproveFor(null)}>
-          <p className="text-sm text-gray-600">Admit <b>{approveFor.horseName}</b> to the club? The horse will appear in the Horse List and its core profile fields will be locked.</p>
+          <p className="text-sm text-gray-600">Admit and activate <b>{approveFor.horseName}</b>? The horse will appear in the Horse List and its core profile fields will be locked.</p>
           <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setApproveFor(null)}>Cancel</Btn><Btn variant="gold" onClick={async () => { try { await onApprove(approveFor.id); setApproveFor(null); } catch (e) { setWarn(w => ({ ...w, [approveFor.id]: (e as Error).message })); } }}>Admit</Btn></div>
         </Modal>
       )}

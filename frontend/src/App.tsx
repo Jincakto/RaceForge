@@ -2808,6 +2808,7 @@ function HorseDetailPage({
   onActivateHorse,
   onShowSuccess,
   onAudit,
+  intakeActions,
 }: {
   state: AppState;
   navigate: (p: Page) => void;
@@ -2815,6 +2816,7 @@ function HorseDetailPage({
   onActivateHorse: (id: string) => Promise<unknown>;
   onShowSuccess: (m: string) => void;
   onAudit: (a: string, t: string, r?: string) => void;
+  intakeActions?: React.ReactNode;
 }) {
   const user = state.user!;
   const horse =
@@ -3217,6 +3219,7 @@ function HorseDetailPage({
             </Card>
           ) : null;
         })()}
+      {tab === "overview" && LIFECYCLE_ORDER.indexOf(getLifecycle(horse)) < 3 && intakeActions}
       {tab === "overview" && (
         <div className="grid grid-cols-3 gap-5">
           <div className="col-span-2">
@@ -8506,6 +8509,26 @@ export default function App() {
             navigate={navigate}
             onUpdateHorse={remote.updateHorse}
             onActivateHorse={remote.activateHorse}
+            intakeActions={state.user!.role === "manager" && state.horseClubRequests.some(r => r.horseId === state.selectedHorseId && r.status === "pending") ? (
+              <IntakeBoardPage
+                key={state.selectedHorseId}
+                detail
+                user={state.user!}
+                horses={state.horses.filter(h => h.id === state.selectedHorseId)}
+                requests={state.horseClubRequests.filter(r => r.horseId === state.selectedHorseId && r.status === "pending")}
+                records={state.healthRecords}
+                users={state.users}
+                onVerify={(id, verified) => {
+                  if (verified) verifiedHorses.current.add(id);
+                  else verifiedHorses.current.delete(id);
+                  setState(s => ({ ...s, horses: s.horses.map(h => h.id === id ? { ...h, identityVerified: verified } : h) }));
+                }}
+                onAssign={remote.assignVet}
+                onApprove={remote.approveHorse}
+                onReject={remote.rejectHorse}
+                onOpenHorse={() => {}}
+              />
+            ) : undefined}
             onShowSuccess={showSuccess}
             onAudit={logAudit}
           />

@@ -3301,7 +3301,7 @@ function HorseDetailPage({
                       ["Breed", horse.breed],
                       ["Gender", GENDER_LABEL[horse.gender] || horse.gender],
                       ["Date of birth", horse.birthDate || "—"],
-                      ["Microchip", horse.microchip || "Not provided"],
+                      ["Identification code", horse.microchip || "Not provided"],
                       ["Age", `${horse.age} years old`],
                       ["Coat colour", horse.color],
                       ["Weight", `${horse.weight} kg`],
@@ -4490,7 +4490,7 @@ function HorseCreatePage({
             label="Gender"
             value={form.gender}
             onChange={set("gender")}
-            options={["Stallion", "Mare"].map((v) => ({ value: v, label: v }))}
+            options={[{ value: "Stallion", label: "Male" }, { value: "Mare", label: "Female" }]}
           />
           <Input
             label="Date of birth"

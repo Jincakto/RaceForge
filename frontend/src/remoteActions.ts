@@ -12,6 +12,8 @@ interface State extends RemoteSlice { user: AppUser | null; }
 interface Env { getState: () => State; reload: () => Promise<void>; success: (message: string) => void; error: (message: string) => void; navigate: (page: string) => void; }
 const locks = new Set<string>();
 const createdRegistrations = new Map<string, { id: string; raceKeys: Set<string> }>();
+// Resume profile creation without creating the staff account a second time.
+const pendingTrainerProfiles = new Map<string, string>();
 export function makeRemoteActions(env: Env) {
   const { getState, reload, success, error, navigate } = env;
   const unavailable = (label: string): never => { throw new Error(`The API is not yet available for ${label}. Changes have not been saved.`); };
@@ -112,7 +114,24 @@ export function makeRemoteActions(env: Env) {
     unlock: (id: string, reason: string) => result<null>(`unlock-${id}`, async () => { await request(`/medical/horses/${enc(id)}/training-lock/unlock`, 'POST', { reason }); return null; }),
     createAccount: (u: AppUser) => fire('create-account', async () => {
       if (!u.role || ['owner', 'admin'].includes(u.role)) throw new Error("Administrators create staff accounts here. Horse owners register themselves.");
-      await request('/admin/users', 'POST', { fullName: u.name, email: u.email, phone: u.phone || '', roleId: staffRoleId(u.role, getState().user) });
+      const key = `${getState().user?.id}:${u.email.trim().toLowerCase()}`;
+      let trainerUserId = pendingTrainerProfiles.get(key);
+      if (trainerUserId && u.role !== 'head_trainer') throw new Error("This trainer account was already created. Keep the Trainer role to retry creating its professional profile.");
+      if (!trainerUserId) {
+        const created = await request('/admin/users', 'POST', { fullName: u.name, email: u.email, phone: u.phone || '', roleId: staffRoleId(u.role, getState().user) });
+        if (u.role === 'head_trainer') {
+          trainerUserId = created.userId;
+          pendingTrainerProfiles.set(key, trainerUserId!);
+        }
+      }
+      if (u.role === 'head_trainer') {
+        try {
+          await request('/trainer-profiles', 'POST', { userId: trainerUserId, bio: '', qualifications: '' });
+          pendingTrainerProfiles.delete(key);
+        } catch (cause) {
+          throw new Error(`Trainer account ${trainerUserId} was created, but its professional profile could not be created. Retry with the same email to retry only the profile. ${(cause as Error).message}`);
+        }
+      }
     }, "Staff account created. A password setup invitation email will be sent."),
     createTrainerProfile: (userId: string) => fire(`trainer-profile-${userId}`, async () => {
       const state = getState();

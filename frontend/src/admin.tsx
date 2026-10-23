@@ -1,5 +1,5 @@
 import { permissionForPage } from './permissionApi';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import type { AppUser, Club, Role } from './data';
 import { Badge, Btn, Card, Input, Select, Textarea } from './ui';
 
@@ -278,9 +278,12 @@ function genPassword() {
 function CreateAccountModal({ users, clubs, onCreate, onClose }: { users: AppUser[]; clubs: Club[]; onCreate: (u: AppUser) => Promise<unknown>; onClose: () => void }) {
   const [f, setF] = useState({ name: '', email: '', phone: '', role: 'veterinarian' as Role, clubId: clubs[0]?.id || '', password: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [creating, setCreating] = useState(false);
+  const createFlight = useRef(false);
   const set = (k: string) => (v: string) => { setF(p => ({ ...p, [k]: v })); setErrors(e => ({ ...e, [k]: '' })); };
 
   const submit = async () => {
+    if (createFlight.current) return;
     const e: Record<string, string> = {};
     const name = f.name.trim();
     if (!name) e.name = "Enter a full name."; else if (name.length < 2 || name.length > 60) e.name = "Full name must contain 2–60 characters.";
@@ -288,30 +291,29 @@ function CreateAccountModal({ users, clubs, onCreate, onClose }: { users: AppUse
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(f.email.trim())) e.email = "Enter a valid email address (e.g. name@raceforce.vn).";
     else if (users.some(u => u.email.toLowerCase() === f.email.trim().toLowerCase())) e.email = "This email address is already in use.";
     if (f.phone && !/^0\d{9}$/.test(f.phone.replace(/\s/g, ''))) e.phone = "Phone number must contain 10 digits and start with 0.";
-    if (!f.clubId) e.clubId = "Select a center.";
     setErrors(e);
     if (Object.keys(e).length) return;
     const initials = name.split(/\s+/).map(w => w[0]).slice(-2).join('').toUpperCase();
+    createFlight.current = true;
+    setCreating(true);
     try { await onCreate({ id: `u${Date.now()}`, name, email: f.email.trim().toLowerCase(), password: f.password, avatar: initials, role: f.role, clubId: f.clubId, status: 'active', phone: f.phone, verified: false, mustChangePassword: false }); } catch (err) { setErrors({ email: (err as Error).message }); }
+    finally { createFlight.current = false; setCreating(false); }
   };
 
   return (
-    <Modal title="Create staff account" onClose={onClose} wide>
-      <div className="space-y-4">
+    <Modal title="Create staff account" onClose={() => { if (!createFlight.current) onClose(); }} wide>
+      <fieldset disabled={creating} className="space-y-4">
         <Field label="Full name" required error={errors.name}><Input value={f.name} onChange={set('name')} placeholder="Alex Smith" /></Field>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Email" required error={errors.email}><Input value={f.email} onChange={set('email')} placeholder="ten@raceforce.vn" /></Field>
           <Field label="Phone number" error={errors.phone}><Input value={f.phone} onChange={set('phone')} placeholder="0912345678" /></Field>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Role" required><Select value={f.role} onChange={set('role')} options={STAFF_ROLES.map(r => ({ value: r, label: ROLE_NAME[r] }))} /></Field>
-          <Field label="Club" required error={errors.clubId}><Select value={f.clubId} onChange={set('clubId')} options={clubs.map(c => ({ value: c.id, label: c.name }))} /></Field>
-        </div>
+        <Field label="Role" required><Select value={f.role} onChange={set('role')} options={STAFF_ROLES.map(r => ({ value: r, label: ROLE_NAME[r] }))} /></Field>
         <Field label="Set password" hint="An invitation email will be sent. Staff set their own password using the email link.">
           <Input value="Send invitation email" onChange={() => {}} />
         </Field>
-      </div>
-      <div className="mt-6 flex justify-end gap-2"><Btn variant="secondary" onClick={onClose}>Cancel</Btn><Btn onClick={submit}>Create account</Btn></div>
+      </fieldset>
+      <div className="mt-6 flex justify-end gap-2"><Btn variant="secondary" disabled={creating} onClick={onClose}>Cancel</Btn><Btn disabled={creating} onClick={submit}>{creating ? 'Creating...' : 'Create account'}</Btn></div>
     </Modal>
   );
 }

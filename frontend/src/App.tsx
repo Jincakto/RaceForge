@@ -7640,7 +7640,6 @@ function ProfilePage({
           Save
         </Btn>
       </Card>
-      {user.role === "veterinarian" && <TrainingProtocolsPage />}
       {user.role === "head_trainer" && (
         <TrainerProfileForm
           key={user.id}

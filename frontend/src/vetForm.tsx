@@ -165,6 +165,9 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, today
   const wt = evalWeight(weight);
   const vitalsDone = VITAL_DEFS.every(d => vitalOk(vs[d.key])) && wt.ok;
   const regionsDone = REGION_DEFS.every(r => regions[r.key] === 'ok' || (regions[r.key] === 'bad' && (notes[r.key] || '').trim().length >= 3));
+  // The decision unlocks only when step 2 (vital signs) and step 3 (clinical exam) are complete and valid.
+  const decisionLocked = !vitalsDone || !regionsDone;
+  const lockMissing = [!vitalsDone && 'step 2 (vital signs)', !regionsDone && 'step 3 (clinical examination)'].filter(Boolean) as string[];
   const findings: Finding[] = [];
   VITAL_DEFS.forEach(d => {
     const s = vs[d.key];
@@ -187,6 +190,8 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, today
     return () => { active = false; clearTimeout(timer); };
   }, [previewKey]);
   const currentPreview = preview?.key === previewKey ? preview : null;
+  // If the vet edits a value back to missing/invalid after choosing, drop the stale choice: it no longer rests on valid data.
+  useEffect(() => { if (decisionLocked) setDecision(''); }, [decisionLocked]);
   const overall: Level = currentPreview?.level === 'CRITICAL' ? 'fail' : currentPreview?.level === 'WARNING' ? 'watch' : currentPreview?.level === 'NORMAL' ? 'pass' : findings.some(f => f.level === 'fail') ? 'fail' : findings.length ? 'watch' : 'pass';
   const overallCfg = {
     pass: { label: "Normal", cls: 'border-emerald-300 bg-emerald-50 text-emerald-800', icon: '🟢' },
@@ -533,31 +538,41 @@ export function VetHealthFormPage({ state, navigate, onSave, onSaveRecord, today
         {/* 4. Kết luận */}
         <Card className="p-5">
           <SectionHead n={4} title="Veterinarian decision" sub="The system suggests an assessment based on the entered data; the veterinarian makes the final decision." />
+          {decisionLocked ? (
+            <div role="status" className="mb-4 flex items-start gap-3 rounded-xl border border-dashed border-slate-400 bg-slate-100 p-4 text-slate-700">
+              <span aria-hidden="true" className="text-lg leading-none">🔒</span>
+              <div>
+                <p className="text-sm font-semibold">Complete steps 2 and 3 to receive a system suggestion.</p>
+                <p className="mt-0.5 text-xs text-slate-500">Missing or invalid: {lockMissing.join(', ')}.</p>
+              </div>
+            </div>
+          ) : (
           <div className={`mb-4 rounded-xl border p-4 ${overallCfg.cls}`}>
             <div className="flex flex-wrap items-center gap-2">
               <span>{overallCfg.icon}</span><span className="text-sm font-bold">Overall condition: {overallCfg.label}</span>
               <span className="text-xs opacity-75">(derived from the most severe finding)</span>
             </div>
-            {!vitalsDone || !regionsDone ? <p className="mt-1 text-sm opacity-80">Complete steps 2 and 3 to receive a system suggestion.</p> : <>
+            <>
               <p className="mt-1 text-sm"><b>Suggestion:</b> {suggestionText}</p>
               {findings.length > 0 && <ul className="mt-2 space-y-0.5 text-xs">{findings.map((f, i) => <li key={i}>{f.level === 'fail' ? '✕' : '⚠'} <b>{f.label}:</b> {f.text}</li>)}</ul>}
               <div className="mt-3"><Btn size="sm" variant="secondary" onClick={() => setDecision(suggestedDecision)}>Use suggestion</Btn></div>
-            </>}
+            </>
           </div>
+          )}
 
-          <div className="mt-4">
-            <div className="mb-1 text-sm font-medium text-gray-700">Decision <span className="text-red-500">*</span></div>
+          <fieldset disabled={decisionLocked} aria-disabled={decisionLocked} className={`m-0 mt-4 min-w-0 border-0 p-0 ${decisionLocked ? 'opacity-60' : ''}`}>
+            <legend className="mb-1 p-0 text-sm font-medium text-gray-700">Decision <span className="text-red-500">*</span></legend>
             <div className="grid gap-2 md:grid-cols-3">
-              <button type="button" onClick={() => setDecision('eligible')} className={`flex-1 rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold transition-all ${decision === 'eligible' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 text-gray-600 hover:border-emerald-300'}`}>✓ Eligible for training</button>
-              <button type="button" onClick={() => setDecision('conditional')} className={`flex-1 rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold transition-all ${decision === 'conditional' ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 text-gray-600 hover:border-amber-300'}`}>! Eligible, but needs monitoring</button>
-              <button type="button" onClick={() => setDecision('not-eligible')} className={`flex-1 rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold transition-all ${decision === 'not-eligible' ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-200 text-gray-600 hover:border-red-300'}`}>✕ Not fit; lock training</button>
+              <button type="button" onClick={() => setDecision('eligible')} className={`flex-1 rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold transition-all ${decision === 'eligible' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-gray-200 text-gray-600 hover:border-emerald-300'} disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:hover:border-slate-200`}>✓ Eligible for training</button>
+              <button type="button" onClick={() => setDecision('conditional')} className={`flex-1 rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold transition-all ${decision === 'conditional' ? 'border-amber-500 bg-amber-50 text-amber-800' : 'border-gray-200 text-gray-600 hover:border-amber-300'} disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:hover:border-slate-200`}>! Eligible, but needs monitoring</button>
+              <button type="button" onClick={() => setDecision('not-eligible')} className={`flex-1 rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold transition-all ${decision === 'not-eligible' ? 'border-red-500 bg-red-50 text-red-700' : 'border-gray-200 text-gray-600 hover:border-red-300'} disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:hover:border-slate-200`}>✕ Not fit; lock training</button>
             </div>
-            {decisionError ? <p className="mt-0.5 text-xs text-red-600">{decisionError}</p> : <p className="mt-0.5 text-xs text-gray-400">Selecting "Not fit" pauses training for a horse currently in training.</p>}
+            {decisionLocked ? <p className="mt-0.5 text-xs text-slate-500">The decision unlocks once steps 2 and 3 are complete.</p> : decisionError ? <p className="mt-0.5 text-xs text-red-600">{decisionError}</p> : <p className="mt-0.5 text-xs text-gray-400">Selecting "Not fit" pauses training for a horse currently in training.</p>}
             {decision === 'conditional' && <div className="mt-4"><Textarea label="Monitoring instructions" required rows={2} value={followUpNote} onChange={setFollowUpNote} placeholder="Example: Monitor heart rate and reduce intensity by 20% for 7 days" hint="At least 10 characters." /></div>}
             {decision === 'not-eligible' && <div className="mt-4"><Textarea label="Reason for training lock" required rows={2} value={decisionReason} onChange={setDecisionReason} placeholder="Describe the findings or risks preventing the horse from training" hint="At least 10 characters." /></div>}
             {needsOverride && vitalsDone && regionsDone && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3"><Textarea label="Reason for overriding the system suggestion" required rows={2} value={overrideReason} onChange={setOverrideReason} placeholder="Explain your clinical assessment" hint="At least 10 characters; saved in the medical record." /></div>}
             {conclusionError && <p className="mt-2 text-xs text-red-600">{conclusionError}</p>}
-          </div>
+          </fieldset>
 
           {decision && <div className="mt-4 rounded-xl border-l-4 border-[#c9973b] bg-[#c9973b]/10 p-4"><div className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#8a6620]">The generated conclusion will appear in the record</div><p className="text-sm text-gray-800">{autoConclusion}</p></div>}
 

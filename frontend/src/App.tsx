@@ -1778,8 +1778,16 @@ function ManagerDashboard({
   state: AppState;
   navigate: (p: Page) => void;
 }) {
-  const myClub = state.clubs.find((c) => c.managerId === state.user!.id);
-  const horses = state.horses.filter((h) => h.clubId === myClub?.id);
+  const clubId = state.user!.clubId;
+  const myClub = state.clubs.find((c) => c.id === clubId);
+  const horses = state.horses.filter((h) => !!clubId && h.clubId === clubId && h.approvalStatus === 'approved');
+  const members = state.users.filter(u => !!clubId && u.clubId === clubId);
+  const [performanceHorseId, setPerformanceHorseId] = useState('');
+  const performanceHorse = horses.find(h => h.id === performanceHorseId) || horses[0];
+  const performanceData = state.trainingSessions
+    .filter(s => s.horseId === performanceHorse?.id && s.result && Number.isFinite(Number(s.result.speed)))
+    .map(s => ({ date: s.date, speed: Number(s.result!.speed), sortKey: s.date.split('/').reverse().join('-') + s.time }))
+    .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
   const pendingHorses = myClub
     ? state.horseClubRequests.filter(
         (r) => r.clubId === myClub.id && r.status === "pending",
@@ -1884,7 +1892,7 @@ function ManagerDashboard({
         />
         <StatCard
           label="Members"
-          value={myClub?.memberCount || 0}
+          value={members.length}
           color="navy"
         />
       </div>
@@ -1896,6 +1904,7 @@ function ManagerDashboard({
               View all →
             </Btn>
           </div>
+          {horses.length === 0 && <p className="py-8 text-center text-sm text-gray-500">No admitted horses in the club yet.</p>}
           {horses.map((h) => (
             <div
               key={h.id}
@@ -1918,18 +1927,14 @@ function ManagerDashboard({
           ))}
         </Card>
         <Card className="p-5">
-          <h3 className="font-semibold mb-4">Performance — Thunder King</h3>
-          <ResponsiveContainer width="100%" height={200}>
+          <h3 className="font-semibold mb-4">Performance{performanceHorse ? ` — ${performanceHorse.name}` : ''}</h3>
+          {horses.length > 0 && <div className="mb-4"><Select label="Horse" value={performanceHorse?.id || ''} onChange={setPerformanceHorseId} options={horses.map(h => ({ value: h.id, label: `${h.name} (${h.id})` }))} /></div>}
+          {performanceData.length === 0 ? <p className="py-8 text-center text-sm text-gray-500">No training performance results available for this horse.</p> : <ResponsiveContainer width="100%" height={200}>
             <LineChart
-              data={state.trainingSessions
-                .filter((s) => s.result)
-                .map((s) => ({
-                  month: s.date,
-                  speed: Number(s.result?.speed),
-                }))}
+              data={performanceData}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
               <Line
@@ -1937,19 +1942,11 @@ function ManagerDashboard({
                 dataKey="speed"
                 stroke="#c9973b"
                 strokeWidth={2}
-                dot={false}
+                dot={{ r: 4 }}
                 name="Speed km/h"
               />
-              <Line
-                type="monotone"
-                dataKey="fitness"
-                stroke="#1a4a3a"
-                strokeWidth={2}
-                dot={false}
-                name="Fitness %"
-              />
             </LineChart>
-          </ResponsiveContainer>
+          </ResponsiveContainer>}
         </Card>
       </div>
     </div>

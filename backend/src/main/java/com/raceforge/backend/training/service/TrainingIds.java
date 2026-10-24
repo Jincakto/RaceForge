@@ -1,4 +1,4 @@
-package com.raceforge.backend.training.support;
+package com.raceforge.backend.training.service;
 import com.raceforge.backend.common.exception.BusinessRuleException;
 import com.raceforge.backend.horse.service.ModuleIdAllocator;
 import org.springframework.jdbc.core.JdbcTemplate;

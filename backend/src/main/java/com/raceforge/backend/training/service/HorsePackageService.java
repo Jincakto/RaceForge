@@ -81,6 +81,9 @@ public class HorsePackageService {
         }
 
         workflowGuard.requireHealthy(horse);
+        if ("RACING".equals(trainingPackage.getPackageType())) {
+            workflowGuard.requireRacingEligible(horse);
+        }
         HealthProfile profile = healthProfileRepository.findByHorse_HorseId(horse.getHorseId())
                 .orElseThrow(() -> new BusinessRuleException("Initial medical examination is required"));
         boolean initialConfirmed = medicalRecordRepository

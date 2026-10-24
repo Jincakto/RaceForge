@@ -1,4 +1,5 @@
-package com.raceforge.backend.training.support;
+package com.raceforge.backend.training.entity;
+import com.raceforge.backend.training.service.TrainingIds;
 import jakarta.persistence.*;
 import java.lang.reflect.Field;
 import java.util.Map;

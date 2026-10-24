@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { AppUser, Horse, HorseClubRequest, HealthRecord } from './data';
-import { Btn, Card, Select } from './ui';
+import { Btn, Card } from './ui';
 import { IdChip, ReasonDialog, Modal } from './admin';
 
 export const INTAKE_STEPS = ['Profile created', 'Club assigns veterinarian', 'Veterinarian accepts case', 'Examination & decision', 'Club admission decision'];
@@ -48,6 +48,7 @@ export function IdentityBadge({ verified }: { verified?: boolean }) {
 }
 
 const VET_STATUS: Record<string, string> = { pending: 'Awaiting veterinarian', accepted: 'Accepted', declined: 'Veterinarian declined' };
+const searchText = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[đĐ]/g, 'd').toLowerCase().trim();
 
 export function AssignHistory({ horse, onClose }: { horse: Horse; onClose: () => void }) {
   return (
@@ -74,8 +75,8 @@ type Handlers = {
   onOpenHorse: (id: string) => void;
 };
 
-export function IntakeBoardPage({ user, horses, requests, records, users, onVerify, onAssign, onApprove, onReject, onOpenHorse }:
-  { user: AppUser; horses: Horse[]; requests: HorseClubRequest[]; records: HealthRecord[]; users: AppUser[] } & Handlers) {
+export function IntakeBoardPage({ user, horses, requests, records, users, onVerify, onAssign, onApprove, onReject, onOpenHorse, detail = false }:
+  { user: AppUser; horses: Horse[]; requests: HorseClubRequest[]; records: HealthRecord[]; users: AppUser[]; detail?: boolean } & Handlers) {
   const mine = requests.filter(r => r.clubId === user.clubId);
   const open = mine.filter(r => r.status === 'pending');
   const done = mine.filter(r => r.status !== 'pending');
@@ -83,6 +84,15 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
   const [filter, setFilter] = useState(0);
   const [pick, setPick] = useState<{ horse: Horse; vetId: string } | null>(null);
   const [pickErr, setPickErr] = useState('');
+  const [vetSearch, setVetSearch] = useState('');
+  const [showVetSuggestions, setShowVetSuggestions] = useState(false);
+  const matchingVets = vets.filter(v => searchText(`${v.name} ${v.id}`).includes(pick?.vetId ? '' : searchText(vetSearch)));
+  const openPicker = (horse: Horse) => {
+    setVetSearch('');
+    setShowVetSuggestions(false);
+    setPickErr('');
+    setPick({ horse, vetId: '' });
+  };
   const [replace, setReplace] = useState<{ horse: Horse; vetId: string } | null>(null);
   const [rejectFor, setRejectFor] = useState<HorseClubRequest | null>(null);
   const [approveFor, setApproveFor] = useState<HorseClubRequest | null>(null);
@@ -109,15 +119,15 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
 
   return (
     <div className="space-y-5">
-      <div>
+      {!detail && <div>
         <h2 className="font-serif text-xl font-bold text-[#0f1729]">Horse intake</h2>
         <p className="text-sm text-gray-500">Profile creation → veterinarian assignment → examination → Club admission decision.</p>
-      </div>
-      <div className="flex flex-wrap gap-2">
+      </div>}
+      {!detail && <div className="flex flex-wrap gap-2">
         {[[0, 'All', open.length], [1, 'Needs assignment', count(1)], [2, 'Awaiting veterinarian', count(2)], [3, 'Awaiting examination', count(3)], [4, 'Awaiting my decision', count(4)]].map(([k, l, n]) => (
           <button key={k as number} onClick={() => setFilter(k as number)} className={`rounded-full border px-3 py-1 text-xs font-medium ${filter === k ? 'border-[#1a2844] bg-[#1a2844] text-white' : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`}>{l} ({n})</button>
         ))}
-      </div>
+      </div>}
 
       {shown.length === 0 && <Card className="p-12 text-center"><div className="mb-2 text-4xl">🐎</div><div className="font-semibold text-gray-600">No records in this section</div><div className="text-sm text-gray-400">New Horse Owner submissions will appear here.</div></Card>}
 
@@ -126,7 +136,7 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
         const declined = h?.vetAssign?.status === 'declined';
         return (
           <Card key={r.id} className="p-5">
-            <div className="flex flex-wrap items-start gap-4">
+            {!detail && <><div className="flex flex-wrap items-start gap-4">
               {h?.imageUrl ? <img src={h.imageUrl || undefined} alt={h.name} className="h-16 w-16 rounded-xl bg-gray-200 object-cover" /> : <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gray-100 text-2xl">🐎</div>}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2"><button onClick={() => h && onOpenHorse(h.id)} className="font-serif text-lg font-bold text-[#0f1729] hover:text-[#c9973b]">{r.horseName}</button>{h && <IdChip kind="HRS" id={h.id} />}<IdentityBadge verified={h?.identityVerified} /></div>
@@ -134,7 +144,7 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
                 <div className="mt-0.5 text-xs text-gray-400">Identification Code: {h?.microchip || 'Not provided'}</div>
               </div>
             </div>
-            <div className="mt-5"><IntakeProgress stage={st} /></div>
+            <div className="mt-5"><IntakeProgress stage={st} /></div></>}
 
             <div className="mt-4 rounded-lg bg-gray-50 p-3 text-sm">
               {st === 1 && <span>{declined ? <>Veterinarian <b>{h?.vetName}</b> declined — assign another veterinarian.</> : 'No veterinarian has been assigned.'}</span>}
@@ -151,11 +161,11 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
 
             <div className="mt-4 flex flex-wrap gap-2">
               {h && !h.identityVerified && <Btn size="sm" variant="secondary" onClick={() => onVerify(h.id, true)}>Verify identification</Btn>}
-              {h && st === 1 && <Btn size="sm" onClick={() => { setPickErr(''); setPick({ horse: h, vetId: '' }); }}>Assign veterinarian</Btn>}
-              {h && (st === 2 || st === 3) && <Btn size="sm" variant="secondary" onClick={() => { setPickErr(''); setPick({ horse: h, vetId: '' }); }}>Reassign</Btn>}
+              {h && st === 1 && <Btn size="sm" onClick={() => openPicker(h)}>Assign veterinarian</Btn>}
+              {h && (st === 2 || st === 3) && <Btn size="sm" variant="secondary" onClick={() => openPicker(h)}>Reassign</Btn>}
               {st === 4 && <><Btn size="sm" variant="gold" onClick={() => tryApprove(r, h)}>Admit to club</Btn><Btn size="sm" variant="danger" onClick={() => setRejectFor(r)}>Reject</Btn></>}
               {h && (h.vetAssign?.history.length || 0) > 0 && <Btn size="sm" variant="ghost" onClick={() => setHistory(h)}>Assignment history</Btn>}
-              {h && <Btn size="sm" variant="ghost" onClick={() => onOpenHorse(h.id)}>View horse profile</Btn>}
+              {h && !detail && <Btn size="sm" variant="ghost" onClick={() => onOpenHorse(h.id)}>View horse profile</Btn>}
             </div>
           </Card>
         );
@@ -178,7 +188,22 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
       {pick && (
         <Modal title={pick.horse.vetId ? 'Reassign veterinarian' : 'Assign veterinarian'} onClose={() => setPick(null)}>
           <p className="mb-3 text-sm text-gray-600">Horse: <b>{pick.horse.name}</b>{pick.horse.vetName && <> · currently assigned to <b>{pick.horse.vetName}</b></>}</p>
-          <Select label="Veterinarian" value={pick.vetId} error={pickErr} onChange={v => { setPick({ ...pick, vetId: v }); setPickErr(''); }} options={[{ value: '', label: '— Select a veterinarian —' }, ...vets.map(v => ({ value: v.id, label: v.name }))]} />
+          <div className="relative mb-3" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setShowVetSuggestions(false); }} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setShowVetSuggestions(false); } }}>
+            <label htmlFor="intake-vet-search" className="mb-1 block text-sm font-medium">Veterinarian</label>
+            <input id="intake-vet-search" type="search" autoComplete="off" value={vetSearch} placeholder="Search by name or ID..."
+              aria-expanded={showVetSuggestions} aria-controls="intake-vet-suggestions" aria-invalid={!!pickErr} aria-describedby={pickErr ? 'intake-vet-error' : undefined}
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#c9973b] focus:ring-2 focus:ring-[#c9973b]/20"
+              onFocus={() => setShowVetSuggestions(true)} onClick={() => setShowVetSuggestions(true)}
+              onChange={event => { setVetSearch(event.target.value); setPick({ ...pick, vetId: '' }); setPickErr(''); setShowVetSuggestions(true); }} />
+            {showVetSuggestions && <div id="intake-vet-suggestions" className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+              {matchingVets.map(v => <button key={v.id} type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-amber-50 focus:bg-amber-50 focus:outline-none"
+                onClick={() => { setPick({ ...pick, vetId: v.id }); setVetSearch(`${v.name} (${v.id})`); setPickErr(''); setShowVetSuggestions(false); }}>
+                <span className="font-medium">{v.name}</span> <span className="text-gray-500">({v.id})</span>
+              </button>)}
+              {matchingVets.length === 0 && <p role="status" className="px-3 py-2 text-sm text-gray-500">No veterinarians found.</p>}
+            </div>}
+          </div>
+          {pickErr && <p id="intake-vet-error" role="alert" className="mt-2 text-sm text-red-600">{pickErr}</p>}
           <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setPick(null)}>Cancel</Btn><Btn onClick={choose}>{pick.horse.vetId && pick.horse.vetAssign?.status !== 'declined' ? 'Continue' : 'Assign'}</Btn></div>
         </Modal>
       )}
@@ -194,7 +219,7 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
       )}
       {approveFor && (
         <Modal title="Confirm club admission" onClose={() => setApproveFor(null)}>
-          <p className="text-sm text-gray-600">Admit <b>{approveFor.horseName}</b> to the club? The horse will appear in the Horse List and its core profile fields will be locked.</p>
+          <p className="text-sm text-gray-600">Admit and activate <b>{approveFor.horseName}</b>? The horse will appear in the Horse List and its core profile fields will be locked.</p>
           <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setApproveFor(null)}>Cancel</Btn><Btn variant="gold" onClick={async () => { try { await onApprove(approveFor.id); setApproveFor(null); } catch (e) { setWarn(w => ({ ...w, [approveFor.id]: (e as Error).message })); } }}>Admit</Btn></div>
         </Modal>
       )}
@@ -209,6 +234,8 @@ export function VetAssignedPage({ user, horses, requests, onRespond, onExam, onO
 }) {
   const mine = horses.filter(h => h.vetId === user.id && h.vetAssign);
   const [respond, setRespond] = useState<{ horse: Horse; accept: boolean } | null>(null);
+  const [accepting, setAccepting] = useState(false);
+  const [acceptError, setAcceptError] = useState('');
   const [history, setHistory] = useState<Horse | null>(null);
   const reqOf = (h: Horse) => requests.find(r => r.horseId === h.id);
   return (
@@ -232,7 +259,7 @@ export function VetAssignedPage({ user, horses, requests, onRespond, onExam, onO
                 <div className="mt-1 text-xs"><span className={`rounded-full border px-2 py-0.5 font-medium ${status === 'pending' ? 'border-sky-200 bg-sky-50 text-sky-700' : status === 'accepted' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>{VET_STATUS[status]}</span></div>
               </div>
               <div className="flex flex-wrap gap-2">
-                {status === 'pending' && <><Btn size="sm" onClick={() => setRespond({ horse: h, accept: true })}>Accept</Btn><Btn size="sm" variant="danger" onClick={() => setRespond({ horse: h, accept: false })}>Decline</Btn></>}
+                {status === 'pending' && <><Btn size="sm" onClick={() => { setAcceptError(''); setRespond({ horse: h, accept: true }); }}>Accept</Btn><Btn size="sm" variant="danger" onClick={() => setRespond({ horse: h, accept: false })}>Decline</Btn></>}
                 {status === 'accepted' && st === 3 && <Btn size="sm" variant="gold" onClick={() => onExam(h.id)}>Examine now</Btn>}
                 <Btn size="sm" variant="ghost" onClick={() => onOpenHorse(h.id)}>Profile</Btn>
                 <Btn size="sm" variant="ghost" onClick={() => setHistory(h)}>History</Btn>
@@ -242,10 +269,26 @@ export function VetAssignedPage({ user, horses, requests, onRespond, onExam, onO
           </Card>
         );
       })}
-      {respond && (
-        <ReasonDialog title={respond.accept ? 'Accept examination' : 'Decline examination'} danger={!respond.accept} confirmLabel={respond.accept ? 'Accept' : 'Decline'} onClose={() => setRespond(null)}
-          description={<p>{respond.accept ? 'You will be responsible for the intake examination of' : 'The Club Manager must assign another veterinarian. You are declining'} <b>{respond.horse.name}</b>.</p>}
-          onConfirm={async reason => { await onRespond(respond.horse.id, respond.accept, reason); setRespond(null); }} />
+      {respond?.accept && (
+        <Modal title="Accept examination" onClose={() => { if (!accepting) setRespond(null); }}>
+          <p className="text-sm text-gray-600">You will be responsible for the intake examination of <b>{respond.horse.name}</b>.</p>
+          {acceptError && <p role="alert" className="mt-3 text-sm text-red-600">{acceptError}</p>}
+          <div className="mt-5 flex justify-end gap-2">
+            <Btn variant="secondary" disabled={accepting} onClick={() => setRespond(null)}>Cancel</Btn>
+            <Btn disabled={accepting} onClick={async () => {
+              if (accepting) return;
+              setAccepting(true); setAcceptError('');
+              try { await onRespond(respond.horse.id, true, ''); setRespond(null); }
+              catch (error) { setAcceptError((error as Error).message); }
+              finally { setAccepting(false); }
+            }}>{accepting ? 'Accepting...' : 'Accept'}</Btn>
+          </div>
+        </Modal>
+      )}
+      {respond && !respond.accept && (
+        <ReasonDialog title="Decline examination" danger confirmLabel="Decline" onClose={() => setRespond(null)}
+          description={<p>The Club Manager must assign another veterinarian. You are declining <b>{respond.horse.name}</b>.</p>}
+          onConfirm={async reason => { await onRespond(respond.horse.id, false, reason); setRespond(null); }} />
       )}
       {history && <AssignHistory horse={history} onClose={() => setHistory(null)} />}
     </div>

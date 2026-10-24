@@ -2,7 +2,7 @@ package com.raceforge.backend.training.entity;
 import jakarta.persistence.*;
 /** Maps Training_Recommendation; application writes are validated by the workflow services. */
 @Entity @Table(name="Training_Recommendation")
-public class TrainingRecommendation extends com.raceforge.backend.training.support.TrainingEntity {
+public class TrainingRecommendation extends com.raceforge.backend.training.entity.TrainingEntity {
  @Id @Column(name="recommendation_id",length=20) private String recommendationId;
  @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="horse_package_id",nullable=false) private HorsePackage horsePackage;
  @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="assignment_id",nullable=false) private TrainerAssignment assignment;

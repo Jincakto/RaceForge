@@ -1,8 +1,10 @@
-import { idPath as enc, request } from './api';
+import { selectedStages, scheduleRows } from './trainingSchedule';
+import { trainingTimestamp } from './trainingTimestamp';
+import { ApiError, idPath as enc, request } from './api';
 import { staffRoleId, ROLE_NAMES, isoDate, enrollmentFromApi, horsePayload, medicalPayload, packageFromApi, planFromApi, recordFromApi, sessionFromApi } from './remote';
 import type { RemoteSlice } from './remote';
 import type { AppUser, Horse, HealthRecord, Res, Enrollment, TrainingPackage, TrainingPlan, TrainingSession, Role } from './data';
-import type { PackageDraft, PlanDraft, SessionDraft } from './trainingLogic';
+import type { PackageDraft, PlanDraft, SessionDraft, SessionWriteOptions } from './trainingLogic';
 import { changePermission, permissionForPage } from './permissionApi';
 import { recommendationFor } from './recommendations';
 
@@ -12,9 +14,9 @@ const locks = new Set<string>();
 const createdRegistrations = new Map<string, { id: string; raceKeys: Set<string> }>();
 export function makeRemoteActions(env: Env) {
   const { getState, reload, success, error, navigate } = env;
-  const unavailable = (label: string): never => { throw new Error(`BE hiện chưa có API cho ${label}. Chưa lưu thay đổi.`); };
-  async function run<T>(key: string, action: () => Promise<T>, message = 'Đã lưu trên máy chủ.'): Promise<T> {
-    if (locks.has(key)) throw new Error('Yêu cầu đang được xử lý.');
+  const unavailable = (label: string): never => { throw new Error(`The API is not yet available for ${label}. Changes have not been saved.`); };
+  async function run<T>(key: string, action: () => Promise<T>, message = "Saved on the server."): Promise<T> {
+    if (locks.has(key)) throw new Error("A request is already being processed.");
     locks.add(key);
     try { const result = await action(); await reload(); if (message) success(message); return result; }
     finally { locks.delete(key); }
@@ -37,10 +39,10 @@ export function makeRemoteActions(env: Env) {
   return {
     togglePermission: (role: Role, page: string, enabled: boolean, _reason: string) => fire(`permission-${role}-${page}`, async () => {
       const code = permissionForPage(role, page);
-      if (!code) unavailable('cấp quyền cho chức năng này: BE ràng buộc trực tiếp theo role');
+      if (!code) unavailable("granting access to this feature: the server controls it directly by role");
       await changePermission(ROLE_NAMES[role], code!, enabled);
     }),
-    unavailable: (label: string) => { error(`BE chưa có API cho ${label}; thao tác chưa được lưu.`); },
+    unavailable: (label: string) => { error(`The API is not available for ${label}; the operation has not been saved.`); },
     async createHorse(horse: Horse) {
       return fire('create-horse', async () => {
         const key = `${getState().user?.id}:${horse.microchip?.trim().toUpperCase()}`;
@@ -59,21 +61,17 @@ export function makeRemoteActions(env: Env) {
           createdRegistrations.delete(key);
         } catch (e) { await reload(); throw e; }
         navigate('my-horses');
-      }, 'Đã tạo ngựa và gửi hồ sơ tiếp nhận.');
+      }, "Horse created and admission application submitted.");
     },
     async updateHorse(next: Horse) {
       return fire(`horse-${next.id}`, async () => {
-        const prev = getState().horses.find(h => h.id === next.id); if (!prev) throw new Error('Không tìm thấy ngựa.');
-        if (next.stable !== prev.stable || next.stall !== prev.stall || next.identityEvidence?.note !== prev.identityEvidence?.note) unavailable('lưu chuồng, ô chuồng hoặc ghi chú minh chứng');
-        if (JSON.stringify(next.photos) !== JSON.stringify(prev.photos)) unavailable('lưu bộ sưu tập ảnh');
-        if (JSON.stringify(next.editRequests) !== JSON.stringify(prev.editRequests)) unavailable('yêu cầu sửa hồ sơ sau duyệt');
-        if (JSON.stringify(next.achievements) !== JSON.stringify(prev.achievements)) unavailable('thành tích độc lập; hãy nhập kết quả tại tab lịch sử đua để lưu giải thưởng');
+        const prev = getState().horses.find(h => h.id === next.id); if (!prev) throw new Error("Horse not found.");
+        if (next.stable !== prev.stable || next.stall !== prev.stall || next.identityEvidence?.note !== prev.identityEvidence?.note) unavailable("saving stables, stalls or evidence notes");
+        if (JSON.stringify(next.photos) !== JSON.stringify(prev.photos)) unavailable("saving image galleries");
+        if (JSON.stringify(next.editRequests) !== JSON.stringify(prev.editRequests)) unavailable("requesting changes to an approved profile");
+        if (JSON.stringify(next.achievements) !== JSON.stringify(prev.achievements)) unavailable("standalone achievements; enter race results in the race history tab to save prizes");
         if (JSON.stringify(next.trainerHistory) !== JSON.stringify(prev.trainerHistory)) {
-          const before = new Set((prev.trainerHistory || []).filter(t => t.to === null).map(t => t.trainerId));
-          const after = new Set((next.trainerHistory || []).filter(t => t.to === null).map(t => t.trainerId));
-          for (const id of after) if (!before.has(id)) await request(`/horses/${enc(next.id)}/trainers`, 'POST', { trainerId: id });
-          for (const id of before) if (!after.has(id)) await request(`/horses/${enc(next.id)}/trainers/${enc(id)}`, 'DELETE');
-          return;
+          throw new Error("Assign trainers through a paid horse package on the Trainer assignments page.");
         }
         if (JSON.stringify(horsePayload(next)) !== JSON.stringify(horsePayload(prev))) await request(`/horses/${enc(next.id)}`, 'PUT', horsePayload(next));
         for (const old of prev.raceHistory) if (!next.raceHistory.some(r => r.id === old.id)) await request(`/horses/race-history/${enc(old.id)}`, 'DELETE');
@@ -85,18 +83,26 @@ export function makeRemoteActions(env: Env) {
       });
     },
     activateHorse: (id: string) => fire(`activate-${id}`, async () => {
-      if (getState().user?.role !== 'manager') throw new Error('Chỉ Club Manager được kích hoạt ngựa.');
+      if (getState().user?.role !== 'manager') throw new Error("Only a club manager may activate a horse.");
       const horse = getState().horses.find(h => h.id === id);
-      if (!horse || horse.approvalStatus !== 'approved') throw new Error('Cần duyệt tiếp nhận ngựa trước khi kích hoạt.');
+      if (!horse || horse.approvalStatus !== 'approved') throw new Error("Horse admission must be approved before activation.");
       await request(`/horses/${enc(id)}/activate`, 'PATCH');
-    }, 'Đã kích hoạt ngựa. Điều kiện sức khỏe và khóa huấn luyện vẫn được kiểm tra khi đăng ký gói.'),
+    }, "Horse activated. Health and training lock requirements still apply when registering for a package."),
     submitHorse: (id: string) => fire(`submit-${id}`, () => request(`/horses/${enc(id)}/admission`, 'POST')),
-    approveHorse: (id: string) => fire(`review-${id}`, () => request(`/horses/${enc(id)}/admission/approve`, 'POST', { note: 'Đã xem xét hồ sơ khám và minh chứng.' })),
+    approveHorse: (id: string) => fire(`review-${id}`, async () => {
+      await request(`/horses/${enc(id)}/admission/approve`, 'POST', { note: "Examination records and supporting evidence reviewed." });
+      try {
+        await request(`/horses/${enc(id)}/activate`, 'PATCH');
+      } catch (cause) {
+        await reload();
+        throw new Error(`Horse admission was approved, but activation failed. Retry activation from the horse profile. ${(cause as Error).message}`);
+      }
+    }, "Horse admitted to the club and activated."),
     rejectHorse: (id: string, note: string) => fire(`review-${id}`, () => request(`/horses/${enc(id)}/admission/reject`, 'POST', { note })),
     assignVet: (horseId: string, veterinarianId: string, _reason: string) => fire(`vet-${horseId}`, () => request(`/medical/assignments/horses/${enc(horseId)}`, 'POST', { veterinarianId })),
     respondVet: (horseId: string, accepted: boolean, reason: string) => fire(`vet-response-${horseId}`, () => {
       const id = getState().horses.find(h => h.id === horseId)?.vetAssignmentId;
-      if (!id) throw new Error('Không tìm thấy mã phân công thú y.');
+      if (!id) throw new Error("Veterinary assignment ID not found.");
       return request(`/medical/assignments/${enc(id)}/${accepted ? 'accept' : 'decline'}`, 'POST', accepted ? undefined : { reason });
     }),
     saveHealth: (rec: HealthRecord) => run(`medical-${rec.horseId}`, () => saveRecord(rec), ''),
@@ -105,19 +111,17 @@ export function makeRemoteActions(env: Env) {
     },
     unlock: (id: string, reason: string) => result<null>(`unlock-${id}`, async () => { await request(`/medical/horses/${enc(id)}/training-lock/unlock`, 'POST', { reason }); return null; }),
     createAccount: (u: AppUser) => fire('create-account', async () => {
-      if (!u.role || ['owner', 'admin'].includes(u.role)) throw new Error('Admin chỉ tạo tài khoản nhân sự tại đây. Chủ ngựa tự đăng ký.');
-      await request('/admin/users', 'POST', { fullName: u.name, email: u.email, phone: u.phone || '', roleId: staffRoleId(u.role, getState().user) });
-    }, 'Đã tạo tài khoản nhân sự. BE gửi email mời đặt mật khẩu.'),
-    createTrainerProfile: (userId: string) => fire(`trainer-profile-${userId}`, async () => {
-      const state = getState();
-      if (state.user?.role !== 'admin') throw new Error('Chỉ admin được tạo hồ sơ Trainer.');
-      const target = state.users.find(u => u.id === userId);
-      if (!target || target.role !== 'head_trainer' || target.status !== 'active' || target.locked) throw new Error('Trainer phải kích hoạt tài khoản bằng email mời trước khi tạo hồ sơ.');
-      if (target.trainerProfileId) throw new Error('Tài khoản đã có hồ sơ Trainer.');
-      await request('/trainer-profiles', 'POST', { userId, bio: target.bio || '', qualifications: target.certifications || '' });
-    }, 'Đã tạo hồ sơ Trainer. Club Manager tải lại danh sách để phân công.'),
+      if (!u.role || ['owner', 'admin'].includes(u.role)) throw new Error("Administrators create staff accounts here. Horse owners register themselves.");
+      const existing = getState().users.find(account => account.email.trim().toLowerCase() === u.email.trim().toLowerCase());
+      if (existing) throw new Error('This email already belongs to an account. Do not create it again.');
+      // Professional profiles are self-service after invitation activation.
+      await request('/admin/users', 'POST', {
+        fullName: u.name, email: u.email, phone: u.phone || '',
+        roleId: staffRoleId(u.role, getState().user),
+      });
+    }, "Staff account created. A password setup invitation email will be sent."),
     toggleLock: (id: string, _reason: string) => fire(`account-${id}`, () => request(`/users/${enc(id)}/status`, 'PATCH', { status: getState().users.find(u => u.id === id)?.locked ? 'ACTIVE' : 'INACTIVE' })),
-    invite: (id: string, _reason: string) => fire(`invite-${id}`, () => request(`/admin/users/${enc(id)}/invitation`, 'POST'), 'Đã gửi lại lời mời đặt mật khẩu qua email.'),
+    invite: (id: string, _reason: string) => fire(`invite-${id}`, () => request(`/admin/users/${enc(id)}/invitation`, 'POST'), "Password setup invitation email resent."),
     async purchasePackage(horseId: string, packageId: string, _renewOfId?: string, successful = true): Promise<Res<Enrollment>> {
       return result(`purchase-${horseId}`, async () => {
         const state = getState();
@@ -130,60 +134,54 @@ export function makeRemoteActions(env: Env) {
       });
     },
     savePackage: (draft: PackageDraft) => result<TrainingPackage>('package', async () => {
-      if (draft.id) unavailable('sửa gói huấn luyện');
+      if (draft.id) unavailable("editing training packages");
       return packageFromApi(await request('/training-packages', 'POST', { packageName: draft.name.trim(), packageType: draft.packageType, description: draft.description, durationDays: draft.durationDays, price: draft.price }));
     }),
-    togglePackage: (_id: string, _active: boolean) => result<TrainingPackage>('package-status', async () => unavailable('bật/tắt gói huấn luyện')),
+    togglePackage: (_id: string, _active: boolean) => result<TrainingPackage>('package-status', async () => unavailable("enabling or disabling training packages")),
     assignTrainer: (enrollmentId: string, userId: string, reason = '') => result<Enrollment>(`assign-${enrollmentId}`, async () => {
-      const state = getState(); const e = state.enrollments.find(e => e.id === enrollmentId); if (!e) throw new Error('Không tìm thấy gói.');
+      const state = getState(); const e = state.enrollments.find(e => e.id === enrollmentId); if (!e) throw new Error("Package not found.");
+      if (e.directAssignmentId || e.apiStatus !== 'ACTIVE' || e.paymentStatus !== 'PAID') throw new Error("Select an active, paid horse package before assigning a trainer.");
       const trainerId = state.users.find(u => u.id === userId)?.trainerProfileId;
-      if (!trainerId) throw new Error('Trainer chưa có hồ sơ nghiệp vụ. Nhờ admin mở Quản lý tài khoản và bấm Tạo hồ sơ Trainer, sau đó tải lại danh sách.');
+      if (!trainerId) throw new Error("The trainer has no professional profile. Ask an administrator to open Account management and select Create trainer profile, then refresh the list.");
       await request(e.assignmentId ? `/trainer-assignments/${enc(e.assignmentId)}/replace` : '/trainer-assignments', 'POST', e.assignmentId ? { trainerId, reason } : { trainerId, horsePackageId: enrollmentId });
       return { ...e, trainerId: userId, trainerStatus: 'pending' };
     }),
     respondAssign: (enrollmentId: string, accepted: boolean, reason = '') => result<null>(`respond-${enrollmentId}`, async () => {
       const entry = getState().enrollments.find(e => e.id === enrollmentId);
-      if (entry?.directAssignmentId) { await request(`/trainers/assignments/${enc(entry.directAssignmentId)}/${accepted ? 'accept' : 'decline'}`, 'POST', accepted ? undefined : { reason }); return null; }
-      const id = entry?.assignmentId; if (!id) throw new Error('Không tìm thấy mã phân công.');
+      if (entry?.directAssignmentId || !entry) throw new Error("A package-linked trainer assignment is required.");
+      const id = entry?.assignmentId; if (!id) throw new Error("Assignment ID not found.");
       await request(`/trainer-assignments/${enc(id)}/respond`, 'POST', { accepted, reason }); return null;
     }),
     createPlan: (draft: PlanDraft) => result<TrainingPlan>(`plan-${draft.horseId}`, async () => {
       const state = getState();
       const e = state.enrollments.find(e => e.horseId === draft.horseId && e.trainerId === state.user?.id && e.trainerStatus === 'confirmed' && e.status === 'active');
-      if (!e?.assignmentId) throw new Error('Cần gói đã thanh toán và phân công HLV đã được chấp nhận.');
+      if (!e?.assignmentId) throw new Error("A paid package and an accepted trainer assignment are required.");
       const recommendation = await recommendationFor(e.id, e.assignmentId);
-      const expectedDays = [...new Set<number>((recommendation.stages || []).flatMap((s: any) => s.daysOfWeek.map((d: string) => ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'].indexOf(d))))].sort();
-      if (draft.weekdays && JSON.stringify([...draft.weekdays].sort()) !== JSON.stringify(expectedDays)) throw new Error('Lịch chọn khác phác đồ được BE đề xuất. Giữ lịch đã được bác sĩ duyệt.');
-      if (draft.time && recommendation.stages.some((s: any) => s.sessionTime.slice(0,5) !== draft.time)) throw new Error('Giờ đã chọn khác phác đồ. Cần dùng giờ trong phác đồ được duyệt.');
-      if (isoDate(draft.startDate) !== isoDate(e.startedAt) || isoDate(draft.endDate) !== isoDate(e.expiresAt)) throw new Error('Ngày lộ trình phải khớp thời hạn gói đã thanh toán.');
-      const plan = await request(`/horses/${enc(draft.horseId)}/training-plans`, 'POST', { planName: draft.phase, goal: draft.goals, startDate: isoDate(e.startedAt), endDate: isoDate(e.expiresAt), assignmentId: e.assignmentId, recommendationId: recommendation.recommendationId, recommendationConfirmed: true, stages: recommendation.stages, notes: `${recommendation.rationale || ''}\n${recommendation.limitations || ''}` });
+      const selectedIntensity = draft.workload ? ({Low:'LOW',Medium:'MODERATE',High:'HIGH'} as Record<string,string>)[draft.workload] : undefined;
+      const stages = selectedStages(recommendation.stages || [], draft.weekdays, draft.time, selectedIntensity);
+      if (isoDate(draft.startDate) !== isoDate(e.startedAt) || isoDate(draft.endDate) !== isoDate(e.expiresAt)) throw new Error("Roadmap dates must match the paid package term.");
+      const plan = await request(`/horses/${enc(draft.horseId)}/training-plans`, 'POST', { planName: draft.phase, goal: draft.goals, startDate: isoDate(e.startedAt), endDate: isoDate(e.expiresAt), assignmentId: e.assignmentId, recommendationId: recommendation.recommendationId, recommendationConfirmed: true, stages, notes: `${recommendation.rationale || ''}\n${recommendation.limitations || ''}` });
       return planFromApi(plan, e);
     }),
-    generateSessions: (horseId: string, planId: string, drafts: SessionDraft[]) => result<TrainingSession[]>(`generate-${planId}`, async () => {
-      if (drafts.length === 1) {
+    generateSessions: (horseId: string, planId: string, drafts: SessionDraft[], options?: SessionWriteOptions) => result<TrainingSession[]>(`generate-${planId}`, async () => {
+      if (options) {
         const d = drafts[0];
-        const start = `${isoDate(d.date)}T${d.time}:00`;
-        const end = new Date(`${isoDate(d.date)}T${d.time}:00`); end.setHours(end.getHours() + 1);
-        const pad = (n: number) => String(n).padStart(2, '0');
-        return [sessionFromApi(await request('/training-sessions', 'POST', { planId, horseId, scheduledTime: start, scheduledEnd: `${end.getFullYear()}-${pad(end.getMonth()+1)}-${pad(end.getDate())}T${pad(end.getHours())}:${pad(end.getMinutes())}:00` }), getState().user || undefined)];
+        if (!d || !d.endTime) throw new Error('Enter a planned end time.');
+        const scheduledStart = isoDate(d.date)+'T'+d.time+':00';
+        const scheduledEnd = isoDate(d.date)+'T'+d.endTime+':00';
+        const saved = options.mode === 'adjust'
+          ? await request('/training-sessions/'+enc(options.sessionId!)+'/adjust', 'PATCH', { scheduledStart, scheduledEnd, intensity: options.intensity, reason: options.reason })
+          : await request('/training-sessions', 'POST', { planId, horseId, scheduledTime: scheduledStart, scheduledEnd });
+        return [sessionFromApi(saved, getState().user || undefined)];
       }
-      // Only the stored, veterinarian-approved roadmap may be bulk-generated.
-      const stored = await request<any[]>(`/training-plans/${enc(planId)}/stages`);
-      const plan = getState().trainingPlans.find(p => p.id === planId);
-      const enrollment = getState().enrollments.find(e => e.id === plan?.horsePackageId);
-      if (!enrollment?.startedAt) throw new Error('Không tìm thấy thời hạn gói.');
-      const dayNames = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
-      const expected: { date: string; time: string; type: string }[] = [];
-      for (const stage of stored) {
-        const days = typeof stage.weekdays_json === 'string' ? JSON.parse(stage.weekdays_json) : stage.daysOfWeek;
-        for (let day = Number(stage.start_day || stage.startDay); day <= Number(stage.end_day || stage.endDay); day++) {
-          const dt = new Date(`${isoDate(enrollment.startedAt)}T12:00:00`); dt.setDate(dt.getDate()+day-1);
-          if (days.includes(dayNames[dt.getDay()])) expected.push({ date: `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`, time: String(stage.session_time || stage.sessionTime).slice(0,5), type: stage.activity_name || stage.activityName });
-        }
-      }
-      if (drafts.length !== expected.length || drafts.some((d, i) => d.date !== expected[i].date || d.time !== expected[i].time || d.type !== expected[i].type)) throw new Error('Bản xem trước khác phác đồ đã duyệt. Tải lại bản xem trước trước khi sinh buổi tập.');
-      const generated = await request(`/training-plans/${enc(planId)}/generate-sessions`, 'POST', { confirmed: true });
-      return (Array.isArray(generated) ? generated : generated.sessions || []).map((w: any) => sessionFromApi(w, getState().user || undefined));
+      if (getState().trainingSessions.some(s=>s.planId===planId)) throw new Error('This plan already has sessions. Add or adjust individual sessions instead.');
+      const stored = await request<any[]>('/training-plans/'+enc(planId)+'/stages');
+      const plan = getState().trainingPlans.find(p=>p.id===planId);
+      if (!plan) throw new Error('Training plan not found.');
+      const expected = scheduleRows(stored,plan.startDate);
+      if (drafts.length!==expected.length || drafts.some((d,i)=>d.date!==expected[i].date || d.time!==expected[i].time || d.endTime!==expected[i].endTime)) throw new Error('The saved schedule changed. Reload the preview.');
+      const generated = await request('/training-plans/'+enc(planId)+'/generate-sessions', 'POST', {confirmed:true});
+      return (Array.isArray(generated)?generated:generated.sessions||[]).map((w:any)=>sessionFromApi(w,getState().user||undefined));
     }),
     checkIn: (id: string, present: boolean, note = '') => result<null>(`attendance-${id}`, async () => {
       if (present) { await request(`/training-sessions/${enc(id)}/start`, 'PATCH'); return null; }
@@ -195,26 +193,35 @@ export function makeRemoteActions(env: Env) {
     },
     stopSession: (id: string) => result<null>(`stop-${id}`, async () => { await request(`/training-sessions/${enc(id)}/stop`, 'PATCH', {}); return null; }),
     async activateRecovery(horseId: string, recoveryPackageId: string): Promise<string | null> {
-      try { await run(`recovery-${horseId}`, () => request(`/horse-packages/horse/${enc(horseId)}/approve-recovery`, 'POST', { recoveryPackageId, reason: 'Quản lý duyệt phục hồi theo kết luận thú y.' })); return null; }
+      try { await run(`recovery-${horseId}`, () => request(`/horse-packages/horse/${enc(horseId)}/approve-recovery`, 'POST', { recoveryPackageId, reason: "Manager approved recovery based on the veterinary conclusion." })); return null; }
       catch (e) { error((e as Error).message); return (e as Error).message; }
     },
     async completeSession(id: string, result: NonNullable<TrainingSession['result']>): Promise<string | null> {
       try {
         await run(`complete-${id}`, async () => {
           const distance = Number(result.time.replace(',', '.'));
-          if (!Number.isFinite(distance) || distance < 0) throw new Error('Cự ly thực tế phải là số km không âm.');
-          const recoveryMeasuredAt = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Bangkok', year:'numeric', month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false }).format(new Date()).replace(' ', 'T');
+          if (!Number.isFinite(distance) || distance < 0) throw new Error("Actual distance must be a non-negative number of kilometers.");
+          const speed = Number(result.speed);
+          if (!Number.isFinite(speed) || speed < 0 || speed > 100) throw new Error('Speed must be between 0 and 100 km/h.');
+          if ([result.heartRate, result.performanceScore].some(v => !Number.isInteger(v) || v < 20 || v > 250)) throw new Error('Heart rate must be an integer between 20 and 250 bpm.');
+          if (!result.recoveryMeasuredAt) throw new Error('Record the two-minute recovery reading before completing the session.');
+          const recoveryMeasuredAt = result.recoveryMeasuredAt;
           await request(`/training-sessions/${enc(id)}/complete`, 'PATCH', { distance, avgSpeed: Number(result.speed), endExerciseHeartRate: result.heartRate, recoveryHeartRate2Min: result.performanceScore, recoveryMeasuredAt, performanceNotes: result.notes });
         }); return null;
-      } catch (e) { error((e as Error).message); return (e as Error).message; }
+      } catch (e) {
+        const message = e instanceof ApiError && e.status === 409
+          ? `Could not complete session ${id}: ${e.message} The server rejected the save; check the backend log for the specific conflict.`
+          : e instanceof Error ? e.message : 'Unable to complete the session.';
+        return message;
+      }
     },
   };
 }
 function racePayload(r: Horse['raceHistory'][number]) {
   const distance = Number(r.distance.replace(/[^\d.]/g, ''));
-  if (!Number.isFinite(distance) || distance <= 0) throw new Error('Cự ly đua phải lớn hơn 0.');
+  if (!Number.isFinite(distance) || distance <= 0) throw new Error("Race distance must be greater than 0.");
   const prize = r.prize.trim() ? Number(r.prize.replace(/[^\d.]/g, '')) : 0;
-  if (!Number.isFinite(prize)) throw new Error('Giải thưởng phải là số tiền hợp lệ.');
+  if (!Number.isFinite(prize)) throw new Error("Prize money must be a valid amount.");
   const [d, m, y] = r.date.split('/');
   return { raceName: r.raceName, raceDate: `${y}-${m}-${d}`, distance, finishPosition: r.position, completionTime: r.time, racecourse: r.venue, jockeyName: r.jockey, prize };
 }

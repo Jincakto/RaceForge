@@ -17,13 +17,13 @@ public final class MedicalReferenceRange {
     public static final BigDecimal CRITICAL_HIGH_TEMPERATURE =
             new BigDecimal("39.0");
 
-    public static final int MIN_NORMAL_HEART_RATE = 28;
+    public static final int MIN_NORMAL_HEART_RATE = 32;
     public static final int MAX_NORMAL_HEART_RATE = 44;
 
     public static final int CRITICAL_HIGH_HEART_RATE = 60;
 
-    public static final int MIN_NORMAL_RESPIRATORY_RATE = 10;
-    public static final int MAX_NORMAL_RESPIRATORY_RATE = 20;
+    public static final int MIN_NORMAL_RESPIRATORY_RATE = 8;
+    public static final int MAX_NORMAL_RESPIRATORY_RATE = 16;
 
     public static final int CRITICAL_HIGH_RESPIRATORY_RATE = 30;
 }

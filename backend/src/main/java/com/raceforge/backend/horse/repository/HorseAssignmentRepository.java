@@ -18,6 +18,11 @@ public interface HorseAssignmentRepository extends JpaRepository<HorseAssignment
     List<HorseAssignment> findByHorse_HorseIdAndKindOrderByCreatedAtDesc(
             String horseId, String kind);
 
+    // The newest assignment determines current responsibility, including legacy
+    // COMPLETED rows left by the old one-examination-per-assignment workflow.
+    Optional<HorseAssignment> findFirstByHorse_HorseIdAndKindOrderByCreatedAtDesc(
+            String horseId, String kind);
+
     List<HorseAssignment> findByKindAndStatusOrderByCreatedAtDesc(String kind, String status);
 
     List<HorseAssignment> findByAssignee_UserIdAndKindOrderByCreatedAtDesc(String userId, String kind);

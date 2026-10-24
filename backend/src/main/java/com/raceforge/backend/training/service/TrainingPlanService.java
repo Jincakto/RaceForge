@@ -62,7 +62,8 @@ public class TrainingPlanService {
       java.util.List<com.raceforge.backend.training.dto.TrainingWorkflowDtos.Stage> stages=request.getStages();
       if(request.getRecommendationId()!=null){
           if(!Boolean.TRUE.equals(request.getRecommendationConfirmed()))throw new com.raceforge.backend.common.exception.BusinessRuleException("Trainer must confirm the suggestion before creating a plan");
-          stages=recommendations.stagesForPlan(request.getRecommendationId(),pack.getHorsePackageId(),request.getAssignmentId());
+          var suggested=recommendations.stagesForPlan(request.getRecommendationId(),pack.getHorsePackageId(),request.getAssignmentId());
+          if(stages==null||stages.isEmpty())stages=suggested;
       }
       TrainingRecommendationService.validateStages(stages,(int)java.time.temporal.ChronoUnit.DAYS.between(pack.getStartDate(),pack.getEndDate())+1);
       if((request.getStartDate()!=null&&!request.getStartDate().equals(pack.getStartDate()))||(request.getEndDate()!=null&&!request.getEndDate().equals(pack.getEndDate())))throw new com.raceforge.backend.common.exception.BusinessRuleException("Plan dates must match the selected paid package period");

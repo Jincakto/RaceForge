@@ -1,6 +1,6 @@
 package com.raceforge.backend.training.service;
 import com.raceforge.backend.common.exception.*;
-import com.raceforge.backend.training.support.TrainingIds;
+import com.raceforge.backend.training.service.TrainingIds;
 import com.raceforge.backend.training.dto.*;
 import com.raceforge.backend.training.dto.TrainingWorkflowDtos.Stage;
 import com.raceforge.backend.training.repository.TrainingPlanRepository;

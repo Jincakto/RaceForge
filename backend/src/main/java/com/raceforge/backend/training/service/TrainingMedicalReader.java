@@ -1,9 +1,10 @@
-package com.raceforge.backend.training.support;
+package com.raceforge.backend.training.service;
 
 import com.raceforge.backend.common.exception.BusinessRuleException;
 import com.raceforge.backend.medical.entity.MedicalRecord;
 import com.raceforge.backend.medical.entity.MedicalVitalSign;
 import com.raceforge.backend.medical.repository.MedicalRecordRepository;
+import com.raceforge.backend.medical.repository.MedicalClinicalExamRepository;
 import com.raceforge.backend.medical.repository.MedicalVitalSignRepository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -20,7 +21,11 @@ import org.springframework.transaction.annotation.Transactional;
 public class TrainingMedicalReader {
  private final MedicalRecordRepository records;
  private final MedicalVitalSignRepository vitalSigns;
- public TrainingMedicalReader(MedicalRecordRepository records,MedicalVitalSignRepository vitalSigns){this.records=records;this.vitalSigns=vitalSigns;}
+ private final MedicalClinicalExamRepository clinicalExams;
+ public TrainingMedicalReader(MedicalRecordRepository records, MedicalVitalSignRepository vitalSigns,
+         MedicalClinicalExamRepository clinicalExams) {
+  this.records=records;this.vitalSigns=vitalSigns;this.clinicalExams=clinicalExams;
+ }
  private Optional<MedicalRecord> latest(String horseId){
   return records.findByHealthProfile_Horse_HorseIdAndStatus(horseId,"CONFIRMED").stream()
    .max(Comparator.comparing(MedicalRecord::getExaminedAt,Comparator.nullsFirst(Comparator.<LocalDateTime>naturalOrder()))
@@ -45,6 +50,10 @@ public class TrainingMedicalReader {
   row.put("resting_heart_rate",vital==null?null:vital.getRestingHeartRate());
   row.put("resting_respiratory_rate",vital==null?null:vital.getRestingRespiratoryRate());
   row.put("measured_weight",vital==null?null:vital.getWeight());
+  var movementExams=clinicalExams.findByMedicalRecord_MedicalRecordId(record.getMedicalRecordId())
+   .stream().filter(exam->"MOVEMENT_LEGS".equals(exam.getExaminationArea())).toList();
+  row.put("movement_legs_count",movementExams.size());
+  row.put("movement_legs_status",movementExams.size()==1?movementExams.get(0).getConditionStatus():null);
   // N does not collect these measurements. Do not invent them or require an extra medical table.
   row.put("ideal_weight",null);row.put("body_condition_score",null);
   return row;

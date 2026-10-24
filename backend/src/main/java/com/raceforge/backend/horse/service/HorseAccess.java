@@ -52,8 +52,12 @@ public class HorseAccess {
             return trainers.isAssigned(horseId, user.userId());
         }
         if ("VETERINARIAN".equals(user.roleName())) {
-            return medicalAssignments.existsByHorse_HorseIdAndAssignee_UserIdAndKindAndStatusIn(
-                    horseId, user.userId(), "VET", java.util.List.of("ASSIGNED", "ACCEPTED", "COMPLETED"));
+            // Only the newest assignment grants access. An old COMPLETED task
+            // must not restore access after the CM has reassigned this horse.
+            return medicalAssignments.findFirstByHorse_HorseIdAndKindOrderByCreatedAtDesc(horseId, "VET")
+                    .map(a -> a.getAssignee().getUserId().equals(user.userId())
+                            && java.util.List.of("ASSIGNED", "ACCEPTED", "COMPLETED").contains(a.getStatus()))
+                    .orElse(false);
         }
         return Set.of("CLUB_MANAGER", "GROOM").contains(user.roleName())
                 && horses.existsById(horseId);

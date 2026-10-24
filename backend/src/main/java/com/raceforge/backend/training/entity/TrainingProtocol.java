@@ -2,7 +2,7 @@ package com.raceforge.backend.training.entity;
 import jakarta.persistence.*;
 /** Maps Training_Protocol; application writes are validated by the workflow services. */
 @Entity @Table(name="Training_Protocol")
-public class TrainingProtocol extends com.raceforge.backend.training.support.TrainingEntity {
+public class TrainingProtocol extends com.raceforge.backend.training.entity.TrainingEntity {
  @Id @Column(name="protocol_id",length=20) private String protocolId;
  @org.hibernate.annotations.Nationalized @Column(name="protocol_name",length=150) private String protocolName;
  @Column(name="package_type",length=30) private String packageType;

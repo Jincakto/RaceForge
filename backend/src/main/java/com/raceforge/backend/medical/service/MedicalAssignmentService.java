@@ -25,7 +25,9 @@ import java.util.List;
 public class MedicalAssignmentService {
     private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
 
-    private static final List<String> OPEN_STATUSES = List.of("ASSIGNED", "ACCEPTED");
+    // Old software marked the assignment COMPLETED when one exam was confirmed.
+    // Treat only the newest such assignment as accepted, for backwards compatibility.
+    private static final List<String> EXAM_ALLOWED_STATUSES = List.of("ACCEPTED", "COMPLETED");
     private final HorseAssignmentRepository assignments;
     private final MedicalRecordRepository medicalRecords;
     private final HorseRepository horses;
@@ -64,16 +66,18 @@ public class MedicalAssignmentService {
             throw new BusinessRuleException("Horse must be submitted for admission before veterinary assignment");
         }
 
-        List<HorseAssignment> active = assignments.findByHorse_HorseIdAndKindAndStatusIn(horseId, "VET", OPEN_STATUSES);
-        if (active.stream().anyMatch(a -> a.getAssignee().getUserId().equals(veterinarianId))) {
-            throw new BusinessRuleException("Veterinarian already has an active assignment for this horse");
-        }
-        if (active.size() > 1) {
-            throw new BusinessRuleException("Multiple active assignments detected; resolve data before reassigning");
-        }
-        for (HorseAssignment previous : active) {
+        // Assignment is ongoing care responsibility, not a task for one exam.
+        // Locking the Horse row above prevents two CM requests from replacing
+        // the same currently assigned veterinarian concurrently.
+        HorseAssignment previous = assignments
+                .findFirstByHorse_HorseIdAndKindOrderByCreatedAtDesc(horseId, "VET")
+                .orElse(null);
+        if (previous != null && isOpenForCare(previous)) {
+            if (previous.getAssignee().getUserId().equals(veterinarianId)) {
+                throw new BusinessRuleException("Veterinarian already has an active assignment for this horse");
+            }
             previous.setStatus("REASSIGNED");
-            // No reassigned_at column in the shared table; Audit holds the event time.
+            // No reassigned_at column; audit records the change time.
             notifications.notify(previous.getAssignee().getUserId(), "MEDICAL_ASSIGNMENT_REASSIGNED",
                     "Veterinary assignment changed", "Horse " + horseId + " has been reassigned");
         }
@@ -100,7 +104,7 @@ public class MedicalAssignmentService {
         assignment.setCreatedAt(LocalDateTime.now());
         assignments.saveAndFlush(assignment);
         notifications.notify(veterinarianId, "MEDICAL_ASSIGNMENT_CREATED",
-                "New veterinary examination", "You have been assigned horse " + horseId);
+                "Veterinary care assignment", "You are responsible for horse " + horseId);
         recordAudit(managerId, assignment, "MEDICAL_ASSIGNMENT_CREATED", null);
         return MedicalAssignmentResponse.from(assignment);
     }
@@ -139,16 +143,18 @@ public class MedicalAssignmentService {
     public List<MedicalAssignmentResponse> myAssignments(String veterinarianId) {
         requireRole(veterinarianId, "VETERINARIAN");
         return assignments.findByAssignee_UserIdAndKindAndStatusInOrderByCreatedAtDesc(
-                        veterinarianId, "VET", OPEN_STATUSES)
-                .stream().map(MedicalAssignmentResponse::from).toList();
+                        veterinarianId, "VET", List.of("ASSIGNED", "ACCEPTED", "COMPLETED"))
+                .stream().filter(this::isLatestOpenAssignment)
+                .map(MedicalAssignmentResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
     public List<MedicalAssignmentResponse> acceptedHorses(String veterinarianId) {
         requireRole(veterinarianId, "VETERINARIAN");
         return assignments.findByAssignee_UserIdAndKindAndStatusInOrderByCreatedAtDesc(
-                        veterinarianId, "VET", List.of("ACCEPTED"))
-                .stream().map(MedicalAssignmentResponse::from).toList();
+                        veterinarianId, "VET", EXAM_ALLOWED_STATUSES)
+                .stream().filter(this::isLatestOpenAssignment)
+                .map(MedicalAssignmentResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
@@ -172,32 +178,31 @@ public class MedicalAssignmentService {
                 .stream().map(MedicalAssignmentResponse::from).toList();
     }
 
-    /** Called at create, draft update and confirmation; never trust a client-supplied vet ID. */
+    /**
+     * Current primary vet may create/modify/confirm any number of examinations.
+     * COMPLETED is accepted only for the newest legacy assignment, not historical ones.
+     */
     @Transactional(readOnly = true)
     public void requireAccepted(String horseId, String veterinarianId) {
-        if (!assignments.existsByHorse_HorseIdAndAssignee_UserIdAndKindAndStatusIn(
-                horseId, veterinarianId, "VET", List.of("ACCEPTED"))) {
-            throw new BusinessRuleException("Veterinarian must accept an active assignment before examination");
+        HorseAssignment current = assignments
+                .findFirstByHorse_HorseIdAndKindOrderByCreatedAtDesc(horseId, "VET")
+                .orElse(null);
+        if (current == null || !current.getAssignee().getUserId().equals(veterinarianId)
+                || !EXAM_ALLOWED_STATUSES.contains(current.getStatus())) {
+            throw new BusinessRuleException("Veterinarian must accept the current care assignment before examination");
         }
     }
 
-    /** Once a record is confirmed, this accepted assignment has been fulfilled. */
-    @Transactional
-    public void complete(String horseId, String veterinarianId) {
-        complete(horseId, veterinarianId, null);
+    private boolean isOpenForCare(HorseAssignment assignment) {
+        return "ASSIGNED".equals(assignment.getStatus())
+                || EXAM_ALLOWED_STATUSES.contains(assignment.getStatus());
     }
 
-    @Transactional
-    public void complete(String horseId, String veterinarianId, String medicalRecordId) {
-        HorseAssignment assignment = assignments
-                .findFirstByHorse_HorseIdAndAssignee_UserIdAndKindAndStatusOrderByCreatedAtDesc(
-                        horseId, veterinarianId, "VET", "ACCEPTED")
-                .orElseThrow(() -> new BusinessRuleException("No accepted assignment for confirmed examination"));
-        assignment.setStatus("COMPLETED");
-        assignment.setMedicalRecordId(medicalRecordId);
-        // Confirmation timestamp is in Medical_Record.confirmed_at.
-        // Assignment.responded_at retains the Vet acceptance time.
-        recordAudit(veterinarianId, assignment, "MEDICAL_ASSIGNMENT_COMPLETED", null);
+    private boolean isLatestOpenAssignment(HorseAssignment assignment) {
+        return assignments.findFirstByHorse_HorseIdAndKindOrderByCreatedAtDesc(
+                        assignment.getHorse().getHorseId(), "VET")
+                .map(current -> current.getId().equals(assignment.getId()) && isOpenForCare(current))
+                .orElse(false);
     }
 
     /** Cancel unfinished records when a CM issues a new assignment. */

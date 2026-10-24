@@ -32,11 +32,9 @@ export function Badge({ status }: { status: string }) {
     'Base Building': 'bg-blue-100 text-blue-800 border-blue-200',
     Foundation: 'bg-teal-100 text-teal-800 border-teal-200',
     Recovery: 'bg-gray-100 text-gray-600 border-gray-200',
-    'Chuẩn bị thi đấu': 'bg-orange-100 text-orange-800 border-orange-200',
-    'Xây nền tảng': 'bg-blue-100 text-blue-800 border-blue-200',
-    'Làm quen': 'bg-teal-100 text-teal-800 border-teal-200',
-    'Phục hồi': 'bg-gray-100 text-gray-600 border-gray-200',
-    'Tăng cường': 'bg-amber-100 text-amber-800 border-amber-200',
+    "Race preparation": 'bg-orange-100 text-orange-800 border-orange-200',
+    "Orientation": 'bg-teal-100 text-teal-800 border-teal-200',
+    "Intensive": 'bg-amber-100 text-amber-800 border-amber-200',
   };
   const labels: Record<string, string> = {
     Eligible: 'Eligible', Monitor: 'Needs monitoring', Injured: 'Injured', Retired: 'Retired', 'Pending Vet': 'Awaiting examination',

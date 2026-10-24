@@ -86,8 +86,8 @@ public class TrainingSessionService {
         if(request.getMaxSpeed()!=null && (!Double.isFinite(request.getMaxSpeed()) || request.getMaxSpeed()<request.getAvgSpeed()))
             throw new BusinessRuleException("maxSpeed must be finite and at least avgSpeed.");
         LocalDateTime measured=request.getRecoveryMeasuredAt();
-        if(measured==null || measured.isBefore(session.getActualEnd().plusMinutes(2)) || measured.isAfter(LocalDateTime.now()))
-            throw new BusinessRuleException("recoveryMeasuredAt must be at least two minutes after exercise stopped and cannot be in the future. Late readings remain explicitly timestamped.");
+        if(measured==null || measured.isBefore(session.getActualEnd()) || measured.isAfter(LocalDateTime.now()))
+            throw new BusinessRuleException("recoveryMeasuredAt must not precede exercise stop or be in the future.");
         session.setStatus("COMPLETED");
         session.setEvaluation(request.getPerformanceNotes());
         session.setDistance(request.getDistance());

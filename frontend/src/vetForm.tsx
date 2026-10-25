@@ -357,13 +357,14 @@ export function VetHealthFormPage({
   const [decision, setDecision] = useState<Decision | "">("");
   const [followUpNote, setFollowUpNote] = useState("");
   const [decisionReason, setDecisionReason] = useState("");
-  const [overrideReason, setOverrideReason] = useState("");
   const [recommendations, setRecommendations] = useState("");
   const [medications, setMedications] = useState("");
   const [tried, setTried] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [saved, setSaved] = useState<HealthRecord | null>(null);
   const [saveError, setSaveError] = useState("");
+  const [previewFailed, setPreviewFailed] = useState(false);
+  const [previewRetry, setPreviewRetry] = useState(0);
 
   const horse = visible.find((h) => h.id === horseId);
   const horseRecords = useMemo(
@@ -453,9 +454,11 @@ export function VetHealthFormPage({
   useEffect(() => {
     if (!horseId || !vitalsDone || !regionsDone) {
       setPreview(null);
+      setPreviewFailed(false);
       return;
     }
     let active = true;
+    setPreviewFailed(false);
     const timer = setTimeout(() => {
       const body = {
         examType: isIntake
@@ -496,6 +499,7 @@ export function VetHealthFormPage({
         .catch((e) => {
           if (active) {
             setPreview(null);
+            setPreviewFailed(true);
             setSaveError((e as Error).message);
           }
         });
@@ -504,12 +508,10 @@ export function VetHealthFormPage({
       active = false;
       clearTimeout(timer);
     };
-  }, [previewKey]);
+  }, [previewKey, previewRetry]);
   const currentPreview = preview?.key === previewKey ? preview : null;
-  // If the vet edits a value back to missing/invalid after choosing, drop the stale choice: it no longer rests on valid data.
-  useEffect(() => {
-    if (decisionLocked) setDecision("");
-  }, [decisionLocked]);
+  // No suggestion exists between an edit and the server's answer: show a waiting state instead of a locally computed one.
+  const suggestionPending = !decisionLocked && !currentPreview && !previewFailed;
   const overall: Level =
     currentPreview?.level === "CRITICAL"
       ? "fail"
@@ -545,14 +547,16 @@ export function VetHealthFormPage({
       : currentPreview?.suggestedConclusion === "FIT_WITH_MONITORING"
         ? "conditional"
         : "eligible";
-  const needsOverride = !!decision && decision !== suggestedDecision;
+  // The system, not the veterinarian, sets the decision: it always mirrors the server's assessment.
+  useEffect(() => {
+    setDecision(decisionLocked || !currentPreview ? "" : suggestedDecision);
+  }, [decisionLocked, currentPreview, suggestedDecision]);
   const decisionDetailsDone =
     decision === "conditional"
       ? followUpNote.trim().length >= 10
       : decision === "not-eligible"
         ? decisionReason.trim().length >= 10
         : !!decision;
-  const overrideDone = !needsOverride || overrideReason.trim().length >= 10;
   const autoConclusion = (() => {
     if (!decision) return "";
     if (decision === "eligible")
@@ -566,20 +570,10 @@ export function VetHealthFormPage({
     !!currentPreview &&
     currentPreview.level !== "INCOMPLETE" &&
     decisionDetailsDone &&
-    overrideDone &&
     concText.length >= 10;
   const done = [!!horse, vitalsDone, regionsDone, conclusionDone];
   const current = done.findIndex((d) => !d);
-  const suggestionText =
-    currentPreview?.systemNote ||
-    (overall === "pass"
-      ? "All measurements and examination regions are normal — the system suggests FIT FOR TRAINING."
-      : overall === "watch"
-        ? `There are ${findings.length} mild abnormalities (${findings.map((f) => f.label).join(", ")}) — the system suggests training with monitoring, subject to veterinary judgment.`
-        : `Measurements significantly outside the reference range (${findings
-            .filter((f) => f.level === "fail")
-            .map((f) => f.label)
-            .join(", ")}) — the system suggests NOT FIT FOR TRAINING.`);
+  const suggestionText = currentPreview?.systemNote ?? "";
 
   // ── Lỗi từng trường ──
   const vitalError = (d: VitalDef) => {
@@ -601,10 +595,7 @@ export function VetHealthFormPage({
   const conclusionError =
     tried && !decisionDetailsDone
       ? "Complete the required conclusion fields."
-      : tried && !overrideDone
-        ? "Provide a reason when overriding the system suggestion."
-        : "";
-  const decisionError = tried && !decision ? "Select a final conclusion." : "";
+      : "";
   const missing = [
     !horse && "horse selection",
     !vitalsDone && "vital signs",
@@ -692,7 +683,6 @@ export function VetHealthFormPage({
         decision === "conditional" ? followUpNote.trim() : undefined,
       decisionReason:
         decision === "not-eligible" ? decisionReason.trim() : undefined,
-      overrideReason: needsOverride ? overrideReason.trim() : undefined,
       autoEvaluation: overall,
       autoNote: abnLines.join("\n"),
       diagnosis: concText,
@@ -754,7 +744,6 @@ export function VetHealthFormPage({
     setDecision("");
     setFollowUpNote("");
     setDecisionReason("");
-    setOverrideReason("");
     setRecommendations("");
     setMedications("");
     setTried(false);
@@ -1358,8 +1347,8 @@ export function VetHealthFormPage({
           <Card className="p-5">
             <SectionHead
               n={4}
-              title="Veterinarian decision"
-              sub="The system suggests an assessment based on the entered data; the veterinarian makes the final decision."
+              title="Training decision"
+              sub="The system sets the decision from the entered data; it cannot be changed manually."
             />
             {decisionLocked ? (
               <div
@@ -1371,12 +1360,42 @@ export function VetHealthFormPage({
                 </span>
                 <div>
                   <p className="text-sm font-semibold">
-                    Complete steps 2 and 3 to receive a system suggestion.
+                    Complete steps 2 and 3 so the system can set the decision.
                   </p>
                   <p className="mt-0.5 text-xs text-slate-500">
                     Missing or invalid: {lockMissing.join(", ")}.
                   </p>
                 </div>
+              </div>
+            ) : previewFailed ? (
+              <div
+                role="alert"
+                className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700"
+              >
+                <p className="flex-1 text-sm font-semibold">
+                  Could not get the system's assessment from the server.
+                </p>
+                <Btn
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setPreviewRetry((n) => n + 1)}
+                >
+                  Try again
+                </Btn>
+              </div>
+            ) : suggestionPending ? (
+              <div
+                role="status"
+                aria-live="polite"
+                className="mb-4 flex items-center gap-3 rounded-xl border border-slate-300 bg-slate-50 p-4 text-slate-600"
+              >
+                <span
+                  aria-hidden="true"
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600"
+                />
+                <p className="text-sm font-medium">
+                  Calculating the system's assessment…
+                </p>
               </div>
             ) : (
               <div className={`mb-4 rounded-xl border p-4 ${overallCfg.cls}`}>
@@ -1391,7 +1410,7 @@ export function VetHealthFormPage({
                 </div>
                 <>
                   <p className="mt-1 text-sm">
-                    <b>Suggestion:</b> {suggestionText}
+                    <b>System assessment:</b> {suggestionText}
                   </p>
                   {findings.length > 0 && (
                     <ul className="mt-2 space-y-0.5 text-xs">
@@ -1403,60 +1422,53 @@ export function VetHealthFormPage({
                       ))}
                     </ul>
                   )}
-                  <div className="mt-3">
-                    <Btn
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => setDecision(suggestedDecision)}
-                    >
-                      Use suggestion
-                    </Btn>
-                  </div>
                 </>
               </div>
             )}
 
-            <fieldset
-              disabled={decisionLocked}
-              aria-disabled={decisionLocked}
-              className={`m-0 mt-4 min-w-0 border-0 p-0 ${decisionLocked ? "opacity-60" : ""}`}
-            >
-              <legend className="mb-1 p-0 text-sm font-medium text-gray-700">
-                Decision <span className="text-red-500">*</span>
-              </legend>
-              <div className="grid gap-2 md:grid-cols-3">
-                <button
-                  type="button"
-                  onClick={() => setDecision("eligible")}
-                  className={`flex-1 rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold transition-all ${decision === "eligible" ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-gray-200 text-gray-600 hover:border-emerald-300"} disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:hover:border-slate-200`}
-                >
-                  ✓ Eligible for training
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDecision("conditional")}
-                  className={`flex-1 rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold transition-all ${decision === "conditional" ? "border-amber-500 bg-amber-50 text-amber-800" : "border-gray-200 text-gray-600 hover:border-amber-300"} disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:hover:border-slate-200`}
-                >
-                  ! Eligible, but needs monitoring
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDecision("not-eligible")}
-                  className={`flex-1 rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold transition-all ${decision === "not-eligible" ? "border-red-500 bg-red-50 text-red-700" : "border-gray-200 text-gray-600 hover:border-red-300"} disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:hover:border-slate-200`}
-                >
-                  ✕ Not fit; lock training
-                </button>
+            <div className="mt-4">
+              <div className="mb-1 flex items-center gap-1.5 text-sm font-medium text-gray-700">
+                Decision
+                <span aria-hidden="true" title="Set by the system">
+                  🔒
+                </span>
+              </div>
+              <div
+                role="radiogroup"
+                aria-label="Decision set automatically by the system"
+                className="grid gap-2 md:grid-cols-3"
+              >
+                {(
+                  [
+                    ["eligible", "✓ Eligible for training", "border-emerald-500 bg-emerald-50 text-emerald-800"],
+                    ["conditional", "! Eligible, but needs monitoring", "border-amber-500 bg-amber-50 text-amber-800"],
+                    ["not-eligible", "✕ Not fit; lock training", "border-red-500 bg-red-50 text-red-700"],
+                  ] as const
+                ).map(([value, label, activeCls]) => (
+                  <div
+                    key={value}
+                    role="radio"
+                    aria-checked={decision === value}
+                    aria-disabled="true"
+                    className={`cursor-not-allowed select-none rounded-xl border-2 px-4 py-3 text-left text-sm font-semibold ${decision === value ? activeCls : "border-slate-200 bg-slate-50 text-slate-400"}`}
+                  >
+                    {label}
+                  </div>
+                ))}
               </div>
               {decisionLocked ? (
                 <p className="mt-0.5 text-xs text-slate-500">
-                  The decision unlocks once steps 2 and 3 are complete.
+                  The system sets the decision once steps 2 and 3 are complete.
                 </p>
-              ) : decisionError ? (
-                <p className="mt-0.5 text-xs text-red-600">{decisionError}</p>
+              ) : decision ? (
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Set automatically from the examination data and cannot be
+                  changed manually. When the system sets "Not fit", training is
+                  paused for a horse currently in training.
+                </p>
               ) : (
-                <p className="mt-0.5 text-xs text-gray-400">
-                  Selecting "Not fit" pauses training for a horse currently in
-                  training.
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Waiting for the system's assessment…
                 </p>
               )}
               {decision === "conditional" && (
@@ -1485,23 +1497,10 @@ export function VetHealthFormPage({
                   />
                 </div>
               )}
-              {needsOverride && vitalsDone && regionsDone && (
-                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3">
-                  <Textarea
-                    label="Reason for overriding the system suggestion"
-                    required
-                    rows={2}
-                    value={overrideReason}
-                    onChange={setOverrideReason}
-                    placeholder="Explain your clinical assessment"
-                    hint="At least 10 characters; saved in the medical record."
-                  />
-                </div>
-              )}
               {conclusionError && (
                 <p className="mt-2 text-xs text-red-600">{conclusionError}</p>
               )}
-            </fieldset>
+            </div>
 
             {decision && (
               <div className="mt-4 rounded-xl border-l-4 border-[#c9973b] bg-[#c9973b]/10 p-4">

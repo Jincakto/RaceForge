@@ -203,7 +203,7 @@ export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleL
     <div className="space-y-5">
       <div className="flex items-start justify-between">
         <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">Account management</h2><p className="text-sm text-gray-500">{filtered.length}  accounts · Horse owners register publicly; staff accounts are created by an administrator.</p></div>
-        <Btn onClick={() => setShowCreate(true)}>+ Create staff account</Btn>
+        <Btn onClick={() => setShowCreate(true)}>+ Create account</Btn>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search by account name or ID…" aria-label="Search accounts by name or ID" className="w-72 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]" />
@@ -292,7 +292,7 @@ function CreateAccountModal({ users, clubs, onCreate, onClose }: { users: AppUse
   };
 
   return (
-    <Modal title="Create staff account" onClose={() => { if (!createFlight.current) onClose(); }} wide>
+    <Modal title="Create account" onClose={() => { if (!createFlight.current) onClose(); }} wide>
       <fieldset disabled={creating} className="space-y-4">
         <Field label="Full name" required error={errors.name}><Input value={f.name} onChange={set('name')} placeholder="Alex Smith" /></Field>
         <div className="grid grid-cols-2 gap-4">

@@ -164,7 +164,7 @@ export function TrainerAssignPage({ user, users, horses, enrollments, onAssign }
   const myEnr = enrollments.filter(e => isCurrent(e) && !e.directAssignmentId && e.apiStatus === 'ACTIVE' && e.paymentStatus === 'PAID' && horses.some(h => h.id === e.horseId && h.clubId === user.clubId));
   const count = (s: Enrollment['trainerStatus']) => myEnr.filter(e => e.trainerStatus === s).length;
   const rows = myEnr.filter(e => tab === 'all' || e.trainerStatus === tab);
-  const load = (id: string) => myEnr.filter(e => e.trainerId === id).length;
+  const load = (id: string) => new Set(myEnr.filter(e => e.trainerId === id && (e.trainerStatus === 'pending' || e.trainerStatus === 'confirmed')).map(e => e.horseId)).size;
   const replacing = !!dlg && dlg.trainerStatus !== 'unassigned' && !!dlg.trainerId;
 
   const open = (e: Enrollment) => { setDlg(e); setTrainerId(''); setTrainerSearch(''); setReason(''); setErr(''); };
@@ -256,14 +256,14 @@ export function TrainerAssignPage({ user, users, horses, enrollments, onAssign }
               <div className="mt-1">Valid: {dlg.startedAt} – {dlg.expiresAt} · Paid</div>
             </div>
             <Select label="Trainer" required value={trainerId} onChange={v => { setTrainerId(v); setErr(''); }}
-              options={[{ value: '', label: "— Select a trainer —" }, ...trainers.filter(t => t.id !== dlg.trainerId || !replacing).map(t => ({ value: t.id, label: `${t.name} (${load(t.id)} assigned packages)` }))]}
-              hint={replacing ? "Choose a replacement" : "The trainer will be notified and must respond"} />
+              options={[{ value: '', label: "— Select a trainer —" }, ...trainers.filter(t => t.id !== dlg.trainerId || !replacing).map(t => ({ value: t.id, label: `${t.name} (${load(t.id)} horses assigned)` }))]}
+              hint={`${trainerId ? `${load(trainerId)} horses currently assigned to this trainer. ` : ''}Counts unique horses in active paid packages, including assignments awaiting confirmation.`} />
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Search trainers directly</label>
               <input value={trainerSearch} onChange={e => setTrainerSearch(e.target.value)} placeholder="Search by trainer name or ID…" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]" />
               {trainerSearch && <div className="mt-1 max-h-36 overflow-y-auto rounded-lg border border-gray-200 bg-white p-1">
                 {trainers.filter(t => (t.id !== dlg.trainerId || !replacing) && `${t.name} ${t.id}`.toLowerCase().includes(trainerSearch.toLowerCase())).map(t =>
-                  <button key={t.id} type="button" onClick={() => { setTrainerId(t.id); setTrainerSearch(t.name); setErr(''); }} className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-amber-50"><span className="font-medium">{t.name}</span><span className="text-xs text-gray-400">{t.id} · {load(t.id)} active</span></button>)}
+                  <button key={t.id} type="button" onClick={() => { setTrainerId(t.id); setTrainerSearch(t.name); setErr(''); }} className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-amber-50"><span className="font-medium">{t.name}</span><span className="text-xs text-gray-400">{t.id} · {load(t.id)} horses assigned</span></button>)}
               </div>}
             </div>
             {replacing && (

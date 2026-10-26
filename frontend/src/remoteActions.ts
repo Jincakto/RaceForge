@@ -6,7 +6,7 @@ import type { RemoteSlice } from './remote';
 import type { AppUser, Horse, HealthRecord, Res, Enrollment, TrainingPackage, TrainingPlan, TrainingSession, Role } from './data';
 import type { PackageDraft, PlanDraft, SessionDraft, SessionWriteOptions } from './trainingLogic';
 import { changePermission, permissionForPage } from './permissionApi';
-import { recommendationFor } from './recommendations';
+
 
 interface State extends RemoteSlice { user: AppUser | null; }
 interface Env { getState: () => State; reload: () => Promise<void>; success: (message: string) => void; error: (message: string) => void; navigate: (page: string) => void; }
@@ -156,11 +156,11 @@ export function makeRemoteActions(env: Env) {
       const state = getState();
       const e = state.enrollments.find(e => e.horseId === draft.horseId && e.trainerId === state.user?.id && e.trainerStatus === 'confirmed' && e.status === 'active');
       if (!e?.assignmentId) throw new Error("A paid package and an accepted trainer assignment are required.");
-      const recommendation = await recommendationFor(e.id, e.assignmentId);
+      if (!draft.suggestion?.stages?.length) throw new Error('Provide roadmap stages before creating a plan.');
       const selectedIntensity = draft.workload ? ({Low:'LOW',Medium:'MODERATE',High:'HIGH'} as Record<string,string>)[draft.workload] : undefined;
-      const stages = selectedStages(recommendation.stages || [], draft.weekdays, draft.time, selectedIntensity);
+      const stages = selectedStages(draft.suggestion.stages, draft.weekdays, draft.time, selectedIntensity);
       if (isoDate(draft.startDate) !== isoDate(e.startedAt) || isoDate(draft.endDate) !== isoDate(e.expiresAt)) throw new Error("Roadmap dates must match the paid package term.");
-      const plan = await request(`/horses/${enc(draft.horseId)}/training-plans`, 'POST', { planName: draft.phase, goal: draft.goals, startDate: isoDate(e.startedAt), endDate: isoDate(e.expiresAt), assignmentId: e.assignmentId, recommendationId: recommendation.recommendationId, recommendationConfirmed: true, stages, notes: `${recommendation.rationale || ''}\n${recommendation.limitations || ''}` });
+      const plan = await request(`/horses/${enc(draft.horseId)}/training-plans`, 'POST', { planName: draft.phase, goal: draft.goals, startDate: isoDate(e.startedAt), endDate: isoDate(e.expiresAt), assignmentId: e.assignmentId, stages });
       return planFromApi(plan, e);
     }),
     generateSessions: (horseId: string, planId: string, drafts: SessionDraft[], options?: SessionWriteOptions) => result<TrainingSession[]>(`generate-${planId}`, async () => {

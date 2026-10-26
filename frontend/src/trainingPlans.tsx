@@ -1,7 +1,7 @@
 import { selectedStages, scheduleRows, normalizeStages, clock, seconds, validateSessionWindow, isoDay, type RoadmapStage } from './trainingSchedule';
 import { trainingTimestamp } from './trainingTimestamp';
 import { RecoveryReview } from './RecoveryReview';
-import { recommendationFor, recommendationView } from './recommendations';
+import { packageRoadmapFor, recommendationView } from './recommendations';
 import { request } from './api';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -485,7 +485,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
   useEffect(() => {
     let active = true; setSug(null); setSubmitErr('');
     if (!en?.assignmentId || en.trainerStatus !== 'confirmed') return;
-    void recommendationFor(en.id, en.assignmentId).then(value => {
+    void packageRoadmapFor(en.id).then(value => {
       if (!active) return;
       setSug(recommendationView(value));
       setF(p => ({ ...p, level: '', start: dToIso(en.startedAt), weeks: String(Math.ceil(diffDays(en.startedAt, en.expiresAt)/7)) }));
@@ -510,12 +510,12 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
   const validate = (): boolean => {
     const x: Record<string, string> = {};
     if (step === 0) {
-      if (!sug && horse) x.horse = "No package roadmap suggestion is available from the server. Check the error message below.";
+      if (!sug && horse) x.horse = "The package roadmap template could not be loaded.";
       if (!horse) x.horse = "Select a horse.";
       else { const b = trainerPlanBlockReason(horse, state.enrollments, me.id); if (b) x.horse = `Cannot select "${horse.name}": ${b}.`; }
     }
     if (step === 1) {
-      if (!sug) x.health = "Cannot load the recommendation. Reload the package roadmap suggestion.";
+      if (!sug) x.health = "The package roadmap template could not be loaded.";
       if (!rec) x.health = "This horse has no examination record — a veterinarian must examine it before a roadmap can be created.";
       else if (decision === 'not-eligible') x.health = "Latest examination conclusion: NOT FIT for training. A roadmap cannot be created.";
     }
@@ -525,6 +525,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
     }
     if (step === 3) {
       if (scheduleError) x.time = scheduleError;
+      if (!sug?.stages?.every(stage => stage.activityName.trim())) x.time = 'Enter a training activity.';
       if (weekdays.length < 1 || weekdays.length > 6) x.weekdays = "Select 1–6 weekdays.";
       if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) x.time = "Invalid time.";
     }
@@ -581,14 +582,14 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
             </div>
           ) : <ErrorBox text="This horse has no examination record." />}
           <div className="rounded-xl border border-[#c9973b]/30 bg-[#c9973b]/5 p-4 text-sm">
-            <div className="font-semibold text-[#8a6420]">{en?.packageName || sug.phase} - Suggested schedule</div>
-            {[...new Map((sug.stages || []).map(stage => [stage.daysOfWeek.join(',')+'|'+stage.sessionTime+'|'+stage.sessionEndTime, stage])).values()].map((stage, index) => (
+            <div className="font-semibold text-[#8a6420]">{en?.packageName || sug.phase} - Package curriculum</div>
+            {(sug.stages || []).map((stage, index) => (
               <div key={index} className="mt-1 text-gray-600">
-                {stage.daysOfWeek.map(day => ({MONDAY:'Mon',TUESDAY:'Tue',WEDNESDAY:'Wed',THURSDAY:'Thu',FRIDAY:'Fri',SATURDAY:'Sat',SUNDAY:'Sun'} as Record<string,string>)[day] || day).join('/')} - {(seconds(stage.sessionEndTime)-seconds(stage.sessionTime))/60} minutes/session
+                {stage.title}: {stage.objective}
               </div>
             ))}
-            {!sug.stages?.length && <div className="mt-1 text-gray-600">No suggested schedule is available.</div>}
-            <div className="mt-1 text-xs text-amber-700">Package planning suggestion only. Trainer may adjust the schedule and intensity.</div>
+            {!sug.stages?.length && <div className="mt-1 text-gray-600">Set the activity and duration in the schedule step.</div>}
+            <div className="mt-1 text-xs text-amber-700">Trainer must set the activity, duration, schedule and intensity.</div>
           </div>
           {errs.health && <ErrorBox text={errs.health} />}
         </Card>
@@ -599,7 +600,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
           <h3 className="font-serif text-lg font-bold">Set goals</h3>
           {en && <p className="rounded-lg bg-sky-50 p-3 text-sm">Package period: <strong>{en.startedAt} - {en.expiresAt}</strong> - {diffDays(en.startedAt,en.expiresAt)+1} days. The roadmap uses this full period.</p>}
           <div className="grid gap-4 md:grid-cols-2">
-            <Select label="Phase" required value={phase} onChange={set('phase')} options={[...new Set([sug.phase, phase, ...PHASES])].map(v => ({ value: v, label: v }))} hint={`Recommendation: ${sug.phase}`} />
+            <Select label="Phase" required value={phase} onChange={set('phase')} options={[...new Set([sug.phase, phase, ...PHASES])].map(v => ({ value: v, label: v }))} hint={`Package curriculum: ${sug.phase}`} />
             <Select label="Main distance" required value={f.distance} onChange={set('distance')} options={DISTANCES.map(v => ({ value: v, label: v }))} />
             <Select label="Intensity" required value={level} onChange={set('level')} options={INTENSITY_LEVELS.map(v => ({ value: v, label: v }))} error={errs.level} />
           </div>
@@ -613,10 +614,12 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
       {step === 3 && sug && (
         <Card className="space-y-4 p-6">
           <h3 className="font-serif text-lg font-bold">Training schedule</h3>
+          <Input label="Training activity" required value={sug.stages?.[0]?.activityName || ''} onChange={value => setSug({ ...sug, stages: sug.stages?.map(stage => ({ ...stage, activityName: value })) })} />
+          <Input label="Session end time" required type="time" value={sug.stages?.[0]?.sessionEndTime?.slice(0,5) || ''} onChange={value => { if (/^\d{2}:\d{2}$/.test(value)) setSug({ ...sug, stages: sug.stages?.map(stage => ({ ...stage, sessionTime: time, sessionEndTime: value })) }); }} />
           <WeekdayPicker value={weekdays} max={6} onChange={v => { setWeekdays(v); setErrs(p => ({ ...p, weekdays: '' })); }} error={errs.weekdays} />
-          <div className="max-w-xs"><Input label="Training time" required type="time" value={time} onChange={v => { setTime(v); setErrs(p => ({ ...p, time: '' })); }} error={errs.time} /></div>
+          <div className="max-w-xs"><Input label="Training time" required type="time" value={time} onChange={v => { setTime(v); setSug({ ...sug, stages: sug.stages?.map(stage => ({ ...stage, sessionTime: v })) }); setErrs(p => ({ ...p, time: '' })); }} error={errs.time} /></div>
           {scheduleError && <ErrorBox text={scheduleError}/>}
-          {weekdays.length > sug.sessionsPerWeek && <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">You selected {weekdays.length}  sessions/week, above the recommended {sug.sessionsPerWeek}  sessions/week for the current condition.</div>}
+
         </Card>
       )}
 

@@ -81,6 +81,7 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
   const open = mine.filter(r => r.status === 'pending');
   const done = mine.filter(r => r.status !== 'pending');
   const vets = users.filter(u => u.role === 'veterinarian' && u.clubId === user.clubId && !u.locked);
+  const vetLoad = (id: string) => new Set(horses.filter(h => h.clubId === user.clubId && h.vetId === id && h.vetAssign?.status !== 'declined').map(h => h.id)).size;
   const [filter, setFilter] = useState(0);
   const [pick, setPick] = useState<{ horse: Horse; vetId: string } | null>(null);
   const [pickErr, setPickErr] = useState('');
@@ -199,10 +200,12 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
               {matchingVets.map(v => <button key={v.id} type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-amber-50 focus:bg-amber-50 focus:outline-none"
                 onClick={() => { setPick({ ...pick, vetId: v.id }); setVetSearch(`${v.name} (${v.id})`); setPickErr(''); setShowVetSuggestions(false); }}>
                 <span className="font-medium">{v.name}</span> <span className="text-gray-500">({v.id})</span>
+                <span className="mt-0.5 block text-xs text-gray-500">{vetLoad(v.id)} horses assigned</span>
               </button>)}
               {matchingVets.length === 0 && <p role="status" className="px-3 py-2 text-sm text-gray-500">No veterinarians found.</p>}
             </div>}
           </div>
+          <p className="text-xs text-gray-500">{pick.vetId ? `${vetLoad(pick.vetId)} horses currently assigned to this veterinarian. ` : ''}Counts include assignments awaiting acceptance; declined assignments are excluded.</p>
           {pickErr && <p id="intake-vet-error" role="alert" className="mt-2 text-sm text-red-600">{pickErr}</p>}
           <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setPick(null)}>Cancel</Btn><Btn onClick={choose}>{pick.horse.vetId && pick.horse.vetAssign?.status !== 'declined' ? 'Continue' : 'Assign'}</Btn></div>
         </Modal>

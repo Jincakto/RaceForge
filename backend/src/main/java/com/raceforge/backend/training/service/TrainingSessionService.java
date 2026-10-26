@@ -141,7 +141,7 @@ public class TrainingSessionService {
         if(!request.scheduledStart().isAfter(LocalDateTime.now()))throw new BusinessRuleException("Rescheduled exercise must be in the future.");
         horseResolver.validateSchedule(session.getPlan(),session.getHorse().getHorseId(),request.scheduledStart().toLocalDate());
         var pack=workflowGuard.assignedPackage(session.getPlan().getHorsePackageId());
-        int day=Math.toIntExact(java.time.temporal.ChronoUnit.DAYS.between(pack.getStartDate(),request.scheduledStart().toLocalDate())+1);
+        int day=Math.toIntExact(java.time.temporal.ChronoUnit.DAYS.between(horseResolver.anchor(session.getPlan(),session.getHorse().getHorseId()),request.scheduledStart().toLocalDate())+1);
         var stages=stageRepository.findForDay(session.getPlan().getPlanId(),day);
         if(stages.size()!=1)throw new BusinessRuleException("Adjusted date must belong to one saved roadmap stage.");
         calendar.validateSlot(session.getHorse().getHorseId(),request.scheduledStart(),request.scheduledEnd(),id);

@@ -17,9 +17,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 class TrainingPackageServiceTest {
+    @org.junit.jupiter.api.BeforeEach void templates(){org.springframework.test.util.ReflectionTestUtils.setField(service,"roadmaps",roadmaps); }
     private final com.raceforge.backend.horse.service.ModuleIdAllocator ids = mock(com.raceforge.backend.horse.service.ModuleIdAllocator.class);
     private final TrainingPackageRepository packages = mock(TrainingPackageRepository.class);
     private final HorsePackageRepository registrations = mock(HorsePackageRepository.class);
+    private final PackageRoadmapTemplateService roadmaps = mock(PackageRoadmapTemplateService.class);
     private final TrainingPackageMapper mapper = new TrainingPackageMapper();
     private final TrainingPackageService service =
             new TrainingPackageService(packages, registrations, mapper, ids);
@@ -31,7 +33,7 @@ class TrainingPackageServiceTest {
                 .thenAnswer(call -> call.getArgument(0));
 
         var request = new TrainingPackageCreateRequest(
-                "Basic", "BASIC", "Normal training", 30, new BigDecimal("120000"));
+                "Basic", "BASIC", "Normal training", 30, new BigDecimal("120000"), new com.raceforge.backend.training.dto.PackageRoadmapDto("Basic","Foundation goal",java.util.List.of(),1,java.util.List.of()));
         var result = service.create(request);
 
         assertEquals("PKG-012", result.packageId());

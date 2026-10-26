@@ -27,6 +27,7 @@ import java.util.Locale;
 
 @Service
 public class HorsePackageService {
+    @org.springframework.beans.factory.annotation.Autowired private PackageRoadmapTemplateService packageRoadmaps;
     private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
 
     @org.springframework.beans.factory.annotation.Autowired private TrainingWorkflowGuard workflowGuard;
@@ -80,6 +81,7 @@ public class HorsePackageService {
             throw new BusinessRuleException("This training package is not available");
         }
 
+        packageRoadmaps.read(trainingPackage.getPackageId());
         workflowGuard.requireHealthy(horse);
         if ("RACING".equals(trainingPackage.getPackageType())) {
             workflowGuard.requireRacingEligible(horse);

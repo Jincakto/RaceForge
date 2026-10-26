@@ -18,6 +18,9 @@ public final class TrainingStageValidator {
   int last=0;
   for(Stage s:stages.stream().sorted(Comparator.comparingInt(Stage::startDay)).toList()) {
    if(s.startDay()<1||s.endDay()<s.startDay()||s.endDay()>days||s.startDay()<=last
+      ||s.title()==null||s.title().isBlank()||s.title().length()>150
+      ||s.phaseCode()==null||s.phaseCode().isBlank()||s.phaseCode().length()>50
+      ||(s.objective()!=null&&s.objective().length()>1000)
       ||s.activityName()==null||s.activityName().isBlank()||s.activityName().length()>500
       ||s.daysOfWeek()==null||s.daysOfWeek().isEmpty()||s.daysOfWeek().size()>6
       ||s.daysOfWeek().stream().anyMatch(Objects::isNull)

@@ -13,8 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class TrainingPackageContextService {
  private final JdbcTemplate jdbc;
  private final TrainingWorkflowGuard guard;
- private final PackageRoadmapPolicy packageRoadmaps;
- public TrainingPackageContextService(JdbcTemplate jdbc, TrainingWorkflowGuard guard, PackageRoadmapPolicy packageRoadmaps) {
+ private final PackageRoadmapTemplateService packageRoadmaps;
+ public TrainingPackageContextService(JdbcTemplate jdbc, TrainingWorkflowGuard guard, PackageRoadmapTemplateService packageRoadmaps) {
   this.jdbc=jdbc;this.guard=guard;this.packageRoadmaps=packageRoadmaps;
  }
  @Transactional(readOnly=true) public Map<String,Object> context(String packageId){
@@ -32,14 +32,14 @@ public class TrainingPackageContextService {
   if(!"ACTIVE".equals(pack.getStatus())||!"PAID".equals(pack.getPaymentStatus())||pack.getEndDate()==null||pack.getEndDate().isBefore(java.time.LocalDate.now()))reasons.add("Package is not currently active, paid and valid");
   result.put("trainingAllowed",reasons.isEmpty());result.put("blockingReasons",reasons);return result;
  }
- @Transactional(readOnly=true) public PackageRoadmapPolicy.Template registeredTemplate(String packageId){
+ @Transactional(readOnly=true) public com.raceforge.backend.training.dto.PackageRoadmapDto registeredTemplate(String packageId){
   var pack=guard.visiblePackage(packageId);
   if(pack.getStartDate()==null||pack.getEndDate()==null)throw new BusinessRuleException("Registered package dates are required");
-  return packageRoadmaps.template(pack.getTrainingPackage().getPackageType(),(int)java.time.temporal.ChronoUnit.DAYS.between(pack.getStartDate(),pack.getEndDate())+1);
+  return packageRoadmaps.read(pack.getTrainingPackage().getPackageId());
  }
- @Transactional(readOnly=true) public PackageRoadmapPolicy.Template catalogTemplate(String packageId){
+ @Transactional(readOnly=true) public com.raceforge.backend.training.dto.PackageRoadmapDto catalogTemplate(String packageId){
   var rows=jdbc.queryForList("SELECT package_type,duration_days FROM dbo.TRAINING_PACKAGE WHERE package_id=?",packageId);
   if(rows.isEmpty())throw new ResourceNotFoundException("Training package not found");
-  return packageRoadmaps.template((String)rows.get(0).get("package_type"),((Number)rows.get(0).get("duration_days")).intValue());
+  return packageRoadmaps.read(packageId);
  }
 }

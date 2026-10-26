@@ -73,7 +73,7 @@ public class PackageRoadmapPolicy {
     }
 
     public List<Part> apply(String type,List<Stage> stages,int days) {
-        TrainingRecommendationService.validateStages(stages,days);
+        TrainingStageValidator.validateStages(stages,days);
         List<Part> result=new ArrayList<>();
         for(Stage stage:stages.stream().sorted(Comparator.comparingInt(Stage::startDay)).toList()) {
             for(Phase phase:template(type,days).phases()) {

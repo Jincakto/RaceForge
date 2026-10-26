@@ -34,10 +34,8 @@ public class TrainingPlan extends com.raceforge.backend.training.entity.Training
   public String getHorseId(){return horseId;}public void setHorseId(String value){horseId=value;}
   @jakarta.persistence.Column(name="horse_package_id") private String horsePackageId;
   @jakarta.persistence.Column(name="trainer_assignment_id") private String trainerAssignmentId;
-  @jakarta.persistence.Column(name="recommendation_id") private String recommendationId;
   public String getHorsePackageId(){return horsePackageId;} public void setHorsePackageId(String value){horsePackageId=value;}
   public String getTrainerAssignmentId(){return trainerAssignmentId;} public void setTrainerAssignmentId(String value){trainerAssignmentId=value;}
-  public String getRecommendationId(){return recommendationId;} public void setRecommendationId(String value){recommendationId=value;}
   @jakarta.persistence.ManyToOne(fetch=jakarta.persistence.FetchType.LAZY)
   @jakarta.persistence.JoinColumn(name="horse_package_id",insertable=false,updatable=false) private HorsePackage horsePackage;
   @jakarta.persistence.ManyToOne(fetch=jakarta.persistence.FetchType.LAZY)

@@ -12,7 +12,7 @@ public class TrainingIds {
  private static ModuleIdAllocator allocator;
  private static final Set<String> SHARED=Set.of("ASN","HTR","PKG","HPG");
  private static final Map<String,String> SHARED_TABLES=Map.of("ASN","Horse_Assignment.id","HTR","Trainer.trainer_id","PKG","TRAINING_PACKAGE.package_id","HPG","HORSE_PACKAGE.horse_package_id");
- private static final Map<String,String> OWN=Map.of("PLN","Training_Plan.plan_id","SES","Training_Session.session_id","STG","Training_Stage.stage_id","PRO","Training_Protocol.protocol_id","REC","Training_Recommendation.recommendation_id");
+ private static final Map<String,String> OWN=Map.of("PLN","Training_Plan.plan_id","SES","Training_Session.session_id","STG","Training_Stage.stage_id","PRO","Training_Protocol.protocol_id");
  public TrainingIds(JdbcTemplate template,ModuleIdAllocator existing){jdbc=template;allocator=existing;}
  /** Must be called inside the transaction which persists the record. */
  public static String next(String code){

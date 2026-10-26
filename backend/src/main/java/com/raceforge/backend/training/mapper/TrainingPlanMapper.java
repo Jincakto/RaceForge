@@ -21,7 +21,7 @@ public class TrainingPlanMapper {
       response.setStatus(plan.getStatus());
       response.setNotes(plan.getNotes());
 
-      response.setHorsePackageId(plan.getHorsePackageId());response.setTrainerAssignmentId(plan.getTrainerAssignmentId());response.setRecommendationId(plan.getRecommendationId());
+      response.setHorsePackageId(plan.getHorsePackageId());response.setTrainerAssignmentId(plan.getTrainerAssignmentId());
       return response;
   }
 }

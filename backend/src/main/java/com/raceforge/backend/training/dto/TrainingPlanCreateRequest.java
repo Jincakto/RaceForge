@@ -28,12 +28,8 @@ public class TrainingPlanCreateRequest {
   private LocalDate endDate;
 
   @jakarta.validation.constraints.NotBlank private String assignmentId;
-  private String recommendationId;
-  private Boolean recommendationConfirmed;
   @jakarta.validation.Valid private java.util.List<TrainingWorkflowDtos.Stage> stages;
   public String getAssignmentId(){return assignmentId;} public void setAssignmentId(String value){assignmentId=value;}
-  public String getRecommendationId(){return recommendationId;} public void setRecommendationId(String value){recommendationId=value;}
-  public Boolean getRecommendationConfirmed(){return recommendationConfirmed;} public void setRecommendationConfirmed(Boolean value){recommendationConfirmed=value;}
   public java.util.List<TrainingWorkflowDtos.Stage> getStages(){return stages;} public void setStages(java.util.List<TrainingWorkflowDtos.Stage> value){stages=value;}
   public TrainingPlanCreateRequest() {
   }

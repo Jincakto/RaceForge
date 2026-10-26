@@ -20,6 +20,5 @@ public final class TrainingWorkflowDtos {
  public record ProtocolRequest(@NotBlank @Size(max=150) String name,@NotBlank String packageType,
     @NotNull @DecimalMin("0.01") BigDecimal minWeight,@NotNull BigDecimal maxWeight,
     @NotEmpty @Size(max=100) List<@Valid Stage> stages,@NotEmpty List<@NotBlank String> sources,@NotBlank @Size(max=1000) String rationale){}
- public record RecommendationRequest(@NotBlank String assignmentId){}
  public record GenerateRequest(@NotNull @AssertTrue Boolean confirmed){}
 }

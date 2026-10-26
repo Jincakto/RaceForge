@@ -11,10 +11,10 @@ public class TrainingPlanResponse {
   private String status;
   private String notes;
 
-  private String horsePackageId;private String trainerAssignmentId;private String recommendationId;
+  private String horsePackageId;private String trainerAssignmentId;
   public String getHorsePackageId(){return horsePackageId;}public void setHorsePackageId(String value){horsePackageId=value;}
   public String getTrainerAssignmentId(){return trainerAssignmentId;}public void setTrainerAssignmentId(String value){trainerAssignmentId=value;}
-  public String getRecommendationId(){return recommendationId;}public void setRecommendationId(String value){recommendationId=value;}
+  
   private String packageType;
   public String getPackageType(){return packageType;}
   public void setPackageType(String value){packageType=value;}

@@ -10,19 +10,20 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 @Transactional
 public class TrainingRoadmapService {
  @org.springframework.beans.factory.annotation.Autowired private PackageRoadmapPolicy packageRoadmaps;
  private final JdbcTemplate jdbc;private final TrainingWorkflowGuard guard;private final TrainingPlanRepository plans;
- private final TrainingRecommendationService recommendations;private final TrainingSessionService sessions;
- public TrainingRoadmapService(JdbcTemplate jdbc,TrainingWorkflowGuard guard,TrainingPlanRepository plans,TrainingRecommendationService recommendations,TrainingSessionService sessions){this.jdbc=jdbc;this.guard=guard;this.plans=plans;this.recommendations=recommendations;this.sessions=sessions;}
+ private final ObjectMapper json;private final TrainingSessionService sessions;
+ public TrainingRoadmapService(JdbcTemplate jdbc,TrainingWorkflowGuard guard,TrainingPlanRepository plans,ObjectMapper json,TrainingSessionService sessions){this.jdbc=jdbc;this.guard=guard;this.plans=plans;this.json=json;this.sessions=sessions;}
  public List<Map<String,Object>> replace(String planId,List<Stage> stages){
   lock(planId);var plan=plan(planId);guard.requirePlan(plan);
   if(jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Training_Session WHERE plan_id=?",Integer.class,planId)>0)throw new BusinessRuleException("Cannot replace stages after sessions have been scheduled");
   var pack=guard.assignedPackage(plan.getHorsePackageId());int days=(int)ChronoUnit.DAYS.between(pack.getStartDate(),pack.getEndDate())+1;
-  TrainingRecommendationService.validateStages(stages,days);
+  TrainingStageValidator.validateStages(stages,days);
   TrainingCalendarRules.requireSixDayWeek(TrainingCalendarRules.plannedDates(stages,pack.getStartDate()));
   jdbc.update("DELETE FROM dbo.Training_Stage WHERE plan_id=?",planId);
   String type=pack.getTrainingPackage().getPackageType();
@@ -30,7 +31,7 @@ public class TrainingRoadmapService {
   int ordinal=0;
   for(var part:packageRoadmaps.apply(type,stages,days)){
    Stage stage=part.activity();var phase=part.phase();
-   jdbc.update("INSERT dbo.Training_Stage(stage_id,plan_id,stage_order,start_day,end_day,activity_name,intensity,weekdays_json,session_time,phase_code,title,objective,session_end_time) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",TrainingIds.next("STG-"),planId,++ordinal,stage.startDay(),stage.endDay(),stage.activityName(),stage.intensity(),recommendations.encode(stage.daysOfWeek()),java.sql.Time.valueOf(stage.sessionTime()),phase.phaseCode(),phase.title(),phase.objective(),java.sql.Time.valueOf(stage.sessionEndTime()));
+   jdbc.update("INSERT dbo.Training_Stage(stage_id,plan_id,stage_order,start_day,end_day,activity_name,intensity,weekdays_json,session_time,phase_code,title,objective,session_end_time) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",TrainingIds.next("STG-"),planId,++ordinal,stage.startDay(),stage.endDay(),stage.activityName(),stage.intensity(),json.writeValueAsString(stage.daysOfWeek()),java.sql.Time.valueOf(stage.sessionTime()),phase.phaseCode(),phase.title(),phase.objective(),java.sql.Time.valueOf(stage.sessionEndTime()));
   }
   return stages(planId);
  }

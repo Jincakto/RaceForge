@@ -10,8 +10,7 @@ public abstract class TrainingEntity {
  private static final Map<String,String> PREFIXES=Map.ofEntries(
   Map.entry("TRAINING_PACKAGE","PKG"),Map.entry("HORSE_PACKAGE","HPG"),
   Map.entry("Training_Plan","PLN"),Map.entry("Training_Session","SES"),Map.entry("Trainer","HTR"),
-  Map.entry("Horse_Assignment","ASN"),Map.entry("Training_Stage","STG"),
-  Map.entry("Training_Protocol","PRO")
+  Map.entry("Horse_Assignment","ASN"),Map.entry("Training_Stage","STG")
  );
  @PrePersist
  protected void assignBusinessId(){

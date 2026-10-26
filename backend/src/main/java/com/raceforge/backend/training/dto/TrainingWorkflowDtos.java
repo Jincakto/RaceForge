@@ -1,7 +1,6 @@
 package com.raceforge.backend.training.dto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
-import java.math.BigDecimal;
 import java.time.*;
 import java.util.List;
 import java.util.Set;
@@ -17,8 +16,5 @@ public final class TrainingWorkflowDtos {
  public record Stage(@Min(1) int startDay,@Min(1) int endDay,@NotBlank @Size(max=500) String activityName,
                      @NotBlank String intensity,@NotEmpty @Size(max=6) Set<@NotNull DayOfWeek> daysOfWeek,@NotNull LocalTime sessionTime,@NotNull LocalTime sessionEndTime){}
  public record StagesRequest(@NotEmpty @Size(max=100) List<@Valid Stage> stages){}
- public record ProtocolRequest(@NotBlank @Size(max=150) String name,@NotBlank String packageType,
-    @NotNull @DecimalMin("0.01") BigDecimal minWeight,@NotNull BigDecimal maxWeight,
-    @NotEmpty @Size(max=100) List<@Valid Stage> stages,@NotEmpty List<@NotBlank String> sources,@NotBlank @Size(max=1000) String rationale){}
  public record GenerateRequest(@NotNull @AssertTrue Boolean confirmed){}
 }

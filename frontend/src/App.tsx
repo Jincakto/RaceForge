@@ -3181,21 +3181,6 @@ function HorseDetailPage({
         ))}
       </div>
 
-      {tab === "overview" && isApproved && (
-        <Card className="flex items-start gap-3 border-l-4 border-[#1a2844] bg-slate-50 p-4">
-          <span className="text-2xl">🔒</span>
-          <div className="text-sm">
-            <div className="font-semibold text-[#0f1729]">
-              Profile information is locked
-            </div>
-            <div className="text-gray-600">
-              The horse has been admitted to the club; original registration
-              details are locked. Update race results and prizes in the race
-              history tab.
-            </div>
-          </div>
-        </Card>
-      )}
       {tab === "overview" &&
         !isApproved &&
         (() => {
@@ -3222,6 +3207,12 @@ function HorseDetailPage({
           <div className="col-span-2">
             <Card className="p-5">
               <h3 className="font-semibold mb-4">Horse information</h3>
+              <div className="mb-4 flex items-center gap-3 text-sm">
+                <span className="text-gray-500">Profile status</span>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${isApproved ? "bg-slate-100 text-slate-700" : "bg-amber-100 text-amber-800"}`}>
+                  {isApproved ? "Locked" : "Unlocked"}
+                </span>
+              </div>
               {editMode ? (
                 <div className="space-y-3">
                   <Input

@@ -311,7 +311,11 @@ export function VetHealthFormPage({
   onPostSubmit,
   onBack,
   onConsumeExamHorse,
+  unlockHorseId,
+  onUnlock,
 }: {
+  unlockHorseId?: string;
+  onUnlock?: (horseId: string, reason: string) => Promise<string | null>;
   state: FormState;
   navigate: (p: "health-records" | "vet-assign") => void;
   onSave: (msg: string) => void;
@@ -329,16 +333,20 @@ export function VetHealthFormPage({
   const visible = useMemo(
     () =>
       state.horses.filter((h) =>
-        postSession ? h.id === postSession.horseId : vetVisible(h, user),
+        postSession ? h.id === postSession.horseId : vetVisible(h, user) && (!unlockHorseId || h.id === unlockHorseId),
       ),
-    [state.horses, user, postSession],
+    [state.horses, user, postSession, unlockHorseId],
   );
   const [horseId, setHorseId] = useState(() => {
+    if (unlockHorseId && visible.some(h => h.id === unlockHorseId)) return unlockHorseId;
     if (postSession) return postSession.horseId;
     return state.examHorseId && visible.some((h) => h.id === state.examHorseId)
       ? state.examHorseId
       : "";
   });
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState('');
+  const [unlocked, setUnlocked] = useState(false);
   useEffect(() => {
     if (state.examHorseId) onConsumeExamHorse?.();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -463,7 +471,7 @@ export function VetHealthFormPage({
       const body = {
         examType: isIntake
           ? "INITIAL"
-          : postSession || /Tái khám/i.test(examType)
+          : postSession || unlockHorseId || /Tái khám/i.test(examType)
             ? "FOLLOW_UP"
             : "PERIODIC",
         vitalSign: {
@@ -638,7 +646,7 @@ export function VetHealthFormPage({
       ? "Post-training examination"
       : isIntake
         ? "Intake examination"
-        : examType;
+        : unlockHorseId ? "Follow-up examination for training unlock" : examType;
     const adj =
       elig === "eligible"
         ? ["Train normally according to the current plan."]
@@ -804,6 +812,9 @@ export function VetHealthFormPage({
   // ── Thành công ──
   if (saved) {
     const ok = saved.decision !== "not-eligible";
+    const canUnlock = saved.horseId === unlockHorseId && saved.status === 'confirmed' && saved.decision === 'eligible'
+      && VITAL_DEFS.every(d => vs[d.key].kind === 'normal') && wt.ok && !wt.empty
+      && REGION_DEFS.every(r => regions[r.key] === 'ok');
     return (
       <div className="max-w-3xl space-y-5">
         <Card
@@ -841,6 +852,21 @@ export function VetHealthFormPage({
             </div>
           </div>
           <div className="mt-5 flex flex-wrap gap-2">
+            {unlockHorseId && onUnlock && !unlocked && <div className="w-full space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <p className="text-sm text-amber-900">{canUnlock ? 'All vital signs and clinical checks are normal. Confirm to release the training lock.' : 'The training lock remains. All vital signs and clinical checks must be normal and the saved conclusion must be Fit for training.'}</p>
+              {unlockError && <p role="alert" className="text-sm text-red-700">{unlockError}</p>}
+              <Btn variant="gold" disabled={!canUnlock || unlocking} onClick={async () => {
+                if (!canUnlock || unlocking) return;
+                setUnlocking(true); setUnlockError('');
+                try {
+                  const error = await onUnlock(saved.horseId, `Follow-up examination ${saved.id}: all vital signs within normal ranges, all clinical checks normal; confirmed fit for training.`);
+                  if (error) setUnlockError(error);
+                  else { setUnlocked(true); onSave('Training lock released after a successful examination.'); }
+                } catch (error) { setUnlockError((error as Error).message); }
+                finally { setUnlocking(false); }
+              }}>{unlocking ? 'Releasing lock...' : 'Confirm release training lock'}</Btn>
+            </div>}
+            {unlocked && <p role="status" className="w-full text-sm text-emerald-700">Training lock released. The manager can review resuming the training package.</p>}
             {postSession ? (
               <Btn variant="primary" onClick={leave}>
                 ← Back to list
@@ -894,7 +920,7 @@ export function VetHealthFormPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-serif text-xl font-bold text-[#0f1729]">
-            {postSession ? "Post-training examination" : "Health examination"}
+            {unlockHorseId ? "Examination to release training lock" : postSession ? "Post-training examination" : "Health examination"}
           </h2>
           <p className="text-sm text-gray-500">
             {user.name} · {today}

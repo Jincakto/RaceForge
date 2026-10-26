@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { allPages } from './api';
+import { userFromApi } from './remote';
 import type { AppUser, Horse, HorseClubRequest, HealthRecord } from './data';
 import { Btn, Card } from './ui';
 import { IdChip, ReasonDialog, Modal } from './admin';
@@ -80,10 +82,26 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
   const mine = requests.filter(r => r.clubId === user.clubId);
   const open = mine.filter(r => r.status === 'pending');
   const done = mine.filter(r => r.status !== 'pending');
-  const vets = users.filter(u => u.role === 'veterinarian' && u.clubId === user.clubId && !u.locked);
+  const [pickerUsers, setPickerUsers] = useState<AppUser[] | null>(null);
+  const [vetsLoading, setVetsLoading] = useState(false);
+  const [vetsError, setVetsError] = useState('');
+  const [vetsVersion, setVetsVersion] = useState(0);
+  const vets = (pickerUsers ?? users).filter(u => u.role === 'veterinarian' && u.clubId === user.clubId);
   const vetLoad = (id: string) => new Set(horses.filter(h => h.clubId === user.clubId && h.vetId === id && h.vetAssign?.status !== 'declined').map(h => h.id)).size;
   const [filter, setFilter] = useState(0);
   const [pick, setPick] = useState<{ horse: Horse; vetId: string } | null>(null);
+  useEffect(() => {
+    if (!pick?.horse.id) return;
+    let active = true;
+    setVetsLoading(true); setVetsError(''); setPickerUsers(null);
+    allPages('/users').then(rows => {
+      // Other accounts may not have a role yet; they must not discard the veterinarian catalogue.
+      const mapped = rows.filter(row => row.role?.roleName === 'VETERINARIAN').map(userFromApi);
+      if (active) setPickerUsers(mapped);
+    }).catch(error => { if (active) { setPickerUsers([]); setVetsError((error as Error).message); } })
+      .finally(() => { if (active) setVetsLoading(false); });
+    return () => { active = false; };
+  }, [pick?.horse.id, user.id, vetsVersion]);
   const [pickErr, setPickErr] = useState('');
   const [vetSearch, setVetSearch] = useState('');
   const [showVetSuggestions, setShowVetSuggestions] = useState(false);
@@ -106,6 +124,8 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
 
   const choose = async () => {
     if (!pick) return;
+    if (vetsLoading || vetsError) { setPickErr('Wait for the veterinarian list to load successfully.'); return; }
+    if (pick.vetId && !vets.some(v => v.id === pick.vetId && v.status === 'active' && !v.locked)) { setPickErr('Select a veterinarian with an active, unlocked account.'); return; }
     if (!pick.vetId) { setPickErr('Please select a veterinarian.'); return; }
     if (pick.horse.vetId && pick.vetId === pick.horse.vetId && pick.horse.vetAssign?.status !== 'declined') { setPickErr('This veterinarian is already assigned to the horse.'); return; }
     if (pick.horse.vetId && pick.horse.vetAssign?.status !== 'declined') { setReplace(pick); setPick(null); setPickErr(''); return; }
@@ -189,6 +209,7 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
       {pick && (
         <Modal title={pick.horse.vetId ? 'Reassign veterinarian' : 'Assign veterinarian'} onClose={() => setPick(null)}>
           <p className="mb-3 text-sm text-gray-600">Horse: <b>{pick.horse.name}</b>{pick.horse.vetName && <> · currently assigned to <b>{pick.horse.vetName}</b></>}</p>
+          {vetsError && <div role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">Could not load veterinarians: {vetsError}<button type="button" className="ml-2 font-semibold underline" onClick={() => setVetsVersion(v => v + 1)}>Retry</button></div>}
           <div className="relative mb-3" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setShowVetSuggestions(false); }} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setShowVetSuggestions(false); } }}>
             <label htmlFor="intake-vet-search" className="mb-1 block text-sm font-medium">Veterinarian</label>
             <input id="intake-vet-search" type="search" autoComplete="off" value={vetSearch} placeholder="Search by name or ID..."
@@ -197,14 +218,20 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
               onFocus={() => setShowVetSuggestions(true)} onClick={() => setShowVetSuggestions(true)}
               onChange={event => { setVetSearch(event.target.value); setPick({ ...pick, vetId: '' }); setPickErr(''); setShowVetSuggestions(true); }} />
             {showVetSuggestions && <div id="intake-vet-suggestions" className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
-              {matchingVets.map(v => <button key={v.id} type="button" className="block w-full px-3 py-2 text-left text-sm hover:bg-amber-50 focus:bg-amber-50 focus:outline-none"
+              {!vetsLoading && !vetsError && matchingVets.map(v => <button key={v.id} type="button" disabled={v.status !== 'active' || v.locked} className="block w-full px-3 py-2 text-left text-sm hover:bg-amber-50 focus:bg-amber-50 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50"
                 onClick={() => { setPick({ ...pick, vetId: v.id }); setVetSearch(`${v.name} (${v.id})`); setPickErr(''); setShowVetSuggestions(false); }}>
                 <span className="font-medium">{v.name}</span> <span className="text-gray-500">({v.id})</span>
+                <span className={`mt-1 flex items-center gap-1.5 text-xs ${v.status === 'active' && !v.locked ? 'text-emerald-700' : 'text-red-700'}`}>
+                  <span aria-hidden="true" className={`h-2 w-2 rounded-full ${v.status === 'active' && !v.locked ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                  {v.locked ? 'Account locked' : v.status === 'active' ? 'Account active' : 'Account awaiting activation'}
+                </span>
                 <span className="mt-0.5 block text-xs text-gray-500">{vetLoad(v.id)} horses assigned</span>
               </button>)}
-              {matchingVets.length === 0 && <p role="status" className="px-3 py-2 text-sm text-gray-500">No veterinarians found.</p>}
+              {vetsLoading && <p role="status" className="px-3 py-2 text-sm text-gray-500">Loading veterinarians...</p>}
+              {!vetsLoading && !vetsError && matchingVets.length === 0 && <p role="status" className="px-3 py-2 text-sm text-gray-500">{vetSearch ? 'No veterinarians match your search.' : 'No veterinarians are available.'}</p>}
             </div>}
           </div>
+          <p className="mb-2 text-xs text-gray-500">Green/red indicates account activation, not online presence. Accounts awaiting activation or locked accounts cannot receive assignments.</p>
           <p className="text-xs text-gray-500">{pick.vetId ? `${vetLoad(pick.vetId)} horses currently assigned to this veterinarian. ` : ''}Counts include assignments awaiting acceptance; declined assignments are excluded.</p>
           {pickErr && <p id="intake-vet-error" role="alert" className="mt-2 text-sm text-red-600">{pickErr}</p>}
           <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setPick(null)}>Cancel</Btn><Btn onClick={choose}>{pick.horse.vetId && pick.horse.vetAssign?.status !== 'declined' ? 'Continue' : 'Assign'}</Btn></div>
@@ -231,7 +258,8 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
   );
 }
 
-export function VetAssignedPage({ user, horses, requests, onRespond, onExam, onOpenHorse }: {
+export function VetAssignedPage({ user, horses, requests, onRespond, onExam, onOpenHorse, loadError }: {
+  loadError?: string;
   user: AppUser; horses: Horse[]; requests: HorseClubRequest[];
   onRespond: (horseId: string, accept: boolean, reason: string) => Promise<unknown>; onExam: (horseId: string) => void; onOpenHorse: (id: string) => void;
 }) {
@@ -247,7 +275,8 @@ export function VetAssignedPage({ user, horses, requests, onRespond, onExam, onO
         <h2 className="font-serif text-xl font-bold text-[#0f1729]">Assigned horses</h2>
         <p className="text-sm text-gray-500">Horses assigned to you by the Club Manager. Accept or decline each case before examination.</p>
       </div>
-      {mine.length === 0 && <Card className="p-12 text-center"><div className="mb-2 text-4xl">🩺</div><div className="font-semibold text-gray-600">No horses are assigned to you</div></Card>}
+      {loadError && <Card className="border-red-200 bg-red-50 p-5"><p role="alert" className="text-sm text-red-700">{loadError}</p></Card>}
+      {!loadError && mine.length === 0 && <Card className="p-12 text-center"><div className="mb-2 text-4xl">🩺</div><div className="font-semibold text-gray-600">No horses are assigned to you</div></Card>}
       {mine.map(h => {
         const rq = reqOf(h);
         const st = rq ? intakeStage(h, rq) : 5;

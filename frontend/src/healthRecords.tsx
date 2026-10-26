@@ -8,7 +8,7 @@ import {
   evalVital, fmtNum, rangeText, recordDecision, type VitalDef,
 } from './vetForm';
 
-type RecState = { user: AppUser | null; users: AppUser[]; horses: Horse[]; healthRecords: HealthRecord[] };
+type RecState = { user: AppUser | null; users: AppUser[]; horses: Horse[]; healthRecords: HealthRecord[]; vetAssignmentsError?: string };
 
 const PAGE_SIZE = 8;
 
@@ -121,6 +121,7 @@ export function HealthRecordsPage({ state, navigate }: { state: RecState; naviga
           : <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-500">Read only — only veterinarians may create examination records</div>}
       </div>
 
+      {isVet && state.vetAssignmentsError && <Card className="border-red-200 bg-red-50 p-5"><p role="alert" className="text-sm text-red-700">{state.vetAssignmentsError}</p></Card>}
       <Card className="p-4">
         <div className="grid gap-3 md:grid-cols-4">
           <div className="md:col-span-2">
@@ -145,9 +146,9 @@ export function HealthRecordsPage({ state, navigate }: { state: RecState; naviga
       {filtered.length === 0 ? (
         <Card className="p-10 text-center">
           <div className="mb-3 text-4xl">🏥</div>
-          <div className="font-serif text-lg font-bold text-[#0f1729]">{all.length === 0 ? "No medical records yet" : "No records match the filters"}</div>
-          <p className="mx-auto mt-1 max-w-md text-sm text-gray-500">{all.length === 0 ? (isVet ? "Examine an assigned horse to create the first record." : "Records will appear after the veterinarian completes the first examination.") : "Try another search term or a wider date range."}</p>
-          {all.length === 0 && isVet ? <Btn variant="gold" className="mt-4" onClick={() => navigate('vet-health-form')}>Examine now</Btn> : hasFilter && <Btn variant="secondary" className="mt-4" onClick={reset}>Clear filters</Btn>}
+          <div className="font-serif text-lg font-bold text-[#0f1729]">{isVet && state.vetAssignmentsError ? "Medical records could not be fully loaded" : all.length === 0 ? "No medical records yet" : "No records match the filters"}</div>
+          <p className="mx-auto mt-1 max-w-md text-sm text-gray-500">{isVet && state.vetAssignmentsError ? "Resolve the assignment access error above and reload this page." : all.length === 0 ? (isVet ? "Examine an assigned horse to create the first record." : "Records will appear after the veterinarian completes the first examination.") : "Try another search term or a wider date range."}</p>
+          {all.length === 0 && isVet && !state.vetAssignmentsError ? <Btn variant="gold" className="mt-4" onClick={() => navigate('vet-health-form')}>Examine now</Btn> : hasFilter && <Btn variant="secondary" className="mt-4" onClick={reset}>Clear filters</Btn>}
         </Card>
       ) : (
         <Card className="overflow-hidden">

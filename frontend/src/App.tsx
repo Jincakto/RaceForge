@@ -1,5 +1,5 @@
-import { TrainingProtocolsPage } from "./trainingProtocolsPage";
 import { TrainerProfileForm } from "./trainerProfileForm";
+import { memberHorses } from "./memberHorses";
 import { permissionForPage } from "./permissionApi";
 import { clearRecommendations } from "./recommendations";
 import {
@@ -149,6 +149,8 @@ type Page =
   | "inventory-log";
 
 interface AppState {
+  unlockExamHorseId?: string;
+  vetAssignmentsError?: string;
   user: AppUser | null;
   page: Page;
   users: AppUser[];
@@ -2799,6 +2801,7 @@ function HorseListPage({
 // ── Horse Detail ──────────────────────────────────────────────────────────────
 
 function HorseDetailPage({
+  onUnlockExam,
   state,
   navigate,
   onUpdateHorse,
@@ -2807,6 +2810,7 @@ function HorseDetailPage({
   onAudit,
   intakeActions,
 }: {
+  onUnlockExam: (horseId: string) => void;
   state: AppState;
   navigate: (p: Page) => void;
   onUpdateHorse: (h: Horse) => Promise<unknown>;
@@ -3162,10 +3166,15 @@ function HorseDetailPage({
               </div>
               <div className="text-xs text-red-500">
                 {user.role === "veterinarian"
-                  ? 'You can release the lock in "Post-training examinations and locks".'
+                  ? 'Complete a follow-up examination with all checks normal before releasing the lock.'
                   : "Only a veterinarian can release the training lock."}
               </div>
             </div>
+            {user.role === "veterinarian" && (
+              <Btn variant="gold" onClick={() => onUnlockExam(horse.id)}>
+                Examine to unlock
+              </Btn>
+            )}
           </div>
         </Card>
       )}
@@ -7382,6 +7391,10 @@ function StaffPage({
   onUpdatePermissions: (userId: string, pages: Page[]) => void;
 }) {
   const [accounts, setAccounts] = useState<AppUser[]>([]);
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const normalizeMemberSearch = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [accountsError, setAccountsError] = useState('');
   const [accountsVersion, setAccountsVersion] = useState(0);
@@ -7401,6 +7414,9 @@ function StaffPage({
     (u) => !!state.user!.clubId && u.clubId === state.user!.clubId && u.id !== state.user!.id,
   );
   const [permModalUserId, setPermModalUserId] = useState<string | null>(null);
+  const filteredMembers = members.filter(m => (roleFilter === 'all' || m.role === roleFilter)
+    && normalizeMemberSearch(`${m.name} ${m.email}`).includes(normalizeMemberSearch(search.trim())));
+  const detailMember = members.find(m => m.id === detailId);
   const permMember = members.find((m) => m.id === permModalUserId);
   const rolePages = (role: Role | null): Set<Page> =>
     new Set((role ? NAV_ITEMS[role] || [] : []).map((i) => i.page));
@@ -7413,6 +7429,39 @@ function StaffPage({
       : [...current, page];
     onUpdatePermissions(userId, next);
   };
+
+  if (detailMember) {
+    const related = memberHorses(detailMember, state.horses, state.healthRecords, state.enrollments);
+    const examinedCount = related.filter(row => row.labels.includes('Examined')).length;
+    const activeCount = related.filter(row => row.labels.some(label => label === 'Currently assigned' || label === 'Currently training' || label === 'Owned horse')).length;
+    const pendingCount = related.filter(row => row.labels.includes('Awaiting acceptance')).length;
+    return <div className="mx-auto max-w-6xl space-y-5">
+      <Btn variant="ghost" onClick={() => setDetailId(null)}>← Back to staff</Btn>
+      <Card className="p-6">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1a2844] text-xl font-bold text-white">{detailMember.avatar}</div>
+          <div className="flex-1"><h2 className="font-serif text-2xl font-bold text-[#1a2844]">{detailMember.name}</h2><p className="mt-1 text-sm text-gray-500">{detailMember.email}</p><p className="mt-1 text-sm text-gray-500">{detailMember.phone || 'No phone number provided'}</p></div>
+          {detailMember.role && <Badge status={detailMember.role} />}
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="rounded-xl bg-slate-50 p-4"><div className="text-2xl font-bold text-[#1a2844]">{activeCount}</div><p className="mt-1 text-sm text-gray-500">{detailMember.role === 'owner' ? 'Horses owned' : detailMember.role === 'veterinarian' ? 'Currently assigned horses' : 'Horses in training'}</p></div>
+          {detailMember.role === 'veterinarian' && <div className="rounded-xl bg-emerald-50 p-4"><div className="text-2xl font-bold text-emerald-800">{examinedCount}</div><p className="mt-1 text-sm text-emerald-700">Horses examined</p></div>}
+          {detailMember.role !== 'owner' && <div className="rounded-xl bg-amber-50 p-4"><div className="text-2xl font-bold text-amber-800">{pendingCount}</div><p className="mt-1 text-sm text-amber-700">Awaiting acceptance</p></div>}
+        </div>
+      </Card>
+      <div><h3 className="text-lg font-semibold text-[#1a2844]">{detailMember.role === 'owner' ? 'Owned horses' : 'Associated horses'} · {related.length}</h3><p className="mt-1 text-xs text-gray-500">Each horse is counted once. Examination totals use confirmed records available in this club.</p></div>
+      <div className="grid gap-4 md:grid-cols-2">
+        {related.map(({horse, labels}) => <Card key={horse.id} className="p-5">
+          <div className="flex items-center gap-4">
+            {horse.imageUrl ? <img src={horse.imageUrl} alt="" className="h-16 w-16 rounded-xl bg-gray-100 object-cover" /> : <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gray-100 text-2xl">🐎</div>}
+            <div className="min-w-0 flex-1"><h4 className="font-semibold">{horse.name}</h4><p className="mt-1 font-mono text-xs text-gray-500">{horse.id}</p><p className="mt-1 text-sm text-gray-500">{horse.breed} · {horse.age} years old</p></div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">{labels.map(label => <span key={label} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{label}</span>)}</div>
+        </Card>)}
+      </div>
+      {related.length === 0 && <Card className="p-10 text-center text-sm text-gray-500">No associated horses are available for this member in the club.</Card>}
+    </div>;
+  }
 
   return (
     <>
@@ -7437,8 +7486,16 @@ function StaffPage({
           <Btn variant="secondary" disabled={loadingAccounts} onClick={() => setAccountsVersion(v => v + 1)}>Refresh list</Btn>
         </div>
         {accountsError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600">Unable to load staff accounts: {accountsError}</p>}
-        <div className="grid grid-cols-2 gap-4">
-          {members.map((m) => {
+        <Card className="p-4">
+          <div className="grid gap-4 md:grid-cols-[1fr_240px_auto] md:items-end">
+            <Input label="Search by name or email" value={search} onChange={setSearch} placeholder="Enter a name or email..." />
+            <Select label="Role" value={roleFilter} onChange={setRoleFilter} options={[{value:'all',label:'All roles'}, ...Array.from(new Set(members.map(m => m.role).filter((role): role is Role => !!role))).map(role => ({value:role,label:ROLE_LABELS[role]}))]} />
+            {(search || roleFilter !== 'all') && <Btn variant="ghost" onClick={() => {setSearch(''); setRoleFilter('all');}}>Clear filters</Btn>}
+          </div>
+          <p role="status" className="mt-3 text-xs text-gray-500">Showing {filteredMembers.length} of {members.length} members</p>
+        </Card>
+        <div className="grid gap-4 md:grid-cols-2">
+          {filteredMembers.map((m) => {
             const extraCount = grantedPages(m.id).filter(
               (p) => !rolePages(m.role).has(p),
             ).length;
@@ -7449,7 +7506,9 @@ function StaffPage({
                     {m.avatar}
                   </div>
                   <div className="flex-1">
-                    <div className="font-semibold">{m.name}</div>
+                    {m.role && ['owner', 'veterinarian', 'head_trainer'].includes(m.role)
+                      ? <button type="button" onClick={() => setDetailId(m.id)} className="text-left font-semibold text-[#1a2844] hover:text-[#a47622] hover:underline">{m.name}</button>
+                      : <div className="font-semibold">{m.name}</div>}
                     <div className="text-sm text-gray-500">
                       {m.role ? ROLE_LABELS[m.role] : "Not assigned"}
                     </div>
@@ -7470,6 +7529,7 @@ function StaffPage({
                   {m.role && <Badge status={m.role} />}
                 </div>
                 <div className="mt-3 pt-3 border-t border-gray-100">
+                  {m.role && ['owner', 'veterinarian', 'head_trainer'].includes(m.role) && <Btn variant="ghost" size="sm" className="mr-2" onClick={() => setDetailId(m.id)}>View horses · {memberHorses(m, state.horses, state.healthRecords, state.enrollments).length}</Btn>}
                   <Btn
                     variant="secondary"
                     size="sm"
@@ -7482,12 +7542,12 @@ function StaffPage({
             );
           })}
         </div>
-        {!loadingAccounts && !accountsError && members.length === 0 && (
+        {!loadingAccounts && !accountsError && filteredMembers.length === 0 && (
           <Card className="p-10 text-center">
             <div className="text-4xl mb-3">👥</div>
-            <div className="font-semibold text-gray-600">No members yet</div>
+            <div className="font-semibold text-gray-600">{members.length ? 'No members match your filters' : 'No members yet'}</div>
             <div className="text-sm text-gray-400 mt-1">
-              Contact your administrator to create a staff account.
+              {members.length ? 'Try another name, email or role.' : 'Contact your administrator to create a staff account.'}
             </div>
           </Card>
         )}
@@ -7670,7 +7730,7 @@ function PostExamPage({
   navigate,
   onSave,
   onPostExam,
-  onUnlock,
+  onUnlockExam,
   onManualLock,
 }: {
   state: AppState;
@@ -7680,13 +7740,21 @@ function PostExamPage({
     sessionId: string,
     rec: HealthRecord,
   ) => string | null | Promise<string | null>;
-  onUnlock: (
-    horseId: string,
-    note: string,
-  ) => string | null | Promise<string | null>;
+  onUnlockExam: (horseId: string) => void;
   onManualLock: (horseId: string, reason: string) => string | null;
 }) {
-  const horses = state.horses.filter((h) => h.clubId === state.user!.clubId);
+  const [search, setSearch] = useState('');
+  const [view, setView] = useState<'locked' | 'pending' | 'awaiting' | 'manual'>('locked');
+  const allHorses = state.horses.filter(h => h.clubId === state.user!.clubId);
+  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+  const query = normalize(search.trim());
+  const horses = allHorses.filter(h => normalize(`${h.name} ${h.id}`).includes(query));
+  const totals = {
+    locked: allHorses.filter(h => h.lock).length,
+    pending: state.trainingSessions.filter(s => s.status === 'Completed' && !s.postExamDone && allHorses.some(h => h.id === s.horseId)).length,
+    awaiting: allHorses.filter(h => getLifecycle(h) === 'awaiting_vet' && h.approvalStatus === 'approved').length,
+    manual: allHorses.filter(h => !h.lock && getLifecycle(h) === 'training').length,
+  };
   const awaiting = horses.filter(
     (h) =>
       getLifecycle(h) === "awaiting_vet" && h.approvalStatus === "approved",
@@ -7698,8 +7766,8 @@ function PostExamPage({
       horses.some((h) => h.id === s.horseId),
   );
   const locked = horses.filter((h) => h.lock);
-  const [unlockFor, setUnlockFor] = useState<string | null>(null);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+
+
   const [activeId, setActiveId] = useState<string | null>(null);
   const lockable = horses.filter(
     (h) => !h.lock && getLifecycle(h) === "training",
@@ -7726,18 +7794,38 @@ function PostExamPage({
   }
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="mx-auto max-w-6xl space-y-6">
       <div>
         <h2 className="text-xl font-serif font-bold text-[#0f1729]">
           Post-training examinations and locks
         </h2>
         <p className="text-sm text-gray-500">
-          Only veterinarians may apply or release a TRAINING LOCK
+          Review examinations, monitor recovery and manage training locks.
         </p>
       </div>
 
-      <TrainingProtocolsPage />
-      <section className="space-y-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="group" aria-label="Examination sections">
+        {([
+          ['locked', 'Training locks', 'Horses paused for recovery', '🔒'],
+          ['pending', 'Post-training exams', 'Completed sessions to review', '🩺'],
+          ['awaiting', 'Pre-training exams', 'Horses awaiting clearance', '🐎'],
+          ['manual', 'Apply a lock', 'Stop training for examination', '＋'],
+        ] as const).map(([key, title, subtitle, icon]) => (
+          <button key={key} type="button" aria-pressed={view === key} onClick={() => setView(key)} className={`rounded-2xl border p-4 text-left transition ${view === key ? 'border-[#1a2844] bg-[#1a2844] text-white shadow-md' : 'border-gray-200 bg-white text-[#1a2844] hover:border-[#c9973b]'}`}>
+            <div className="flex items-center justify-between"><span className="text-xl">{icon}</span><span className="text-2xl font-bold">{totals[key]}</span></div>
+            <div className="mt-3 text-sm font-semibold">{title}</div><div className={`mt-1 text-xs ${view === key ? 'text-slate-300' : 'text-gray-500'}`}>{subtitle}</div>
+          </button>
+        ))}
+      </div>
+      <Card className="p-4">
+        <label htmlFor="post-exam-search" className="mb-2 block text-sm font-medium text-[#1a2844]">Find a horse</label>
+        <div className="flex items-center gap-3">
+          <input id="post-exam-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search by horse name or ID (HOR-001)..." className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-[#c9973b] focus:ring-2 focus:ring-[#c9973b]/20" />
+          {search && <Btn variant="ghost" onClick={() => setSearch('')}>Clear</Btn>}
+        </div>
+        <p role="status" className="mt-2 text-xs text-gray-500">{search ? `${horses.length} of ${allHorses.length} horses match your search` : 'Type a name or ID to filter the current list instantly.'}</p>
+      </Card>
+      {view === "awaiting" && <section className="space-y-3">
         <h3 className="font-semibold flex items-center gap-2">
           🩺 Awaiting pre-training examination{" "}
           <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">
@@ -7746,7 +7834,7 @@ function PostExamPage({
         </h3>
         {awaiting.length === 0 && (
           <Card className="p-5 text-sm text-gray-400 text-center">
-            No horses are awaiting examination
+            {search ? "No horses awaiting examination match your search." : "No horses are awaiting examination."}
           </Card>
         )}
         {awaiting.map((h) => (
@@ -7756,7 +7844,7 @@ function PostExamPage({
               className="w-12 h-12 rounded-lg object-cover bg-gray-200"
             />
             <div className="flex-1">
-              <div className="font-semibold">{h.name}</div>
+              <div className="font-semibold">{h.name}</div><div className="mt-0.5 font-mono text-xs text-gray-500">{h.id}</div>
               <div className="text-xs text-gray-500">
                 Owner: {h.ownerName} · {h.breed} · {h.age}t
               </div>
@@ -7775,9 +7863,9 @@ function PostExamPage({
           A "Fit for training" examination result marks the horse as medically
           ready and notifies the owner.
         </p>
-      </section>
+      </section>}
 
-      <section className="space-y-3">
+      {view === "pending" && <section className="space-y-3">
         <h3 className="font-semibold flex items-center gap-2">
           🏇 Sessions awaiting re-examination{" "}
           <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
@@ -7786,7 +7874,7 @@ function PostExamPage({
         </h3>
         {pending.length === 0 && (
           <Card className="p-5 text-sm text-gray-400 text-center">
-            No completed sessions require examination
+            {search ? "No sessions match this horse name or ID." : "No completed sessions require examination."}
           </Card>
         )}
         {pending.map((s) => {
@@ -7816,9 +7904,9 @@ function PostExamPage({
           standards (vitals, clinical findings and automated assessment). A "Not
           fit" result automatically applies a TRAINING LOCK.
         </p>
-      </section>
+      </section>}
 
-      <section className="space-y-3">
+      {view === "manual" && <section className="space-y-3">
         <h3 className="font-semibold flex items-center gap-2">
           Manual training lock
         </h3>
@@ -7835,9 +7923,9 @@ function PostExamPage({
             <div className="space-y-3">
               <Select
                 label="Horses requiring a lock"
-                value={manualHorseId}
+                value={lockable.some(h => h.id === manualHorseId) ? manualHorseId : lockable[0]?.id || ""}
                 onChange={setManualHorseId}
-                options={lockable.map((h) => ({ value: h.id, label: h.name }))}
+                options={lockable.map((h) => ({ value: h.id, label: `${h.name} (${h.id})` }))}
               />
               <Textarea
                 label="Veterinary reason / instructions"
@@ -7852,7 +7940,7 @@ function PostExamPage({
               <Btn
                 variant="danger"
                 onClick={() => {
-                  const err = onManualLock(manualHorseId, manualReason);
+                  const err = onManualLock(lockable.some(h => h.id === manualHorseId) ? manualHorseId : lockable[0]?.id || "", manualReason);
                   setManualError(err || "");
                   if (!err) setManualReason("");
                 }}
@@ -7862,9 +7950,9 @@ function PostExamPage({
             </div>
           )}
         </Card>
-      </section>
+      </section>}
 
-      <section className="space-y-3">
+      {view === "locked" && <section className="space-y-3">
         <h3 className="font-semibold flex items-center gap-2">
           🔒 Horses under a training lock{" "}
           <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
@@ -7873,18 +7961,18 @@ function PostExamPage({
         </h3>
         {locked.length === 0 && (
           <Card className="p-5 text-sm text-gray-400 text-center">
-            No horses are locked
+            {search ? "No locked horses match this name or ID." : "No horses are currently under a training lock."}
           </Card>
         )}
         {locked.map((h) => (
-          <Card key={h.id} className="p-5 border-l-4 border-red-500">
+          <Card key={h.id} className="p-5 border-l-4 border-rose-500 shadow-sm">
             <div className="flex items-center gap-3 mb-3">
               <img
                 src={h.imageUrl || undefined}
                 className="w-11 h-11 rounded-lg object-cover bg-gray-200"
               />
               <div className="flex-1">
-                <div className="font-semibold">{h.name}</div>
+                <div className="font-semibold">{h.name}</div><div className="mt-0.5 font-mono text-xs text-gray-500">{h.id}</div>
                 <div className="text-xs text-gray-500">
                   Lock {h.lock!.lockedAt} · {h.lock!.lockedByName}
                 </div>
@@ -7907,36 +7995,17 @@ function PostExamPage({
               reason is required and recorded in the audit log and horse
               history.
             </p>
-            {errors[h.id] && (
-              <div className="text-sm text-red-600 mt-2">{errors[h.id]}</div>
-            )}
+
             <Btn
               variant="primary"
               className="mt-3"
-              onClick={() => setUnlockFor(h.id)}
+              onClick={() => onUnlockExam(h.id)}
             >
-              🔓 Release training lock
+              🩺 Examine to unlock
             </Btn>
           </Card>
         ))}
-      </section>
-      {unlockFor &&
-        (() => {
-          const uh = state.horses.find((x) => x.id === unlockFor);
-          return uh ? (
-            <ReasonDialog
-              title={`Release training lock — ${uh.name}`}
-              confirmLabel="Confirm release"
-              description="Releasing the lock allows training to resume. State the supporting examination findings, measurements and recovery time. The reason is recorded in the audit log."
-              onClose={() => setUnlockFor(null)}
-              onConfirm={async (reason) => {
-                const err = await onUnlock(uh.id, reason);
-                setErrors((e) => ({ ...e, [uh.id]: err || "" }));
-                setUnlockFor(null);
-              }}
-            />
-          ) : null;
-        })()}
+      </section>}
     </div>
   );
 }
@@ -8219,7 +8288,7 @@ export default function App() {
   stateRef.current = state;
 
   const navigate = useCallback(
-    (page: Page) => setState((s) => ({ ...s, page })),
+    (page: Page) => setState((s) => ({ ...s, page, unlockExamHorseId: page === "vet-health-form" ? s.unlockExamHorseId : undefined })),
     [],
   );
 
@@ -8509,6 +8578,7 @@ export default function App() {
           <NoAccess text="No horse data is available to display." />
         ) : (
           <HorseDetailPage
+            onUnlockExam={(id) => setState(s => ({ ...s, examHorseId: id, unlockExamHorseId: id, page: "vet-health-form" }))}
             state={state}
             navigate={navigate}
             onUpdateHorse={remote.updateHorse}
@@ -8635,6 +8705,13 @@ export default function App() {
           return <HealthRecordsPage state={state} navigate={navigate} />;
         return (
           <VetHealthFormPage
+            unlockHorseId={state.unlockExamHorseId}
+            onUnlock={async (id, reason) => {
+              const result = await remote.unlock(id, reason);
+              if (!result.ok) return result.message;
+              setState(s => ({ ...s, unlockExamHorseId: undefined }));
+              return null;
+            }}
             state={state}
             navigate={navigate}
             onSave={showSuccess}
@@ -8708,6 +8785,7 @@ export default function App() {
           return <NoAccess text="Only veterinarians may access this page" />;
         return (
           <VetAssignedPage
+            loadError={state.vetAssignmentsError}
             user={state.user!}
             horses={state.horses}
             requests={state.horseClubRequests}
@@ -8737,10 +8815,7 @@ export default function App() {
             navigate={navigate}
             onSave={showSuccess}
             onPostExam={remote.postExam}
-            onUnlock={async (...args) => {
-              const r = await remote.unlock(...args);
-              return r.ok ? null : r.message;
-            }}
+            onUnlockExam={(id) => setState(s => ({ ...s, examHorseId: id, unlockExamHorseId: id, page: "vet-health-form" }))}
             onManualLock={() =>
               "Complete an examination and confirm NOT_FIT to apply a training lock on the server."
             }

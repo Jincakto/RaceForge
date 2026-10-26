@@ -71,7 +71,7 @@ export function recordFromApi(w: Wire, horseId: string, users: AppUser[]): Healt
 }
 export function medicalPayload(rec: HealthRecord, profileId: string) {
   const num = (s?: string) => s?.trim() ? Number(s.replace(',', '.')) : null;
-  return { profileId, examType: rec.intake ? 'INITIAL' : rec.isPostTraining || /Tái khám/i.test(rec.type) ? 'FOLLOW_UP' : 'PERIODIC', examinedAt: `${isoDate(rec.date)}T${new Date().toTimeString().slice(0, 8)}`,
+  return { profileId, examType: rec.intake ? 'INITIAL' : rec.isPostTraining || /Tái khám|Follow-up examination/i.test(rec.type) ? 'FOLLOW_UP' : 'PERIODIC', examinedAt: `${isoDate(rec.date)}T${new Date().toTimeString().slice(0, 8)}`,
     finalConclusion: ({ eligible: 'FIT', conditional: 'FIT_WITH_MONITORING', 'not-eligible': 'NOT_FIT' } as Record<string, string>)[rec.decision || ''],
     overrideReason: rec.overrideReason || null, monitoringNote: rec.followUpNote || null, trainingLockReason: rec.decisionReason || null,
     diagnosis: rec.diagnosis || rec.conclusion || '', treatment: '', medication: rec.medications || '', careRecommendation: rec.recommendations || '', notes: rec.notes || '',
@@ -95,9 +95,9 @@ export function sessionFromApi(w: Wire, user?: AppUser): TrainingSession {
   };
 }
 
-export interface RemoteSlice { users: AppUser[]; horses: Horse[]; healthRecords: HealthRecord[]; horseClubRequests: HorseClubRequest[]; packages: TrainingPackage[]; enrollments: Enrollment[]; trainingPlans: TrainingPlan[]; trainingSessions: TrainingSession[]; notifications: AppNotification[]; serverPermissions?: Record<string, string[]>; permissionAudit?: any[]; }
+export interface RemoteSlice { vetAssignmentsError?: string; users: AppUser[]; horses: Horse[]; healthRecords: HealthRecord[]; horseClubRequests: HorseClubRequest[]; packages: TrainingPackage[]; enrollments: Enrollment[]; trainingPlans: TrainingPlan[]; trainingSessions: TrainingSession[]; notifications: AppNotification[]; serverPermissions?: Record<string, string[]>; permissionAudit?: any[]; }
 export async function loadRemote(user: AppUser, report: (message: string) => void): Promise<RemoteSlice> {
-  const data: RemoteSlice = { users: [user], horses: [], healthRecords: [], horseClubRequests: [], packages: [], enrollments: [], trainingPlans: [], trainingSessions: [], notifications: [] };
+  const data: RemoteSlice = { users: [user], horses: [], healthRecords: [], horseClubRequests: [], packages: [], enrollments: [], trainingPlans: [], trainingSessions: [], notifications: [], vetAssignmentsError: undefined };
   if (user.status !== 'active' || user.locked || !user.verified) {
     report("This account is not active and verified. The server has not granted access to operational features.");
     return data;
@@ -133,7 +133,16 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
   if (['manager', 'owner', 'head_trainer'].includes(user.role || '')) data.packages = (await read("Package catalogue", () => request<Wire[]>(user.role === 'manager' ? '/training-packages/all' : '/training-packages'), [])).map(packageFromApi);
 
 
-  const vetAssignments: Wire[] = user.role === 'veterinarian' ? await read("Assign veterinarian", () => request('/medical/assignments/mine/history'), []) : [];
+  let vetAssignments: Wire[] = [];
+  if (user.role === 'veterinarian') {
+    try { vetAssignments = await request<Wire[]>('/medical/assignments/mine'); }
+    catch (error) {
+      data.vetAssignmentsError = error instanceof ApiError && error.status === 403
+        ? 'The server denied access to your veterinary assignments. Assigned horses and medical records cannot be fully displayed. Please sign in again; if this persists, contact the administrator.'
+        : `Could not load veterinary assignments: ${(error as Error).message}`;
+      errors.add(data.vetAssignmentsError);
+    }
+  }
   const myAssignments: Wire[] = user.role === 'head_trainer' ? await read("Trainer assignments", () => request('/trainer-assignments/me'), []) : [];
   // Pending assignments intentionally do not grant /horses/{id} access. Show the
   // assignment's own summary, so the trainer can accept before fetching private data.
@@ -147,7 +156,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
     if (user.role === 'head_trainer' && !horse.trainerIds?.includes(user.id)) continue;
     const path = `/horses/${enc(horse.id)}`;
     const assignments = user.role === 'manager' ? await read("Assign veterinarian", () => request<Wire[]>(`/medical/assignments/horses/${enc(horse.id)}`), []) : vetAssignments.filter(a => a.horseId === horse.id);
-    const current = assignments.find(a => ['ASSIGNED', 'ACCEPTED'].includes(a.status)) || assignments[0];
+    const current = [...assignments].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
     if (current) {
       horse.vetId = current.veterinarianId; horse.vetName = current.veterinarianName; horse.vetAssignmentId = current.assignmentId;
       horse.vetAssign = { status: ['ACCEPTED','COMPLETED'].includes(current.status) ? 'accepted' : current.status === 'ASSIGNED' ? 'pending' : 'declined', history: [...assignments].reverse().map(a => ({ time: dateText(a.createdAt), from: null, to: a.veterinarianName, by: a.assignedBy, reason: a.reason || a.status })) };

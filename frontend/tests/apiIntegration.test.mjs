@@ -485,3 +485,29 @@ test('invalid intensity does not create a training plan',async()=>{
  globalThis.fetch=async(url)=>{if(url.endsWith('/training-recommendations'))return ok(suggestion);writes++;return ok({});};
  assert.equal((await remote.createPlan({...draft,workload:'INVALID'})).ok,false);assert.equal(writes,0);
 });
+
+test('veterinarian loads current assignments and medical records without history endpoint', async () => {
+  const me = user('veterinarian'); const calls = []; const warnings = [];
+  globalThis.fetch = async url => {
+    const endpoint = String(url); calls.push(endpoint);
+    if (endpoint.endsWith('/horses')) return ok([{horseId:'HOR-007',horseName:'Thunder',admissionStatus:'APPROVED',healthStatus:'READY'}]);
+    if (endpoint.endsWith('/medical/assignments/mine')) return ok([{assignmentId:'ASN-007',horseId:'HOR-007',veterinarianId:me.id,veterinarianName:me.name,status:'ACCEPTED',createdAt:'2026-10-26T08:00:00'}]);
+    if (endpoint.endsWith('/medical/horses/HOR-007/records')) return ok([{medicalRecordId:'MED-007',veterinarianId:me.id,status:'CONFIRMED',finalConclusion:'FIT',examinedAt:'2026-10-26T09:00:00'}]);
+    return ok([]);
+  };
+  const data = await mapping.loadRemote(me, message => warnings.push(message));
+  assert.equal(data.horses[0].vetId,me.id);
+  assert.equal(data.horses[0].vetAssign.status,'accepted');
+  assert.equal(data.healthRecords[0].horseId,'HOR-007');
+  assert.equal(data.vetAssignmentsError,undefined);
+  assert.equal(calls.some(url=>url.includes('/mine/history')),false);
+  assert.deepEqual(warnings,[]);
+});
+
+test('veterinary assignment denial is preserved separately from an empty assignment list', async () => {
+  globalThis.fetch = async url => String(url).endsWith('/medical/assignments/mine') ? denied() : ok([]);
+  const warnings=[];
+  const data=await mapping.loadRemote(user('veterinarian'),message=>warnings.push(message));
+  assert.match(data.vetAssignmentsError,/server denied access/);
+  assert.equal(warnings.length,1);
+});

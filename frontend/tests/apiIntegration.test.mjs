@@ -8,11 +8,7 @@ import ts from 'typescript';
 
 // Run the actual TS adapters without Vite or a database; HTTP is the test boundary.
 const dir = await mkdtemp(path.join(tmpdir(), 'raceforge-api-tests-'));
-<<<<<<< HEAD
-for (const name of ['api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
-=======
-for (const name of ['trainingTimestamp', 'api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
->>>>>>> a0f9749 (Luu tam code local)
+for (const name of ['trainingSchedule', 'trainingTimestamp', 'api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
   const source = await readFile(new URL(`../src/${name}.ts`, import.meta.url), 'utf8');
   const code = ts.transpileModule(source.replace('import.meta.env', '({})'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText
     .replace(/(['"])(\.\/[^'"]+)\1/g, (_, quote, specifier) => `${quote}${specifier}.mjs${quote}`);
@@ -46,7 +42,6 @@ const denied = (status = 403) => new Response(JSON.stringify({ success: false, m
 const user = role => mapping.userFromApi({ userId: role === 'owner' ? 'OWN-001' : 'HTR-001', fullName: 'Test User', email: 'test@example.invalid', emailVerified: true, status: 'ACTIVE', role: { roleName: mapping.ROLE_NAMES[role], roleId: mapping.ROLE_IDS[role] } });
 const horse = () => mapping.horseFromApi({ horseId:'HOR-007', ownerId:'OWN-001', horseName:'Thunder', dateOfBirth:'2020-01-02', gender:'GELDING', admissionStatus:'APPROVED', healthStatus:'READY', trainerIds:['HTR-001','HTR-002'], registrationNumber:'704ABC000000001', imageUrl:'https://example.invalid/horse.jpg', documentUrl:'https://example.invalid/ueln.pdf' }, []);
 const state = () => ({ user:user('owner'), users:[], horses:[horse()], packages:[], enrollments:[], trainingPlans:[], trainingSessions:[], notifications:[], healthRecords:[], horseClubRequests:[] });
-<<<<<<< HEAD
 test('owner treats a missing health profile as no examination records, while preserving other errors', async () => {
   for (const [status, message, expectedWarnings] of [
     [404, 'Health profile not found', 0],
@@ -82,44 +77,29 @@ test('admin login loads administration data without calling business APIs', asyn
   assert.equal(Object.keys(data.serverPermissions).length, 6);
   assert.ok(urls.every(url => url.startsWith('/api/users') || url.startsWith('/api/admin/permissions/')));
 });
-=======
->>>>>>> a0f9749 (Luu tam code local)
 function actions(snapshot) {
   const events = [];
   return { events, remote: makeRemoteActions({ getState:() => snapshot, reload:async () => { events.push('reload'); }, success:message => events.push(message), error:message => events.push(`error:${message}`), navigate:page => events.push(`page:${page}`) }) };
 }
 
-<<<<<<< HEAD
-test('package create and edit send the DTO and use the server response', async () => {
-  const draft = {name:' Normal ',packageType:'RACING',description:'Training',durationDays:30,price:5000000};
-  for (const id of [undefined, 'PKG-001']) {
-    const {remote,events} = actions(state());
-    globalThis.fetch = async (url, init) => {
-      assert.equal(url, id ? `/api/training-packages/${id}` : '/api/training-packages');
-      assert.equal(init.method, id ? 'PUT' : 'POST');
-      assert.deepEqual(JSON.parse(init.body), {packageName:'Normal',packageType:'RACING',description:'Training',durationDays:30,price:5000000});
-      return ok({packageId:'PKG-001',packageName:'Normal',packageType:'RACING',durationDays:30,price:5000000,status:'ACTIVE'});
-    };
-    const result = await remote.savePackage({...draft,id});
-    assert.equal(result.ok, true);
-    assert.equal(result.data.id, 'PKG-001');
-    assert.ok(events.includes('reload'));
-  }
+test('package creation sends the DTO and uses the server response', async () => {
+  const draft={name:' Normal ',packageType:'RACING',description:'Training',durationDays:30,price:5000000};
+  const {remote,events}=actions(state());
+  globalThis.fetch=async(url,init)=>{
+    assert.equal(url,'/api/training-packages');assert.equal(init.method,'POST');
+    assert.deepEqual(JSON.parse(init.body),{packageName:'Normal',packageType:'RACING',description:'Training',durationDays:30,price:5000000});
+    return ok({packageId:'PKG-001',packageName:'Normal',packageType:'RACING',durationDays:30,price:5000000,status:'ACTIVE'});
+  };
+  const result=await remote.savePackage(draft);assert.equal(result.ok,true);assert.equal(result.data.id,'PKG-001');assert.ok(events.includes('reload'));
 });
 
-test('package status sends ACTIVE or INACTIVE and maps the response', async () => {
-  for (const active of [true, false]) {
-    const {remote} = actions(state());
-    globalThis.fetch = async (url, init) => {
-      assert.equal(url, '/api/training-packages/PKG-001/status');
-      assert.equal(init.method, 'PATCH');
-      assert.deepEqual(JSON.parse(init.body), {status:active ? 'ACTIVE' : 'INACTIVE'});
-      return ok({packageId:'PKG-001',packageName:'Normal',status:active ? 'ACTIVE' : 'INACTIVE'});
-    };
-    const result = await remote.togglePackage('PKG-001', active);
-    assert.equal(result.ok, true);
-    assert.equal(result.data.active, active);
-  }
+test('unavailable package edit and status operations do not send requests',async()=>{
+  const {remote,events}=actions(state());let calls=0;
+  globalThis.fetch=async()=>{calls++;return ok({});};
+  assert.equal((await remote.savePackage({id:'PKG-001',name:'Normal'})).ok,false);
+  assert.equal((await remote.togglePackage('PKG-001',true)).ok,false);
+  assert.equal((await remote.togglePackage('PKG-001',false)).ok,false);
+  assert.equal(calls,0);assert.ok(events.every(event=>event.startsWith('error:')));
 });
 
 test('unavailable package routes report failure without success or reload', async () => {
@@ -131,8 +111,6 @@ test('unavailable package routes report failure without success or reload', asyn
   assert.ok(events.every(event => event.startsWith('error:')));
 });
 
-=======
->>>>>>> a0f9749 (Luu tam code local)
 test('attaches bearer auth and cookie credentials, unwraps the BE response', async () => {
   api.setAccessToken('access');
   globalThis.fetch = async (url, init) => { assert.equal(url, '/api/horses'); assert.equal(init.credentials, 'include'); assert.equal(init.headers.Authorization, 'Bearer access'); return ok([{ horseId:'HOR-007' }]); };
@@ -288,13 +266,9 @@ test('admin staff creation maps groom to database role 5, and refuses public-own
 test('completion sends actual exercise/recovery fields and does not invent a max speed', async () => {
   const snapshot = state(); const { remote } = actions(snapshot); let payload;
   globalThis.fetch = async (url, init) => { assert.equal(url,'/api/training-sessions/SES-001/complete'); assert.equal(init.method,'PATCH'); payload=JSON.parse(init.body); return ok({}); };
-  assert.equal(await remote.completeSession('SES-001',{ time:'1.25',speed:'18.2',heartRate:180,performanceScore:88,notes:'Measured recovery' }),null);
+  assert.equal(await remote.completeSession('SES-001',{ time:'1.25',speed:'18.2',heartRate:180,performanceScore:88,notes:'Measured recovery',recoveryMeasuredAt:'2026-10-21T07:32:00.123' }),null);
   assert.equal(payload.distance,1.25); assert.equal(payload.endExerciseHeartRate,180); assert.equal(payload.recoveryHeartRate2Min,88); assert.equal(payload.avgSpeed,18.2);
-<<<<<<< HEAD
-  assert.match(payload.recoveryMeasuredAt,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/); assert.ok(!('maxSpeed' in payload));
-=======
   assert.match(payload.recoveryMeasuredAt,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/); assert.ok(!('maxSpeed' in payload));
->>>>>>> a0f9749 (Luu tam code local)
 });
 
 test('medical confirmation failure keeps its draft ID and retries using the draft update API', async () => {
@@ -367,11 +341,7 @@ test('only admin can create a profile for an activated Trainer', async () => {
 });
 test('trainer assignment uses profile ID, not account ID', async () => {
   const target={...user('head_trainer'),trainerProfileId:'HTR-099'};
-<<<<<<< HEAD
-  const snapshot={...state(),user:user('manager'),users:[target],enrollments:[{id:'HPG-001',horseId:'HOR-007'}]}; const {remote}=actions(snapshot);
-=======
   const snapshot={...state(),user:user('manager'),users:[target],enrollments:[{id:'HPG-001',horseId:'HOR-007',apiStatus:'ACTIVE',paymentStatus:'PAID'}]}; const {remote}=actions(snapshot);
->>>>>>> a0f9749 (Luu tam code local)
   globalThis.fetch=async(url,init)=>{assert.equal(url,'/api/trainer-assignments'); assert.deepEqual(JSON.parse(init.body),{trainerId:'HTR-099',horsePackageId:'HPG-001'}); return ok({});};
   assert.equal((await remote.assignTrainer('HPG-001',target.id)).ok,true);
 });
@@ -418,8 +388,6 @@ test('published protocol weight intervals are half-open and package-specific',()
   assert.equal(protocols.protocolOverlap({...active,protocol_id:'PRO-2',min_weight:500,max_weight:550},[active]),false);
   assert.equal(protocols.protocolOverlap({...active,protocol_id:'PRO-2',package_type:'RECOVERY'},[active]),false);
 });
-<<<<<<< HEAD
-=======
 
 
 test('unpaid and paused packages cannot create trainer assignments', async () => {
@@ -517,4 +485,3 @@ test('invalid intensity does not create a training plan',async()=>{
  globalThis.fetch=async(url)=>{if(url.endsWith('/training-recommendations'))return ok(suggestion);writes++;return ok({});};
  assert.equal((await remote.createPlan({...draft,workload:'INVALID'})).ok,false);assert.equal(writes,0);
 });
->>>>>>> a0f9749 (Luu tam code local)

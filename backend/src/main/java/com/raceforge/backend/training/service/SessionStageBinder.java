@@ -13,13 +13,14 @@ public class SessionStageBinder {
     private final TrainingStageRepository stages;
     private final HorsePackageRepository packages;
     private final TrainingCalendarRules calendar;
+    @org.springframework.beans.factory.annotation.Autowired private com.raceforge.backend.training.repository.HorsePlanRepository horsePlans;
     public SessionStageBinder(TrainingStageRepository stages,HorsePackageRepository packages,TrainingCalendarRules calendar) {
         this.stages=stages;this.packages=packages;this.calendar=calendar;
     }
     public void bind(TrainingSession session) {
         var plan=session.getPlan();
         var pack=packages.findById(plan.getHorsePackageId()).orElseThrow(()->new BusinessRuleException("Plan package is missing"));
-        int day=Math.toIntExact(ChronoUnit.DAYS.between(pack.getStartDate(),session.getScheduledStart().toLocalDate())+1);
+        int day=Math.toIntExact(ChronoUnit.DAYS.between(horsePlans.findById(new com.raceforge.backend.training.entity.HorsePlanId(plan.getPlanId(),session.getHorse().getHorseId())).orElseThrow(()->new BusinessRuleException("Plan date anchor is missing")).getStartDate(),session.getScheduledStart().toLocalDate())+1);
         var matches=stages.findForDay(plan.getPlanId(),day);
         if(matches.size()!=1)throw new BusinessRuleException("Session date must belong to one saved roadmap stage; rest gaps cannot be scheduled");
         var stage=matches.get(0);

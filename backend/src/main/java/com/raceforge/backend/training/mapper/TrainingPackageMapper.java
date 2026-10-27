@@ -32,7 +32,7 @@ public class TrainingPackageMapper {
         return new TrainingPackageResponse(
                 entity.getPackageId(), entity.getPackageName(), entity.getPackageType(),
                 entity.getDescription(), entity.getDurationDays(), entity.getPrice(),
-                entity.getStatus(), entity.getCreatedAt(), entity.getUpdatedAt()
+                entity.getStatus(), entity.getCreatedAt(), entity.getUpdatedAt(), null
         );
     }
 }

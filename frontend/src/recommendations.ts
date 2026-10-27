@@ -20,5 +20,5 @@ export function recommendationView(value: any): TrainingSuggestion {
   const approvedIntensity = stages.some(s => s.intensity === 'HIGH') ? 'HIGH' : stages.some(s => s.intensity === 'MODERATE') ? 'MODERATE' : 'LOW';
   return { stages, phase: value.title || value.packageType || "Package roadmap", approvedIntensity, sessionCount, intensityScore: 0, weeklyKm: 0, sessionsPerWeek: Math.min(days.length, 6), restDaysPerWeek: 7-days.length, highIntensityPercent: 0, lowIntensityPercent: 0,
     weeklySchedule: days.map(day => { const s = stages.find(s => s.daysOfWeek.includes(day)); return { day: dayNames[day] || day, type: s.activityName, distance: "According to the training plan", intensity: s.intensity, zone: '' }; }),
-    rationale: [value.rationale || '', ...(value.sources || []).map(String)], warnings: [value.limitations || ''], twelveWeekPlan: [] };
+    rationale: [value.rationale || ''], warnings: [value.limitations || ''], twelveWeekPlan: [] };
 }

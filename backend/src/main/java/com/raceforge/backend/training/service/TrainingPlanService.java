@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class TrainingPlanService {
 
   @Autowired private TrainingWorkflowGuard workflowGuard;
-  @Autowired private PackageRoadmapPolicy packageRoadmaps;
+  @Autowired private PackageRoadmapTemplateService packageRoadmaps;
   @Autowired private TrainingRoadmapService roadmaps;
   @Autowired
   private TrainingPlanRepository trainingPlanRepository;
@@ -58,16 +58,18 @@ public class TrainingPlanService {
               .orElseThrow(() -> new ResourceNotFoundException("Horse not found: " + horseId));
 
       var pack=workflowGuard.assignment(request.getAssignmentId(),horseId);
+      if(trainingPlanRepository.existsByHorsePackageId(pack.getHorsePackageId()))throw new com.raceforge.backend.common.exception.BusinessRuleException("This registration already has a training plan. Use its existing schedule.");
+      var template=packageRoadmaps.read(pack.getTrainingPackage().getPackageId());
       java.util.List<com.raceforge.backend.training.dto.TrainingWorkflowDtos.Stage> stages=request.getStages();
       TrainingStageValidator.validateStages(stages,(int)java.time.temporal.ChronoUnit.DAYS.between(pack.getStartDate(),pack.getEndDate())+1);
       if((request.getStartDate()!=null&&!request.getStartDate().equals(pack.getStartDate()))||(request.getEndDate()!=null&&!request.getEndDate().equals(pack.getEndDate())))throw new com.raceforge.backend.common.exception.BusinessRuleException("Plan dates must match the selected paid package period");
       TrainingPlan plan = new TrainingPlan();
       plan.setHorseId(horseId);
-      plan.setPackageType(pack.getTrainingPackage().getPackageType());plan.setRoadmapVersion(PackageRoadmapPolicy.VERSION);
+      plan.setPackageType(pack.getTrainingPackage().getPackageType());plan.setRoadmapVersion("DB:"+pack.getTrainingPackage().getPackageId()+":"+template.revision());
       plan.setHorsePackageId(pack.getHorsePackageId());plan.setTrainerAssignmentId(request.getAssignmentId());
       plan.setCreatedBy(actorId);
       plan.setPlanName(request.getPlanName());
-      plan.setGoal(request.getGoal()==null||request.getGoal().isBlank()?packageRoadmaps.template(plan.getPackageType(),(int)java.time.temporal.ChronoUnit.DAYS.between(pack.getStartDate(),pack.getEndDate())+1).goal():request.getGoal());
+      plan.setGoal(request.getGoal()==null||request.getGoal().isBlank()?template.goal():request.getGoal());
       plan.setDuration(request.getDuration());
       plan.setNotes(request.getNotes());
       plan.setStatus("ACTIVE");

@@ -41,7 +41,6 @@ public class TrainingScheduleService {
   private static final String STATUS_MISSED = "MISSED";
   private static final String REASON_TRAINING_LOCK = "TRAINING_LOCK";
 
-  private static final LocalTime DEFAULT_SESSION_TIME = LocalTime.of(7, 0);
 
   @Autowired private TrainingWorkflowGuard workflowGuard;
   @Autowired private SessionStageBinder stageBinder;
@@ -112,7 +111,8 @@ public class TrainingScheduleService {
       if (days == null || days.isEmpty() || days.size()>6 || days.stream().anyMatch(java.util.Objects::isNull)) {
           throw new BusinessRuleException("Select one to six weekdays.");
       }
-      LocalTime time = request.getSessionTime() != null ? request.getSessionTime() : DEFAULT_SESSION_TIME;
+      LocalTime time=request.getSessionTime();
+      if(time==null)throw new BusinessRuleException("Enter a session time, or generate sessions from the saved roadmap");
       List<LocalDate> dates = new ArrayList<>();
       // Inclusive registered dates, including a partial final week. No rounding up to full weeks.
       for (LocalDate date = pack.getStartDate(); !date.isAfter(pack.getEndDate()); date = date.plusDays(1)) {

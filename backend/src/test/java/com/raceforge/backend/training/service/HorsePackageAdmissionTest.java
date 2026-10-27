@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class HorsePackageAdmissionTest {
+    @org.junit.jupiter.api.BeforeEach void templateReader(){org.springframework.test.util.ReflectionTestUtils.setField(service,"packageRoadmaps",mock(PackageRoadmapTemplateService.class));}
     private final com.raceforge.backend.horse.service.ModuleIdAllocator ids = mock(com.raceforge.backend.horse.service.ModuleIdAllocator.class);
     private final HorseRepository horses = mock(HorseRepository.class);
     private final TrainingPackageRepository packages = mock(TrainingPackageRepository.class);

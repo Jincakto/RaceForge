@@ -50,3 +50,12 @@ test('manager sees available package previews and an honest explanation of detai
  assert.ok(html.includes('View package roadmap'));assert.ok(html.includes('viewed by the assigned trainer'));
  assert.ok(!html.includes('No roadmaps yet'));assert.ok(!html.includes('Create your first roadmap'));
 });
+
+
+test('create-package form opens with duration unselected and clear workflow sections',async()=>{
+ const {CreatePackageForm}=await import(pathToFileURL(path.join(dir,'packageCreateForm.mjs')));
+ const html=render(h(CreatePackageForm,{packages:[pkg],onSave:async()=>{},onClose:()=>{}}));
+ for(const text of ['Package information','Choose curriculum','Arrange stages','Preview &amp; save','Select duration'])assert.ok(html.includes(text),text);
+ assert.match(html,/<option value="" selected="">Select duration/);
+ assert.ok(!html.includes('Phase code'));assert.ok(!html.includes('Session quota'));assert.ok(!html.includes('Disable package'));
+});

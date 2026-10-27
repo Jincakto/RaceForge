@@ -1,11 +1,10 @@
-import { validateRoadmap } from './packageRoadmap';
 import { selectedStages, scheduleRows } from './trainingSchedule';
 import { trainingTimestamp } from './trainingTimestamp';
 import { ApiError, idPath as enc, request } from './api';
 import { staffRoleId, ROLE_NAMES, isoDate, enrollmentFromApi, horsePayload, medicalPayload, packageFromApi, planFromApi, recordFromApi, sessionFromApi } from './remote';
 import type { RemoteSlice } from './remote';
 import type { AppUser, Horse, HealthRecord, Res, Enrollment, TrainingPackage, TrainingPlan, TrainingSession, Role } from './data';
-import type { PackageDraft, PlanDraft, SessionDraft, SessionWriteOptions } from './trainingLogic';
+import { validatePackage, type PackageDraft, type PlanDraft, type SessionDraft, type SessionWriteOptions } from './trainingLogic';
 import { changePermission, permissionForPage } from './permissionApi';
 
 
@@ -136,8 +135,8 @@ export function makeRemoteActions(env: Env) {
     },
     savePackage: (draft: PackageDraft) => result<TrainingPackage>('package', async () => {
       if (draft.id) unavailable("editing training packages");
-      const roadmapError = validateRoadmap(draft.roadmapTemplate, draft.durationDays);
-      if (roadmapError) throw new Error(roadmapError);
+      const errors = validatePackage(draft, getState().packages);
+      if (Object.keys(errors).length) throw new Error(Object.values(errors).join(' '));
       return packageFromApi(await request('/training-packages', 'POST', { packageName: draft.name.trim(), packageType: draft.packageType, description: draft.description, durationDays: draft.durationDays, price: draft.price, roadmapTemplate: draft.roadmapTemplate }));
     }),
     togglePackage: (_id: string, _active: boolean) => result<TrainingPackage>('package-status', async () => unavailable("enabling or disabling training packages")),

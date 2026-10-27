@@ -8,7 +8,7 @@ import ts from 'typescript';
 
 // Run the actual TS adapters without Vite or a database; HTTP is the test boundary.
 const dir = await mkdtemp(path.join(tmpdir(), 'raceforge-api-tests-'));
-for (const name of ['packageRoadmap', 'trainingSchedule', 'trainingTimestamp', 'api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
+for (const name of ['packageBuilder', 'packageRoadmap', 'trainingSchedule', 'trainingTimestamp', 'api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
   const source = await readFile(new URL(`../src/${name}.ts`, import.meta.url), 'utf8');
   const code = ts.transpileModule(source.replace('import.meta.env', '({})'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText
     .replace(/(['"])(\.\/[^'"]+)\1/g, (_, quote, specifier) => `${quote}${specifier}.mjs${quote}`);
@@ -83,12 +83,12 @@ function actions(snapshot) {
 }
 
 test('package creation sends the DTO and uses the server response', async () => {
-  const draft={name:' Normal ',packageType:'RACING',description:'Training',durationDays:30,price:5000000,roadmapTemplate:roadmapFixture()};
+  const draft={name:' Normal ',packageType:'RACING',description:'Training',durationDays:90,price:5000000,roadmapTemplate:roadmapFixture()};
   const {remote,events}=actions(state());
   globalThis.fetch=async(url,init)=>{
     assert.equal(url,'/api/training-packages');assert.equal(init.method,'POST');
-    assert.deepEqual(JSON.parse(init.body),{packageName:'Normal',packageType:'RACING',description:'Training',durationDays:30,price:5000000,roadmapTemplate:draft.roadmapTemplate});
-    return ok({packageId:'PKG-001',packageName:'Normal',packageType:'RACING',durationDays:30,price:5000000,status:'ACTIVE'});
+    assert.deepEqual(JSON.parse(init.body),{packageName:'Normal',packageType:'RACING',description:'Training',durationDays:90,price:5000000,roadmapTemplate:draft.roadmapTemplate});
+    return ok({packageId:'PKG-001',packageName:'Normal',packageType:'RACING',durationDays:90,price:5000000,status:'ACTIVE'});
   };
   const result=await remote.savePackage(draft);assert.equal(result.ok,true);assert.equal(result.data.id,'PKG-001');assert.ok(events.includes('reload'));
 });

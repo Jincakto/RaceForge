@@ -1,3 +1,5 @@
+import { useTrainingNow } from './useTrainingNow';
+import { futureSchedule, scheduleWarning, trainingStart } from './trainingSchedule';
 import { PackageRoadmapPreview, RoadmapTable, StagesEditor, SavedRoadmapPreview } from './roadmapView';
 import { validateRoadmap } from './packageRoadmap';
 import { selectedStages, scheduleRows, normalizeStages, clock, seconds, validateSessionWindow, isoDay, type RoadmapStage } from './trainingSchedule';
@@ -120,6 +122,7 @@ export function TrainingHubPage(props: HubProps) {
   const [view, setView] = useState<'hub' | 'wizard'>('hub');
   const [gen, setGen] = useState<{ horseId: string; planId: string; init?: { weekdays: number[]; time: string; weeks: number } } | null>(null);
   const [single, setSingle] = useState(false);
+  const [editingStages,setEditingStages]=useState<TrainingPlan|null>(null);
   const [adjusting, setAdjusting] = useState<TrainingSession | null>(null);
   const [actionError, setActionError] = useState('');
   const [confirmNote, setConfirmNote] = useState<Record<string, string>>({});
@@ -235,7 +238,7 @@ export function TrainingHubPage(props: HubProps) {
                 {p.algorithmRationale && <div className="mt-1 text-xs text-[#c9973b]">🤖 {p.algorithmRationale}</div>}
                 {p.weeklyKm && <div className="mt-1 text-xs text-gray-400">{p.weeklyKm}  km/week · {p.sessionsPerWeek}  sessions · {p.restDaysPerWeek}  rest days · Score {p.intensityScore}</div>}
                 <div className="mt-2"><div className="mb-1 flex justify-between text-xs text-gray-500"><span>Progress</span><span>{p.progress}%</span></div><div className="h-2 w-full rounded-full bg-gray-200"><div className="h-2 rounded-full bg-[#c9973b]" style={{ width: `${p.progress}%` }} /></div></div>
-                {isTrainer && p.status === 'Active' && <div className="mt-3"><Btn size="sm" variant="secondary" onClick={() => { setTab('sessions'); setGen({ horseId: p.horseId, planId: p.id }); }}>Generate sessions</Btn></div>}
+                {isTrainer && p.status === 'Active' && <div className="mt-3 flex gap-2">{n===0&&!p.locked&&!state.horses.find(h=>h.id===p.horseId)?.lock&&isoDay(p.endDate)>=isoDay(trainingTimestamp().slice(0,10))&&<Btn size="sm" variant="secondary" onClick={()=>setEditingStages(p)}>Edit stages</Btn>}<Btn size="sm" variant="secondary" onClick={() => { setTab('sessions'); if(!state.trainingSessions.some(s=>s.planId===p.id))setGen({ horseId: p.horseId, planId: p.id }); }}>{n>0?'View sessions':'Generate sessions'}</Btn></div>}
               </Card>
             );
           })}
@@ -328,6 +331,7 @@ export function TrainingHubPage(props: HubProps) {
       {decline && <ReasonDialog title="Decline assignment" description={<>Decline training <strong>{hn(decline.horseId)}</strong>? The manager will be notified to assign a replacement.</>} confirmLabel="Decline assignment" danger onClose={() => setDecline(null)} onConfirm={async reason => { const r = await props.onRespond(decline.id, false, reason); setActionError(r.ok ? '' : r.message); setDecline(null); }} />}
       {absentFor && <ReasonDialog title="Record absence" description={<>Session <strong>{absentFor.type}</strong>  for {hn(absentFor.horseId)}  will be marked "Not Performed".</>} confirmLabel="Record absence" danger onClose={() => setAbsentFor(null)} onConfirm={async reason => { const r = await props.onCheckIn(absentFor.id, false, reason); setActionError(r.ok ? '' : r.message); setAbsentFor(null); }} />}
       {gen && <SessionGenerator state={state} horseId={gen.horseId} planId={gen.planId} init={gen.init} onClose={() => setGen(null)} onGenerate={props.onGenerate} onDone={() => { setGen(null); setTab('sessions'); }} />}
+      {editingStages && <SavedStageEditor state={state} plan={editingStages} onClose={()=>setEditingStages(null)}/>}
       {adjusting && <SingleSessionForm state={state} session={adjusting} onClose={() => setAdjusting(null)} onGenerate={props.onGenerate} />}
       {single && <SingleSessionForm state={state} onClose={() => setSingle(false)} onGenerate={props.onGenerate} />}
     </div>
@@ -385,6 +389,7 @@ interface GenProps {
 }
 
 function SessionGenerator({ state, horseId, planId, onClose, onDone, onGenerate }: GenProps) {
+  const now=useTrainingNow();
   const plan=state.trainingPlans.find(p=>p.id===planId)!;
   const horse=state.horses.find(h=>h.id===horseId)!;
   const [rows,setRows]=useState<SessionDraft[]|null>(null);
@@ -394,8 +399,9 @@ function SessionGenerator({ state, horseId, planId, onClose, onDone, onGenerate 
     request<any[]>('/training-plans/'+encodeURIComponent(planId)+'/stages').then(stages=>{if(active)setRows(scheduleRows(stages,plan.startDate));}).catch(e=>{if(active)setError(e.message);});
     return ()=>{active=false;};
   },[planId,plan.startDate]);
-  const check=rows?.map(row=>validateSessionWindow({date:row.date,time:row.time,endTime:row.endTime!,startDate:plan.startDate,endDate:plan.endDate,horseId,trainerId:state.user!.id},state.trainingSessions)).find(Boolean);
-  const save=async()=>{if(!rows||busy||existing||check)return;setBusy(true);setError('');try{const result=await onGenerate(horseId,planId,rows);if(result.ok)onDone();else setError(result.message);}finally{setBusy(false);}};
+  const future=rows?futureSchedule(rows,now):[];
+  const check=future.map(row=>validateSessionWindow({date:row.date,time:row.time,endTime:row.endTime!,startDate:plan.startDate,endDate:plan.endDate,horseId,trainerId:state.user!.id},state.trainingSessions,now)).find(Boolean);
+  const save=async()=>{if(!rows||busy||existing)return;const fresh=new Date();const eligible=futureSchedule(rows,fresh);if(!eligible.length){setError('No future sessions remain. You can adjust the stages before generating sessions.');return;}const invalid=eligible.map(row=>validateSessionWindow({date:row.date,time:row.time,endTime:row.endTime!,startDate:plan.startDate,endDate:plan.endDate,horseId,trainerId:state.user!.id},state.trainingSessions,fresh)).find(Boolean);if(invalid){setError(invalid);return;}setBusy(true);setError('');try{const result=await onGenerate(horseId,planId,eligible);if(result.ok)onDone();else setError('Plan is saved, but sessions were not generated: '+result.message);}catch(e){setError('Plan is saved, but sessions were not generated: '+(e as Error).message);}finally{setBusy(false);}};
   return <Modal title="Generate sessions" onClose={onClose} wide>
     <div className="space-y-5 text-[#1a2844]">
       <div className="flex items-center gap-4 rounded-2xl border border-[#c9973b]/20 bg-[#c9973b]/5 p-4">
@@ -406,7 +412,7 @@ function SessionGenerator({ state, horseId, planId, onClose, onDone, onGenerate 
           <div className="mt-2 inline-flex flex-wrap items-center gap-2 text-xs font-medium text-[#8a6420]"><span>Package period</span><span className="rounded-md border border-[#c9973b]/20 bg-white px-2 py-1">{plan.startDate} - {plan.endDate}</span></div>
         </div>
       </div>
-      <p className="text-sm leading-relaxed text-gray-500">Review your saved training schedule. You can add or adjust individual sessions after generation.</p>
+      <p className="text-sm leading-relaxed text-gray-500">Plan saved. Confirm session generation. Times use Asia/Bangkok (UTC+7). Preview is indicative; the server checks eligibility again when generating.</p>{rows&&<p className="text-sm">Total planned: {rows.length} / Past - skipped: {rows.length-future.length} / Future: {future.length}</p>}{rows&&scheduleWarning(rows,now)&&<p role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{scheduleWarning(rows,now)}</p>}
       {existing && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-800"><span className="font-semibold">Schedule already generated.</span> Use Add session or Adjust time to make changes.</div>}
       {error && <ErrorBox text={error} />}
       {!existing && check && <ErrorBox text={check} />}
@@ -414,22 +420,39 @@ function SessionGenerator({ state, horseId, planId, onClose, onDone, onGenerate 
       {rows && <div className="overflow-hidden rounded-xl border border-gray-200">
         <div className="max-h-[min(42vh,24rem)] overflow-auto">
           <table className="w-full text-left text-sm">
-            <thead className="sticky top-0 z-10 bg-gray-50 text-xs uppercase tracking-wide text-gray-500"><tr><th className="px-4 py-3 font-semibold">Date</th><th className="px-4 py-3 font-semibold">Time</th><th className="px-4 py-3 font-semibold">Activity</th></tr></thead>
-            <tbody className="divide-y divide-gray-100">{rows.map((r,i)=><tr key={i} className="bg-white transition-colors hover:bg-[#c9973b]/5"><td className="whitespace-nowrap px-4 py-3 font-medium">{r.date}</td><td className="whitespace-nowrap px-4 py-3 tabular-nums text-gray-600">{r.time} - {r.endTime}</td><td className="min-w-44 px-4 py-3 leading-relaxed text-gray-600">{r.type}</td></tr>)}</tbody>
+            <thead className="sticky top-0 z-10 bg-gray-50 text-xs uppercase tracking-wide text-gray-500"><tr><th className="px-4 py-3 font-semibold">Date</th><th className="px-4 py-3 font-semibold">Time</th><th className="px-4 py-3 font-semibold">Activity / stage</th><th className="px-4 py-3 font-semibold">Status</th></tr></thead>
+            <tbody className="divide-y divide-gray-100">{rows.map((r,i)=><tr key={i} className="bg-white transition-colors hover:bg-[#c9973b]/5"><td className="whitespace-nowrap px-4 py-3 font-medium">{r.date}</td><td className="whitespace-nowrap px-4 py-3 tabular-nums text-gray-600">{r.time} - {r.endTime}</td><td className="min-w-44 px-4 py-3 leading-relaxed text-gray-600">{r.type}{(r as any).title&&<div className="text-xs text-gray-400">{(r as any).title}</div>}</td><td className="whitespace-nowrap px-4 py-3 text-xs">{trainingStart(r.date,r.time)>now?'Future':'Past - skipped'}</td></tr>)}</tbody>
           </table>
           {rows.length===0 && <p className="p-6 text-center text-sm text-gray-500">No training dates match this plan.</p>}
         </div>
       </div>}
-      <div className="flex justify-end gap-3 border-t border-gray-100 pt-4"><Btn variant="secondary" onClick={onClose}>{existing?'Close':'Cancel'}</Btn>{!existing && <Btn variant="gold" disabled={busy||!rows?.length||!!check} onClick={save}>{busy?'Creating...':'Confirm generation'}</Btn>}</div>
+      <div className="flex justify-end gap-3 border-t border-gray-100 pt-4"><Btn variant="secondary" onClick={onClose}>{existing?'Close':'Cancel'}</Btn>{!existing && <Btn variant="gold" disabled={busy||!future.length||!!check} onClick={save}>{busy?'Creating...':'Confirm generation'}</Btn>}</div>
     </div>
   </Modal>;
 }
 
+function SavedStageEditor({state,plan,onClose}:{state:HubState;plan:TrainingPlan;onClose:()=>void}){
+ const now=useTrainingNow();const [stages,setStages]=useState<RoadmapStage[]|null>(null);const [error,setError]=useState('');const [busy,setBusy]=useState(false);const [saved,setSaved]=useState(false);const [attempt,setAttempt]=useState(0);
+ useEffect(()=>{let active=true;setStages(null);setError('');Promise.all([request<any[]>('/training-plans/'+encodeURIComponent(plan.id)+'/stages'),request<any[]>('/training-sessions/horse/'+encodeURIComponent(plan.horseId))]).then(([rows,sessions])=>{if(!active)return;if(sessions.some(s=>s.planId===plan.id))throw Error('This plan already has sessions. Adjust individual sessions instead.');setStages(normalizeStages(rows));}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[plan.id,attempt]);
+ const enrollment=state.enrollments.find(e=>e.id===plan.horsePackageId);
+ const end=enrollment&&isoDay(enrollment.expiresAt)<isoDay(plan.endDate)?enrollment.expiresAt:plan.endDate;
+ const duration=diffDays(plan.startDate,end)+1;
+ const validation=stages?validateRoadmap({title:plan.phase,goal:plan.goals||'Review saved stages',stages},duration,dToIso(plan.startDate)):'';
+ let rows:ReturnType<typeof scheduleRows>=[];try{if(stages&&!validation)rows=scheduleRows(stages,plan.startDate);}catch{}
+ const save=async()=>{if(!stages||busy||validation)return;setBusy(true);setError('');try{await request('/training-plans/'+encodeURIComponent(plan.id)+'/stages','PUT',{stages});setSaved(true);}catch(e){setError((e as Error).message);}finally{setBusy(false);}};
+ return <Modal title="Edit saved stages" onClose={onClose} wide><div className="space-y-4"><p>{plan.phase}: {plan.startDate} - {end}. Original stage anchor is unchanged. Times use UTC+7.</p>{saved?<p role="status" className="rounded-lg bg-green-50 p-3 text-green-800">Stages saved. Review the updated schedule before generating sessions.</p>:stages?<fieldset disabled={busy}><StagesEditor stages={stages} duration={duration} onChange={setStages}/>{validation&&<ErrorBox text={validation}/>} {scheduleWarning(rows,now)&&<p role="status" className="rounded-lg bg-amber-50 p-3 text-amber-800">{scheduleWarning(rows,now)}</p>}</fieldset>:!error&&<p>Loading saved stages...</p>}{error&&<ErrorBox text={error}/>}<div className="flex justify-end gap-2">{!stages&&error&&<Btn variant="secondary" onClick={()=>setAttempt(x=>x+1)}>Retry</Btn>}<Btn variant="secondary" onClick={onClose}>{saved?'Close':'Cancel'}</Btn>{!saved&&<Btn variant="gold" disabled={busy||!stages||!!validation} onClick={save}>{busy?'Saving...':'Save stages'}</Btn>}</div></div></Modal>;
+}
+
 function SingleSessionForm({state,onClose,onGenerate,session}:{state:HubState;onClose:()=>void;onGenerate:HubProps['onGenerate'];session?:TrainingSession}) {
+ const now=useTrainingNow();
  const user=state.user!;
  const plans=state.trainingPlans.filter(p=>p.status==='Active'&&state.enrollments.some(e=>e.id===p.horsePackageId&&e.trainerId===user.id&&e.trainerStatus==='confirmed'&&e.status==='active')&&!state.horses.find(h=>h.id===p.horseId)?.lock);
  const [planId,setPlanId]=useState(session?.planId||plans[0]?.id||'');
  const plan=plans.find(p=>p.id===planId);
+ const term=state.enrollments.find(e=>e.id===plan?.horsePackageId);
+ const windowStart=plan&&term&&isoDay(term.startedAt)>isoDay(plan.startDate)?term.startedAt:plan?.startDate||'';
+ const windowEnd=plan&&term&&isoDay(term.expiresAt)<isoDay(plan.endDate)?term.expiresAt:plan?.endDate||'';
+ const today=trainingTimestamp(now).slice(0,10);
  const [date,setDate]=useState(session?dToIso(session.date):'');
  const [time,setTime]=useState(session?.time||'07:00');const [endTime,setEndTime]=useState(session?.endTime||'');
  const [intensity,setIntensity]=useState(session?.intensity||'LOW');const [reason,setReason]=useState('');
@@ -441,18 +464,18 @@ function SingleSessionForm({state,onClose,onGenerate,session}:{state:HubState;on
  const matching=stages.filter(s=>day>=s.startDay&&day<=s.endDay);const stage=matching.length===1?matching[0]:undefined;
  const setStart=(value:string)=>{setTime(value);setError('');if(stage)try{setEndTime(clock(seconds(value)+seconds(stage.sessionEndTime)-seconds(stage.sessionTime)).slice(0,5));}catch(e){setEndTime('');setError((e as Error).message);}};
  useEffect(()=>{if(!stage)return;if(!session)setIntensity(stage.intensity);if(!session||!session.endTime)try{setEndTime(clock(seconds(time)+seconds(stage.sessionEndTime)-seconds(stage.sessionTime)).slice(0,5));}catch(e){setError((e as Error).message);}},[stage]);
- const validation=plan&&date&&endTime?validateSessionWindow({date:isoToD(date),time,endTime,startDate:plan.startDate,endDate:plan.endDate,horseId:plan.horseId,trainerId:user.id,excludeId:session?.id},state.trainingSessions):'';
+ const validation=plan&&date&&endTime?validateSessionWindow({date:isoToD(date),time,endTime,startDate:windowStart,endDate:windowEnd,horseId:plan.horseId,trainerId:user.id,excludeId:session?.id},state.trainingSessions,now):'';
  const save=async()=>{
   if(busy)return;
   if(!plan||!date||!time||!endTime||!stage){setError('Choose a plan, a date within a saved stage, and start/end times.');return;}
-  if(validation){setError(validation);return;}
+  const freshError=validateSessionWindow({date:isoToD(date),time,endTime,startDate:plan.startDate,endDate:plan.endDate,horseId:plan.horseId,trainerId:user.id,excludeId:session?.id},state.trainingSessions,new Date());if(freshError){setError(freshError);return;}
   if(session&&(!reason.trim()||reason.trim().length>600)){setError('Enter an adjustment reason of 1-600 characters.');return;}
   setBusy(true);setError('');try{const result=await onGenerate(plan.horseId,plan.id,[{date:isoToD(date),time,endTime,type:stage.activityName,distance:'',targetTime:'',notes:''}],{mode:session?'adjust':'single',sessionId:session?.id,intensity,reason:reason.trim()});if(result.ok)onClose();else setError(result.message);}finally{setBusy(false);}
  };
  return <Modal title={session?'Adjust session':'Add session'} onClose={onClose} wide><div className="space-y-4">
  {session?<p>{state.horses.find(h=>h.id===session.horseId)?.name} - {plan?.phase}</p>:<Select label="Training plan / horse" value={planId} onChange={value=>{setPlanId(value);setDate('');setEndTime('');setError('');}} options={plans.map(p=>({value:p.id,label:(state.horses.find(h=>h.id===p.horseId)?.name||p.horseId)+' - '+p.phase+' - '+p.id}))}/>}
  {plan&&<p>Package period: {plan.startDate} - {plan.endDate} - {diffDays(plan.startDate,plan.endDate)+1} days</p>}
- <div className="grid grid-cols-3 gap-3"><Input label="Date" required type="date" value={date} min={plan?dToIso(diffDays(TODAY,plan.startDate)>0?plan.startDate:TODAY):dToIso(TODAY)} max={plan?dToIso(plan.endDate):undefined} onChange={value=>{setDate(value);setError('');}}/><Input label="Start time" required type="time" value={time} onChange={setStart}/><Input label="End time" required type="time" value={endTime} onChange={setEndTime}/></div>
+ <div className="grid grid-cols-3 gap-3"><Input label="Date" required type="date" value={date} min={windowStart&&isoDay(windowStart)>today?isoDay(windowStart):today} max={windowEnd?isoDay(windowEnd):undefined} onChange={value=>{setDate(value);setError('');}}/><Input label="Start time (UTC+7)" required type="time" value={time} onChange={setStart} error={date&&time&&trainingStart(date,time)<=now?'Start time must be in the future.':undefined}/><Input label="End time" required type="time" value={endTime} onChange={value=>{setEndTime(value);setError('');}}/></div>
  {stage&&<p className="text-sm">{stage.title} - {stage.activityName} - {stage.intensity}</p>}
  {date&&!loading&&!stage&&<ErrorBox text="Choose a date belonging to one saved roadmap stage."/>}
  {session&&<><Select label="Intensity" value={intensity} onChange={setIntensity} options={['LOW','MODERATE','HIGH'].map(v=>({value:v,label:v}))}/><Textarea label="Reason for adjustment" required value={reason} onChange={setReason} rows={2}/></>}
@@ -473,6 +496,7 @@ interface WizProps {
 }
 
 export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: WizProps) {
+  const now=useTrainingNow();
   const { me, mine } = useTrainerHorses(state);
   const [step, setStep] = useState(0);
   const [horseId, setHorseId] = useState('');
@@ -627,6 +651,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
           <h3 className="font-serif text-lg font-bold">Training schedule</h3>
           <p className="text-sm text-gray-500">Review the package template and adjust each stage for this horse.</p>
           <StagesEditor stages={sug.stages || []} duration={diffDays(startD,endD)+1} onChange={stages=>{setSug({...sug,stages});setErrs({});}}/>
+          {previewRows.length>0&&scheduleWarning(previewRows,now)&&<p role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{scheduleWarning(previewRows,now)} Times use Asia/Bangkok (UTC+7). The plan can still be saved.</p>}
           {errs.time && <ErrorBox text={errs.time}/>}
           {scheduleError && <ErrorBox text={scheduleError}/>}
 
@@ -653,7 +678,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
             {([["Horses", horse.name], ["Phase", phase], ["Goals", f.goal.trim()], ["Time", `${startD} – ${endD}`], ["Training schedule", "Configured per stage"], ["Intensity", "Configured per stage"]] as [string, string][]).map(([k, v]) => <div key={k} className="flex justify-between gap-4 px-4 py-2.5"><span className="text-gray-500">{k}</span><span className="text-right font-medium">{v}</span></div>)}
           </div>
           {sug && <RoadmapTable roadmap={{title:phase,goal:f.goal,stages:sug.stages || []}}/>}
-          <div className="rounded-lg bg-sky-50 p-3 text-sm text-sky-800">The new roadmap will replace the horse's active roadmap, if any. After creation, continue to session generation.</div>
+          <div className="rounded-lg bg-sky-50 p-3 text-sm text-sky-800">Saving the plan does not generate sessions. Confirm generation separately; only future sessions will be created.</div>
           {submitErr && <ErrorBox text={submitErr} />}
         </Card>
       )}

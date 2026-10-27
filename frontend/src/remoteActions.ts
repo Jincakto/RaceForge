@@ -177,11 +177,9 @@ export function makeRemoteActions(env: Env) {
         return [sessionFromApi(saved, getState().user || undefined)];
       }
       if (getState().trainingSessions.some(s=>s.planId===planId)) throw new Error('This plan already has sessions. Add or adjust individual sessions instead.');
-      const stored = await request<any[]>('/training-plans/'+enc(planId)+'/stages');
-      const plan = getState().trainingPlans.find(p=>p.id===planId);
-      if (!plan) throw new Error('Training plan not found.');
-      const expected = scheduleRows(stored,plan.startDate);
-      if (drafts.length!==expected.length || drafts.some((d,i)=>d.date!==expected[i].date || d.time!==expected[i].time || d.endTime!==expected[i].endTime)) throw new Error('The saved schedule changed. Reload the preview.');
+      // Reconcile with server before every generation/retry, including lost responses.
+      const current=await request<any[]>('/training-sessions/horse/'+enc(horseId));
+      if(current.some(w=>w.planId===planId))return current.filter(w=>w.planId===planId).map(w=>sessionFromApi(w,getState().user||undefined));
       const generated = await request('/training-plans/'+enc(planId)+'/generate-sessions', 'POST', {confirmed:true});
       return (Array.isArray(generated)?generated:generated.sessions||[]).map((w:any)=>sessionFromApi(w,getState().user||undefined));
     }),

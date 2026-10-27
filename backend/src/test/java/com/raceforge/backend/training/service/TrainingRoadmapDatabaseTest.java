@@ -52,6 +52,9 @@ class TrainingRoadmapDatabaseTest {
      var auth=new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal,null,List.of());
      org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
      var planService=app.getBean(TrainingPlanService.class);var roadmapService=app.getBean(TrainingRoadmapService.class);
+     var testClock=Clock.fixed(LocalDate.now(ZoneId.of("Asia/Bangkok")).atTime(6,0).atZone(ZoneId.of("Asia/Bangkok")).toInstant(),ZoneId.of("Asia/Bangkok"));
+     org.springframework.test.util.ReflectionTestUtils.setField(org.springframework.test.util.AopTestUtils.<TrainingRoadmapService>getTargetObject(roadmapService),"clock",testClock);
+     org.springframework.test.util.ReflectionTestUtils.setField(org.springframework.test.util.AopTestUtils.<TrainingSessionService>getTargetObject(app.getBean(TrainingSessionService.class)),"clock",testClock);
      var requestA=new TrainingPlanCreateRequest();requestA.setPlanName("Horse A plan");requestA.setAssignmentId("ASN-901");requestA.setStages(List.of(new Stage(1,15,stage.activityName(),stage.intensity(),stage.daysOfWeek(),stage.sessionTime(),stage.sessionEndTime(),stage.title(),stage.objective(),stage.phaseCode()),new Stage(16,30,"Later horse-specific activity","LOW",stage.daysOfWeek(),stage.sessionTime(),stage.sessionEndTime(),"Later horse stage",null,"LATER")));
      var planA=planService.createPlan("HOR-901",requestA,"HTR-901");
      assertThrows(RuntimeException.class,()->planService.createPlan("HOR-901",requestA,"HTR-901"));
@@ -64,17 +67,28 @@ class TrainingRoadmapDatabaseTest {
       try(var sql=c.createStatement()){sql.execute("ALTER TABLE dbo.Training_Session ADD CONSTRAINT CK_TestPartialGeneration CHECK (CAST(scheduled_start AS date) <> '"+badDate+"')");}
       assertThrows(RuntimeException.class,()->roadmapService.generate(planA.getPlanId()));assertEquals(0,count(c,"Training_Session"));
       try(var sql=c.createStatement()){sql.execute("ALTER TABLE dbo.Training_Session DROP CONSTRAINT CK_TestPartialGeneration");}
-      var generated=roadmapService.generate(planA.getPlanId());assertTrue(generated.size()>=4);assertThrows(RuntimeException.class,()->roadmapService.generate(planA.getPlanId()));assertEquals(generated.size(),count(c,"Training_Session"));
+      // Both requests enter the real SQL Server transaction concurrently.
+      var generatePool=java.util.concurrent.Executors.newFixedThreadPool(2);
+      var barrier=new java.util.concurrent.CyclicBarrier(2);
+      List<TrainingSessionResponse> generated=new ArrayList<>();int generateSuccess=0;
+      try{var work=new ArrayList<java.util.concurrent.Callable<List<TrainingSessionResponse>>>();for(int i=0;i<2;i++)work.add(()->{org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);try{barrier.await(10,java.util.concurrent.TimeUnit.SECONDS);return roadmapService.generate(planA.getPlanId());}catch(com.raceforge.backend.common.exception.BusinessRuleException expected){return List.of();}finally{org.springframework.security.core.context.SecurityContextHolder.clearContext();}});for(var result:generatePool.invokeAll(work)){var output=result.get();if(!output.isEmpty()){generateSuccess++;generated.addAll(output);}}}finally{generatePool.shutdownNow();}
+      assertEquals(1,generateSuccess);assertTrue(generated.size()>=4);assertThrows(RuntimeException.class,()->roadmapService.generate(planA.getPlanId()));assertEquals(generated.size(),count(c,"Training_Session"));
       // A later non-overlapping slot on the same day is allowed; overlap is rejected.
       var one=new ScheduleSessionRequest();one.setPlanId(planA.getPlanId());one.setHorseId("HOR-901");one.setScheduledTime(badDate.atTime(12,0));one.setScheduledEnd(badDate.atTime(12,40));var extra=app.getBean(TrainingSessionService.class).scheduleSession(one);
       one.setScheduledTime(badDate.atTime(12,20));one.setScheduledEnd(badDate.atTime(13,0));assertThrows(RuntimeException.class,()->app.getBean(TrainingSessionService.class).scheduleSession(one));
-      var sessions=app.getBean(TrainingSessionService.class);sessions.startSession(extra.getSessionId());sessions.stopSession(extra.getSessionId(),null);
-      var measured=new CompleteSessionRequest();measured.setEndExerciseHeartRate(180);measured.setRecoveryHeartRate2Min(110);measured.setRecoveryMeasuredAt(LocalDateTime.now());measured.setDistance(new BigDecimal("1.20"));measured.setAvgSpeed(12.0);sessions.completeSession(extra.getSessionId(),measured,"HTR-901");assertNotNull(app.getBean(TrainingSessionFeedbackService.class).feedback(extra.getSessionId()).get("note"));
+      var sessions=app.getBean(TrainingSessionService.class);sessions.startSession(extra.getSessionId());var measurementClock=Clock.offset(testClock,Duration.ofMinutes(1));org.springframework.test.util.ReflectionTestUtils.setField(org.springframework.test.util.AopTestUtils.<TrainingSessionService>getTargetObject(sessions),"clock",measurementClock);sessions.stopSession(extra.getSessionId(),null);
+      var measured=new CompleteSessionRequest();measured.setEndExerciseHeartRate(180);measured.setRecoveryHeartRate2Min(110);measured.setRecoveryMeasuredAt(LocalDateTime.now(measurementClock));measured.setDistance(new BigDecimal("1.20"));measured.setAvgSpeed(12.0);sessions.completeSession(extra.getSessionId(),measured,"HTR-901");assertNotNull(app.getBean(TrainingSessionFeedbackService.class).feedback(extra.getSessionId()).get("note"));
       // Simulate dates produced by resume; saved plan anchor and completed results remain intact.
       try(var sql=c.createStatement()){sql.execute("UPDATE dbo.HORSE_PACKAGE SET start_date=CAST(DATEADD(day,20,GETDATE()) AS date),end_date=CAST(DATEADD(day,30,GETDATE()) AS date) WHERE horse_package_id='HPG-901'");}
       var resumed=new ScheduleSessionRequest();resumed.setPlanId(planA.getPlanId());resumed.setHorseId("HOR-901");resumed.setScheduledTime(LocalDate.now().plusDays(20).atTime(14,0));resumed.setScheduledEnd(LocalDate.now().plusDays(20).atTime(14,40));var resumedSession=sessions.scheduleSession(resumed);assertEquals("Later horse stage",resumedSession.getStageTitle());
       try(var sql=c.createStatement();var r=sql.executeQuery("SELECT status FROM dbo.Training_Session WHERE session_id='"+extra.getSessionId()+"'")){r.next();assertEquals("COMPLETED",r.getString(1));}
      }
+     // No future dates: the saved plan and stages remain, with no new sessions.
+     String planB=planService.getPlansForHorse("HOR-902").get(0).planId();
+     var expiredCutoff=Clock.offset(testClock,Duration.ofDays(40));
+     org.springframework.test.util.ReflectionTestUtils.setField(org.springframework.test.util.AopTestUtils.<TrainingRoadmapService>getTargetObject(roadmapService),"clock",expiredCutoff);
+     int stageCount=roadmapService.stages(planB).size();
+     try(Connection c=DriverManager.getConnection(root+name,user,password)){int sessionCount=count(c,"Training_Session");assertTrue(assertThrows(com.raceforge.backend.common.exception.BusinessRuleException.class,()->roadmapService.generate(planB)).getMessage().contains("No future sessions"));assertEquals(sessionCount,count(c,"Training_Session"));assertEquals(stageCount,roadmapService.stages(planB).size());assertEquals("ACTIVE",app.getBean(com.raceforge.backend.training.repository.TrainingPlanRepository.class).findById(planB).orElseThrow().getStatus());}
      org.springframework.security.core.context.SecurityContextHolder.clearContext();
      // Force a SQL failure after package persistence; the entire transaction must roll back.
      try(Connection c=DriverManager.getConnection(root+name,user,password)){

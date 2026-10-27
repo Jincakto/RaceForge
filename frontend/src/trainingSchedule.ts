@@ -1,9 +1,10 @@
+import { trainingTimestamp } from './trainingTimestamp';
 import type { TrainingSession, TrainingPlan } from './data';
 export interface RoadmapStage { startDay:number; endDay:number; daysOfWeek:string[]; sessionTime:string; sessionEndTime:string; activityName:string; intensity:string; title?:string; objective?:string; phaseCode?:string }
 export interface ScheduleRow { date:string; time:string; endTime:string; type:string; intensity:string; title:string; notes:string; distance:string; targetTime:string }
 export const DAY_KEYS=['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
 export function normalizeStages(rows:any[]):RoadmapStage[] {
- return rows.map(s=>({...s,startDay:Number(s.startDay??s.start_day),endDay:Number(s.endDay??s.end_day),daysOfWeek:typeof s.weekdays_json==='string'?JSON.parse(s.weekdays_json):s.daysOfWeek,sessionTime:String(s.sessionTime??s.session_time).slice(0,8),sessionEndTime:String(s.sessionEndTime??s.session_end_time).slice(0,8),activityName:s.activityName??s.activity_name}));
+ return rows.map(s=>({...s,startDay:Number(s.startDay??s.start_day),endDay:Number(s.endDay??s.end_day),daysOfWeek:typeof s.weekdays_json==='string'?JSON.parse(s.weekdays_json):s.daysOfWeek,sessionTime:String(s.sessionTime??s.session_time).slice(0,8),sessionEndTime:String(s.sessionEndTime??s.session_end_time).slice(0,8),activityName:s.activityName??s.activity_name,phaseCode:s.phaseCode??s.phase_code}));
 }
 export function seconds(time:string):number { if(!/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(time))throw Error('Enter a valid training time.');const [h,m,s=0]=time.split(':').map(Number);return h*3600+m*60+s; }
 export function clock(n:number):string { if(n<0||n>=86400)throw Error('The session must end on the same day. Choose an earlier start time.');return [Math.floor(n/3600),Math.floor(n%3600/60),n%60].map(v=>String(v).padStart(2,'0')).join(':'); }
@@ -20,9 +21,9 @@ export function scheduleRows(stages:any[],start:string):ScheduleRow[] {
 }
 export function packageSessions(sessions:TrainingSession[],plans:TrainingPlan[],packageId:string){const ids=new Set(plans.filter(p=>p.horsePackageId===packageId).map(p=>p.id));return sessions.filter(s=>s.horsePackageId?s.horsePackageId===packageId:ids.has(s.planId));}
 export function validateSessionWindow(input:{date:string;time:string;endTime:string;startDate:string;endDate:string;horseId:string;trainerId:string;excludeId?:string},sessions:TrainingSession[],now=new Date()):string {
- const day=isoDay(input.date);const start=new Date(day+'T'+input.time),end=new Date(day+'T'+input.endTime);
+ const day=isoDay(input.date);const start=trainingStart(day,input.time),end=trainingStart(day,input.endTime);
  try {if(seconds(input.endTime)<=seconds(input.time))return 'End time must be after start time on the same day.';}catch(e){return (e as Error).message;}
- if(!Number.isFinite(start.getTime())||text(start)!==input.date)return 'Enter a valid date.';
+ if(!Number.isFinite(start.getTime())||trainingTimestamp(start).slice(0,10)!==day)return 'Enter a valid date.';
  if(day<isoDay(input.startDate)||day>isoDay(input.endDate))return 'Choose a date within the package period.';
  if(start<=now)return 'The session must start in the future.';
  const live=sessions.filter(s=>s.id!==input.excludeId&&['Scheduled','Completed','In Progress'].includes(s.status));
@@ -31,4 +32,13 @@ export function validateSessionWindow(input:{date:string;time:string;endTime:str
  const monday=dateAt(day);monday.setDate(monday.getDate()-(monday.getDay()+6)%7);const sunday=new Date(monday);sunday.setDate(sunday.getDate()+6);
  const dates=new Set(live.filter(s=>s.horseId===input.horseId&&dateAt(isoDay(s.date))>=monday&&dateAt(isoDay(s.date))<=sunday).map(s=>s.date));dates.add(input.date);
  return dates.size>6?'A horse may train on at most six distinct days per week.':'';
+}
+
+/** Session wall times are Bangkok local time, not the browser's timezone. */
+export function trainingStart(date:string,time:string){return new Date(isoDay(date)+'T'+(time.length===5?time+':00':time)+'+07:00');}
+export function futureSchedule<T extends {date:string;time:string}>(rows:T[],now=new Date()){return rows.filter(row=>trainingStart(row.date,row.time).getTime()>now.getTime());}
+export function scheduleWarning(rows:{date:string;time:string}[],now=new Date()){
+ if(!rows.length)return '';
+ const future=futureSchedule(rows,now).length;
+ return future===0?'No future sessions remain. You can adjust the stages before generating sessions.':future<rows.length?'Some scheduled times have passed. Only future sessions will be generated.':'';
 }

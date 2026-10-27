@@ -43,3 +43,27 @@ test('create-plan request stores selected days and time in every stage',async()=
  const r=await e.actions.createPlan({horseId:'HOR-101',phase:'Trainer plan',goals:'Build fitness safely',startDate:'22/10/2026',endDate:'20/11/2026',weekdays:[2,4],time:'09:00',workload:'Medium',suggestion:{stages}});
  assert.equal(r.ok,true);assert.equal(e.calls.length,1);const saved=e.calls.at(-1).body;assert.equal('recommendationId' in saved,false);assert.equal('recommendationConfirmed' in saved,false);assert.equal(saved.startDate,'2026-10-22');assert.equal(saved.endDate,'2026-11-20');assert.deepEqual(saved.stages[0].daysOfWeek,['TUESDAY','THURSDAY']);assert.equal(saved.stages[0].sessionTime,'09:00:00');assert.equal(saved.stages[0].sessionEndTime,'09:30:00');assert.equal(saved.stages[1].sessionEndTime,'09:40:00');assert.equal(saved.stages[1].intensity,'MODERATE');
 });
+
+const {futureSchedule,scheduleWarning,trainingStart}=await import(pathToFileURL(path.join(dir,'trainingSchedule.mjs')));
+test('Bangkok past/equal/future filtering is independent of the browser timezone',()=>{
+ const cutoff=new Date('2026-10-27T00:00:00Z');const rows=[{date:'27/10/2026',time:'06:59'},{date:'27/10/2026',time:'07:00'},{date:'27/10/2026',time:'07:01'}];
+ assert.equal(trainingStart('27/10/2026','07:00').toISOString(),'2026-10-27T00:00:00.000Z');assert.deepEqual(futureSchedule(rows,cutoff),[rows[2]]);assert.match(scheduleWarning(rows,cutoff),/Some scheduled/);assert.match(scheduleWarning(rows,trainingStart('27/10/2026','07:02')),/No future/);
+ assert.equal(scheduleWarning([rows[2]],cutoff),'');assert.equal(validateSessionWindow({...windowInput,date:'27/10/2026'},[],trainingStart('27/10/2026','09:00')),'The session must start in the future.');
+});
+test('preview clock advancing past a session changes eligibility without shifting its date',()=>{
+ const rows=[{date:'27/10/2026',time:'07:00'},{date:'28/10/2026',time:'07:00'}];assert.equal(futureSchedule(rows,new Date('2026-10-26T23:59:00Z')).length,2);assert.equal(futureSchedule(rows,new Date('2026-10-27T00:01:00Z')).length,1);assert.equal(rows[0].date,'27/10/2026');
+});
+test('lost generation response is reconciled before retry and never creates another calendar',async()=>{
+ const s=state();const e=env(s);let attempts=0,reads=0;
+ globalThis.fetch=async(url)=>{if(String(url).includes('/training-sessions/horse/')){reads++;return new Response(JSON.stringify({success:true,data:attempts?[{sessionId:'SES-SAVED',planId:'PLN-001',status:'SCHEDULED'}]:[]}),{headers:{'Content-Type':'application/json'}});}attempts++;throw Error('Connection lost after server commit');};
+ assert.equal((await e.actions.generateSessions('HOR-101','PLN-001',[])).ok,false);const retry=await e.actions.generateSessions('HOR-101','PLN-001',[]);assert.equal(retry.ok,true);assert.equal(retry.data[0].id,'SES-SAVED');assert.equal(attempts,1);assert.equal(reads,2);assert.equal(e.reloads(),1);
+});
+test('failure to reconcile server state prevents generation',async()=>{
+ const e=env(state());let writes=0;globalThis.fetch=async(url,init)=>{if(init?.method==='POST')writes++;throw Error('Unable to verify existing schedule');};const r=await e.actions.generateSessions('HOR-101','PLN-001',[]);assert.equal(r.ok,false);assert.equal(writes,0);
+});
+
+test('editing persisted stages preserves the backend phase code and time metadata',async()=>{
+ const {normalizeStages}=await import(pathToFileURL(path.join(dir,'trainingSchedule.mjs')));
+ const [stage]=normalizeStages([{start_day:1,end_day:5,phase_code:'RACING_BASELINE',title:'Baseline',objective:'Review',activity_name:'Baseline work',intensity:'LOW',weekdays_json:'["MONDAY"]',session_time:'07:00:00',session_end_time:'07:40:00'}]);
+ assert.equal(stage.phaseCode,'RACING_BASELINE');assert.equal(stage.sessionEndTime,'07:40:00');assert.deepEqual(stage.daysOfWeek,['MONDAY']);assert.equal(stage.objective,'Review');
+});

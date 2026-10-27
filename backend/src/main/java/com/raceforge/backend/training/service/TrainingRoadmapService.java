@@ -15,6 +15,7 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 @Transactional
 public class TrainingRoadmapService {
+ @org.springframework.beans.factory.annotation.Autowired @org.springframework.beans.factory.annotation.Qualifier("trainingClock") private Clock clock;
  @org.springframework.beans.factory.annotation.Autowired private com.raceforge.backend.training.repository.HorsePlanRepository horsePlans;
  private final JdbcTemplate jdbc;private final TrainingWorkflowGuard guard;private final TrainingPlanRepository plans;
  private final ObjectMapper json;private final TrainingSessionService sessions;
@@ -37,17 +38,19 @@ public class TrainingRoadmapService {
   lock(planId);var plan=plan(planId);guard.requirePlan(plan);var pack=guard.assignedPackage(plan.getHorsePackageId());
   if(jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Training_Session WHERE plan_id=?",Integer.class,planId)>0)throw new BusinessRuleException("This plan already has sessions. Add or adjust individual sessions instead.");
   var rows=stages(planId);if(rows.isEmpty())throw new BusinessRuleException("A roadmap with stages is required");
+  LocalDateTime cutoff=LocalDateTime.now(clock);LocalDate start=anchor(plan);
   List<TrainingSessionResponse> created=new ArrayList<>();
   for(var row:rows){
    String[] days=json.readValue((String)row.get("weekdays_json"),String[].class);
    Set<String> weekdays=Set.of(days);LocalTime time=((java.sql.Time)row.get("session_time")).toLocalTime();
    for(int day=((Number)row.get("start_day")).intValue();day<=((Number)row.get("end_day")).intValue();day++){
-    LocalDate date=anchor(plan).plusDays(day-1L);if(!weekdays.contains(date.getDayOfWeek().name()))continue;
-    var request=new ScheduleSessionRequest();request.setPlanId(planId);request.setHorseId(pack.getHorse().getHorseId());request.setScheduledTime(LocalDateTime.of(date,time));
-    created.add(sessions.scheduleSession(request));
+    LocalDate date=start.plusDays(day-1L);if(!weekdays.contains(date.getDayOfWeek().name()))continue;
+    LocalDateTime scheduled=LocalDateTime.of(date,time);if(!scheduled.isAfter(cutoff))continue;
+    var request=new ScheduleSessionRequest();request.setPlanId(planId);request.setHorseId(pack.getHorse().getHorseId());request.setScheduledTime(scheduled);
+    created.add(sessions.scheduleSessionAt(request,cutoff));
    }
   }
-  if(created.isEmpty())throw new BusinessRuleException("No roadmap weekday matches the package period");return created;
+  if(created.isEmpty())throw new BusinessRuleException("No future sessions remain. Adjust the stages before generating sessions.");return created;
  }
  private LocalDate anchor(com.raceforge.backend.training.entity.TrainingPlan p){return horsePlans.findById(new com.raceforge.backend.training.entity.HorsePlanId(p.getPlanId(),p.getHorseId())).orElseThrow(()->new BusinessRuleException("Plan date anchor is missing")).getStartDate();}
  private void lock(String id){jdbc.queryForList("SELECT plan_id FROM dbo.Training_Plan WITH(UPDLOCK,HOLDLOCK) WHERE plan_id=?",id);}

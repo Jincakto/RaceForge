@@ -15,6 +15,7 @@ import java.util.Map;
 /** Central business guard, used by every plan/session write path. */
 @Service
 public class TrainingWorkflowGuard {
+ @org.springframework.beans.factory.annotation.Autowired @org.springframework.beans.factory.annotation.Qualifier("trainingClock") private java.time.Clock clock;
  private final JdbcTemplate jdbc;
  private final HorsePackageRepository packages;
  @org.springframework.beans.factory.annotation.Autowired private com.raceforge.backend.training.service.TrainingMedicalReader medicalReader;
@@ -32,7 +33,7 @@ public class TrainingWorkflowGuard {
   jdbc.queryForList("SELECT horse_id FROM dbo.Horse WITH(UPDLOCK,HOLDLOCK) WHERE horse_id=?",pack.getHorse().getHorseId());
   jdbc.queryForList("SELECT horse_package_id FROM dbo.HORSE_PACKAGE WITH(UPDLOCK,HOLDLOCK) WHERE horse_package_id=?",id);
   entityManager.refresh(pack.getHorse());entityManager.refresh(pack);
-  if(!"ACTIVE".equals(pack.getStatus())||!"PAID".equals(pack.getPaymentStatus())||pack.getStartDate()==null||pack.getEndDate()==null||pack.getEndDate().isBefore(pack.getStartDate())||pack.getEndDate().isBefore(LocalDate.now()))throw new BusinessRuleException("Horse package must be active, paid and within its valid period");
+  if(!"ACTIVE".equals(pack.getStatus())||!"PAID".equals(pack.getPaymentStatus())||pack.getStartDate()==null||pack.getEndDate()==null||pack.getEndDate().isBefore(pack.getStartDate())||pack.getEndDate().isBefore(LocalDate.now(clock)))throw new BusinessRuleException("Horse package must be active, paid and within its valid period");
   requireHealthy(pack.getHorse());return pack;
  }
  public Map<String,Object> medical(Horse horse){return medicalReader.snapshot(horse.getHorseId());}

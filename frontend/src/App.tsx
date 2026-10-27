@@ -1500,11 +1500,10 @@ const NAV_ITEMS: Partial<
     { icon: "🐎", label: "Horses", page: "horse-list" },
     { icon: "🧑‍⚕️", label: "Assigned horses", page: "vet-assign" },
     { icon: "🏥", label: "Medical records", page: "health-records" },
-    { icon: "📝", label: "Health examination", page: "vet-health-form" },
     {
-      icon: "🩺",
-      label: "Post-training exams & locks",
-      page: "post-exam",
+      icon: "📝",
+      label: "Health examination",
+      page: "vet-health-form",
       badge: "vetTodo",
     },
     { icon: "🔔", label: "Notifications", page: "notifications" },
@@ -1531,9 +1530,12 @@ const DEFAULT_ROLE_PERMS: Record<string, string[]> = Object.fromEntries(
   (["manager", "head_trainer", "veterinarian", "groom", "owner"] as Role[]).map(
     (r) => [
       r,
-      (NAV_ITEMS[r] || [])
-        .map((i) => i.page as string)
-        .filter((pg) => FEATURES.some((f) => f.page === pg)),
+      [
+        ...(NAV_ITEMS[r] || []).map((i) => i.page as string),
+        // "post-exam" no longer has its own sidebar item (it is part of "Health examination"),
+        // but it stays a grantable permission for veterinarians.
+        ...(r === "veterinarian" ? ["post-exam"] : []),
+      ].filter((pg) => FEATURES.some((f) => f.page === pg)),
     ],
   ),
 );
@@ -1597,6 +1599,7 @@ function Sidebar({
     !isFeature(pg) ||
     (rolePerms[user.role!] || []).includes(pg);
   const matrixExtra = (rolePerms[user.role!] || [])
+    .filter((pg) => pg !== "post-exam") // merged into "Health examination"
     .filter((pg) => !(NAV_ITEMS[user.role!] || []).some((i) => i.page === pg))
     .map((pg) => FEATURES.find((f) => f.page === pg)!)
     .filter(Boolean)
@@ -1641,7 +1644,9 @@ function Sidebar({
                   : badge === "rehabReqs"
                     ? rehabCount
                     : 0;
-          const active = page === item.page;
+          const active =
+            page === item.page ||
+            (page === "post-exam" && item.page === "vet-health-form");
           return (
             <button
               key={item.page}
@@ -1989,7 +1994,7 @@ function HeadTrainerDashboard({
                   "Not Performed"
                 </div>
               </div>
-              <span className="text-red-600 text-sm font-medium">Xem →</span>
+              <span className="text-red-600 text-sm font-medium">View →</span>
             </div>
           </Card>
         ))}
@@ -2174,7 +2179,7 @@ function VetDashboard({
                     </div>
                   </div>
                   <span className="text-sky-600 text-sm font-medium">
-                    Xem →
+                    View →
                   </span>
                 </div>
               </Card>
@@ -2740,7 +2745,7 @@ function HorseListPage({
                 </td>
                 <td className="px-5 py-3">
                   <span className="text-[#c9973b] text-xs font-medium">
-                    Xem →
+                    View →
                   </span>
                 </td>
               </tr>
@@ -7725,17 +7730,37 @@ function ProfilePage({
 
 // ── Post-session exam & Lock (Vet) ────────────────────────────────────────────
 
-function PostExamPage({
+type ExamView = "new" | "locked" | "pending" | "awaiting" | "manual";
+
+// Health examination hub: the new-examination form, pre-/post-training examinations, training locks
+// and manual locks share one page (and one sidebar entry) for veterinarians.
+function VetExamHubPage({
   state,
   navigate,
   onSave,
+  onSaveRecord,
   onPostExam,
   onUnlockExam,
   onManualLock,
+  unlockHorseId,
+  onUnlock,
+  onExamHorse,
+  onConsumeExamHorse,
+  canExam,
+  canPost,
+  initialView,
 }: {
   state: AppState;
   navigate: (p: Page) => void;
   onSave: (msg: string) => void;
+  onSaveRecord: (rec: HealthRecord) => Promise<HealthRecord>;
+  unlockHorseId?: string;
+  onUnlock: (horseId: string, reason: string) => Promise<string | null>;
+  onExamHorse: (horseId: string) => void;
+  onConsumeExamHorse: () => void;
+  canExam: boolean;
+  canPost: boolean;
+  initialView: ExamView;
   onPostExam: (
     sessionId: string,
     rec: HealthRecord,
@@ -7744,7 +7769,11 @@ function PostExamPage({
   onManualLock: (horseId: string, reason: string) => string | null;
 }) {
   const [search, setSearch] = useState('');
-  const [view, setView] = useState<'locked' | 'pending' | 'awaiting' | 'manual'>('locked');
+  const [view, setView] = useState<ExamView>(
+    initialView === "new" && canExam ? "new" : canPost ? "locked" : "new",
+  );
+  const [formKey, setFormKey] = useState(0);
+  const user = state.user!;
   const allHorses = state.horses.filter(h => h.clubId === state.user!.clubId);
   const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
   const query = normalize(search.trim());
@@ -7777,46 +7806,51 @@ function PostExamPage({
   const [manualError, setManualError] = useState("");
   const activeSession = state.trainingSessions.find((x) => x.id === activeId);
 
-  if (activeSession) {
-    return (
-      <VetHealthFormPage
-        key={activeSession.id}
-        state={state}
-        navigate={navigate}
-        onSave={onSave}
-        onSaveRecord={async (rec) => rec}
-        today={TODAY}
-        postSession={activeSession}
-        onPostSubmit={onPostExam}
-        onBack={() => setActiveId(null)}
-      />
-    );
-  }
+  // Opening a horse from a list pre-selects it in the examination form.
+  const examine = (horseId: string) => {
+    onExamHorse(horseId);
+    setFormKey((k) => k + 1);
+    setView("new");
+  };
+  const startUnlockExam = (horseId: string) => {
+    onUnlockExam(horseId);
+    setFormKey((k) => k + 1);
+    setView("new");
+  };
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <div>
-        <h2 className="text-xl font-serif font-bold text-[#0f1729]">
-          Post-training examinations and locks
-        </h2>
-        <p className="text-sm text-gray-500">
-          Review examinations, monitor recovery and manage training locks.
-        </p>
-      </div>
+      {activeSession && (
+        <VetHealthFormPage
+          key={activeSession.id}
+          state={state}
+          navigate={navigate}
+          onSave={onSave}
+          onSaveRecord={async (rec) => rec}
+          today={TODAY}
+          postSession={activeSession}
+          onPostSubmit={onPostExam}
+          onBack={() => setActiveId(null)}
+        />
+      )}
+      {/* Hidden (not unmounted) while a post-training form is open, so in-progress data is kept. */}
+      <div className={activeSession ? "hidden" : "space-y-6"}>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" role="group" aria-label="Examination sections">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5" role="group" aria-label="Examination sections">
         {([
+          ['new', 'New examination', 'Record a health examination', '📝'],
           ['locked', 'Training locks', 'Horses paused for recovery', '🔒'],
           ['pending', 'Post-training exams', 'Completed sessions to review', '🩺'],
           ['awaiting', 'Pre-training exams', 'Horses awaiting clearance', '🐎'],
           ['manual', 'Apply a lock', 'Stop training for examination', '＋'],
-        ] as const).map(([key, title, subtitle, icon]) => (
+        ] as const).filter(([key]) => (key === 'new' ? canExam : canPost)).map(([key, title, subtitle, icon]) => (
           <button key={key} type="button" aria-pressed={view === key} onClick={() => setView(key)} className={`rounded-2xl border p-4 text-left transition ${view === key ? 'border-[#1a2844] bg-[#1a2844] text-white shadow-md' : 'border-gray-200 bg-white text-[#1a2844] hover:border-[#c9973b]'}`}>
-            <div className="flex items-center justify-between"><span className="text-xl">{icon}</span><span className="text-2xl font-bold">{totals[key]}</span></div>
+            <div className="flex items-center justify-between"><span className="text-xl">{icon}</span><span className="text-2xl font-bold">{key === 'new' ? '＋' : totals[key]}</span></div>
             <div className="mt-3 text-sm font-semibold">{title}</div><div className={`mt-1 text-xs ${view === key ? 'text-slate-300' : 'text-gray-500'}`}>{subtitle}</div>
           </button>
         ))}
       </div>
+      {view !== "new" && (
       <Card className="p-4">
         <label htmlFor="post-exam-search" className="mb-2 block text-sm font-medium text-[#1a2844]">Find a horse</label>
         <div className="flex items-center gap-3">
@@ -7825,6 +7859,23 @@ function PostExamPage({
         </div>
         <p role="status" className="mt-2 text-xs text-gray-500">{search ? `${horses.length} of ${allHorses.length} horses match your search` : 'Type a name or ID to filter the current list instantly.'}</p>
       </Card>
+      )}
+
+      {canExam && (
+        <div className={view === "new" ? "" : "hidden"}>
+          <VetHealthFormPage
+            key={formKey}
+            unlockHorseId={unlockHorseId}
+            onUnlock={onUnlock}
+            state={state}
+            navigate={navigate}
+            onSave={onSave}
+            onSaveRecord={onSaveRecord}
+            today={TODAY}
+            onConsumeExamHorse={onConsumeExamHorse}
+          />
+        </div>
+      )}
       {view === "awaiting" && <section className="space-y-3">
         <h3 className="font-semibold flex items-center gap-2">
           🩺 Awaiting pre-training examination{" "}
@@ -7837,7 +7888,9 @@ function PostExamPage({
             {search ? "No horses awaiting examination match your search." : "No horses are awaiting examination."}
           </Card>
         )}
-        {awaiting.map((h) => (
+        {awaiting.map((h) => {
+          const mine = vetVisible(h, user);
+          return (
           <Card key={h.id} className="p-4 flex items-center gap-3">
             <img
               src={h.imageUrl || undefined}
@@ -7846,19 +7899,27 @@ function PostExamPage({
             <div className="flex-1">
               <div className="font-semibold">{h.name}</div><div className="mt-0.5 font-mono text-xs text-gray-500">{h.id}</div>
               <div className="text-xs text-gray-500">
-                Owner: {h.ownerName} · {h.breed} · {h.age}t
+                Owner: {h.ownerName} · {h.breed} · {h.age} years old
               </div>
             </div>
             <LifecycleBadge horse={h} />
-            <Btn
-              variant="gold"
-              size="sm"
-              onClick={() => navigate("vet-health-form")}
-            >
-              Examine and record →
-            </Btn>
+            {mine ? (
+              <Btn
+                variant="gold"
+                size="sm"
+                disabled={!canExam}
+                onClick={() => examine(h.id)}
+              >
+                Examine and record →
+              </Btn>
+            ) : (
+              <span className="max-w-[9rem] text-right text-xs text-gray-400">
+                Assigned to another veterinarian
+              </span>
+            )}
           </Card>
-        ))}
+          );
+        })}
         <p className="text-xs text-gray-400">
           A "Fit for training" examination result marks the horse as medically
           ready and notifies the owner.
@@ -7890,7 +7951,7 @@ function PostExamPage({
                   {h.name} · {s.type} {s.distance}
                 </div>
                 <div className="text-xs text-gray-500">
-                  {s.date} · {s.time} · HLV {s.trainerName}
+                  {s.date} · {s.time} · Trainer: {s.trainerName}
                 </div>
               </div>
               <Btn variant="gold" size="sm" onClick={() => setActiveId(s.id)}>
@@ -7999,13 +8060,14 @@ function PostExamPage({
             <Btn
               variant="primary"
               className="mt-3"
-              onClick={() => onUnlockExam(h.id)}
+              onClick={() => startUnlockExam(h.id)}
             >
               🩺 Examine to unlock
             </Btn>
           </Card>
         ))}
       </section>}
+      </div>
     </div>
   );
 }
@@ -8182,7 +8244,7 @@ const PAGE_TITLES: Partial<Record<Page, string>> = {
   profile: "Profile",
   "training-register": "Training registration",
   "vet-assign": "Assigned horses",
-  "post-exam": "Post-training exams & locks",
+  "post-exam": "Health examination",
   "rehab-center": "Rehabilitation packages",
   inventory: "My inventory",
   "inventory-log": "Inventory history",
@@ -8514,6 +8576,45 @@ export default function App() {
       return (
         <NoPermission text="Your role does not have access to this feature." />
       );
+    const hasPage = (pg: Page) =>
+      role === "admin" ||
+      (state.rolePerms[role] || []).includes(pg) ||
+      (state.userPermissions[state.user!.id] || []).includes(pg);
+    const examHub = (initialView: ExamView) => (
+      <VetExamHubPage
+        key={initialView}
+        state={state}
+        navigate={navigate}
+        onSave={showSuccess}
+        onSaveRecord={remote.saveHealth}
+        onPostExam={remote.postExam}
+        onUnlockExam={(id) =>
+          setState((s) => ({
+            ...s,
+            examHorseId: id,
+            unlockExamHorseId: id,
+            page: "vet-health-form",
+          }))
+        }
+        onManualLock={() =>
+          "Complete an examination and confirm NOT_FIT to apply a training lock on the server."
+        }
+        unlockHorseId={state.unlockExamHorseId}
+        onUnlock={async (id, reason) => {
+          const result = await remote.unlock(id, reason);
+          if (!result.ok) return result.message;
+          setState((s) => ({ ...s, unlockExamHorseId: undefined }));
+          return null;
+        }}
+        onExamHorse={(id) => setState((s) => ({ ...s, examHorseId: id }))}
+        onConsumeExamHorse={() =>
+          setState((s) => ({ ...s, examHorseId: null }))
+        }
+        canExam={hasPage("vet-health-form")}
+        canPost={hasPage("post-exam")}
+        initialView={initialView}
+      />
+    );
     switch (state.page) {
       case "accounts":
         return (
@@ -8703,25 +8804,7 @@ export default function App() {
       case "vet-health-form":
         if (state.user!.role !== "veterinarian")
           return <HealthRecordsPage state={state} navigate={navigate} />;
-        return (
-          <VetHealthFormPage
-            unlockHorseId={state.unlockExamHorseId}
-            onUnlock={async (id, reason) => {
-              const result = await remote.unlock(id, reason);
-              if (!result.ok) return result.message;
-              setState(s => ({ ...s, unlockExamHorseId: undefined }));
-              return null;
-            }}
-            state={state}
-            navigate={navigate}
-            onSave={showSuccess}
-            onSaveRecord={remote.saveHealth}
-            today={TODAY}
-            onConsumeExamHorse={() =>
-              setState((s) => ({ ...s, examHorseId: null }))
-            }
-          />
-        );
+        return examHub("new");
       case "training-hub":
         return (
           <TrainingHubPage
@@ -8809,18 +8892,7 @@ export default function App() {
       case "post-exam":
         if (state.user!.role !== "veterinarian")
           return <NoAccess text="Only veterinarians may access this page" />;
-        return (
-          <PostExamPage
-            state={state}
-            navigate={navigate}
-            onSave={showSuccess}
-            onPostExam={remote.postExam}
-            onUnlockExam={(id) => setState(s => ({ ...s, examHorseId: id, unlockExamHorseId: id, page: "vet-health-form" }))}
-            onManualLock={() =>
-              "Complete an examination and confirm NOT_FIT to apply a training lock on the server."
-            }
-          />
-        );
+        return examHub("locked");
       case "rehab-center":
         if (state.user!.role !== "manager")
           return (

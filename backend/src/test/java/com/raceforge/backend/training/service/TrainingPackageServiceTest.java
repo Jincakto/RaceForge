@@ -33,7 +33,7 @@ class TrainingPackageServiceTest {
                 .thenAnswer(call -> call.getArgument(0));
 
         var request = new TrainingPackageCreateRequest(
-                "Basic", "BASIC", "Normal training", 30, new BigDecimal("120000"), new com.raceforge.backend.training.dto.PackageRoadmapDto("Basic","Foundation goal",java.util.List.of(),1,java.util.List.of()));
+                "Basic", "BASIC", "Normal training", 30, new BigDecimal("120000"), new com.raceforge.backend.training.dto.PackageRoadmapDto("Basic","Foundation goal",1,java.util.List.of()));
         var result = service.create(request);
 
         assertEquals("PKG-012", result.packageId());

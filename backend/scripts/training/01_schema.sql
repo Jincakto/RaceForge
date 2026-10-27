@@ -9,7 +9,6 @@ CREATE TABLE dbo.Package_Roadmap_Template(
  roadmap_template_id varchar(36) NOT NULL PRIMARY KEY,
  package_id varchar(20) NOT NULL UNIQUE REFERENCES dbo.TRAINING_PACKAGE(package_id),
  title nvarchar(150) NOT NULL,goal nvarchar(500) NOT NULL,
- source_urls_json nvarchar(max) NOT NULL CHECK(ISJSON(source_urls_json)=1),
  template_revision int NOT NULL DEFAULT 1 CHECK(template_revision>0),
  created_at datetime2 NOT NULL DEFAULT SYSDATETIME(),updated_at datetime2 NOT NULL DEFAULT SYSDATETIME()
 );

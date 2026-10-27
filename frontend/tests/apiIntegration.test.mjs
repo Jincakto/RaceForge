@@ -369,16 +369,16 @@ test('trainer profile reports missing records and server errors without pretendi
   await assert.rejects(saveOwnTrainerProfile({trainer_id:'HTR-099',user_id:'HTR-001'},'HTR-001','bio','cert'),e=>e.status===403);
 });
 
-const protocolDraft=()=>({name:'Vet authored protocol',packageType:'BASIC',minWeight:400,maxWeight:500,rationale:'Test rationale',sources:['https://www.merckvetmanual.com/test'],stages:[{startDay:1,endDay:7,activityName:'Vet authored activity',intensity:'LOW',daysOfWeek:['MONDAY'],sessionTime:'08:00',sessionEndTime:'08:30'}]});
+const protocolDraft=()=>({name:'Vet authored protocol',packageType:'BASIC',minWeight:400,maxWeight:500,rationale:'Test rationale',stages:[{startDay:1,endDay:7,activityName:'Vet authored activity',intensity:'LOW',daysOfWeek:['MONDAY'],sessionTime:'08:00',sessionEndTime:'08:30'}]});
 test('protocol APIs preserve vet-authored content and use draft/approval/retire endpoints', async()=>{
   const calls=[];globalThis.fetch=async(url,init)=>{calls.push({url,init});return ok({});};
   const draft=protocolDraft();await protocols.createProtocol(draft);await protocols.changeProtocolStatus('PRO-001','approve');await protocols.changeProtocolStatus('PRO-001','retire');
   assert.deepEqual(JSON.parse(calls[0].init.body),draft);
   assert.deepEqual(calls.map(c=>c.url),['/api/training-protocols','/api/training-protocols/PRO-001/approve','/api/training-protocols/PRO-001/retire']);
 });
-test('invalid protocol weight, stages and source are blocked before HTTP', async()=>{
+test('invalid protocol weight and stages are blocked before HTTP', async()=>{
   let calls=0;globalThis.fetch=async()=>{calls++;return ok({});};
-  for(const change of [{minWeight:0},{maxWeight:400},{sources:['https://example.com']},{sources:[]},{rationale:''},{stages:[]},{stages:[{...protocolDraft().stages[0],sessionEndTime:'07:00'}]},{stages:[...protocolDraft().stages,...protocolDraft().stages]}]) {
+  for(const change of [{minWeight:0},{maxWeight:400},{rationale:''},{stages:[]},{stages:[{...protocolDraft().stages[0],sessionEndTime:'07:00'}]},{stages:[...protocolDraft().stages,...protocolDraft().stages]}]) {
     assert.throws(()=>protocols.createProtocol({...protocolDraft(),...change}));
   }assert.equal(calls,0);
 });

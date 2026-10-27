@@ -32,6 +32,7 @@ class TrainingRoadmapDatabaseTest {
      // Establish the canonical V12 baseline without editing historical migrations.
      org.flywaydb.core.Flyway.configure().dataSource(root+name,user,password).baselineVersion("12").load().baseline();
      org.flywaydb.core.Flyway.configure().dataSource(root+name,user,password).locations("classpath:db/migration").load().migrate();
+     try(var st=c.createStatement();var r=st.executeQuery("SELECT COL_LENGTH('dbo.Package_Roadmap_Template','source_urls_json')")){r.next();assertNull(r.getObject(1));}
      script(c,read("scripts/training/03_seed_demo.sql"));assertEquals(4,count(c,"TRAINING_PACKAGE"));assertEquals(4,count(c,"Package_Roadmap_Template"));assertEquals(14,count(c,"Package_Stage_Template"));
     }
     try(var app=new SpringApplicationBuilder(BackendApplication.class).run("--server.port=0","--spring.datasource.url="+root+name,"--spring.datasource.username="+user,"--spring.datasource.password="+password,"--spring.flyway.enabled=false","--raceforge.training.package-expiry-cron=-","--logging.level.root=WARN","--logging.level.org.springframework=INFO","--logging.level.org.hibernate.SQL=OFF")){
@@ -40,7 +41,7 @@ class TrainingRoadmapDatabaseTest {
      var ui=http.send(java.net.http.HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/swagger-ui/index.html")).build(),java.net.http.HttpResponse.BodyHandlers.ofString());assertEquals(200,ui.statusCode());
      var packages=app.getBean(TrainingPackageService.class);var roadmaps=app.getBean(PackageRoadmapTemplateService.class);
      var stage=new Stage(1,30,"Individual cues","HIGH",Set.of(LocalDate.now().plusDays(1).getDayOfWeek()),LocalTime.of(10,0),LocalTime.of(10,40),"Different stage","Individual objective","CUSTOM");
-     var dto=new PackageRoadmapDto("Different Basic","A different goal",List.of(),1,List.of(stage));
+     var dto=new PackageRoadmapDto("Different Basic","A different goal",1,List.of(stage));
      var created=packages.create(new TrainingPackageCreateRequest("Different Basic","BASIC","Different template",30,BigDecimal.TEN,dto));assertEquals("Different Basic",roadmaps.read(created.packageId()).title());assertNotEquals(roadmaps.read("PKG-001").title(),roadmaps.read(created.packageId()).title());
      // Exercise independent horse snapshots and real scheduling transactions against this disposable DB.
      try(Connection c=DriverManager.getConnection(root+name,user,password)){
@@ -80,7 +81,7 @@ class TrainingRoadmapDatabaseTest {
       int before=count(c,"TRAINING_PACKAGE");
       try(var s=c.createStatement()){s.execute("ALTER TABLE dbo.Package_Stage_Template ADD CONSTRAINT CK_TestRejectStage CHECK(activity_name <> N'FAIL_DATABASE')");}
       var bad=new Stage(1,30,"FAIL_DATABASE","LOW",Set.of(DayOfWeek.MONDAY),LocalTime.of(9,0),LocalTime.of(9,30),"Title",null,"TEST");
-      assertThrows(RuntimeException.class,()->packages.create(new TrainingPackageCreateRequest("Rollback","BASIC","",30,BigDecimal.TEN,new PackageRoadmapDto("Rollback","Rollback goal",List.of(),1,List.of(bad)))));
+      assertThrows(RuntimeException.class,()->packages.create(new TrainingPackageCreateRequest("Rollback","BASIC","",30,BigDecimal.TEN,new PackageRoadmapDto("Rollback","Rollback goal",1,List.of(bad)))));
       assertEquals(before,count(c,"TRAINING_PACKAGE"));assertEquals(before,count(c,"Package_Roadmap_Template"));
       try(var s=c.createStatement()){s.execute("ALTER TABLE dbo.Package_Stage_Template DROP CONSTRAINT CK_TestRejectStage");}
      }
@@ -115,7 +116,7 @@ class TrainingRoadmapDatabaseTest {
      assertEquals(4,count(c,"TRAINING_PACKAGE"));assertEquals(4,count(c,"Package_Roadmap_Template"));assertEquals(14,count(c,"Package_Stage_Template"));
      try(var s=c.createStatement();var r=s.executeQuery("SELECT OBJECT_ID('dbo.Training_Recommendation'),OBJECT_ID('dbo.Training_Protocol'),OBJECT_ID('dbo.Training_Medical_Context'),COL_LENGTH('dbo.Training_Plan','recommendation_id')")){r.next();for(int i=1;i<=4;i++)assertNull(r.getObject(i));}
     }
-    var migration=org.flywaydb.core.Flyway.configure().dataSource(root+name,user,password).locations("classpath:db/migration").load().migrate();assertEquals(0,migration.migrationsExecuted);
+    var migration=org.flywaydb.core.Flyway.configure().dataSource(root+name,user,password).locations("classpath:db/migration").load().migrate();assertEquals(1,migration.migrationsExecuted);
    }finally{if(!name.matches("RaceForgeTrainingTest_[a-f0-9]{32}"))throw new IllegalStateException("Unsafe test database name");try(var s=admin.createStatement()){s.execute("ALTER DATABASE ["+name+"] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ["+name+"]");}}
   }
  }

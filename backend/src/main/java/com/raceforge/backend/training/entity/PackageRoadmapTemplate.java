@@ -6,7 +6,6 @@ public class PackageRoadmapTemplate {
  @Column(name="package_id",length=20,nullable=false,unique=true) public String packageId;
  @Column(length=150,nullable=false) @org.hibernate.annotations.Nationalized public String title;
  @Column(length=500,nullable=false) @org.hibernate.annotations.Nationalized public String goal;
- @Column(name="source_urls_json",length=2147483647) @org.hibernate.annotations.Nationalized public String sourcesJson;
  @Column(name="template_revision",nullable=false) public int revision;
  @Column(name="created_at",nullable=false) public java.time.LocalDateTime createdAt;
  @Column(name="updated_at",nullable=false) public java.time.LocalDateTime updatedAt;

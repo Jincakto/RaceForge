@@ -1,19 +1,13 @@
 import { request, idPath } from './api';
-export const SOURCE_HOSTS = ['www.merckvetmanual.com','www.msdvetmanual.com','extension.umn.edu','horses.extension.org','extension.purdue.edu','www.extension.purdue.edu','horsereport.vetmed.ucdavis.edu','cehhorsereport.vetmed.ucdavis.edu','ceh.vetmed.ucdavis.edu'];
 export const WEEK_DAYS = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'];
 export interface ProtocolStage { startDay: number; endDay: number; activityName: string; intensity: string; daysOfWeek: string[]; sessionTime: string; sessionEndTime: string; }
-export interface ProtocolDraft { name: string; packageType: string; minWeight: number; maxWeight: number; stages: ProtocolStage[]; sources: string[]; rationale: string; }
-export interface ProtocolRow { protocol_id: string; protocol_name: string; package_type: string; min_weight: number; max_weight: number; status: string; stages_json: string; sources_json: string; rationale: string; }
+export interface ProtocolDraft { name: string; packageType: string; minWeight: number; maxWeight: number; stages: ProtocolStage[]; rationale: string; }
+export interface ProtocolRow { protocol_id: string; protocol_name: string; package_type: string; min_weight: number; max_weight: number; status: string; stages_json: string; rationale: string; }
 export function validateProtocol(d: ProtocolDraft) {
   if (!d.name.trim() || d.name.length > 150) throw new Error("Protocol name is required and cannot exceed 150 characters.");
   if (!['BASIC','RACING','PERFORMANCE','RECOVERY'].includes(d.packageType)) throw new Error("Select a valid package type.");
   if (!Number.isFinite(d.minWeight) || !Number.isFinite(d.maxWeight) || d.minWeight < 0.01 || d.maxWeight <= d.minWeight) throw new Error("Weight limits must be positive, with the upper limit greater than the lower limit.");
   if (!d.rationale.trim() || d.rationale.length > 1000) throw new Error("Enter the rationale, up to 1000 characters.");
-  if (!d.sources.length) throw new Error("At least one reference source is required.");
-  for (const source of d.sources) {
-    let url: URL; try { url = new URL(source); } catch { throw new Error("Invalid reference URL."); }
-    if (url.protocol !== 'https:' || !SOURCE_HOSTS.includes(url.hostname)) throw new Error("Sources must be HTTPS URLs from the veterinary or university sites supported by the server.");
-  }
   if (!d.stages.length || d.stages.length > 100) throw new Error("Provide 1–100 stages.");
   let last = 0;
   for (const s of [...d.stages].sort((a,b)=>a.startDay-b.startDay)) {

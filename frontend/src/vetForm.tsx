@@ -811,79 +811,42 @@ export function VetHealthFormPage({
 
   // ── Thành công ──
   if (saved) {
-    const ok = saved.decision !== "not-eligible";
     const canUnlock = saved.horseId === unlockHorseId && saved.status === 'confirmed' && saved.decision === 'eligible'
       && VITAL_DEFS.every(d => vs[d.key].kind === 'normal') && wt.ok && !wt.empty
       && REGION_DEFS.every(r => regions[r.key] === 'ok');
     return (
-      <div className="max-w-3xl space-y-5">
-        <Card
-          className={`border-l-4 p-6 ${ok ? "border-emerald-500 bg-emerald-50" : "border-red-500 bg-red-50"}`}
-        >
-          <div className="flex items-start gap-4">
-            <span className="text-4xl">{ok ? "✅" : "🚫"}</span>
-            <div className="flex-1">
-              <div
-                className={`font-serif text-lg font-bold ${ok ? "text-emerald-800" : "text-red-800"}`}
-              >
-                Medical record saved
-              </div>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-600">
-                <IdChip kind="MED" id={saved.id} />
-                <span>{saved.date}</span>
-                <span>· {horse?.name}</span>
-                <DecisionPill d={saved.decision} />
-              </div>
-              <p className="mt-3 rounded-lg border border-white/60 bg-white/70 p-3 text-sm text-gray-800">
-                {saved.conclusion}
-              </p>
-              {isIntake && (
-                <p className="mt-3 text-sm text-gray-600">
-                  This is an initial examination — the conclusion has been sent
-                  to the manager for admission review.
-                </p>
-              )}
-              {saved.decision === "not-eligible" && !isIntake && (
-                <p className="mt-3 text-sm text-red-700">
-                  The horse is not fit for training. Releasing the lock later
-                  requires a reason in "Post-training examinations and locks".
-                </p>
-              )}
-            </div>
+      <div className="mx-auto w-full max-w-4xl">
+        <Card className="overflow-hidden !rounded-2xl !border-slate-200/80 !shadow-sm">
+          <div className="flex items-center gap-3 border-b border-emerald-100 bg-emerald-50/70 px-5 py-4 sm:px-7">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700"><svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4 4L19 6"/></svg></span>
+            <div role="status"><h3 className="text-base font-semibold text-emerald-950">Medical record saved</h3><p className="mt-0.5 text-sm text-emerald-800/75">The examination has been recorded successfully.</p></div>
           </div>
-          <div className="mt-5 flex flex-wrap gap-2">
-            {unlockHorseId && onUnlock && !unlocked && <div className="w-full space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
-              <p className="text-sm text-amber-900">{canUnlock ? 'All vital signs and clinical checks are normal. Confirm to release the training lock.' : 'The training lock remains. All vital signs and clinical checks must be normal and the saved conclusion must be Fit for training.'}</p>
-              {unlockError && <p role="alert" className="text-sm text-red-700">{unlockError}</p>}
-              <Btn variant="gold" disabled={!canUnlock || unlocking} onClick={async () => {
+          <div className="space-y-6 p-5 sm:p-7">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div><p className="text-xs font-medium uppercase tracking-wider text-slate-400">Examination summary</p><h2 className="mt-1 font-serif text-2xl font-bold text-[#1a2844]">{horse?.name || 'Horse examination'}</h2><div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500"><IdChip kind="MED" id={saved.id}/><span aria-hidden="true">·</span><span>{saved.date}</span></div></div>
+              <DecisionPill d={saved.decision}/>
+            </div>
+            <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-4"><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Veterinary conclusion</p><p className="mt-2 text-sm leading-6 text-slate-700">{saved.conclusion}</p></div>
+            {isIntake && <p className="text-sm leading-6 text-slate-500">The initial examination has been sent to the manager for admission review.</p>}
+            {saved.decision === 'not-eligible' && !isIntake && <p className="rounded-xl bg-rose-50 p-4 text-sm leading-6 text-rose-800">This horse is not fit for training. Complete a follow-up examination before releasing the training lock.</p>}
+            {unlockHorseId && onUnlock && !unlocked && <div className="rounded-xl border border-amber-200/70 bg-amber-50/60 p-4 sm:p-5">
+              <div className="flex items-start gap-3"><span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-800"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0v4M12 14v3"/></svg></span><div className="min-w-0 flex-1"><h4 className="font-semibold text-[#1a2844]">{canUnlock ? 'Ready to release the training lock' : 'Training lock remains active'}</h4><p className="mt-1 text-sm leading-6 text-slate-600">{canUnlock ? 'All vital signs and clinical checks are normal. Release the lock to let the manager review resuming training.' : 'A confirmed fit conclusion, normal vital signs and normal clinical checks are required before release.'}</p></div></div>
+              {unlockError && <p role="alert" className="mt-3 rounded-lg bg-white p-3 text-sm text-red-700">{unlockError}</p>}
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs leading-5 text-slate-500">The release reason is saved with the horse's history.</p><Btn variant="gold" className="w-full shrink-0 !rounded-xl !px-5 !py-3 sm:w-auto" disabled={!canUnlock || unlocking} onClick={async () => {
                 if (!canUnlock || unlocking) return;
                 setUnlocking(true); setUnlockError('');
                 try {
-                  const error = await onUnlock(saved.horseId, `Follow-up examination ${saved.id}: all vital signs within normal ranges, all clinical checks normal; confirmed fit for training.`);
+                  const error = await onUnlock(saved.horseId, 'Follow-up examination ' + saved.id + ': all vital signs within normal ranges, all clinical checks normal; confirmed fit for training.');
                   if (error) setUnlockError(error);
                   else { setUnlocked(true); onSave('Training lock released after a successful examination.'); }
                 } catch (error) { setUnlockError((error as Error).message); }
                 finally { setUnlocking(false); }
-              }}>{unlocking ? 'Releasing lock...' : 'Confirm release training lock'}</Btn>
+              }}>{unlocking ? 'Releasing lock...' : 'Release training lock'}</Btn></div>
             </div>}
-            {unlocked && <p role="status" className="w-full text-sm text-emerald-700">Training lock released. The manager can review resuming the training package.</p>}
-            {postSession ? (
-              <Btn variant="primary" onClick={leave}>
-                ← Back to list
-              </Btn>
-            ) : (
-              <>
-                <Btn variant="gold" onClick={reset}>
-                  Examine another horse
-                </Btn>
-                <Btn
-                  variant="secondary"
-                  onClick={() => navigate("health-records")}
-                >
-                  View medical records
-                </Btn>
-              </>
-            )}
+            {unlocked && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><p className="font-semibold text-emerald-900">Training lock released</p><p className="mt-1 text-sm leading-6 text-emerald-800">The manager can now review resuming the training package.</p></div>}
+          </div>
+          <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
+            {postSession ? <Btn variant="secondary" className="!rounded-xl" onClick={leave}>Back to examinations</Btn> : <><Btn variant="secondary" className="!rounded-xl" onClick={()=>navigate('health-records')}>View medical records</Btn><Btn variant="ghost" className="!rounded-xl" onClick={reset}>Examine another horse →</Btn></>}
           </div>
         </Card>
       </div>

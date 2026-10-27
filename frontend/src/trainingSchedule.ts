@@ -1,5 +1,5 @@
 import type { TrainingSession, TrainingPlan } from './data';
-export interface RoadmapStage { startDay:number; endDay:number; daysOfWeek:string[]; sessionTime:string; sessionEndTime:string; activityName:string; intensity:string; title?:string; objective?:string }
+export interface RoadmapStage { startDay:number; endDay:number; daysOfWeek:string[]; sessionTime:string; sessionEndTime:string; activityName:string; intensity:string; title?:string; objective?:string; phaseCode?:string }
 export interface ScheduleRow { date:string; time:string; endTime:string; type:string; intensity:string; title:string; notes:string; distance:string; targetTime:string }
 export const DAY_KEYS=['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
 export function normalizeStages(rows:any[]):RoadmapStage[] {

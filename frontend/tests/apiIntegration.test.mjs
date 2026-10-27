@@ -8,7 +8,7 @@ import ts from 'typescript';
 
 // Run the actual TS adapters without Vite or a database; HTTP is the test boundary.
 const dir = await mkdtemp(path.join(tmpdir(), 'raceforge-api-tests-'));
-for (const name of ['trainingSchedule', 'trainingTimestamp', 'api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
+for (const name of ['packageRoadmap', 'trainingSchedule', 'trainingTimestamp', 'api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
   const source = await readFile(new URL(`../src/${name}.ts`, import.meta.url), 'utf8');
   const code = ts.transpileModule(source.replace('import.meta.env', '({})'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText
     .replace(/(['"])(\.\/[^'"]+)\1/g, (_, quote, specifier) => `${quote}${specifier}.mjs${quote}`);
@@ -83,11 +83,11 @@ function actions(snapshot) {
 }
 
 test('package creation sends the DTO and uses the server response', async () => {
-  const draft={name:' Normal ',packageType:'RACING',description:'Training',durationDays:30,price:5000000};
+  const draft={name:' Normal ',packageType:'RACING',description:'Training',durationDays:30,price:5000000,roadmapTemplate:roadmapFixture()};
   const {remote,events}=actions(state());
   globalThis.fetch=async(url,init)=>{
     assert.equal(url,'/api/training-packages');assert.equal(init.method,'POST');
-    assert.deepEqual(JSON.parse(init.body),{packageName:'Normal',packageType:'RACING',description:'Training',durationDays:30,price:5000000});
+    assert.deepEqual(JSON.parse(init.body),{packageName:'Normal',packageType:'RACING',description:'Training',durationDays:30,price:5000000,roadmapTemplate:draft.roadmapTemplate});
     return ok({packageId:'PKG-001',packageName:'Normal',packageType:'RACING',durationDays:30,price:5000000,status:'ACTIVE'});
   };
   const result=await remote.savePackage(draft);assert.equal(result.ok,true);assert.equal(result.data.id,'PKG-001');assert.ok(events.includes('reload'));
@@ -510,4 +510,86 @@ test('veterinary assignment denial is preserved separately from an empty assignm
   const data=await mapping.loadRemote(user('veterinarian'),message=>warnings.push(message));
   assert.match(data.vetAssignmentsError,/server denied access/);
   assert.equal(warnings.length,1);
+});
+
+
+test('manager treats only a missing health profile as empty medical history', async () => {
+ for (const [status,message,count] of [[404,'Health profile not found',0],[404,'Horse not found',1],[403,'Denied',1],[500,'Health profile not found',1]]) {
+  globalThis.fetch=async url=>url==='/api/horses'?ok([{horseId:'HOR-002',horseName:'Brown',admissionStatus:'PENDING'}]):url==='/api/medical/horses/HOR-002/records'?new Response(JSON.stringify({success:false,message}),{status}):ok([]);
+  const warnings=[]; const data=await mapping.loadRemote(user('manager'),m=>warnings.push(m));
+  assert.equal(data.horses.length,1); assert.deepEqual(data.healthRecords,[]); assert.equal(warnings.length,count);
+ }
+});
+
+test('admitted club list excludes pending, rejected and other clubs regardless of health', () => {
+ const base=horse();
+ const horses=[base,{...base,id:'pending',approvalStatus:'pending',healthStatus:'Eligible'},{...base,id:'rejected',approvalStatus:'rejected'},{...base,id:'other',clubId:'other'}];
+ assert.deepEqual(mapping.admittedClubHorses(horses,mapping.CENTER).map(h=>h.id),[base.id]);
+ assert.equal(horses.length,4);
+});
+
+test('latest confirmed follow-up replaces initial conclusion and ignores newer drafts', () => {
+ const initial={id:'initial',horseId:'HOR-007',intake:true,status:'confirmed',date:'27/10/2026',createdAt:1,decision:'not-eligible'};
+ const followup={...initial,id:'followup',intake:false,createdAt:2,decision:'eligible'};
+ const draft={...followup,id:'draft',status:'draft',createdAt:3,decision:'not-eligible'};
+ const other={...followup,id:'other',horseId:'HOR-008',createdAt:4};
+ assert.equal(mapping.latestConfirmedExam([initial,draft,other,followup],'HOR-007').id,'followup');
+ assert.equal(mapping.latestConfirmedExam([initial,draft],'HOR-007').id,'initial');
+ assert.equal(mapping.latestConfirmedExam([draft],'HOR-007'),undefined);
+});
+
+function roadmapFixture() { return {title:'Racing foundation',goal:'Build stamina safely',stages:[{startDay:1,endDay:30,title:'Foundation',phaseCode:'FOUNDATION',objective:'Build endurance',activityName:'Easy canter',intensity:'LOW',daysOfWeek:['MONDAY','WEDNESDAY','FRIDAY'],sessionTime:'07:30',sessionEndTime:'08:00'}]}; }
+
+test('package roadmap mapping preserves every configured stage field', async()=>{
+ const recommendations=await import(pathToFileURL(path.join(dir,'recommendations.mjs')).href);
+ const template=roadmapFixture();template.stages.push({...template.stages[0],startDay:31,endDay:45,activityName:'Tempo run',intensity:'HIGH',sessionTime:'08:00',sessionEndTime:'08:45'});
+ const mapped=recommendations.recommendationView(template);
+ assert.equal(mapped.stages.length,2);assert.equal(mapped.stages[0].activityName,'Easy canter');assert.deepEqual(mapped.stages[0].daysOfWeek,template.stages[0].daysOfWeek);
+ assert.equal(mapped.stages[1].intensity,'HIGH');assert.equal(mapped.stages[1].sessionEndTime,'08:45');assert.equal(mapped.stages[0].phaseCode,'FOUNDATION');assert.equal(mapped.rationale[0],template.goal);
+});
+
+test('package roadmap validation rejects invalid stage ranges, times and missing curriculum',async()=>{
+ const {validateRoadmap}=await import(pathToFileURL(path.join(dir,'packageRoadmap.mjs')).href);
+ assert.equal(validateRoadmap(roadmapFixture(),30),'');
+ assert.ok(validateRoadmap(undefined,30));
+ for(const patch of [{endDay:31},{startDay:0},{title:''},{phaseCode:''},{activityName:''},{daysOfWeek:[]},{daysOfWeek:['MONDAY','MONDAY']},{daysOfWeek:['NODAY']},{sessionEndTime:'07:00'},{intensity:'UNSAFE'}]) {
+  const template=roadmapFixture();template.stages[0]={...template.stages[0],...patch};assert.ok(validateRoadmap(template,30),JSON.stringify(patch));
+ }
+ const overlap=roadmapFixture();overlap.stages.push({...overlap.stages[0],startDay:20});assert.match(validateRoadmap(overlap,30),/overlap/);
+});
+
+test('invalid package roadmap is blocked before HTTP',async()=>{
+ const {remote}=actions(state());let calls=0;globalThis.fetch=async()=>{calls++;return ok({});};
+ assert.equal((await remote.savePackage({name:'Package',packageType:'BASIC',description:'',durationDays:30,price:1000000})).ok,false);assert.equal(calls,0);
+});
+
+test('trainer submits stage-specific schedules and intensities without flattening the template',async()=>{
+ const fixture=scheduleFixture('HPG-stage-specific');const template=roadmapFixture();template.stages[0].endDay=15;template.stages.push({...template.stages[0],startDay:16,endDay:30,title:'Performance',phaseCode:'PERFORMANCE',intensity:'HIGH',activityName:'Tempo run',daysOfWeek:['TUESDAY'],sessionTime:'08:00',sessionEndTime:'08:45'});
+ let payload;globalThis.fetch=async(url,init)=>{payload=JSON.parse(init.body);return ok({planId:'PLN-1',horseId:'HOR-007'});};
+ const result=await fixture.remote.createPlan({...fixture.draft,phase:template.title,goals:template.goal,weekdays:undefined,time:undefined,workload:'',suggestion:{stages:template.stages}});
+ assert.equal(result.ok,true);assert.deepEqual(payload.stages.map(s=>[s.activityName,s.intensity,s.daysOfWeek,s.sessionTime,s.sessionEndTime]),template.stages.map(s=>[s.activityName,s.intensity,s.daysOfWeek,s.sessionTime+':00',s.sessionEndTime+':00']));
+});
+
+
+test('combined roadmap stages cannot create a seven-day training week',async()=>{
+ const {validateRoadmap}=await import(pathToFileURL(path.join(dir,'packageRoadmap.mjs')).href);
+ const template=roadmapFixture();template.stages[0]={...template.stages[0],endDay:6,daysOfWeek:['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY']};
+ template.stages.push({...template.stages[0],startDay:7,endDay:30,daysOfWeek:['TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY']});
+ assert.match(validateRoadmap(template,30),/rest day/);
+ assert.match(validateRoadmap(template,30,'2026-11-02'),/rest day/);
+});
+
+test('empty roadmap responses report a configuration error rather than inventing stages',async()=>{
+ const recommendations=await import(pathToFileURL(path.join(dir,'recommendations.mjs')).href);
+ assert.throws(()=>recommendations.recommendationView({title:'Empty',stages:[]}),/No package roadmap stages/);
+ assert.throws(()=>recommendations.recommendationView({phases:[{title:'Legacy'}]}),/No package roadmap stages/);
+});
+
+
+test('retrying an unconfigured roadmap reloads the template instead of caching an empty result',async()=>{
+ const recommendations=await import(pathToFileURL(path.join(dir,'recommendations.mjs')).href);recommendations.clearRecommendations();let calls=0;
+ globalThis.fetch=async url=>{assert.equal(url,'/api/horse-packages/HPG-retry/roadmap-template');calls++;return ok(calls===1?{stages:[]}:roadmapFixture());};
+ await assert.rejects(recommendations.packageRoadmapFor('HPG-retry'),/No package roadmap stages/);
+ const value=await recommendations.packageRoadmapFor('HPG-retry');assert.equal(value.stages.length,1);assert.equal(calls,2);
+ recommendations.clearRecommendations();
 });

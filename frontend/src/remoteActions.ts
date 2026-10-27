@@ -1,3 +1,4 @@
+import { validateRoadmap } from './packageRoadmap';
 import { selectedStages, scheduleRows } from './trainingSchedule';
 import { trainingTimestamp } from './trainingTimestamp';
 import { ApiError, idPath as enc, request } from './api';
@@ -135,7 +136,9 @@ export function makeRemoteActions(env: Env) {
     },
     savePackage: (draft: PackageDraft) => result<TrainingPackage>('package', async () => {
       if (draft.id) unavailable("editing training packages");
-      return packageFromApi(await request('/training-packages', 'POST', { packageName: draft.name.trim(), packageType: draft.packageType, description: draft.description, durationDays: draft.durationDays, price: draft.price }));
+      const roadmapError = validateRoadmap(draft.roadmapTemplate, draft.durationDays);
+      if (roadmapError) throw new Error(roadmapError);
+      return packageFromApi(await request('/training-packages', 'POST', { packageName: draft.name.trim(), packageType: draft.packageType, description: draft.description, durationDays: draft.durationDays, price: draft.price, roadmapTemplate: draft.roadmapTemplate }));
     }),
     togglePackage: (_id: string, _active: boolean) => result<TrainingPackage>('package-status', async () => unavailable("enabling or disabling training packages")),
     assignTrainer: (enrollmentId: string, userId: string, reason = '') => result<Enrollment>(`assign-${enrollmentId}`, async () => {

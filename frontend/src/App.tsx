@@ -1,3 +1,4 @@
+import { PackageRoadmapPreview } from './roadmapView';
 import { TrainerProfileForm } from "./trainerProfileForm";
 import { memberHorses } from "./memberHorses";
 import { permissionForPage } from "./permissionApi";
@@ -10,7 +11,7 @@ import {
   restoreSessionForLocation,
 } from "./passwordSetup";
 import { auth, request, ApiError, allPages } from "./api";
-import { loadRemote, userFromApi, CENTER } from "./remote";
+import { loadRemote, userFromApi, CENTER, admittedClubHorses } from "./remote";
 import { makeRemoteActions } from "./remoteActions";
 import { VetHealthFormPage, nextMedId, REGION_DEFS } from "./vetForm";
 import { HealthRecordsPage } from "./healthRecords";
@@ -2585,7 +2586,7 @@ function HorseListPage({
   const PER = 6;
   const q = search.trim().toLowerCase();
   const list = (
-    clubId ? horses.filter((h) => h.clubId === clubId) : horses
+    role === 'manager' ? admittedClubHorses(horses, clubId) : clubId ? horses.filter((h) => h.clubId === clubId) : horses
   ).filter((h) => {
     const ms =
       !q ||
@@ -3609,6 +3610,10 @@ function HorseDetailPage({
                 </Btn>
               )}
             </div>
+            {(user.role === 'manager' || user.role === 'owner') && <div className="space-y-3">
+              <p className="text-sm text-gray-500">The detailed horse roadmap is currently available to the assigned trainer. You can preview each package curriculum below and view saved sessions in the training schedule.</p>
+              {state.enrollments.filter(e=>e.horseId===horse.id).map(e=><div key={e.id}><p className="text-sm font-medium">{e.packageName}</p><PackageRoadmapPreview packageId={e.packageId}/></div>)}
+            </div>}
             {state.trainingPlans
               .filter((p) => p.horseId === horse.id)
               .map((p) => (
@@ -3648,7 +3653,7 @@ function HorseDetailPage({
                   </div>
                 </Card>
               ))}
-            {state.trainingPlans.filter((p) => p.horseId === horse.id)
+            {user.role !== "manager" && user.role !== "owner" && state.trainingPlans.filter((p) => p.horseId === horse.id)
               .length === 0 && (
               <Card className="p-8 text-center text-sm text-gray-400">
                 No training roadmap yet.

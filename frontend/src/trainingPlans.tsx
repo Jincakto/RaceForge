@@ -1,3 +1,5 @@
+import { PackageRoadmapPreview, RoadmapTable, StagesEditor, SavedRoadmapPreview } from './roadmapView';
+import { validateRoadmap } from './packageRoadmap';
 import { selectedStages, scheduleRows, normalizeStages, clock, seconds, validateSessionWindow, isoDay, type RoadmapStage } from './trainingSchedule';
 import { trainingTimestamp } from './trainingTimestamp';
 import { RecoveryReview } from './RecoveryReview';
@@ -209,6 +211,7 @@ export function TrainingHubPage(props: HubProps) {
                         <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{h.name}</span><IdChip kind="ENR" id={e.id} /><span className="text-xs text-gray-500">Package {e.packageName}</span><Badge status={e.status === 'paused' ? 'Paused' : 'Active'} /><TrainerStatusPill status={e.trainerStatus} /></div>
                         <div className="mt-1 text-xs text-gray-500">Validity {t.text} · {t.expired ? "expired" : `remaining ${t.left} days`}{e.trainerName && e.trainerId !== me.id && isTrainer ? ` · HLV: ${e.trainerName}` : ''}</div>
                         <div className="mt-2"><div className="mb-1 flex justify-between text-xs text-gray-500"><span>Created {e.sessionsTotal} sessions / Completed {e.sessionsDone}</span><span>{e.sessionsTotal ? Math.round(e.sessionsDone / e.sessionsTotal * 100) : 0}% completed</span></div><div className="h-2 w-full rounded-full bg-gray-200"><div className="h-2 rounded-full bg-[#c9973b]" style={{ width: `${Math.round(e.sessionsDone / Math.max(1, e.sessionsTotal) * 100)}%` }} /></div></div>
+                        <PackageRoadmapPreview packageId={e.packageId} />
                         {e.status === 'paused' && <div className="mt-2 text-xs text-red-600">⏸ Paused since {e.pausedAt}: {e.pauseReason}. Progress is retained while awaiting veterinary clearance.</div>}
 
                       </div>
@@ -218,13 +221,15 @@ export function TrainingHubPage(props: HubProps) {
               })}
             </div>
           )}
-          {myPlans.length === 0 && <Card className="p-8 text-center"><div className="mb-2 text-4xl">📋</div><div className="font-semibold text-gray-600">No roadmaps yet</div>{isTrainer && <div className="mt-3"><Btn variant="gold" onClick={() => setView('wizard')}>+ Create your first roadmap</Btn></div>}</Card>}
+          {!isTrainer && <Card className="p-4 text-sm text-gray-600">Package curriculum templates are available below each registration. Detailed horse roadmaps can currently be viewed by the assigned trainer; saved sessions appear in the schedule tabs.</Card>}
+          {isTrainer && myPlans.length === 0 && <Card className="p-8 text-center"><div className="mb-2 text-4xl">📋</div><div className="font-semibold text-gray-600">No roadmaps yet</div>{isTrainer && <div className="mt-3"><Btn variant="gold" onClick={() => setView('wizard')}>+ Create your first roadmap</Btn></div>}</Card>}
           {myPlans.map(p => {
             const n = state.trainingSessions.filter(s => s.planId === p.id).length;
             return (
               <Card key={p.id} className="p-5">
                 <div className="flex gap-2"><IdChip kind="PLN" id={p.id} /><Badge status={p.phase} /><Badge status={p.status} /></div>
                 <div className="mt-2 font-semibold">{p.phase} — {hn(p.horseId)}</div>
+                {isTrainer && <SavedRoadmapPreview planId={p.id} title={p.phase} goal={p.goals} />}
                 <div className="text-sm text-gray-500">{p.startDate} → {p.endDate} · {p.distance}  · Intensity {WORKLOAD_LABEL[p.workload] || p.workload} · {n}  sessions</div>
                 <div className="text-sm text-gray-600">Goal: {p.goals}</div>
                 {p.algorithmRationale && <div className="mt-1 text-xs text-[#c9973b]">🤖 {p.algorithmRationale}</div>}
@@ -481,19 +486,22 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
   const horse = mine.find(h => h.id === horseId);
   const rec = horse ? latestRecord(state.healthRecords, horse.id) : undefined;
   const [sug, setSug] = useState<TrainingSuggestion | null>(null);
+  const [templateLoading,setTemplateLoading] = useState(false);
+  const [templateVersion,setTemplateVersion] = useState(0);
   const en = horse ? currentEnrollment(state.enrollments, horse.id) : undefined;
   useEffect(() => {
-    let active = true; setSug(null); setSubmitErr('');
+    let active = true; setSug(null); setSubmitErr(''); setTemplateLoading(false);
     if (!en?.assignmentId || en.trainerStatus !== 'confirmed') return;
+    setTemplateLoading(true);
     void packageRoadmapFor(en.id).then(value => {
       if (!active) return;
       setSug(recommendationView(value));
-      setF(p => ({ ...p, level: '', start: dToIso(en.startedAt), weeks: String(Math.ceil(diffDays(en.startedAt, en.expiresAt)/7)) }));
+      setF(p => ({ ...p, phase: '', goal: value.goal || '', level: '', start: dToIso(en.startedAt), weeks: String(Math.ceil(diffDays(en.startedAt, en.expiresAt)/7)) }));
       setWeekdays([...new Set<number>((value.stages || []).flatMap((s: any) => s.daysOfWeek.map((day: string) => ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'].indexOf(day))))]);
       setTime(value.stages?.[0]?.sessionTime?.slice(0,5) || '07:30');
-    }).catch(e => { if (active) setSubmitErr((e as Error).message); });
+    }).catch(e => { if (active) setSubmitErr((e as Error).message); }).finally(()=>{if(active)setTemplateLoading(false);});
     return () => { active = false; };
-  }, [en?.id, en?.assignmentId, en?.trainerStatus]);
+  }, [en?.id, en?.assignmentId, en?.trainerStatus, templateVersion]);
   const decision = rec ? (rec.decision === 'not-eligible' || rec.trainingEligibility === 'not-eligible' ? 'not-eligible' : rec.trainingEligibility === 'conditional' ? 'conditional' : 'eligible') : null;
   const sugLevel = sug ? suggestedLevel(sug) : 0;
   const level = f.level || INTENSITY_LEVELS[sugLevel];
@@ -503,7 +511,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
   const endD = en?.expiresAt || (validDate(startD) && Number.isInteger(weeks) ? addDays(startD, weeks * 7 - 1) : '');
   let previewRows: ReturnType<typeof scheduleRows> = [];
   let scheduleError = '';
-  try { if (sug?.stages?.length && en) previewRows = scheduleRows(selectedStages(sug.stages, weekdays, time, ({Low:'LOW',Medium:'MODERATE',High:'HIGH'} as Record<string,string>)[level]), en.startedAt); } catch(e) { scheduleError=(e as Error).message; }
+  try { if (sug?.stages?.length && en) previewRows = scheduleRows(selectedStages(sug.stages), en.startedAt); } catch(e) { scheduleError=(e as Error).message; }
 
   const set = (k: keyof typeof f) => (v: string) => { setF(p => ({ ...p, [k]: v })); setErrs(p => ({ ...p, [k]: '' })); };
 
@@ -523,11 +531,10 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
       const g = f.goal.trim();
       if (g.length < 10 || g.length > 300) x.goal = "Goal must contain 10–300 characters.";
     }
-    if (step === 3) {
-      if (scheduleError) x.time = scheduleError;
-      if (!sug?.stages?.every(stage => stage.activityName.trim())) x.time = 'Enter a training activity.';
-      if (weekdays.length < 1 || weekdays.length > 6) x.weekdays = "Select 1–6 weekdays.";
-      if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) x.time = "Invalid time.";
+    if (step === 3 && sug && en) {
+      const message = validateRoadmap({title: phase, goal: f.goal, stages: sug.stages || []}, diffDays(en.startedAt,en.expiresAt)+1, dToIso(en.startedAt));
+      if (message) x.time = message;
+      if (!previewRows.length && !message) x.time = 'The chosen stage dates and weekdays do not produce any training sessions.';
     }
     setErrs(x);
     return Object.keys(x).length === 0;
@@ -535,9 +542,11 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
   const next = () => { if (validate()) setStep(s => s + 1); };
 
   const submit = async () => {
-    if (!horse || !sug || busy) return;
+    if (!horse || !sug || !en || busy) return;
+    const message = validateRoadmap({title: phase, goal: f.goal, stages: sug.stages || []}, diffDays(startD,endD)+1, dToIso(startD));
+    if (message) { setSubmitErr(message); return; }
     setBusy(true);
-    const r = await onCreatePlan({ horseId: horse.id, phase, startDate: startD, endDate: endD, distance: f.distance, workload: WORKLOAD_OF[level], surface: "Grass", goals: f.goal.trim(), suggestion: sug, weekdays, time });
+    const r = await onCreatePlan({ horseId: horse.id, phase, startDate: startD, endDate: endD, distance: f.distance, workload: '', surface: "Grass", goals: f.goal.trim(), suggestion: sug });
     setBusy(false);
     if (!r.ok) { setSubmitErr(r.message); return; }
     onDone(r.data, { weekdays, time, weeks });
@@ -548,6 +557,8 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
       <div className="flex items-start justify-between"><div><h2 className="font-serif text-xl font-bold text-[#0f1729]">Create training roadmap</h2><p className="text-sm text-gray-500">Create a roadmap based on the horse's latest health status</p></div><Btn variant="ghost" onClick={onCancel}>Cancel</Btn></div>
       <Card className="p-5"><Progress step={step} labels={WIZ_STEPS} /></Card>
 
+      {templateLoading && <p role="status" className="text-sm text-gray-500">Loading package roadmap...</p>}
+      {!templateLoading && !sug && submitErr && <Btn size="sm" variant="secondary" onClick={()=>setTemplateVersion(n=>n+1)}>Retry package roadmap</Btn>}
       {step === 0 && (
         <div className="space-y-3">
           <p className="text-sm text-gray-500">Choose horse <span className="text-red-500">*</span>  · Only horses with an accepted assignment to you and no training lock</p>
@@ -589,7 +600,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
               </div>
             ))}
             {!sug.stages?.length && <div className="mt-1 text-gray-600">Set the activity and duration in the schedule step.</div>}
-            <div className="mt-1 text-xs text-amber-700">Trainer must set the activity, duration, schedule and intensity.</div>
+            <div className="mt-1 text-xs text-gray-500">The package activities, duration, schedule and intensity are prefilled. Review each stage before confirming.</div>
           </div>
           {errs.health && <ErrorBox text={errs.health} />}
         </Card>
@@ -602,7 +613,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
           <div className="grid gap-4 md:grid-cols-2">
             <Select label="Phase" required value={phase} onChange={set('phase')} options={[...new Set([sug.phase, phase, ...PHASES])].map(v => ({ value: v, label: v }))} hint={`Package curriculum: ${sug.phase}`} />
             <Select label="Main distance" required value={f.distance} onChange={set('distance')} options={DISTANCES.map(v => ({ value: v, label: v }))} />
-            <Select label="Intensity" required value={level} onChange={set('level')} options={INTENSITY_LEVELS.map(v => ({ value: v, label: v }))} error={errs.level} />
+            <p className="text-sm text-gray-500">Intensity is configured separately for each stage in the next step.</p>
           </div>
           <div>
             <Textarea label="Goals" required value={f.goal} onChange={set('goal')} rows={3} placeholder="e.g. Improve sprint speed for a 1200 m race" hint={`10–300 characters · ${f.goal.length}/300`} />
@@ -614,10 +625,9 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
       {step === 3 && sug && (
         <Card className="space-y-4 p-6">
           <h3 className="font-serif text-lg font-bold">Training schedule</h3>
-          <Input label="Training activity" required value={sug.stages?.[0]?.activityName || ''} onChange={value => setSug({ ...sug, stages: sug.stages?.map(stage => ({ ...stage, activityName: value })) })} />
-          <Input label="Session end time" required type="time" value={sug.stages?.[0]?.sessionEndTime?.slice(0,5) || ''} onChange={value => { if (/^\d{2}:\d{2}$/.test(value)) setSug({ ...sug, stages: sug.stages?.map(stage => ({ ...stage, sessionTime: time, sessionEndTime: value })) }); }} />
-          <WeekdayPicker value={weekdays} max={6} onChange={v => { setWeekdays(v); setErrs(p => ({ ...p, weekdays: '' })); }} error={errs.weekdays} />
-          <div className="max-w-xs"><Input label="Training time" required type="time" value={time} onChange={v => { setTime(v); setSug({ ...sug, stages: sug.stages?.map(stage => ({ ...stage, sessionTime: v })) }); setErrs(p => ({ ...p, time: '' })); }} error={errs.time} /></div>
+          <p className="text-sm text-gray-500">Review the package template and adjust each stage for this horse.</p>
+          <StagesEditor stages={sug.stages || []} duration={diffDays(startD,endD)+1} onChange={stages=>{setSug({...sug,stages});setErrs({});}}/>
+          {errs.time && <ErrorBox text={errs.time}/>}
           {scheduleError && <ErrorBox text={scheduleError}/>}
 
         </Card>
@@ -628,7 +638,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
           <h3 className="font-serif text-lg font-bold">Plan preview</h3>
           <div className="grid gap-2 text-sm md:grid-cols-2">
             <div>Horse: <strong>{horse.name}</strong></div><div>Phase: <strong>{phase}</strong></div>
-            <div>Package period: <strong>{startD} - {endD}</strong> / {diffDays(startD,endD)+1} days</div><div>Intensity: <strong>{level}</strong></div>
+            <div>Package period: <strong>{startD} - {endD}</strong> / {diffDays(startD,endD)+1} days</div><div>Intensity: <strong>Configured per stage</strong></div>
           </div>
           <div className="overflow-hidden rounded-xl border border-gray-200">
             <table className="w-full text-sm"><thead className="bg-gray-50 text-left"><tr><th>Date / stage</th><th>Time</th><th>Activity</th><th>Intensity</th></tr></thead><tbody>{previewRows.map((r,i)=><tr key={i} className="border-t"><td className="p-2">{r.date} - {r.title}</td><td>{r.time} - {r.endTime}</td><td>{r.type}</td><td>{r.intensity}</td></tr>)}</tbody></table>
@@ -640,8 +650,9 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
         <Card className="space-y-4 p-6">
           <h3 className="font-serif text-lg font-bold">Confirm roadmap creation</h3>
           <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 text-sm">
-            {([["Horses", horse.name], ["Phase", phase], ["Goals", f.goal.trim()], ["Time", `${startD} – ${endD}`], ["Training schedule", `${DAY_ORDER.filter(d => weekdays.includes(d)).map(d => WEEKDAYS[d]).join(', ')} at ${time}`], ["Intensity", `${level} (${WORKLOAD_LABEL[WORKLOAD_OF[level]]})`]] as [string, string][]).map(([k, v]) => <div key={k} className="flex justify-between gap-4 px-4 py-2.5"><span className="text-gray-500">{k}</span><span className="text-right font-medium">{v}</span></div>)}
+            {([["Horses", horse.name], ["Phase", phase], ["Goals", f.goal.trim()], ["Time", `${startD} – ${endD}`], ["Training schedule", "Configured per stage"], ["Intensity", "Configured per stage"]] as [string, string][]).map(([k, v]) => <div key={k} className="flex justify-between gap-4 px-4 py-2.5"><span className="text-gray-500">{k}</span><span className="text-right font-medium">{v}</span></div>)}
           </div>
+          {sug && <RoadmapTable roadmap={{title:phase,goal:f.goal,stages:sug.stages || []}}/>}
           <div className="rounded-lg bg-sky-50 p-3 text-sm text-sky-800">The new roadmap will replace the horse's active roadmap, if any. After creation, continue to session generation.</div>
           {submitErr && <ErrorBox text={submitErr} />}
         </Card>

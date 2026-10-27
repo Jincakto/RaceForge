@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { allPages } from './api';
-import { userFromApi } from './remote';
+import { userFromApi, latestConfirmedExam } from './remote';
 import type { AppUser, Horse, HorseClubRequest, HealthRecord } from './data';
 import { Btn, Card } from './ui';
 import { IdChip, ReasonDialog, Modal } from './admin';
@@ -153,7 +153,7 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
       {shown.length === 0 && <Card className="p-12 text-center"><div className="mb-2 text-4xl">🐎</div><div className="font-semibold text-gray-600">No records in this section</div><div className="text-sm text-gray-400">New Horse Owner submissions will appear here.</div></Card>}
 
       {shown.map(({ r, h, st }) => {
-        const exam = h?.intakeExamId ? records.find(x => x.id === h.intakeExamId) : undefined;
+        const exam = h?.intakeExamId ? latestConfirmedExam(records, h.id) : undefined;
         const declined = h?.vetAssign?.status === 'declined';
         return (
           <Card key={r.id} className="p-5">
@@ -173,8 +173,9 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
               {st === 3 && <span><b>{h?.vetName}</b> accepted — awaiting examination and decision.</span>}
               {st === 4 && exam && (
                 <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2"><IdChip kind="MED" id={exam.id} /><span className="text-xs text-gray-500">Examined {exam.date} · {exam.vet}</span><span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${exam.decision === 'eligible' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : exam.decision === 'conditional' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-red-200 bg-red-50 text-red-700'}`}>{exam.decision === 'eligible' ? 'Eligible for training' : exam.decision === 'conditional' ? 'Eligible, but needs monitoring' : 'Not eligible — training locked'}</span></div>
+                  <div className="flex flex-wrap items-center gap-2"><IdChip kind="MED" id={exam.id} /><span className="text-xs text-gray-500">Examined {exam.date} · {exam.vet}</span><span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${exam.decision === 'eligible' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : exam.decision === 'conditional' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-red-200 bg-red-50 text-red-700'}`}>{exam.decision === 'eligible' ? 'Eligible for training' : exam.decision === 'conditional' ? 'Eligible, but needs monitoring' : 'Not eligible for training'}</span></div>
                   <p className="text-gray-700">“{exam.conclusion || exam.diagnosis}”</p>
+                  <p className={h?.lock ? 'text-red-700' : 'text-emerald-700'}>{h?.lock ? 'Training is currently locked.' : 'Training is currently unlocked.'}</p>
                 </div>
               )}
             </div>

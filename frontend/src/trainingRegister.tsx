@@ -1,3 +1,4 @@
+import { PackageRoadmapPreview } from './roadmapView';
 import { useEffect, useRef, useState } from 'react';
 import type { AppUser, Horse, Enrollment, TrainingPackage, Res, HealthRecord } from './data';
 import { Badge, Btn, Card } from './ui';
@@ -160,6 +161,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
                   <Btn size="sm" variant="gold" onClick={() => start(e)}>Renew</Btn>
                 </div>
               )}
+              <PackageRoadmapPreview packageId={e.packageId} />
               <div className="mt-3 flex gap-2"><Btn size="sm" variant="secondary" onClick={() => setViewReceipt(e)}>View receipt</Btn></div>
             </Card>
           );
@@ -187,6 +189,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
       {step === 0 && (
         <div className="space-y-4">
           <p className="text-sm text-gray-500">Choose training package <span className="text-red-500">*</span></p>
+          {pkg && <Card className="p-4"><PackageRoadmapPreview key={pkg.id} packageId={pkg.id} /></Card>}
           {activePkgs.length === 0 ? <Card className="p-8 text-center text-sm text-gray-500">No packages are currently available. Contact the club manager.</Card> : (
             <div className="grid gap-4 md:grid-cols-3">
               {activePkgs.map(p => (

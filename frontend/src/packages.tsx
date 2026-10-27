@@ -1,3 +1,5 @@
+import { PackageRoadmapPreview, StagesEditor } from './roadmapView';
+import { blankStage, type PackageRoadmap } from './packageRoadmap';
 import { useState } from 'react';
 import type { AppUser, Horse, Enrollment, TrainingPackage, Res } from './data';
 import { Badge, Btn, Card, Input, Select } from './ui';
@@ -74,6 +76,7 @@ export function PackageCatalogPage({ packages, enrollments, onSave, onToggle }: 
                 </div>
               </div>
               <p className="mt-2 text-sm text-gray-600">{p.description || "No description"}</p>
+              <PackageRoadmapPreview packageId={p.id} />
               <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs">
                 <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Duration</div><div className="font-mono text-sm font-bold">{p.durationDays}  days</div></div>
                 <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Registered</div><div className="font-mono text-sm font-bold">{usage(p.id)}</div></div>
@@ -100,13 +103,14 @@ export function PackageCatalogPage({ packages, enrollments, onSave, onToggle }: 
 
 function PackageForm({ pkg, others, onSave, onClose }: { pkg: TrainingPackage | null; others: TrainingPackage[]; onSave: (d: PackageDraft) => Promise<Res<TrainingPackage>>; onClose: () => void }) {
   const [f, setF] = useState({ name: pkg?.name ?? '', description: pkg?.description ?? '', sessions: String(pkg?.sessions ?? ''), packageType: pkg?.packageType || 'BASIC', durationDays: String(pkg?.durationDays ?? ''), price: String(pkg?.price ?? '') });
+  const [roadmap, setRoadmap] = useState<PackageRoadmap>({ title: '', goal: '', stages: [blankStage()] });
   const [errs, setErrs] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState('');
   const set = (k: keyof typeof f) => (v: string) => { setF(p => ({ ...p, [k]: v })); setErrs(e => ({ ...e, [k]: '' })); setSubmitError(''); };
   const num = (s: string) => (s.trim() === '' || !/^-?\d+$/.test(s.trim()) ? NaN : Number(s.trim()));
 
   const submit = async () => {
-    const draft: PackageDraft = { packageType: f.packageType, id: pkg?.id, name: f.name, description: f.description, sessions: num(f.sessions), durationDays: num(f.durationDays), price: num(f.price) };
+    const draft: PackageDraft = { roadmapTemplate: roadmap, packageType: f.packageType, id: pkg?.id, name: f.name, description: f.description, sessions: num(f.sessions), durationDays: num(f.durationDays), price: num(f.price) };
     const e = validatePackage(draft, others);
     setErrs(e);
     if (Object.keys(e).length) return;
@@ -130,6 +134,14 @@ function PackageForm({ pkg, others, onSave, onClose }: { pkg: TrainingPackage | 
           <Input label="Duration (days)" required type="number" value={f.durationDays} onChange={set('durationDays')} hint="7–365 days" error={errs.durationDays} />
         </div>
         <Input label="Price (VND)" required type="number" value={f.price} onChange={set('price')} hint={Number.isFinite(num(f.price)) && num(f.price) > 0 ? `= ${money(num(f.price))}` : "Integer greater than 0"} error={errs.price} />
+        {!pkg && <section className="space-y-3 rounded-xl bg-gray-50 p-4">
+          <h3 className="font-semibold">Package roadmap</h3>
+          <p className="text-xs text-gray-500">Configure the curriculum that owners preview and trainers use when creating a horse's plan. Day numbers are relative to the package start date.</p>
+          <Input label="Roadmap title" required maxLength={150} value={roadmap.title} onChange={title=>setRoadmap({...roadmap,title})}/>
+          <label className="block text-sm font-medium">Roadmap goal<textarea required maxLength={500} value={roadmap.goal} onChange={e=>setRoadmap({...roadmap,goal:e.target.value})} className="mt-1 w-full rounded-lg border border-gray-300 p-2" /></label>
+          <StagesEditor stages={roadmap.stages} duration={num(f.durationDays)} onChange={stages=>setRoadmap({...roadmap,stages})}/>
+          {errs.roadmapTemplate && <p role="alert" className="text-sm text-red-600">{errs.roadmapTemplate}</p>}
+        </section>}
         {submitError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{submitError}</div>}
         <div className="flex justify-end gap-2 pt-1">
           <Btn variant="secondary" onClick={onClose}>Cancel</Btn>

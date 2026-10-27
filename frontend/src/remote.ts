@@ -69,6 +69,15 @@ export function recordFromApi(w: Wire, horseId: string, users: AppUser[]): Healt
     vitals: { temperature: String(v.bodyTemperature ?? ''), heartRate: String(v.restingHeartRate ?? ''), respRate: String(v.restingRespiratoryRate ?? ''), weight: String(v.weight ?? ''), bloodPressure: '' }, profileId: w.profileId,
   };
 }
+/** Confirmed follow-ups supersede the intake conclusion; drafts never do. */
+export function latestConfirmedExam(records: HealthRecord[], horseId: string): HealthRecord | undefined {
+  const day = (r: HealthRecord) => r.date?.split('/').reverse().join('-') || '';
+  return records.filter(r => r.horseId === horseId && r.status === 'confirmed')
+    .sort((a, b) => day(b).localeCompare(day(a)) || (b.createdAt || 0) - (a.createdAt || 0))[0];
+}
+export function admittedClubHorses(horses: Horse[], clubId: string | null): Horse[] {
+  return horses.filter(h => h.approvalStatus === 'approved' && (!clubId || h.clubId === clubId));
+}
 export function medicalPayload(rec: HealthRecord, profileId: string) {
   const num = (s?: string) => s?.trim() ? Number(s.replace(',', '.')) : null;
   return { profileId, examType: rec.intake ? 'INITIAL' : rec.isPostTraining || /Tái khám|Follow-up examination/i.test(rec.type) ? 'FOLLOW_UP' : 'PERIODIC', examinedAt: `${isoDate(rec.date)}T${new Date().toTimeString().slice(0, 8)}`,
@@ -110,6 +119,8 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
       if (label === "Notifications" && error instanceof ApiError && error.status === 403 && (error.details as any)?.code === 'ACCESS_DENIED') {
         throw new ApiError(`The server denied operational access for account ${user.id} (${ROLE_NAMES[user.role!]}, role ID ${user.apiRoleId ?? "not returned"}). Backend role IDs must match the database Role catalog; the frontend cannot grant access itself.`, 403, error.details);
       }
+      // A horse without a health profile has not been examined yet.
+      if (label.startsWith('Examination records ') && error instanceof ApiError && error.status === 404 && error.message === 'Health profile not found') return fallback;
       errors.add(`${label}: ${(error as Error).message}`); return fallback;
     }
   }
@@ -165,7 +176,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
       const records = await read(`Examination records ${horse.id}`, () => request<Wire[]>(`/medical/horses/${enc(horse.id)}/records`), []);
       const mapped = records.map(w => recordFromApi(w, horse.id, data.users));
       data.healthRecords.push(...mapped);
-      const latest = [...mapped].filter(r => r.status === 'confirmed').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+      const latest = latestConfirmedExam(mapped, horse.id);
       horse.intakeExamId = mapped.find(r => r.intake && r.status === 'confirmed')?.id;
       horse.weight = Number(latest?.vitals?.weight || 0);
       if (latest?.decision === 'conditional') horse.healthStatus = 'Monitor';

@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 const dir=await mkdtemp(path.join(tmpdir(),'training-purchase-'));
 after(()=>rm(dir,{recursive:true,force:true}));
-for(const name of ['data','trainingLogic']) {
+for(const name of ['trainingSchedule','packageRoadmap','data','trainingLogic']) {
  const source=await readFile(new URL('../src/'+name+'.ts',import.meta.url),'utf8');
  const code=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace(/(['"])(\.\/[^'"]+)\1/g,(_,q,s)=>q+s+'.mjs'+q);
  await writeFile(path.join(dir,name+'.mjs'),code);

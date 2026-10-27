@@ -1,3 +1,4 @@
+import { validateRoadmap } from './packageRoadmap';
 import {
   nextSeq, getLifecycle, isHeavySession,
   type AppUser, type Horse, type Enrollment, type TrainingPlan, type TrainingSession,
@@ -161,7 +162,7 @@ export interface TrainingEnv<S extends TrainingSlice> {
   notif: (n: Omit<AppNotification, 'id' | 'time' | 'read'>) => AppNotification;
 }
 
-export interface PackageDraft { packageType?: string; id?: string; name: string; description: string; sessions: number; durationDays: number; price: number }
+export interface PackageDraft { roadmapTemplate?: import('./packageRoadmap').PackageRoadmap; packageType?: string; id?: string; name: string; description: string; sessions: number; durationDays: number; price: number }
 export interface PlanDraft { recommendationId?: string; weekdays?: number[]; time?: string; horseId: string; phase: string; startDate: string; endDate: string; distance: string; workload: string; surface: string; goals: string; suggestion?: TrainingSuggestion }
 export interface AttemptInfo { horseId: string; packageId: string; renewOfId?: string }
 
@@ -174,6 +175,7 @@ export function validatePackage(d: PackageDraft, others: TrainingPackage[]): Rec
   if (!['BASIC', 'RACING', 'PERFORMANCE', 'RECOVERY'].includes(d.packageType || '')) e.packageType = "Select a valid package type.";
   if (!Number.isInteger(d.durationDays) || d.durationDays < 7 || d.durationDays > 365) e.durationDays = "Duration must be between 7 and 365 days.";
   if (d.description.length > 300) e.description = "Description cannot exceed 300 characters.";
+  if (!d.id) { const roadmapError = validateRoadmap(d.roadmapTemplate, d.durationDays); if (roadmapError) e.roadmapTemplate = roadmapError; }
   return e;
 }
 

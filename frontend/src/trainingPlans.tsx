@@ -1,3 +1,4 @@
+import { SessionPreviewModal } from './SessionPreviewModal';
 import { useTrainingNow } from './useTrainingNow';
 import { futureSchedule, scheduleWarning, trainingStart } from './trainingSchedule';
 import { PackageRoadmapPreview, RoadmapTable, StagesEditor, SavedRoadmapPreview } from './roadmapView';
@@ -238,7 +239,7 @@ export function TrainingHubPage(props: HubProps) {
                 {p.algorithmRationale && <div className="mt-1 text-xs text-[#c9973b]">🤖 {p.algorithmRationale}</div>}
                 {p.weeklyKm && <div className="mt-1 text-xs text-gray-400">{p.weeklyKm}  km/week · {p.sessionsPerWeek}  sessions · {p.restDaysPerWeek}  rest days · Score {p.intensityScore}</div>}
                 <div className="mt-2"><div className="mb-1 flex justify-between text-xs text-gray-500"><span>Progress</span><span>{p.progress}%</span></div><div className="h-2 w-full rounded-full bg-gray-200"><div className="h-2 rounded-full bg-[#c9973b]" style={{ width: `${p.progress}%` }} /></div></div>
-                {isTrainer && p.status === 'Active' && <div className="mt-3 flex gap-2">{n===0&&!p.locked&&!state.horses.find(h=>h.id===p.horseId)?.lock&&isoDay(p.endDate)>=isoDay(trainingTimestamp().slice(0,10))&&<Btn size="sm" variant="secondary" onClick={()=>setEditingStages(p)}>Edit stages</Btn>}<Btn size="sm" variant="secondary" onClick={() => { setTab('sessions'); if(!state.trainingSessions.some(s=>s.planId===p.id))setGen({ horseId: p.horseId, planId: p.id }); }}>{n>0?'View sessions':'Generate sessions'}</Btn></div>}
+                {isTrainer && p.status === 'Active' && <div className="mt-3 flex gap-2">{n===0&&!p.locked&&!state.horses.find(h=>h.id===p.horseId)?.lock&&isoDay(p.endDate)>=isoDay(trainingTimestamp().slice(0,10))&&<Btn size="sm" variant="secondary" onClick={()=>setEditingStages(p)}>Edit stages</Btn>}<Btn size="sm" variant="secondary" onClick={() => { setTab('sessions'); if(!state.trainingSessions.some(s=>s.planId===p.id))setGen({ horseId: p.horseId, planId: p.id }); }}>{n>0?'View sessions':'Generate sessions'}</Btn>{n>0&&<Btn size="sm" variant="gold" onClick={()=>setGen({horseId:p.horseId,planId:p.id})}>Add / suggest sessions</Btn>}</div>}
               </Card>
             );
           })}
@@ -389,46 +390,7 @@ interface GenProps {
 }
 
 function SessionGenerator({ state, horseId, planId, onClose, onDone, onGenerate }: GenProps) {
-  const now=useTrainingNow();
-  const plan=state.trainingPlans.find(p=>p.id===planId)!;
-  const horse=state.horses.find(h=>h.id===horseId)!;
-  const [rows,setRows]=useState<SessionDraft[]|null>(null);
-  const [error,setError]=useState('');const [busy,setBusy]=useState(false);
-  const existing=state.trainingSessions.some(s=>s.planId===planId);
-  useEffect(()=>{let active=true;setRows(null);setError('');
-    request<any[]>('/training-plans/'+encodeURIComponent(planId)+'/stages').then(stages=>{if(active)setRows(scheduleRows(stages,plan.startDate));}).catch(e=>{if(active)setError(e.message);});
-    return ()=>{active=false;};
-  },[planId,plan.startDate]);
-  const future=rows?futureSchedule(rows,now):[];
-  const check=future.map(row=>validateSessionWindow({date:row.date,time:row.time,endTime:row.endTime!,startDate:plan.startDate,endDate:plan.endDate,horseId,trainerId:state.user!.id},state.trainingSessions,now)).find(Boolean);
-  const save=async()=>{if(!rows||busy||existing)return;const fresh=new Date();const eligible=futureSchedule(rows,fresh);if(!eligible.length){setError('No future sessions remain. You can adjust the stages before generating sessions.');return;}const invalid=eligible.map(row=>validateSessionWindow({date:row.date,time:row.time,endTime:row.endTime!,startDate:plan.startDate,endDate:plan.endDate,horseId,trainerId:state.user!.id},state.trainingSessions,fresh)).find(Boolean);if(invalid){setError(invalid);return;}setBusy(true);setError('');try{const result=await onGenerate(horseId,planId,eligible);if(result.ok)onDone();else setError('Plan is saved, but sessions were not generated: '+result.message);}catch(e){setError('Plan is saved, but sessions were not generated: '+(e as Error).message);}finally{setBusy(false);}};
-  return <Modal title="Generate sessions" onClose={onClose} wide>
-    <div className="space-y-5 text-[#1a2844]">
-      <div className="flex items-center gap-4 rounded-2xl border border-[#c9973b]/20 bg-[#c9973b]/5 p-4">
-        {horse.imageUrl && <img src={horse.imageUrl} alt="" className="h-14 w-14 shrink-0 rounded-xl object-cover" />}
-        <div className="min-w-0 flex-1">
-          <div className="font-serif text-lg font-bold">{horse.name}</div>
-          <div className="mt-0.5 text-sm text-gray-600">{plan.phase}</div>
-          <div className="mt-2 inline-flex flex-wrap items-center gap-2 text-xs font-medium text-[#8a6420]"><span>Package period</span><span className="rounded-md border border-[#c9973b]/20 bg-white px-2 py-1">{plan.startDate} - {plan.endDate}</span></div>
-        </div>
-      </div>
-      <p className="text-sm leading-relaxed text-gray-500">Plan saved. Confirm session generation. Times use Asia/Bangkok (UTC+7). Preview is indicative; the server checks eligibility again when generating.</p>{rows&&<p className="text-sm">Total planned: {rows.length} / Past - skipped: {rows.length-future.length} / Future: {future.length}</p>}{rows&&scheduleWarning(rows,now)&&<p role="status" className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{scheduleWarning(rows,now)}</p>}
-      {existing && <div role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-800"><span className="font-semibold">Schedule already generated.</span> Use Add session or Adjust time to make changes.</div>}
-      {error && <ErrorBox text={error} />}
-      {!existing && check && <ErrorBox text={check} />}
-      {!rows && !error && <div className="rounded-xl bg-gray-50 p-6 text-center text-sm text-gray-500">Loading saved schedule...</div>}
-      {rows && <div className="overflow-hidden rounded-xl border border-gray-200">
-        <div className="max-h-[min(42vh,24rem)] overflow-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="sticky top-0 z-10 bg-gray-50 text-xs uppercase tracking-wide text-gray-500"><tr><th className="px-4 py-3 font-semibold">Date</th><th className="px-4 py-3 font-semibold">Time</th><th className="px-4 py-3 font-semibold">Activity / stage</th><th className="px-4 py-3 font-semibold">Status</th></tr></thead>
-            <tbody className="divide-y divide-gray-100">{rows.map((r,i)=><tr key={i} className="bg-white transition-colors hover:bg-[#c9973b]/5"><td className="whitespace-nowrap px-4 py-3 font-medium">{r.date}</td><td className="whitespace-nowrap px-4 py-3 tabular-nums text-gray-600">{r.time} - {r.endTime}</td><td className="min-w-44 px-4 py-3 leading-relaxed text-gray-600">{r.type}{(r as any).title&&<div className="text-xs text-gray-400">{(r as any).title}</div>}</td><td className="whitespace-nowrap px-4 py-3 text-xs">{trainingStart(r.date,r.time)>now?'Future':'Past - skipped'}</td></tr>)}</tbody>
-          </table>
-          {rows.length===0 && <p className="p-6 text-center text-sm text-gray-500">No training dates match this plan.</p>}
-        </div>
-      </div>}
-      <div className="flex justify-end gap-3 border-t border-gray-100 pt-4"><Btn variant="secondary" onClick={onClose}>{existing?'Close':'Cancel'}</Btn>{!existing && <Btn variant="gold" disabled={busy||!future.length||!!check} onClick={save}>{busy?'Creating...':'Confirm generation'}</Btn>}</div>
-    </div>
-  </Modal>;
+ return <SessionPreviewModal state={state} horseId={horseId} planId={planId} onClose={onClose} onDone={onDone} onGenerate={onGenerate}/>;
 }
 
 function SavedStageEditor({state,plan,onClose}:{state:HubState;plan:TrainingPlan;onClose:()=>void}){

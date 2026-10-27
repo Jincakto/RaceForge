@@ -95,7 +95,7 @@ export function trainerPlanBlockReason(h: Horse, enrollments: Enrollment[], trai
 
 // ── Session validation (preview + final) ─────────────────────────────────────
 
-export interface SessionWriteOptions { mode: 'single' | 'adjust'; sessionId?: string; intensity?: string; reason?: string }
+export interface SessionWriteOptions { mode: 'single' | 'adjust' | 'preview'; sessionId?: string; intensity?: string; reason?: string }
 export interface SessionDraft { endTime?: string; date: string; time: string; type: string; distance: string; targetTime: string; notes: string }
 
 export interface SessionCheckCtx {

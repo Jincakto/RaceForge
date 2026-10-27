@@ -33,7 +33,8 @@ export function suggestFreeSlot(row:PreviewSession,rows:PreviewSession[],c:Previ
  // Preserve a valid preferred start even if it is not aligned to a quarter-hour.
  try{const t=seconds(row.time);if(t>=start&&t+span<=end&&!times.includes(t))times.push(t);}catch{}
  times.sort((a,b)=>Math.abs(a-seconds(row.time))-Math.abs(b-seconds(row.time))||a-b);
- for(const date of dates)for(const time of times){const candidate={...row,date:dayText(date),time:clock(time).slice(0,5),endTime:clock(time+span).slice(0,5)};if(!persistedRow(candidate,c)&&!rowProblem(candidate,rows,c))return candidate;}
+ const occupied=new Set([...c.sessions.filter(s=>s.horseId===c.horseId&&s.status!=='Cancelled').map(s=>isoDay(s.date)),...rows.filter(r=>r.key!==row.key).map(r=>isoDay(r.date))]);
+ for(const date of dates.filter(day=>!occupied.has(day)))for(const time of times){const candidate={...row,date:dayText(date),time:clock(time).slice(0,5),endTime:clock(time+span).slice(0,5)};if(!persistedRow(candidate,c)&&!rowProblem(candidate,rows,c))return candidate;}
  return null;
 }
 export function suggestConflicts(rows:PreviewSession[],c:PreviewContext,start='07:00',end='19:00') {

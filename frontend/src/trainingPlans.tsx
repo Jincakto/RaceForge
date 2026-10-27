@@ -441,7 +441,7 @@ function SingleSessionForm({state,onClose,onGenerate,session}:{state:HubState;on
  {stage&&<p className="text-sm">{stage.title} - {stage.activityName} - {stage.intensity}</p>}
  {date&&!loading&&!stage&&<ErrorBox text="Choose a date belonging to one saved roadmap stage."/>}
  {session&&<><Select label="Intensity" value={intensity} onChange={setIntensity} options={['LOW','MODERATE','HIGH'].map(v=>({value:v,label:v}))}/><Textarea label="Reason for adjustment" required value={reason} onChange={setReason} rows={2}/></>}
- <p className="text-xs text-gray-500">Multiple sessions per day are allowed without overlapping times. At most six distinct training days per week. Checks use the schedules currently loaded; the server validates the request.</p>
+ <p className="text-xs text-gray-500">Each horse may have at most two sessions per day without overlapping horse or trainer times. At most six distinct training days per week. Checks use the schedules currently loaded; the server validates the request.</p>
  {loading&&<p>Loading stages...</p>}{loadError&&<ErrorBox text={loadError}/>} {(error||validation)&&<ErrorBox text={error||validation}/>}
  <div className="flex justify-end gap-2"><Btn variant="secondary" onClick={onClose}>Cancel</Btn><Btn variant="gold" disabled={busy||loading||!!loadError||!plan||!stage||!date||!endTime||!!validation} onClick={save}>{busy?'Saving...':'Save session'}</Btn></div>
  </div></Modal>;

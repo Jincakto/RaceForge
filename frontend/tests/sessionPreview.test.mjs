@@ -21,7 +21,7 @@ test('invalid dates, stage gaps, past starts and inverted times cannot be schedu
 });
 test('free-slot suggestions preserve duration and avoid both horse and trainer schedules',()=>{
  const c=ctx({sessions:[session({horseId:'HOR-2'}),session({id:'SES-2',time:'08:00',endTime:'09:00'})]});const before=row();const original=structuredClone(before);const result=p.suggestFreeSlot(before,[],c,'07:00','12:00');assert.ok(result);assert.equal(p.rowProblem(result,[result],c),'');assert.deepEqual(before,original);assert.equal((Number(result.endTime.slice(0,2))*60+Number(result.endTime.slice(3)))-(Number(result.time.slice(0,2))*60+Number(result.time.slice(3))),30);
- assert.equal(result.date,'07/01/2030');
+ assert.equal(result.date,'08/01/2030');
 });
 test('suggestions return no result when the stage has no free slots and never spill into another stage',()=>{
  const c=ctx({stages:[stage({endDay:1}),stage({startDay:2})],sessions:[session({time:'07:00',endTime:'19:00'})]});assert.equal(p.suggestFreeSlot(row(),[],c),null);
@@ -36,7 +36,7 @@ test('resolving conflicts considers other draft rows and leaves unresolved rows 
  const full=ctx({stages:[stage({endDay:1})],sessions:[session({time:'07:00',endTime:'19:00'})]});assert.deepEqual(p.suggestConflicts([row()],full).unresolved,['a']);
 });
 test('saved rows are recognized on retry and template preview skips past starts',()=>{
- const c=ctx({sessions:[session({planId:'PLN-1',endTime:'09:30'})]});assert.equal(p.persistedRow(row(),c).id,'SES-1');assert.equal(p.rowProblem(row(),[row()],c),'');assert.equal(p.suggestFreeSlot(row(),[],c)?.time==='09:00',false);
+ const c=ctx({sessions:[session({planId:'PLN-1',endTime:'09:30'})]});assert.equal(p.persistedRow(row(),c).id,'SES-1');assert.equal(p.rowProblem(row(),[row()],c),'');assert.equal(p.suggestFreeSlot(row(),[],c)?.date,'08/01/2030');
  assert.ok(p.templatePreview(ctx({now:new Date('2030-01-20T00:00:00Z')})).every(r=>r.date.split('/').reverse().join('-')>='2030-01-20'));
 });
 const ok=data=>new Response(JSON.stringify({success:true,data,message:'OK'}),{status:200});
@@ -80,4 +80,21 @@ test('fresh package capacity is checked before any preview session is written',a
  const {state,remote}=actions();state.trainingPlans[0].endDate='07/01/2030';let posts=0;
  globalThis.fetch=async(url,init)=>{if(init?.method==='POST'){posts++;return ok({});}return ok(String(url).endsWith('/stages')?[stage()]:[wire('SES-EXISTING',{planId:'PLN-1',horseId:'HOR-1',scheduledTime:'2030-01-07T09:00:00',scheduledEnd:'2030-01-07T09:30:00'})]);};
  const result=await remote.generateSessions('HOR-1','PLN-1',[row({time:'11:00',endTime:'11:30'})],{mode:'preview'});assert.equal(result.ok,false);assert.match(result.message,/Package limit reached: 1/);assert.equal(posts,0);
+});
+
+
+test('suggest creates only one session per horse per day while manual entry allows two',()=>{
+ const c=ctx({stages:[stage({endDay:3})]});const first=row();const second=row({key:'manual',time:'11:00',endTime:'11:30'});
+ assert.equal(p.rowProblem(second,[first,second],c),'');
+ const third=row({key:'third',time:'14:00',endTime:'14:30'});assert.match(p.rowProblem(third,[first,second,third],c),/at most two/);
+ const suggestion=p.suggestFreeSlot(row({key:'suggested'}),[first],c);assert.ok(suggestion);assert.equal(suggestion.date,'08/01/2030');
+});
+test('repeated suggestions never stack the same horse on one day and respect other horses times',()=>{
+ const c=ctx({stages:[stage({endDay:3})],sessions:[session({horseId:'OTHER'})]});const rows=[];
+ for(let i=0;i<3;i++){const r=p.suggestFreeSlot(row({key:'extra-'+i}),rows,c);assert.ok(r);rows.push(r);}
+ assert.equal(new Set(rows.map(r=>r.date)).size,3);assert.equal(rows[0].date,'07/01/2030');assert.ok(rows[0].time>='10:00'||rows[0].endTime<='09:00');assert.equal(p.suggestFreeSlot(row({key:'full'}),rows,c),null);
+});
+test('saved sessions count toward the manual daily maximum across plans',()=>{
+ const c=ctx({sessions:[session({id:'one',time:'07:00',endTime:'07:30'}),session({id:'two',time:'08:00',endTime:'08:30',planId:'OLDER'})]});
+ assert.match(p.rowProblem(row({time:'12:00',endTime:'12:30'}),[],c),/at most two/);
 });

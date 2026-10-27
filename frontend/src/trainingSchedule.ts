@@ -29,6 +29,8 @@ export function validateSessionWindow(input:{date:string;time:string;endTime:str
  const live=sessions.filter(s=>s.id!==input.excludeId&&['Scheduled','Completed','In Progress'].includes(s.status));
  const clash=live.find(s=>{if(s.date!==input.date||!(s.horseId===input.horseId||s.trainerId===input.trainerId))return false;return !s.endTime||(input.time<s.endTime&&input.endTime>s.time);});
  if(clash)return clash.horseId===input.horseId?'This time overlaps another session for the horse.':'This time overlaps another session for the trainer.';
+ const daily=new Set(sessions.filter(s=>s.id!==input.excludeId&&s.status!=='Cancelled'&&s.horseId===input.horseId&&isoDay(s.date)===day).map(s=>s.id));
+ if(daily.size>=2)return 'A horse may have at most two sessions per day. Choose another day.';
  const monday=dateAt(day);monday.setDate(monday.getDate()-(monday.getDay()+6)%7);const sunday=new Date(monday);sunday.setDate(sunday.getDate()+6);
  const dates=new Set(live.filter(s=>s.horseId===input.horseId&&dateAt(isoDay(s.date))>=monday&&dateAt(isoDay(s.date))<=sunday).map(s=>s.date));dates.add(input.date);
  return dates.size>6?'A horse may train on at most six distinct days per week.':'';

@@ -19,7 +19,12 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class HorsePackageAdmissionTest {
-    @org.junit.jupiter.api.BeforeEach void templateReader(){org.springframework.test.util.ReflectionTestUtils.setField(service,"packageRoadmaps",mock(PackageRoadmapTemplateService.class));}
+    @org.junit.jupiter.api.BeforeEach void templateReader(){
+      org.springframework.test.util.ReflectionTestUtils.setField(service,"trainingClock",java.time.Clock.fixed(java.time.Instant.parse("2026-11-03T00:00:00Z"),java.time.ZoneId.of("Asia/Bangkok")));
+    }
+    private void eligibility(TrainingWorkflowGuard guard){
+      org.springframework.test.util.ReflectionTestUtils.setField(service,"eligibility",new TrainingPackageEligibilityService(guard,registrations,profiles,medicalRecords,mock(com.raceforge.backend.medical.repository.TrainingLockRepository.class),mock(PackageRoadmapTemplateService.class)));
+    }
     private final com.raceforge.backend.horse.service.ModuleIdAllocator ids = mock(com.raceforge.backend.horse.service.ModuleIdAllocator.class);
     private final HorseRepository horses = mock(HorseRepository.class);
     private final TrainingPackageRepository packages = mock(TrainingPackageRepository.class);
@@ -31,7 +36,7 @@ class HorsePackageAdmissionTest {
     private final PackageEventService events = mock(PackageEventService.class);
     private final TrainingPackageExpirationService expirations = mock(TrainingPackageExpirationService.class);
     private final HorsePackageService service = new HorsePackageService(
-            horses, packages, registrations, profiles, medicalRecords,
+            horses, packages, registrations,
             mapper, entityManager, events, expirations, ids);
 
     @Test
@@ -53,10 +58,10 @@ class HorsePackageAdmissionTest {
     @Test
     void racingRejectionDoesNotPersistRegistration() {
         TrainingWorkflowGuard guard=mock(TrainingWorkflowGuard.class);
-        org.springframework.test.util.ReflectionTestUtils.setField(service,"workflowGuard",guard);
+        eligibility(guard);
         Horse horse=approvedHorse();
         var pack=new com.raceforge.backend.training.entity.TrainingPackage();
-        pack.setStatus("ACTIVE");pack.setPackageType("RACING");
+        pack.setDurationDays(30);pack.setStatus("ACTIVE");pack.setPackageType("RACING");
         when(packages.findById("PKG-012")).thenReturn(Optional.of(pack));
         doThrow(new BusinessRuleException("RACING requires FIT")).when(guard).requireRacingEligible(horse);
         assertThrows(BusinessRuleException.class,()->service.register(new HorsePackageRegisterRequest("HOR-001","PKG-012"),"7"));
@@ -69,10 +74,10 @@ class HorsePackageAdmissionTest {
     @org.junit.jupiter.params.provider.ValueSource(strings={"BASIC","PERFORMANCE","RACING"})
     void onlyRacingInvokesAdditionalGuardAndValidRegistrationIsSaved(String type) {
         TrainingWorkflowGuard guard=mock(TrainingWorkflowGuard.class);
-        org.springframework.test.util.ReflectionTestUtils.setField(service,"workflowGuard",guard);
+        eligibility(guard);
         Horse horse=approvedHorse();
         var pack=new com.raceforge.backend.training.entity.TrainingPackage();
-        pack.setStatus("ACTIVE");pack.setPackageType(type);
+        pack.setDurationDays(30);pack.setStatus("ACTIVE");pack.setPackageType(type);
         when(packages.findById("PKG-012")).thenReturn(Optional.of(pack));
         var profile=new com.raceforge.backend.medical.entity.HealthProfile();profile.setProfileId("HPR-001");
         when(profiles.findByHorse_HorseId("HOR-001")).thenReturn(Optional.of(profile));
@@ -89,7 +94,7 @@ class HorsePackageAdmissionTest {
     private Horse approvedHorse() {
         User owner=new User();owner.setUserId("7");
         Horse horse=new Horse();horse.setHorseId("HOR-001");horse.setOwner(owner);
-        horse.setAdmissionStatus("APPROVED");horse.setHealthStatus("READY");horse.setTrainingLocked(false);
+        horse.setStatus("ACTIVE");horse.setAdmissionStatus("APPROVED");horse.setHealthStatus("READY");horse.setTrainingLocked(false);
         when(horses.findById("HOR-001")).thenReturn(Optional.of(horse));return horse;
     }
 }

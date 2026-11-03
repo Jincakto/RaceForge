@@ -37,7 +37,7 @@ class TrainingRoadmapDatabaseTest {
     }
     try(var app=new SpringApplicationBuilder(BackendApplication.class).run("--server.port=0","--spring.datasource.url="+root+name,"--spring.datasource.username="+user,"--spring.datasource.password="+password,"--spring.flyway.enabled=false","--raceforge.training.package-expiry-cron=-","--logging.level.root=WARN","--logging.level.org.springframework=INFO","--logging.level.org.hibernate.SQL=OFF")){
      int port=((WebServerApplicationContext)app).getWebServer().getPort();
-     var http=java.net.http.HttpClient.newHttpClient();var docs=http.send(java.net.http.HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/v3/api-docs")).build(),java.net.http.HttpResponse.BodyHandlers.ofString());assertEquals(200,docs.statusCode());assertFalse(docs.body().contains("training-recommendations"));
+     var http=java.net.http.HttpClient.newHttpClient();var docs=http.send(java.net.http.HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/v3/api-docs")).build(),java.net.http.HttpResponse.BodyHandlers.ofString());assertEquals(200,docs.statusCode());assertFalse(docs.body().contains("training-recommendations"));assertTrue(docs.body().contains("training-package-suggestions"));
      var ui=http.send(java.net.http.HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/swagger-ui/index.html")).build(),java.net.http.HttpResponse.BodyHandlers.ofString());assertEquals(200,ui.statusCode());
      var packages=app.getBean(TrainingPackageService.class);var roadmaps=app.getBean(PackageRoadmapTemplateService.class);
      var stage=new Stage(1,30,"Individual cues","HIGH",Set.of(LocalDate.now().plusDays(1).getDayOfWeek()),LocalTime.of(10,0),LocalTime.of(10,40),"Different stage","Individual objective","CUSTOM");
@@ -48,6 +48,16 @@ class TrainingRoadmapDatabaseTest {
       script(c,"INSERT dbo.[User](user_id,role_id,full_name,email,status,email_verified) SELECT 'OWN-901',role_id,N'Test owner','owner901@example.invalid','ACTIVE',1 FROM dbo.Role WHERE role_name='HORSE_OWNER'; INSERT dbo.[User](user_id,role_id,full_name,email,status,email_verified) SELECT 'HTR-901',role_id,N'Test trainer','trainer901@example.invalid','ACTIVE',1 FROM dbo.Role WHERE role_name='HEAD_TRAINER'; INSERT dbo.[User](user_id,role_id,full_name,email,status,email_verified) SELECT 'VET-901',role_id,N'Test veterinarian','vet901@example.invalid','ACTIVE',1 FROM dbo.Role WHERE role_name='VETERINARIAN'; INSERT dbo.[User](user_id,role_id,full_name,email,status,email_verified) SELECT 'CM-901',role_id,N'Test manager','manager901@example.invalid','ACTIVE',1 FROM dbo.Role WHERE role_name='CLUB_MANAGER'; INSERT dbo.Trainer(trainer_id,user_id) VALUES('HTR-901','HTR-901'); INSERT dbo.Trainer_Detail(trainer_id,bio,qualifications,status,created_at) VALUES('HTR-901',N'',N'','ACTIVE',SYSDATETIME());");
       for(int i=1;i<=2;i++){String k="90"+i;script(c,"INSERT dbo.Horse(horse_id,owner_id,horse_name,health_status,training_locked,status) VALUES('HOR-"+k+"','OWN-901',N'Test horse','READY',0,'ACTIVE'); INSERT dbo.Horse_Admission(horse_id,status,created_at) VALUES('HOR-"+k+"','APPROVED',SYSDATETIME()); INSERT dbo.Health_Profile(profile_id,horse_id,created_at,updated_at) VALUES('HLT-"+k+"','HOR-"+k+"',SYSDATETIME(),SYSDATETIME()); INSERT dbo.Medical_Record(medical_record_id,profile_id,veterinarian_id,exam_type,examined_at,status,confirmed_at,created_at,updated_at,training_eligible,final_conclusion) VALUES('MED-"+k+"','HLT-"+k+"','VET-901','INITIAL',SYSDATETIME(),'CONFIRMED',SYSDATETIME(),SYSDATETIME(),SYSDATETIME(),1,'FIT'); INSERT dbo.Horse_Trainer(horse_id,trainer_id) VALUES('HOR-"+k+"','HTR-901'); INSERT dbo.HORSE_PACKAGE(horse_package_id,horse_id,package_id,registered_at,start_date,end_date,status,total_price,created_at,updated_at,payment_status) VALUES('HPG-"+k+"','HOR-"+k+"','"+created.packageId()+"',SYSDATETIME(),CAST(GETDATE() AS date),CAST(DATEADD(day,29,GETDATE()) AS date),'ACTIVE',10,SYSDATETIME(),SYSDATETIME(),'PAID'); INSERT dbo.Horse_Assignment(id,horse_id,kind,assigned_by,assignee_id,status,created_at) VALUES('ASN-"+k+"','HOR-"+k+"','TRAINER','CM-901','HTR-901','ACCEPTED',SYSDATETIME()); INSERT dbo.Training_Assignment(assignment_id,horse_package_id) VALUES('ASN-"+k+"','HPG-"+k+"');");}
      }
+     try(Connection c=DriverManager.getConnection(root+name,user,password)){
+      script(c,"INSERT dbo.TRAINING_PACKAGE(package_id,package_name,package_type,duration_days,price,status,created_at,updated_at) VALUES('PKG-999',N'Missing roadmap','BASIC',30,10,'ACTIVE',SYSDATETIME(),SYSDATETIME())");
+     }
+     var suggestionService=app.getBean(TrainingPackageSuggestionService.class);
+     var suggestions=suggestionService.suggest("HOR-901","OWN-901",null);
+     assertEquals("2.2",suggestions.ruleVersion());assertFalse(suggestions.packages().isEmpty());
+     assertTrue(suggestions.packages().stream().allMatch(p->!p.canRegister()));
+     assertTrue(suggestions.packages().stream().anyMatch(p->p.packageId().equals("PKG-999")&&p.reasonCodes().contains("ROADMAP_CONFIGURATION")));
+     assertThrows(org.springframework.security.access.AccessDeniedException.class,()->suggestionService.suggest("HOR-901","OTHER",null));
+     assertThrows(com.raceforge.backend.common.exception.BusinessRuleException.class,()->suggestionService.suggest("HOR-901","OWN-901","INVALID"));
      var principal=new com.raceforge.backend.security.AuthenticatedUser("HTR-901","trainer901@example.invalid","ACTIVE",2,"HEAD_TRAINER");
      var auth=new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal,null,List.of());
      org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(auth);
@@ -92,11 +102,11 @@ class TrainingRoadmapDatabaseTest {
      org.springframework.security.core.context.SecurityContextHolder.clearContext();
      // Force a SQL failure after package persistence; the entire transaction must roll back.
      try(Connection c=DriverManager.getConnection(root+name,user,password)){
-      int before=count(c,"TRAINING_PACKAGE");
+      int before=count(c,"TRAINING_PACKAGE");int roadmapBefore=count(c,"Package_Roadmap_Template");
       try(var s=c.createStatement()){s.execute("ALTER TABLE dbo.Package_Stage_Template ADD CONSTRAINT CK_TestRejectStage CHECK(activity_name <> N'FAIL_DATABASE')");}
       var bad=new Stage(1,30,"FAIL_DATABASE","LOW",Set.of(DayOfWeek.MONDAY),LocalTime.of(9,0),LocalTime.of(9,30),"Title",null,"TEST");
       assertThrows(RuntimeException.class,()->packages.create(new TrainingPackageCreateRequest("Rollback","BASIC","",30,BigDecimal.TEN,new PackageRoadmapDto("Rollback","Rollback goal",1,List.of(bad)))));
-      assertEquals(before,count(c,"TRAINING_PACKAGE"));assertEquals(before,count(c,"Package_Roadmap_Template"));
+      assertEquals(before,count(c,"TRAINING_PACKAGE"));assertEquals(roadmapBefore,count(c,"Package_Roadmap_Template"));
       try(var s=c.createStatement()){s.execute("ALTER TABLE dbo.Package_Stage_Template DROP CONSTRAINT CK_TestRejectStage");}
      }
     }

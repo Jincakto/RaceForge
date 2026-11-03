@@ -1,0 +1,107 @@
+{
+  "confirmedProjectRoot": "D:\\SWP391\\RaceForge-premain4-premain\\RaceForge-premain4",
+  "backupDirectory": "C:\\Users\\HP\\AppData\\Local\\Temp\\RaceForge-v22-before-97afafff1e3941dfa779c0cb782376ac",
+  "files": [
+    {
+      "file": "backend/src/main/java/com/raceforge/backend/training/service/HorsePackageService.java",
+      "status": "modified",
+      "beforeSha256": "f73755ac50a98bf16f71d6b0dfed6615addd985c729a38a2224239c1ed7ee9aa",
+      "sha256": "c5c2b000371a0d86e70be1b0683200f2d5904d9e2678719baa4196e77876e969"
+    },
+    {
+      "file": "backend/src/main/java/com/raceforge/backend/training/service/PackageRoadmapTemplateService.java",
+      "status": "modified",
+      "beforeSha256": "4b0570ea9c3c481952e210396a4d6669d7f01c67282a12653a8837730476764d",
+      "sha256": "a70f064f65b65ebeb87973d456421a87fcab3a7ccd0435aa18a736f6cce1e383"
+    },
+    {
+      "file": "backend/src/main/java/com/raceforge/backend/training/repository/TrainingSessionRepository.java",
+      "status": "modified",
+      "beforeSha256": "5479529b9e8ca15b6a3319e9323acbfbd295913746dafb27dc0cd1cc2fa9cecb",
+      "sha256": "e6f4da157aa7f8570e5e240468903524755ee81e17f1f3325a1191757d07ad4f"
+    },
+    {
+      "file": "backend/src/test/java/com/raceforge/backend/training/service/HorsePackageAdmissionTest.java",
+      "status": "modified",
+      "beforeSha256": "4ded9fd6d16e6ffc46fabc1f0c172676ba84ffc17cc2bfe1002fdb111c87b4f1",
+      "sha256": "1b78f8c6228918c4e43a0a268f008dac3dd8f471764c5f157e4c55a348f7c362"
+    },
+    {
+      "file": "backend/src/test/java/com/raceforge/backend/training/service/TrainingRoadmapDatabaseTest.java",
+      "status": "modified",
+      "beforeSha256": "b601a15fd969e8d85a66e3a81baf361b6e9f047e5aed18c88896d1fc8b616aea",
+      "sha256": "e21ff2a08f6a5d01bacbc924fd91cb91e313e662f3a9248d45df5d60a3dd2fb4"
+    },
+    {
+      "file": "frontend/src/trainingRegister.tsx",
+      "status": "modified",
+      "beforeSha256": "e49e71f6caa83ab8a48e7a4c84f8d3d4ecaaa5c2361cc210edd2882e46d9839b",
+      "sha256": "cc4a0f779b9f88f80da5d9c8332b1ac2e05f8d488f4c3767551eb3c0b6692d71"
+    },
+    {
+      "file": "AGENTS.md",
+      "status": "added",
+      "sha256": "8ca65311df78a740dffc0f09a287cd33dc8e8c931c5173a8024d400cbb7a2eca"
+    },
+    {
+      "file": "backend/src/main/java/com/raceforge/backend/training/controller/TrainingPackageSuggestionController.java",
+      "status": "added",
+      "sha256": "d4b6ddca0e2f819e369a5e05120c15a0e5e3e57f6324f3d07441728dfea54158"
+    },
+    {
+      "file": "backend/src/main/java/com/raceforge/backend/training/service/TrainingPackageEligibilityService.java",
+      "status": "added",
+      "sha256": "5dca42afeb5107313d2558d94373697b69c46519261801a28fcde712d704f232"
+    },
+    {
+      "file": "backend/src/main/java/com/raceforge/backend/training/service/TrainingReadinessService.java",
+      "status": "added",
+      "sha256": "bedae401829e8525b256306eb9390e6faa4316f74e031c6de588b025f0414822"
+    },
+    {
+      "file": "backend/src/main/java/com/raceforge/backend/training/service/PackageDemandProfileService.java",
+      "status": "added",
+      "sha256": "36e0e789ecccbe6d03ecc04b42a3e611ab232b334f9590449b9e185a80cf4cee"
+    },
+    {
+      "file": "backend/src/main/java/com/raceforge/backend/training/service/TrainingPackageSuggestionService.java",
+      "status": "added",
+      "sha256": "4f55e00b0aef3d65d709aef4115bcfa962b576de96059a329c48eb7f566aa8a1"
+    },
+    {
+      "file": "backend/src/test/java/com/raceforge/backend/training/service/TrainingReadinessServiceTest.java",
+      "status": "added",
+      "sha256": "ddd0a3278a1adc140175406640a93467836daaef8d22aca55f4ea40241fb7de1"
+    },
+    {
+      "file": "backend/src/test/java/com/raceforge/backend/training/service/PackageDemandProfileServiceTest.java",
+      "status": "added",
+      "sha256": "d65b95eaa100971fb1accd691961aba70584c3ff4b844b9aee570fdb0265bbdd"
+    },
+    {
+      "file": "backend/src/test/java/com/raceforge/backend/training/service/TrainingPackageEligibilityServiceTest.java",
+      "status": "added",
+      "sha256": "fa6635d6687b98bb2750651bf402c2f6aeaa43ddd4e748fafa6074d982855abe"
+    },
+    {
+      "file": "backend/src/test/java/com/raceforge/backend/training/service/TrainingPackageSuggestionServiceTest.java",
+      "status": "added",
+      "sha256": "e47044c1898be0f59d2929c6bbec6d5845098e02835a2f9ddac9ddc17dba4574"
+    },
+    {
+      "file": "frontend/src/trainingSuggestions.ts",
+      "status": "added",
+      "sha256": "5f7914298a74e1bb239ecdf3da37ff0e94a710582836bb63617a45ff9a67b045"
+    },
+    {
+      "file": "frontend/tests/trainingSuggestions.test.mjs",
+      "status": "added",
+      "sha256": "3810449d837a0179e3ef9e8d7c4f81b8726d0972c099f52c810a3ce6bbd5fa4a"
+    },
+    {
+      "file": "docs/TRAINING_PACKAGE_SUGGESTION_V2_2_2026-11-03.md",
+      "status": "added",
+      "sha256": "c4c26668b7543ef122a9e2d12a0ce44f820d53173a088eb2abe140dea9ab3704"
+    }
+  ]
+}

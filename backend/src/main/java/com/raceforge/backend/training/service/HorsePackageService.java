@@ -4,10 +4,6 @@ import com.raceforge.backend.common.exception.BusinessRuleException;
 import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.repository.HorseRepository;
-import com.raceforge.backend.medical.entity.HealthProfile;
-import com.raceforge.backend.medical.entity.MedicalRecord;
-import com.raceforge.backend.medical.repository.HealthProfileRepository;
-import com.raceforge.backend.medical.repository.MedicalRecordRepository;
 import com.raceforge.backend.training.dto.HorsePackageRegisterRequest;
 import com.raceforge.backend.training.dto.HorsePackageResponse;
 import com.raceforge.backend.training.entity.HorsePackage;
@@ -27,15 +23,14 @@ import java.util.Locale;
 
 @Service
 public class HorsePackageService {
-    @org.springframework.beans.factory.annotation.Autowired private PackageRoadmapTemplateService packageRoadmaps;
     private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
 
     @org.springframework.beans.factory.annotation.Autowired private TrainingWorkflowGuard workflowGuard;
+    @org.springframework.beans.factory.annotation.Autowired private TrainingPackageEligibilityService eligibility;
+    @org.springframework.beans.factory.annotation.Autowired @org.springframework.beans.factory.annotation.Qualifier("trainingClock") private java.time.Clock trainingClock;
     private final HorseRepository horseRepository;
     private final TrainingPackageRepository trainingPackageRepository;
     private final HorsePackageRepository horsePackageRepository;
-    private final HealthProfileRepository healthProfileRepository;
-    private final MedicalRecordRepository medicalRecordRepository;
     private final HorsePackageMapper mapper;
     private final EntityManager entityManager;
     private final PackageEventService packageEventService;
@@ -45,8 +40,6 @@ public class HorsePackageService {
             HorseRepository horseRepository,
             TrainingPackageRepository trainingPackageRepository,
             HorsePackageRepository horsePackageRepository,
-            HealthProfileRepository healthProfileRepository,
-            MedicalRecordRepository medicalRecordRepository,
             HorsePackageMapper mapper,
             EntityManager entityManager,
             PackageEventService packageEventService,
@@ -56,8 +49,6 @@ public class HorsePackageService {
         this.horseRepository = horseRepository;
         this.trainingPackageRepository = trainingPackageRepository;
         this.horsePackageRepository = horsePackageRepository;
-        this.healthProfileRepository = healthProfileRepository;
-        this.medicalRecordRepository = medicalRecordRepository;
         this.mapper = mapper;
         this.entityManager = entityManager;
         this.packageEventService = packageEventService;
@@ -73,59 +64,13 @@ public class HorsePackageService {
         entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);
         checkOwnership(horse, ownerId);
         requireApprovedAdmission(horse);
-        expirationService.expireForLockedHorse(horse, LocalDate.now());
+        LocalDate registrationToday = LocalDate.now(trainingClock);
+        expirationService.expireForLockedHorse(horse, registrationToday);
 
         TrainingPackage trainingPackage = trainingPackageRepository.findById(request.packageId())
                 .orElseThrow(() -> new ResourceNotFoundException("Training package not found: " + request.packageId()));
-        if (!"ACTIVE".equals(trainingPackage.getStatus())) {
-            throw new BusinessRuleException("This training package is not available");
-        }
-
-        packageRoadmaps.read(trainingPackage.getPackageId());
-        workflowGuard.requireHealthy(horse);
-        if ("RACING".equals(trainingPackage.getPackageType())) {
-            workflowGuard.requireRacingEligible(horse);
-        }
-        HealthProfile profile = healthProfileRepository.findByHorse_HorseId(horse.getHorseId())
-                .orElseThrow(() -> new BusinessRuleException("Initial medical examination is required"));
-        boolean initialConfirmed = medicalRecordRepository
-                .findByHealthProfile_ProfileIdOrderByExaminedAtDesc(profile.getProfileId())
-                .stream().anyMatch(this::isConfirmedInitial);
-        if (!initialConfirmed) {
-            throw new BusinessRuleException("A confirmed INITIAL examination is required before registration");
-        }
-
+        eligibility.requireEligible(horse, trainingPackage, registrationToday);
         boolean recovery = "RECOVERY".equals(trainingPackage.getPackageType());
-        boolean locked = Boolean.TRUE.equals(horse.getTrainingLocked());
-        if (locked && !recovery) {
-            throw new BusinessRuleException("Training is locked: only a veterinarian-authorized recovery package is allowed");
-        }
-        if (horsePackageRepository.existsByHorse_HorseIdAndStatusIn(
-                horse.getHorseId(), List.of("PENDING", "ACTIVE", "PAUSED"))) {
-            throw new BusinessRuleException("Horse already has a pending or ongoing package");
-        }
-        if (recovery) {
-            // First-time injury before ordinary training: Owner buys Recovery.
-            // CM's center-funded route is ONLY used if an ordinary package was
-            // ACTIVE when Training Lock began and is now PAUSED.
-            if (!locked || !"NOT_FIT".equalsIgnoreCase(horse.getHealthStatus())) {
-                throw new BusinessRuleException(
-                        "Owner-paid Recovery requires a confirmed NOT_FIT Training Lock");
-            }
-            boolean hasOrdinaryHistory = horsePackageRepository
-                    .findByHorseIdOrderByRegisteredAtDesc(horse.getHorseId())
-                    .stream()
-                    .anyMatch(p -> !"RECOVERY".equalsIgnoreCase(
-                            p.getTrainingPackage().getPackageType()));
-            if (hasOrdinaryHistory) {
-                throw new BusinessRuleException(
-                        "Owner-paid Recovery is only available before the first ordinary training package; "
-                        + "contact Club Manager for an in-training injury");
-            }
-        } else if (!"READY".equalsIgnoreCase(horse.getHealthStatus())) {
-            throw new BusinessRuleException(
-                    "Horse must have READY health status to register a normal package");
-        }
 
         HorsePackage registration = new HorsePackage();
         registration.setHorsePackageId(idAllocator.next("HPG"));
@@ -232,11 +177,6 @@ public class HorsePackageService {
         if (!"APPROVED".equalsIgnoreCase(horse.getAdmissionStatus())) {
             throw new BusinessRuleException("Horse admission must be APPROVED before training package registration");
         }
-    }
-
-    private boolean isConfirmedInitial(MedicalRecord record) {
-        return "INITIAL".equalsIgnoreCase(record.getExamType())
-                && "CONFIRMED".equalsIgnoreCase(record.getStatus());
     }
 
     private void checkOwnership(Horse horse, String ownerId) {

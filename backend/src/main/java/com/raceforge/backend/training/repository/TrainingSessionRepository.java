@@ -18,5 +18,7 @@ public interface TrainingSessionRepository extends JpaRepository<TrainingSession
 
   List<TrainingSession> findByHorse_HorseIdOrderByScheduledStartAsc(String horseId);
 
+  List<TrainingSession> findByHorse_HorseIdAndStatusOrderByActualEndAsc(String horseId, String status);
+
   boolean existsByHorse_HorseIdAndScheduledStart(String horseId, LocalDateTime scheduledStart);
 }

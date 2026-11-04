@@ -15,13 +15,14 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 @Transactional
 public class TrainingRoadmapService {
+ @org.springframework.beans.factory.annotation.Autowired private TrainingScheduleCoordinator scheduleCoordinator;
  @org.springframework.beans.factory.annotation.Autowired @org.springframework.beans.factory.annotation.Qualifier("trainingClock") private Clock clock;
  @org.springframework.beans.factory.annotation.Autowired private com.raceforge.backend.training.repository.HorsePlanRepository horsePlans;
  private final JdbcTemplate jdbc;private final TrainingWorkflowGuard guard;private final TrainingPlanRepository plans;
  private final ObjectMapper json;private final TrainingSessionService sessions;
  public TrainingRoadmapService(JdbcTemplate jdbc,TrainingWorkflowGuard guard,TrainingPlanRepository plans,ObjectMapper json,TrainingSessionService sessions){this.jdbc=jdbc;this.guard=guard;this.plans=plans;this.json=json;this.sessions=sessions;}
  public List<Map<String,Object>> replace(String planId,List<Stage> stages){
-  lock(planId);var plan=plan(planId);guard.requirePlan(plan);
+  scheduleCoordinator.lockSchedule();lock(planId);var plan=plan(planId);guard.requirePlan(plan);
   if(jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Training_Session WHERE plan_id=?",Integer.class,planId)>0)throw new BusinessRuleException("Cannot replace stages after sessions have been scheduled");
   var pack=guard.assignedPackage(plan.getHorsePackageId());var anchor=anchor(plan);int days=(int)ChronoUnit.DAYS.between(anchor,pack.getEndDate())+1;
   TrainingStageValidator.validateStages(stages,days);
@@ -35,7 +36,7 @@ public class TrainingRoadmapService {
  }
  @Transactional(readOnly=true) public List<Map<String,Object>> stages(String planId){guard.authorizePlan(plan(planId));return jdbc.queryForList("SELECT * FROM dbo.Training_Stage WHERE plan_id=? ORDER BY stage_order",planId);}
  public List<TrainingSessionResponse> generate(String planId){
-  lock(planId);var plan=plan(planId);guard.requirePlan(plan);var pack=guard.assignedPackage(plan.getHorsePackageId());
+  scheduleCoordinator.lockSchedule();lock(planId);var plan=plan(planId);guard.requirePlan(plan);var pack=guard.assignedPackage(plan.getHorsePackageId());
   if(jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Training_Session WHERE plan_id=?",Integer.class,planId)>0)throw new BusinessRuleException("This plan already has sessions. Add or adjust individual sessions instead.");
   var rows=stages(planId);if(rows.isEmpty())throw new BusinessRuleException("A roadmap with stages is required");
   LocalDateTime cutoff=LocalDateTime.now(clock);LocalDate start=anchor(plan);

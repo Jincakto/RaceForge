@@ -91,6 +91,38 @@ class HorsePackageAdmissionTest {
         verify(registrations).saveAndFlush(argThat(registration->"PENDING".equals(registration.getStatus())&&registration.getHorse()==horse));
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings={"BASIC","PERFORMANCE","RACING"})
+    void successfulPaymentRechecksRacingOnly(String type) {
+        var guard=mock(TrainingWorkflowGuard.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service,"workflowGuard",guard);
+        Horse horse=approvedHorse();
+        var pack=new com.raceforge.backend.training.entity.TrainingPackage();
+        pack.setPackageType(type);pack.setDurationDays(30);pack.setStatus("ACTIVE");
+        var registration=new com.raceforge.backend.training.entity.HorsePackage();
+        registration.setHorsePackageId("HPG-001");registration.setHorse(horse);registration.setTrainingPackage(pack);
+        registration.setStatus("PENDING");registration.setPaymentStatus("PENDING");
+        when(registrations.findById("HPG-001")).thenReturn(Optional.of(registration));
+        when(registrations.saveAndFlush(any())).thenAnswer(i->i.getArgument(0));
+        service.simulatePayment("HPG-001",true,"7");
+        verify(guard,times(type.equals("RACING")?1:0)).requireRacingEligible(horse);
+        assertEquals("ACTIVE",registration.getStatus());assertEquals("PAID",registration.getPaymentStatus());
+    }
+
+    @Test void rejectedRacingPaymentLeavesRegistrationPending() {
+        var guard=mock(TrainingWorkflowGuard.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service,"workflowGuard",guard);
+        Horse horse=approvedHorse();
+        var pack=new com.raceforge.backend.training.entity.TrainingPackage();pack.setPackageType("RACING");
+        var registration=new com.raceforge.backend.training.entity.HorsePackage();
+        registration.setHorsePackageId("HPG-001");registration.setHorse(horse);registration.setTrainingPackage(pack);
+        registration.setStatus("PENDING");registration.setPaymentStatus("PENDING");
+        when(registrations.findById("HPG-001")).thenReturn(Optional.of(registration));
+        doThrow(new BusinessRuleException("RACING requires FIT")).when(guard).requireRacingEligible(horse);
+        assertThrows(BusinessRuleException.class,()->service.simulatePayment("HPG-001",true,"7"));
+        assertEquals("PENDING",registration.getStatus());assertEquals("PENDING",registration.getPaymentStatus());
+        verify(registrations,never()).saveAndFlush(any());verifyNoInteractions(events);
+    }
     private Horse approvedHorse() {
         User owner=new User();owner.setUserId("7");
         Horse horse=new Horse();horse.setHorseId("HOR-001");horse.setOwner(owner);

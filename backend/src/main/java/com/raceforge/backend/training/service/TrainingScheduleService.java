@@ -36,6 +36,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class TrainingScheduleService {
+  @Autowired private TrainingScheduleCoordinator scheduleCoordinator;
+  @Autowired @org.springframework.beans.factory.annotation.Qualifier("trainingClock") private java.time.Clock clock;
 
   private static final String STATUS_COMPLETED = "COMPLETED";
   private static final String STATUS_MISSED = "MISSED";
@@ -91,6 +93,8 @@ public class TrainingScheduleService {
   // All-or-nothing: if any generated slot clashes with an existing session, nothing is saved.
   @Transactional
   public List<TrainingSessionResponse> createRecurringSchedule(ScheduleRecurringRequest request) {
+      scheduleCoordinator.lockSchedule();
+      java.time.LocalDateTime cutoff=java.time.LocalDateTime.now(clock);
       TrainingPlan plan = planRepository.findById(request.getPlanId())
               .orElseThrow(() -> new ResourceNotFoundException("Training plan not found: " + request.getPlanId()));
 
@@ -116,10 +120,10 @@ public class TrainingScheduleService {
       List<LocalDate> dates = new ArrayList<>();
       // Inclusive registered dates, including a partial final week. No rounding up to full weeks.
       for (LocalDate date = pack.getStartDate(); !date.isAfter(pack.getEndDate()); date = date.plusDays(1)) {
-          if (days.contains(date.getDayOfWeek())) dates.add(date);
+          if (days.contains(date.getDayOfWeek()) && date.atTime(time).isAfter(cutoff)) dates.add(date);
       }
       if (dates.isEmpty()) {
-          throw new BusinessRuleException("No selected weekday occurs within the package date range.");
+          throw new BusinessRuleException("No future sessions remain for the selected weekdays and time within the package period.");
       }
       calendar.validateDates(horse.getHorseId(),dates);
       List<TrainingSession> toSave = new ArrayList<>();
@@ -147,13 +151,12 @@ public class TrainingScheduleService {
           toSave.add(session);
       }
 
-      return sessionRepository.saveAllAndFlush(toSave).stream()
-              .map(sessionMapper::toResponse)
-              .collect(Collectors.toList());
+      return sessionMapper.toResponses(sessionRepository.saveAllAndFlush(toSave));
   }
 
   @Transactional
   public AttendanceResponse submitAttendance(String sessionId, AttendSessionRequest request, String actorId) {
+      scheduleCoordinator.lockSchedule();
       String status = request.getStatus().trim().toUpperCase(Locale.ROOT);
       if (!STATUS_COMPLETED.equals(status) && !STATUS_MISSED.equals(status)) {
           throw new BusinessRuleException("status must be COMPLETED or MISSED.");
@@ -206,8 +209,6 @@ public class TrainingScheduleService {
       if (!horseRepository.existsById(horseId)) {
           throw new ResourceNotFoundException("Horse not found: " + horseId);
       }
-      return sessionRepository.findByHorse_HorseIdOrderByScheduledStartAsc(horseId).stream()
-              .map(sessionMapper::toResponse)
-              .collect(Collectors.toList());
+      return sessionMapper.toResponses(sessionRepository.findByHorse_HorseIdOrderByScheduledStartAsc(horseId));
   }
 }

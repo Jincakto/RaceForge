@@ -12,7 +12,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class TrainingCalendarRules {
     private final JdbcTemplate jdbc;
-    public TrainingCalendarRules(JdbcTemplate jdbc){this.jdbc=jdbc;}
+    private final TrainingScheduleCoordinator coordinator;
+    public TrainingCalendarRules(JdbcTemplate jdbc, TrainingScheduleCoordinator coordinator){this.jdbc=jdbc;this.coordinator=coordinator;}
     private static LocalDate week(LocalDate date){return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));}
     public static void requireSixDayWeek(Collection<LocalDate> dates){
         Map<LocalDate,Set<LocalDate>> weeks=new HashMap<>();
@@ -39,6 +40,11 @@ public class TrainingCalendarRules {
         requireWindow(start,end);
         Integer count=jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Training_Session WHERE horse_id=? AND session_id<>? AND status IN ('SCHEDULED','COMPLETED') AND ((scheduled_end IS NULL AND CAST(scheduled_start AS date)=CAST(? AS date)) OR (scheduled_start<? AND scheduled_end>?))",Integer.class,horseId,excludeSessionId,start,end,start);
         if(count!=null&&count>0)throw new BusinessRuleException("The planned time window overlaps another session for this horse; legacy sessions without end times need review");
+    }
+    public void validateSlotForPlan(String packageId,String horseId,LocalDateTime start,LocalDateTime end,String excludeSessionId){
+        validateSlot(horseId,start,end,excludeSessionId);
+        var trainer=coordinator.requireTrainer(packageId);
+        coordinator.validateTrainerSlot(trainer.userId(),start,end,excludeSessionId,"");
     }
     public void validateDates(String horseId,Collection<LocalDate> proposed){
         validateDates(horseId,proposed,"");

@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TrainingPlanService {
+  @Autowired private TrainingScheduleCoordinator scheduleCoordinator;
 
   @Autowired private TrainingWorkflowGuard workflowGuard;
   @Autowired private PackageRoadmapTemplateService packageRoadmaps;
@@ -50,6 +51,7 @@ public class TrainingPlanService {
 
   @Transactional
   public TrainingPlanResponse createPlan(String horseId, TrainingPlanCreateRequest request, String actorId) {
+      scheduleCoordinator.lockSchedule();
       if (request.getStartDate() != null && request.getEndDate() != null
               && request.getEndDate().isBefore(request.getStartDate())) {
           throw new com.raceforge.backend.common.exception.BusinessRuleException("endDate must not precede startDate.");

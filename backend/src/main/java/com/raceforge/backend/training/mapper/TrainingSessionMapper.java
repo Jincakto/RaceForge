@@ -6,8 +6,14 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class TrainingSessionMapper {
+  @org.springframework.beans.factory.annotation.Autowired private com.raceforge.backend.training.service.TrainingScheduleCoordinator scheduleCoordinator;
+  public TrainingSessionResponse toResponse(TrainingSession session){return toResponses(java.util.List.of(session)).get(0);}
+  public java.util.List<TrainingSessionResponse> toResponses(java.util.List<TrainingSession> sessions){
+      var responses=sessions.stream().map(this::toUnassignedResponse).toList();
+      scheduleCoordinator.decorate(responses);return responses;
+  }
 
-  public TrainingSessionResponse toResponse(TrainingSession session) {
+  private TrainingSessionResponse toUnassignedResponse(TrainingSession session) {
       TrainingSessionResponse response = new TrainingSessionResponse();
 
       response.setRestingHeartRate(session.getRestingHeartRate());

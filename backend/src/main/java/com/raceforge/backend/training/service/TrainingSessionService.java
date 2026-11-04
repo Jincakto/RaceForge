@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TrainingSessionService {
+    @Autowired private TrainingScheduleCoordinator scheduleCoordinator;
     @Autowired @org.springframework.beans.factory.annotation.Qualifier("trainingClock") private java.time.Clock clock;
     @Autowired private com.raceforge.backend.audit.service.AuditLogService audit;
     @Autowired private TrainingWorkflowGuard workflowGuard;
@@ -38,6 +39,7 @@ public class TrainingSessionService {
     TrainingSessionResponse scheduleSessionAt(ScheduleSessionRequest request,LocalDateTime cutoff) {
         if(request.getScheduledTime()==null || !request.getScheduledTime().isAfter(cutoff))
             throw new BusinessRuleException("Start time must be in the future.");
+        scheduleCoordinator.lockSchedule();
         TrainingPlan plan = trainingPlanRepository.findById(request.getPlanId())
                 .orElseThrow(() -> new ResourceNotFoundException("Training plan not found: " + request.getPlanId()));
         Horse linked = horseResolver.resolve(plan.getPlanId(), request.getHorseId());
@@ -66,11 +68,13 @@ public class TrainingSessionService {
         rules.requireUnlocked(rules.lockHorse(session.getHorse().getHorseId()));
         rules.requireOpen(session);
         if(session.getActualStart()!=null)throw new BusinessRuleException("Session has already started; it cannot be restarted.");
-        workflowGuard.requirePackageDate(session.getPlan(),session.getHorse().getHorseId(),LocalDateTime.now(clock).toLocalDate());
-        Integer running=jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Training_Session WHERE horse_id=? AND session_id<>? AND status='SCHEDULED' AND actual_start IS NOT NULL AND actual_end IS NULL",Integer.class,session.getHorse().getHorseId(),sessionId);
-        if(running>0)throw new BusinessRuleException("This horse already has an unfinished session.");
+        LocalDateTime now=LocalDateTime.now(clock);
+        workflowGuard.requirePackageDate(session.getPlan(),session.getHorse().getHorseId(),now.toLocalDate());
+        if(session.getScheduledStart()==null || !session.getScheduledStart().toLocalDate().equals(now.toLocalDate()))
+            throw new BusinessRuleException("Start this session on its scheduled date (Bangkok time).");
+        scheduleCoordinator.requireStartAvailable(session.getPlan().getHorsePackageId(),session.getHorse().getHorseId(),sessionId);
         captureRestingHeartRate(session);
-        session.setActualStart(LocalDateTime.now(clock));
+        session.setActualStart(now);
         var saved=trainingSessionRepository.save(session);
         audit.record(workflowGuard.actor().userId(),saved.getHorse().getHorseId(),"TRAINING_SESSION",saved.getSessionId(),"TRAINING_SESSION_WRITTEN","SUCCESS",saved.getStatus());
         return trainingSessionMapper.toResponse(saved);
@@ -153,7 +157,7 @@ public class TrainingSessionService {
         int day=Math.toIntExact(java.time.temporal.ChronoUnit.DAYS.between(horseResolver.anchor(session.getPlan(),session.getHorse().getHorseId()),request.scheduledStart().toLocalDate())+1);
         var stages=stageRepository.findForDay(session.getPlan().getPlanId(),day);
         if(stages.size()!=1)throw new BusinessRuleException("Adjusted date must belong to one saved roadmap stage.");
-        calendar.validateSlot(session.getHorse().getHorseId(),request.scheduledStart(),request.scheduledEnd(),id);
+        calendar.validateSlotForPlan(session.getPlan().getHorsePackageId(),session.getHorse().getHorseId(),request.scheduledStart(),request.scheduledEnd(),id);
         calendar.validateDates(session.getHorse().getHorseId(),java.util.List.of(request.scheduledStart().toLocalDate()),id);
         if(request.reason().length()>600)throw new BusinessRuleException("Adjustment reason must not exceed 600 characters.");
         String previous=session.getScheduledStart()+" / "+session.getScheduledEnd()+" / "+session.getIntensity();
@@ -177,6 +181,7 @@ public class TrainingSessionService {
     }
 
     private TrainingSession lockedSession(String sessionId) {
+        scheduleCoordinator.lockSchedule();
         var initial=trainingSessionRepository.findById(sessionId)
             .orElseThrow(()->new ResourceNotFoundException("Training session not found: "+sessionId));
         // Match medical/payment lock ordering: horse first, then session.

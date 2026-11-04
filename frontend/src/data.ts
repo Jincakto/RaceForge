@@ -312,6 +312,7 @@ export interface TrainingSession {
   intensity?: string;
   actualEnd?: string;
   canStart?: boolean;
+  startBlockedReason?: string;
   canStop?: boolean;
   canComplete?: boolean;
   id: string;

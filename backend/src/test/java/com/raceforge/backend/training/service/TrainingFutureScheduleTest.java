@@ -35,7 +35,7 @@ class TrainingFutureScheduleTest {
   Map<String,Object> row=new HashMap<>();row.put("weekdays_json","[\"MONDAY\",\"TUESDAY\",\"WEDNESDAY\"]");row.put("session_time",java.sql.Time.valueOf("07:00:00"));row.put("start_day",1);row.put("end_day",3);
   when(jdbc.queryForList(anyString(),eq("PLN-001"))).thenAnswer(inv->inv.getArgument(0,String.class).startsWith("SELECT *")?List.of(row):List.of());
   when(sessions.scheduleSessionAt(any(),eq(now))).thenAnswer(inv->{var request=inv.getArgument(0,ScheduleSessionRequest.class);assertEquals(LocalDateTime.of(2026,10,28,7,0),request.getScheduledTime());return new TrainingSessionResponse();});
-  var service=new TrainingRoadmapService(jdbc,guard,plans,new ObjectMapper(),sessions);ReflectionTestUtils.setField(service,"clock",clock);ReflectionTestUtils.setField(service,"horsePlans",horsePlans);
+  var service=new TrainingRoadmapService(jdbc,guard,plans,new ObjectMapper(),sessions);ReflectionTestUtils.setField(service,"clock",clock);ReflectionTestUtils.setField(service,"horsePlans",horsePlans);ReflectionTestUtils.setField(service,"scheduleCoordinator",mock(TrainingScheduleCoordinator.class));
   assertEquals(1,service.generate("PLN-001").size());verify(sessions,times(1)).scheduleSessionAt(any(),eq(now));verify(guard).requirePlan(plan);assertEquals(LocalDate.of(2026,10,26),link.getStartDate());
   row.put("end_day",2);clearInvocations(sessions);assertTrue(assertThrows(BusinessRuleException.class,()->service.generate("PLN-001")).getMessage().contains("No future sessions"));verifyNoInteractions(sessions);verify(plans,never()).save(any());
  }

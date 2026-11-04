@@ -29,8 +29,6 @@ export function validateSessionWindow(input:{date:string;time:string;endTime:str
  const live=sessions.filter(s=>s.id!==input.excludeId&&['Scheduled','Completed','In Progress'].includes(s.status));
  const clash=live.find(s=>{if(s.date!==input.date||!(s.horseId===input.horseId||s.trainerId===input.trainerId))return false;return !s.endTime||(input.time<s.endTime&&input.endTime>s.time);});
  if(clash)return clash.horseId===input.horseId?'This time overlaps another session for the horse.':'This time overlaps another session for the trainer.';
- const daily=new Set(sessions.filter(s=>s.id!==input.excludeId&&s.status!=='Cancelled'&&s.horseId===input.horseId&&isoDay(s.date)===day).map(s=>s.id));
- if(daily.size>=2)return 'A horse may have at most two sessions per day. Choose another day.';
  const monday=dateAt(day);monday.setDate(monday.getDate()-(monday.getDay()+6)%7);const sunday=new Date(monday);sunday.setDate(sunday.getDate()+6);
  const dates=new Set(live.filter(s=>s.horseId===input.horseId&&dateAt(isoDay(s.date))>=monday&&dateAt(isoDay(s.date))<=sunday).map(s=>s.date));dates.add(input.date);
  return dates.size>6?'A horse may train on at most six distinct days per week.':'';
@@ -43,4 +41,20 @@ export function scheduleWarning(rows:{date:string;time:string}[],now=new Date())
  if(!rows.length)return '';
  const future=futureSchedule(rows,now).length;
  return future===0?'No future sessions remain. You can adjust the stages before generating sessions.':future<rows.length?'Some scheduled times have passed. Only future sessions will be generated.':'';
+}
+
+/** Loaded schedules provide early hints; the Start endpoint repeats all checks atomically. */
+export function sessionStartState(session:TrainingSession,sessions:TrainingSession[],trainerId:string,now=new Date()){
+ if(session.trainerId!==trainerId)return {allowed:false,reason:'This session belongs to another trainer.'};
+ if(session.status!=='Scheduled')return {allowed:false,reason:session.status==='In Progress'?
+  (session.actualEnd?'Exercise stopped; recovery results are pending.':'Exercise is in progress.'):'Only a scheduled session can be started.'};
+ const dateReason='Start this session on its scheduled date (Bangkok time).';
+ if(isoDay(session.date)!==trainingTimestamp(now).slice(0,10))return {allowed:false,reason:dateReason};
+ const pending=sessions.find(s=>s.id!==session.id&&s.status==='In Progress'&&(s.horseId===session.horseId||s.trainerId===trainerId));
+ if(pending)return {allowed:false,reason:'Finish session '+pending.id+' first. '+(pending.actualEnd?'Save its recovery results.':'Stop it and save its recovery results.')};
+ // A date-only hint becomes stale at midnight. Re-evaluate that hint locally;
+ // server authorization/medical/package checks remain authoritative on Start.
+ if(session.canStart===false&&session.startBlockedReason!==dateReason)
+  return {allowed:false,reason:session.startBlockedReason||'Refresh the schedule to check whether this session can start.'};
+ return {allowed:true,reason:''};
 }

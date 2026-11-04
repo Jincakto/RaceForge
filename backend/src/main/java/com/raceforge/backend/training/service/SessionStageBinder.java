@@ -29,7 +29,7 @@ public class SessionStageBinder {
             if(stage.getSessionEndTime()==null)throw new BusinessRuleException("Enter a planned end time in the roadmap before scheduling");
             session.setScheduledEnd(java.time.LocalDateTime.of(session.getScheduledStart().toLocalDate(),stage.getSessionEndTime()));
         }
-        calendar.validateSlot(session.getHorse().getHorseId(),session.getScheduledStart(),session.getScheduledEnd());
+        calendar.validateSlotForPlan(plan.getHorsePackageId(),session.getHorse().getHorseId(),session.getScheduledStart(),session.getScheduledEnd(),"");
         session.setTrainingStage(stage);
         session.setIntensity(stage.getIntensity());
         session.setNotes(stage.getTitle()+" — "+stage.getActivityName());

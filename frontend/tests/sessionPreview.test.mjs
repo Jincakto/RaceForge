@@ -41,7 +41,7 @@ test('saved rows are recognized on retry and template preview skips past starts'
 });
 const ok=data=>new Response(JSON.stringify({success:true,data,message:'OK'}),{status:200});
 function actions(){const events=[];const state={user:{id:'USR-1',role:'head_trainer'},trainingPlans:[{id:'PLN-1',horseId:'HOR-1',startDate:'07/01/2030',endDate:'05/02/2030'}],trainingSessions:[]};return {state,events,remote:makeRemoteActions({getState:()=>state,reload:async()=>events.push('reload'),success:()=>events.push('success'),error:()=>events.push('error'),navigate:()=>{}})};}
-const wire=(id,body)=>({sessionId:id,planId:body.planId,horseId:body.horseId,scheduledStart:body.scheduledTime,scheduledEnd:body.scheduledEnd,status:'SCHEDULED',intensity:'LOW'});
+const wire=(id,body)=>({sessionId:id,trainerUserId:'USR-1',planId:body.planId,horseId:body.horseId,scheduledStart:body.scheduledTime,scheduledEnd:body.scheduledEnd,status:'SCHEDULED',intensity:'LOW'});
 test('custom preview saves the edited dates and times through the existing single-session API',async()=>{
  const {remote,events}=actions();const posts=[];globalThis.fetch=async(url,init)=>{if(String(url).endsWith('/stages'))return ok([stage()]);if(!init?.method||init.method==='GET')return ok([]);assert.equal(url,'/api/training-sessions');const body=JSON.parse(init.body);posts.push(body);return ok(wire('SES-'+posts.length,body));};
  const result=await remote.generateSessions('HOR-1','PLN-1',[row({time:'11:00',endTime:'11:30'})],{mode:'preview'});assert.equal(result.ok,true);assert.equal(posts.length,1);assert.equal(posts[0].scheduledTime,'2030-01-07T11:00:00');assert.deepEqual(events,['reload','success']);
@@ -65,28 +65,25 @@ test('fresh schedules for the trainers other horses prevent writes into newly oc
 });
 
 
-test('package day limit counts saved sessions and drafts without double counting persisted preview rows',()=>{
- const c=ctx({startDate:'07/01/2030',endDate:'09/01/2030',sessions:[session({planId:'PLN-1',endTime:'09:30'})]});
- const rows=[row(),row({key:'b',time:'11:00',endTime:'11:30'}),row({key:'c',time:'12:00',endTime:'12:30'})];
- assert.deepEqual(p.sessionCapacity(rows,c),{limit:3,saved:1,drafts:2,remaining:0,exceeds:false});
- assert.equal(p.sessionCapacity([...rows,row({key:'d',time:'13:00',endTime:'13:30'})],c).exceeds,true);
- assert.equal(p.sessionCapacity(rows.slice(0,2),c).remaining,1);
+test('31 valid sessions in a 30-day package are submitted without a total allowance',async()=>{
+ const {remote}=actions();const rows=[];
+ for(let d=0;d<30;d++){const date=new Date('2030-01-07T12:00:00Z');date.setUTCDate(date.getUTCDate()+d);if(date.getUTCDay()===0)continue;rows.push(row({key:'r'+rows.length,date:p.dayText(date.toISOString().slice(0,10))}));}
+ for(let i=0;rows.length<31;i++)rows.push({...rows[i],key:'r'+rows.length,time:'11:00',endTime:'11:30'});
+ assert.ok(rows.every(r=>!p.rowProblem(r,rows,ctx())));
+ const saved=[];globalThis.fetch=async(url,init)=>{if(String(url).endsWith('/stages'))return ok([stage()]);if(init?.method!=='POST')return ok(saved);const value=wire('SES-'+(saved.length+1),JSON.parse(init.body));saved.push(value);return ok(value);};
+ const result=await remote.generateSessions('HOR-1','PLN-1',rows,{mode:'preview'});
+ assert.equal(result.ok,true);assert.equal(saved.length,31);
 });
-test('package allowance includes sessions from other plans of the same package and excludes cancelled sessions',()=>{
- const c=ctx({horsePackageId:'HPG-1',sessionLimit:2,packagePlanIds:['PLN-1','PLN-OLD'],sessions:[session({id:'old',planId:'PLN-OLD',horsePackageId:'HPG-1'}),session({id:'cancelled',planId:'PLN-1',horsePackageId:'HPG-1',status:'Cancelled'}),session({id:'other-package',planId:'OTHER',horsePackageId:'HPG-2'})]});
- const capacity=p.sessionCapacity([row({time:'11:00',endTime:'11:30'})],c);assert.equal(capacity.limit,2);assert.equal(capacity.saved,1);assert.equal(capacity.remaining,0);assert.equal(capacity.exceeds,false);
-});
-test('fresh package capacity is checked before any preview session is written',async()=>{
+test('existing sessions do not impose a package or daily quota on another non-overlapping slot',async()=>{
  const {state,remote}=actions();state.trainingPlans[0].endDate='07/01/2030';let posts=0;
- globalThis.fetch=async(url,init)=>{if(init?.method==='POST'){posts++;return ok({});}return ok(String(url).endsWith('/stages')?[stage()]:[wire('SES-EXISTING',{planId:'PLN-1',horseId:'HOR-1',scheduledTime:'2030-01-07T09:00:00',scheduledEnd:'2030-01-07T09:30:00'})]);};
- const result=await remote.generateSessions('HOR-1','PLN-1',[row({time:'11:00',endTime:'11:30'})],{mode:'preview'});assert.equal(result.ok,false);assert.match(result.message,/Package limit reached: 1/);assert.equal(posts,0);
+ globalThis.fetch=async(url,init)=>{if(init?.method==='POST'){posts++;return ok(wire('SES-NEW',JSON.parse(init.body)));}return ok(String(url).endsWith('/stages')?[stage()]:[wire('SES-A',{planId:'PLN-1',horseId:'HOR-1',scheduledTime:'2030-01-07T07:00:00',scheduledEnd:'2030-01-07T07:30:00'}),wire('SES-B',{planId:'PLN-1',horseId:'HOR-1',scheduledTime:'2030-01-07T08:00:00',scheduledEnd:'2030-01-07T08:30:00'})]);};
+ const result=await remote.generateSessions('HOR-1','PLN-1',[row({time:'11:00',endTime:'11:30'})],{mode:'preview'});
+ assert.equal(result.ok,true);assert.equal(posts,1);
 });
-
-
-test('suggest creates only one session per horse per day while manual entry allows two',()=>{
+test('suggest prefers unused days while manual entry allows three non-overlapping sessions',()=>{
  const c=ctx({stages:[stage({endDay:3})]});const first=row();const second=row({key:'manual',time:'11:00',endTime:'11:30'});
  assert.equal(p.rowProblem(second,[first,second],c),'');
- const third=row({key:'third',time:'14:00',endTime:'14:30'});assert.match(p.rowProblem(third,[first,second,third],c),/at most two/);
+ const third=row({key:'third',time:'14:00',endTime:'14:30'});assert.equal(p.rowProblem(third,[first,second,third],c),'');
  const suggestion=p.suggestFreeSlot(row({key:'suggested'}),[first],c);assert.ok(suggestion);assert.equal(suggestion.date,'08/01/2030');
 });
 test('repeated suggestions never stack the same horse on one day and respect other horses times',()=>{
@@ -94,7 +91,16 @@ test('repeated suggestions never stack the same horse on one day and respect oth
  for(let i=0;i<3;i++){const r=p.suggestFreeSlot(row({key:'extra-'+i}),rows,c);assert.ok(r);rows.push(r);}
  assert.equal(new Set(rows.map(r=>r.date)).size,3);assert.equal(rows[0].date,'07/01/2030');assert.ok(rows[0].time>='10:00'||rows[0].endTime<='09:00');assert.equal(p.suggestFreeSlot(row({key:'full'}),rows,c),null);
 });
-test('saved sessions count toward the manual daily maximum across plans',()=>{
+test('saved sessions across plans do not block a third non-overlapping session',()=>{
  const c=ctx({sessions:[session({id:'one',time:'07:00',endTime:'07:30'}),session({id:'two',time:'08:00',endTime:'08:30',planId:'OLDER'})]});
- assert.match(p.rowProblem(row({time:'12:00',endTime:'12:30'}),[],c),/at most two/);
+ assert.equal(p.rowProblem(row({time:'12:00',endTime:'12:30'}),[],c),'');
+});
+
+test('session adapter uses the returned trainer and never assumes the logged-in trainer',async()=>{
+ const {sessionFromApi}=await import(pathToFileURL(path.join(dir,'remote.mjs')));
+ const current={id:'HTR-CURRENT',name:'Current trainer'};
+ const response={sessionId:'SES-1',horseId:'HOR-1',planId:'PLN-1',status:'SCHEDULED',scheduledStart:'2030-01-07T09:00:00',scheduledEnd:'2030-01-07T09:30:00',trainerUserId:'HTR-OTHER',trainerName:'Other trainer'};
+ assert.equal(sessionFromApi(response,current).trainerId,'HTR-OTHER');assert.equal(sessionFromApi(response,current).trainerName,'Other trainer');
+ const unknown=sessionFromApi({...response,trainerUserId:null,trainerName:null},current);
+ assert.equal(unknown.trainerId,'');assert.equal(unknown.trainerName,'');
 });

@@ -3,7 +3,7 @@ import { useTrainingNow } from './useTrainingNow';
 import { futureSchedule, scheduleWarning, trainingStart } from './trainingSchedule';
 import { PackageRoadmapPreview, RoadmapTable, StagesEditor, SavedRoadmapPreview } from './roadmapView';
 import { validateRoadmap } from './packageRoadmap';
-import { selectedStages, scheduleRows, normalizeStages, clock, seconds, validateSessionWindow, isoDay, type RoadmapStage } from './trainingSchedule';
+import { selectedStages, scheduleRows, normalizeStages, clock, seconds, validateSessionWindow, sessionStartState, isoDay, type RoadmapStage } from './trainingSchedule';
 import { trainingTimestamp } from './trainingTimestamp';
 import { RecoveryReview } from './RecoveryReview';
 import { packageRoadmapFor, recommendationView } from './recommendations';
@@ -63,6 +63,9 @@ function ErrorBox({ text, onClose }: { text: string; onClose?: () => void }) {
   return <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"><span>⛔</span><span className="flex-1">{text}</span>{onClose && <button onClick={onClose} className="text-red-400 hover:text-red-600">✕</button>}</div>;
 }
 
+export function TrainingSessionStartButton({allowed,reason,busy,onStart}:{allowed:boolean;reason:string;busy:boolean;onStart:()=>void}){
+ return <div className="max-w-xs space-y-1"><Btn size="sm" variant="gold" disabled={!allowed||busy} onClick={onStart}>{busy?'Starting...':'Start session'}</Btn>{!allowed&&<p role="status" className="text-xs text-amber-800">{reason}</p>}</div>;
+}
 function Progress({ step, labels }: { step: number; labels: string[] }) {
   return (
     <div>
@@ -119,6 +122,9 @@ export function TrainingHubPage(props: HubProps) {
   const { state } = props;
   const { me, mine } = useTrainerHorses(state);
   const isTrainer = me.role === 'head_trainer';
+  const now=useTrainingNow();
+  const today=isoToD(trainingTimestamp(now).slice(0,10));
+  const [starting,setStarting]=useState<string|null>(null);
   const [tab, setTab] = useState<'plans' | 'sessions' | 'schedule' | 'results'>('plans');
   const [view, setView] = useState<'hub' | 'wizard'>('hub');
   const [gen, setGen] = useState<{ horseId: string; planId: string; init?: { weekdays: number[]; time: string; weeks: number } } | null>(null);
@@ -130,6 +136,7 @@ export function TrainingHubPage(props: HubProps) {
   const [skipRestore, setSkipRestore] = useState<Set<string>>(new Set());
   const [decline, setDecline] = useState<Enrollment | null>(null);
   const [accepting, setAccepting] = useState<Enrollment | null>(null);
+  const [acceptingBusy, setAcceptingBusy] = useState(false);
   const [absentFor, setAbsentFor] = useState<TrainingSession | null>(null);
   const [completing, setCompleting] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState<string | null>(null);
@@ -182,7 +189,7 @@ export function TrainingHubPage(props: HubProps) {
                   <div className="font-semibold text-sky-900">The manager assigned you to train "{hn(e.horseId)}"</div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-sky-800">Package {e.packageName}  · Horse Owner {e.ownerName} · {e.sessionsTotal} created sessions · expires {e.expiresAt} <IdChip kind="ENR" id={e.id} /></div>
                 </div>
-                <div className="flex gap-2"><Btn variant="gold" onClick={() => setAccepting(e)}>Confirm</Btn><Btn variant="danger" onClick={() => setDecline(e)}>Reject</Btn></div>
+                <div className="flex gap-2"><Btn variant="gold" onClick={() => { setActionError(''); setAccepting(e); }}>Confirm</Btn><Btn variant="danger" onClick={() => setDecline(e)}>Reject</Btn></div>
               </div>
             </Card>
           ))}
@@ -253,7 +260,9 @@ export function TrainingHubPage(props: HubProps) {
           </div>
           {listed.length === 0 && <Card className="p-8 text-center text-sm text-gray-500">No sessions yet{statusFilter !== 'all' ? " matching this filter" : ''}.</Card>}
           {listed.map(s => {
-            const canCheckIn = isTrainer && s.status === 'Scheduled' && !s.attendance && s.date === TODAY && s.trainerId === me.id;
+            const ownsSession=isTrainer && s.trainerId===me.id;
+            const canCheckIn = ownsSession && s.status === 'Scheduled' && !s.attendance && s.date === today;
+            const startState=sessionStartState(s,state.trainingSessions,me.id,now);
             return (
               <Card key={s.id} className="p-5">
                 <div className="flex items-start justify-between gap-3">
@@ -262,6 +271,7 @@ export function TrainingHubPage(props: HubProps) {
                       {s.attendance && <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${s.attendance.status === 'present' ? 'border-emerald-200 bg-emerald-100 text-emerald-800' : 'border-red-200 bg-red-100 text-red-700'}`}>{s.attendance.status === 'present' ? "Present" : "Absent"}</span>}</div>
                     <div className="font-semibold">{s.type} — {hn(s.horseId)} · {s.distance}</div>
                     <div className="text-sm text-gray-500">{dateLabel(s.date)} · {s.time}  · Target: {s.targetTime}</div>
+                    { s.status==='In Progress' && <p className="mt-1 text-sm font-medium text-amber-800">{s.actualEnd?'Exercise stopped - recovery results pending':'Exercise in progress'}</p>}
                     {s.notes && <div className="text-sm text-gray-600">{s.notes}</div>}
                     <div className="mt-1 text-xs text-gray-400">Groom: {s.assignedStaffNames.join(', ') || '—'}</div>
                     {s.attendance?.note && <div className="mt-1 text-xs text-red-600">Absence reason: {s.attendance.note}</div>}
@@ -269,11 +279,11 @@ export function TrainingHubPage(props: HubProps) {
                     {s.status === 'Scheduled' && isTrainer && s.date === TODAY && s.attendance?.status === 'present' && <div className="mt-1 text-xs text-emerald-700">Attendance recorded — the session can start.</div>}
                   </div>
                   <div className="flex shrink-0 flex-col gap-2">
-                    {canCheckIn && <><Btn size="sm" variant="primary" onClick={async () => { const r = await props.onCheckIn(s.id, true, ''); setActionError(r.ok ? '' : r.message); }}>Start session</Btn><Btn size="sm" variant="secondary" onClick={() => setAbsentFor(s)}>Absent</Btn></>}
-                    {isTrainer && s.status === 'Scheduled' && new Date(dToIso(s.date)+'T'+s.time)>new Date() && <Btn size="sm" variant="secondary" onClick={()=>setAdjusting(s)}>Adjust time</Btn>}
-                    {isTrainer && s.status === 'Scheduled' && s.canStart && <Btn size="sm" variant="gold" onClick={async () => setActionError(await props.onStartSession(s.id) || '')}>▶ Start</Btn>}
-                    {isTrainer && s.status === 'Scheduled' && !s.attendance && s.date !== TODAY && <span className="text-[11px] text-gray-400">Record attendance on the session date</span>}
-                    {isTrainer && (s.canStop || s.canComplete) && completing !== s.id && <Btn size="sm" variant="primary" onClick={async () => { setActionError(''); if (s.canStop) { const stopped = await props.onStopSession(s.id); if (!stopped.ok) { setActionError(stopped.message); return; } } setCompleting(s.id); }}>{s.canStop ? 'Stop exercise & record recovery' : 'Record recovery results'}</Btn>}
+                    {canCheckIn && <Btn size="sm" variant="secondary" onClick={() => setAbsentFor(s)}>Absent</Btn>}
+                    {ownsSession && s.status==='Scheduled' && <TrainingSessionStartButton allowed={startState.allowed} reason={startState.reason} busy={starting!==null} onStart={async()=>{if(starting)return;setStarting(s.id);setActionError('');try{setActionError(await props.onStartSession(s.id)||'');}catch(e){setActionError((e as Error).message);}finally{setStarting(null);}}}/>}
+                    {ownsSession && s.status === 'Scheduled' && trainingStart(s.date,s.time)>now && <Btn size="sm" variant="secondary" onClick={()=>setAdjusting(s)}>Adjust time</Btn>}
+                    {ownsSession && s.status === 'Scheduled' && !s.attendance && s.date !== today && <span className="text-[11px] text-gray-400">Record attendance on the session date</span>}
+                    {ownsSession && (s.canStop || s.canComplete) && completing !== s.id && <Btn size="sm" variant="primary" onClick={async () => { setActionError(''); if (s.canStop) { const stopped = await props.onStopSession(s.id); if (!stopped.ok) { setActionError(stopped.message); return; } } setCompleting(s.id); }}>{s.canStop ? 'Stop exercise & record recovery' : 'Record recovery results'}</Btn>}
                   </div>
                 </div>
                 {completing === s.id && <ResultForm onCancel={() => setCompleting(null)} onSubmit={async r => { const err = await props.onCompleteSession(s.id, r); setActionError(err || ''); if (!err) { setCompleting(null); setReviewing(s.id); } return err; }} />}
@@ -324,9 +334,10 @@ export function TrainingHubPage(props: HubProps) {
       )}
 
       {accepting && (
-        <Modal title="Accept this training assignment?" onClose={() => setAccepting(null)}>
+        <Modal title="Accept this training assignment?" onClose={() => { if (!acceptingBusy) setAccepting(null); }}>
           <p className="text-sm text-gray-600">You will be responsible for training <strong>{hn(accepting.horseId)}</strong>  under package {accepting.packageName}  to {accepting.expiresAt}.</p>
-          <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setAccepting(null)}>Cancel</Btn><Btn variant="gold" onClick={async () => { const r = await props.onRespond(accepting.id, true, ''); setActionError(r.ok ? '' : r.message); setAccepting(null); }}>Confirm</Btn></div>
+          <ErrorBox text={actionError} />
+          <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" disabled={acceptingBusy} onClick={() => setAccepting(null)}>Cancel</Btn><Btn variant="gold" disabled={acceptingBusy} onClick={async () => { setAcceptingBusy(true); setActionError(''); try { const r = await props.onRespond(accepting.id, true, ''); if (r.ok) setAccepting(null); else setActionError(r.message); } catch (error) { setActionError((error as Error).message); } finally { setAcceptingBusy(false); } }}>{acceptingBusy ? 'Checking schedule...' : 'Confirm'}</Btn></div>
         </Modal>
       )}
       {decline && <ReasonDialog title="Decline assignment" description={<>Decline training <strong>{hn(decline.horseId)}</strong>? The manager will be notified to assign a replacement.</>} confirmLabel="Decline assignment" danger onClose={() => setDecline(null)} onConfirm={async reason => { const r = await props.onRespond(decline.id, false, reason); setActionError(r.ok ? '' : r.message); setDecline(null); }} />}
@@ -441,7 +452,7 @@ function SingleSessionForm({state,onClose,onGenerate,session}:{state:HubState;on
  {stage&&<p className="text-sm">{stage.title} - {stage.activityName} - {stage.intensity}</p>}
  {date&&!loading&&!stage&&<ErrorBox text="Choose a date belonging to one saved roadmap stage."/>}
  {session&&<><Select label="Intensity" value={intensity} onChange={setIntensity} options={['LOW','MODERATE','HIGH'].map(v=>({value:v,label:v}))}/><Textarea label="Reason for adjustment" required value={reason} onChange={setReason} rows={2}/></>}
- <p className="text-xs text-gray-500">Each horse may have at most two sessions per day without overlapping horse or trainer times. At most six distinct training days per week. Checks use the schedules currently loaded; the server validates the request.</p>
+ <p className="text-xs text-gray-500">Multiple sessions per day are allowed when horse and trainer times do not overlap. At most six distinct training days per week. Checks use the schedules currently loaded; the server validates the request.</p>
  {loading&&<p>Loading stages...</p>}{loadError&&<ErrorBox text={loadError}/>} {(error||validation)&&<ErrorBox text={error||validation}/>}
  <div className="flex justify-end gap-2"><Btn variant="secondary" onClick={onClose}>Cancel</Btn><Btn variant="gold" disabled={busy||loading||!!loadError||!plan||!stage||!date||!endTime||!!validation} onClick={save}>{busy?'Saving...':'Save session'}</Btn></div>
  </div></Modal>;

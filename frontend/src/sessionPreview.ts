@@ -2,7 +2,7 @@ import type { TrainingSession } from './data';
 import { clock, seconds, isoDay, scheduleRows, trainingStart, validateSessionWindow, type RoadmapStage } from './trainingSchedule';
 import { trainingTimestamp } from './trainingTimestamp';
 export interface PreviewSession { key:string; stageIndex:number; date:string; time:string; endTime:string; type:string; distance:string; targetTime:string; notes:string }
-export interface PreviewContext {planId:string;horseId:string;trainerId:string;startDate:string;endDate:string;stages:RoadmapStage[];sessions:TrainingSession[];now:Date;horsePackageId?:string;packagePlanIds?:string[];sessionLimit?:number}
+export interface PreviewContext {planId:string;horseId:string;trainerId:string;startDate:string;endDate:string;stages:RoadmapStage[];sessions:TrainingSession[];now:Date;horsePackageId?:string}
 export function dayText(iso:string){return isoDay(iso).split('-').reverse().join('/');}
 function addDays(iso:string,count:number){const d=new Date(isoDay(iso)+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+count);return d.toISOString().slice(0,10);}
 export function stageWindow(context:PreviewContext,index:number){const stage=context.stages[index];if(!stage)return null;return {start: addDays(context.startDate,stage.startDay-1),end:addDays(context.startDate,stage.endDay-1)};}
@@ -41,14 +41,4 @@ export function suggestConflicts(rows:PreviewSession[],c:PreviewContext,start='0
  let result=rows.map(r=>({...r}));let changed=0;const unresolved:string[]=[];
  for(let i=0;i<result.length;i++)if(rowProblem(result[i],result,c)){const suggestion=suggestFreeSlot(result[i],result,c,start,end);if(suggestion){result[i]=suggestion;changed++;}else unresolved.push(result[i].key);}
  return {rows:result,changed,unresolved};
-}
-
-/** Frontend package allowance: one session per day of package duration, not one per calendar date. */
-export function sessionCapacity(rows:PreviewSession[],c:PreviewContext){
- const termDays=Math.round((Date.parse(isoDay(c.endDate))-Date.parse(isoDay(c.startDate)))/86400000)+1;
- const limit=Number.isInteger(c.sessionLimit)&&c.sessionLimit!>=0?c.sessionLimit!:Number.isFinite(termDays)?Math.max(0,termDays):0;
- const ids=new Set(c.packagePlanIds||[c.planId]);ids.add(c.planId);
- const saved=new Map(c.sessions.filter(s=>s.horseId===c.horseId&&s.status!=='Cancelled'&&(c.horsePackageId&&s.horsePackageId?s.horsePackageId===c.horsePackageId:ids.has(s.planId))).map(s=>[s.id,s]));
- const drafts=rows.filter(r=>!persistedRow(r,c)).length;
- return {limit,saved:saved.size,drafts,remaining:Math.max(0,limit-saved.size-drafts),exceeds:saved.size+drafts>limit};
 }

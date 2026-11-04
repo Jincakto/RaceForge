@@ -123,6 +123,9 @@ public class HorsePackageService {
         }
 
         workflowGuard.requireHealthy(horse);
+        if ("RACING".equalsIgnoreCase(registration.getTrainingPackage().getPackageType())) {
+            workflowGuard.requireRacingEligible(horse);
+        }
         if (Boolean.TRUE.equals(horse.getTrainingLocked()) || !"READY".equalsIgnoreCase(horse.getHealthStatus())) {
             throw new BusinessRuleException("Horse is no longer eligible for normal training");
         }

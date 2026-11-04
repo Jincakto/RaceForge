@@ -1,4 +1,4 @@
-import { rowProblem, persistedRow, sessionCapacity, type PreviewContext, type PreviewSession } from './sessionPreview';
+import { rowProblem, persistedRow, type PreviewContext, type PreviewSession } from './sessionPreview';
 import { selectedStages, scheduleRows, normalizeStages } from './trainingSchedule';
 import { trainingTimestamp } from './trainingTimestamp';
 import { ApiError, idPath as enc, request } from './api';
@@ -175,16 +175,12 @@ export function makeRemoteActions(env: Env) {
         const scheduleHorseIds=[...new Set([horseId,...state.trainingPlans.map(p=>p.horseId)])];
         const readSchedules=async()=> (await Promise.all(scheduleHorseIds.map(id=>request<any[]>('/training-sessions/horse/'+enc(id))))).flat().map(w=>sessionFromApi(w,state.user||undefined));
         let current=await readSchedules();
-        const term=state.enrollments?.find(e=>e.id===plan.horsePackageId);
-        const packageLimit=term?Math.round((Date.parse(isoDate(term.expiresAt))-Date.parse(isoDate(term.startedAt)))/86400000)+1:undefined;
-        const context:PreviewContext={horsePackageId:plan.horsePackageId,packagePlanIds:state.trainingPlans.filter(p=>p.horsePackageId&&p.horsePackageId===plan.horsePackageId).map(p=>p.id),sessionLimit:packageLimit,planId,horseId,trainerId:state.user!.id,startDate:plan.startDate,endDate:plan.endDate,stages,sessions:[...state.trainingSessions.filter(s=>!scheduleHorseIds.includes(s.horseId)),...current],now:new Date()};
+        const context:PreviewContext={planId,horseId,trainerId:state.user!.id,startDate:plan.startDate,endDate:plan.endDate,stages,sessions:[...state.trainingSessions.filter(s=>!scheduleHorseIds.includes(s.horseId)),...current],now:new Date()};
         const rows:PreviewSession[]=drafts.map((d,i)=>{
           const day=Math.round((Date.parse(isoDate(d.date))-Date.parse(isoDate(plan.startDate)))/86400000)+1;
           const matches=stages.map((s,index)=>({s,index})).filter(({s})=>day>=s.startDay&&day<=s.endDay);
           return {...d,endTime:d.endTime||'',key:'create-'+i,stageIndex:matches.length===1?matches[0].index:-1};
         });
-        const capacity=sessionCapacity(rows,context);
-        if(capacity.exceeds)throw new Error('Package limit reached: '+capacity.limit+' sessions for '+capacity.limit+' package days. '+capacity.saved+' already saved; '+capacity.drafts+' requested.');
         const invalid=rows.map(row=>rowProblem(row,rows,context)).find(Boolean);if(invalid)throw new Error(invalid);
         const saved:TrainingSession[]=[];
         try {

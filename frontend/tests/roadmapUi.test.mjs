@@ -21,7 +21,7 @@ const {createElement:h}=require('react');const {renderToStaticMarkup:render}=req
 const {RoadmapTable,StagesEditor,PackageRoadmapPreview}=await import(pathToFileURL(path.join(dir,'roadmapView.mjs')));
 const {PackageCatalogPage}=await import(pathToFileURL(path.join(dir,'packages.mjs')));
 const {TrainingRegisterPage}=await import(pathToFileURL(path.join(dir,'trainingRegister.mjs')));
-const {TrainingHubPage}=await import(pathToFileURL(path.join(dir,'trainingPlans.mjs')));
+const {TrainingHubPage,TrainingSessionStartButton}=await import(pathToFileURL(path.join(dir,'trainingPlans.mjs')));
 const stage={startDay:1,endDay:30,title:'Foundation',phaseCode:'FOUNDATION',objective:'Build endurance',activityName:'Easy canter',intensity:'LOW',daysOfWeek:['MONDAY','FRIDAY'],sessionTime:'07:30',sessionEndTime:'08:00'};
 const pkg={id:'PKG-001',name:'Foundation package',description:'Build stamina',active:true,price:1000000,durationDays:30};
 const horse={id:'HOR-001',clubId:'club',ownerId:'OWN-001',name:'Brown',trainerIds:[]};
@@ -65,4 +65,14 @@ test('saved plan exposes stage editing only before sessions exist and while unlo
  const plan={id:'PLN-001',horseId:horse.id,phase:'Saved plan',status:'Active',startDate:'01/01/2099',endDate:'31/12/2099',goals:'Practice cues',progress:0};
  const view=(trainingSessions=[],locked=false)=>render(h(TrainingHubPage,{state:{...state,user:trainer,horses:[horseForTrainer],trainingPlans:[{...plan,locked}],trainingSessions},navigate:()=>{}}));
  assert.ok(view().includes('Edit stages'));assert.ok(!view([{id:'SES-001',planId:plan.id,horseId:horse.id,status:'Scheduled',date:'01/01/2099'}]).includes('Edit stages'));assert.ok(!view([],true).includes('Edit stages'));
+});
+
+test('Start control renders exactly one button and a nearby backend explanation',()=>{
+ const html=render(h(TrainingSessionStartButton,{allowed:false,reason:'Finish SES-001 <first>',busy:false,onStart:()=>{}}));
+ assert.equal((html.match(/<button/g)||[]).length,1);assert.ok(html.includes('Start session'));assert.ok(html.includes('disabled'));
+ assert.ok(html.includes('Finish SES-001 &lt;first&gt;'));assert.ok(html.includes('role="status"'));
+ const enabled=render(h(TrainingSessionStartButton,{allowed:true,reason:'',busy:false,onStart:()=>{}}));
+ assert.ok(!enabled.includes('disabled'));
+ const busy=render(h(TrainingSessionStartButton,{allowed:true,reason:'',busy:true,onStart:()=>{}}));
+ assert.ok(busy.includes('Starting...'));assert.ok(busy.includes('disabled'));
 });

@@ -251,7 +251,7 @@ export interface Horse {
   sire?: string;
   dam?: string;
   identityVerified?: boolean;
-  identityEvidence?: { url: string; fileUrl?: string; note: string };
+  identityEvidence?: { url: string; fileUrl?: string; note: string; imageFile?: File; documentFile?: File };
   intakeExamId?: string;
   medicalHistory?: string;
   birthDate?: string;

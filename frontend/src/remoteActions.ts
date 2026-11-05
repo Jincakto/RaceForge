@@ -2,7 +2,7 @@ import { rowProblem, persistedRow, type PreviewContext, type PreviewSession } fr
 import { selectedStages, scheduleRows, normalizeStages } from './trainingSchedule';
 import { trainingTimestamp } from './trainingTimestamp';
 import { ApiError, idPath as enc, request } from './api';
-import { staffRoleId, ROLE_NAMES, isoDate, enrollmentFromApi, horsePayload, medicalPayload, packageFromApi, planFromApi, recordFromApi, sessionFromApi } from './remote';
+import { staffRoleId, ROLE_NAMES, isoDate, enrollmentFromApi, horsePayload, horseCreateForm, medicalPayload, packageFromApi, planFromApi, recordFromApi, sessionFromApi } from './remote';
 import type { RemoteSlice } from './remote';
 import type { AppUser, Horse, HealthRecord, Res, Enrollment, TrainingPackage, TrainingPlan, TrainingSession, Role } from './data';
 import { validatePackage, type PackageDraft, type PlanDraft, type SessionDraft, type SessionWriteOptions } from './trainingLogic';
@@ -49,7 +49,7 @@ export function makeRemoteActions(env: Env) {
         const key = `${getState().user?.id}:${horse.microchip?.trim().toUpperCase()}`;
         let progress = createdRegistrations.get(key);
         if (!progress) {
-          const created = await request('/horses', 'POST', horsePayload(horse));
+          const created = await request('/horses', 'POST', horseCreateForm(horse));
           progress = { id: created.horseId, raceKeys: new Set() }; createdRegistrations.set(key, progress);
         }
         horse.id = progress.id;
@@ -123,15 +123,26 @@ export function makeRemoteActions(env: Env) {
     }, "Staff account created. A password setup invitation email will be sent."),
     toggleLock: (id: string, _reason: string) => fire(`account-${id}`, () => request(`/users/${enc(id)}/status`, 'PATCH', { status: getState().users.find(u => u.id === id)?.locked ? 'ACTIVE' : 'INACTIVE' })),
     invite: (id: string, _reason: string) => fire(`invite-${id}`, () => request(`/admin/users/${enc(id)}/invitation`, 'POST'), "Password setup invitation email resent."),
-    async purchasePackage(horseId: string, packageId: string, _renewOfId?: string, successful = true): Promise<Res<Enrollment>> {
+    // PayOS: create the registration (or reuse an unpaid one) and request a payment link.
+    async startPayment(horseId: string, packageId: string): Promise<Res<{ enrollmentId: string; url: string; orderCode: number }>> {
       return result(`purchase-${horseId}`, async () => {
         const state = getState();
         const pending = state.enrollments.find(e => e.horseId === horseId && e.packageId === packageId && e.paymentStatus === 'PENDING');
         const registered = pending ? { horsePackageId: pending.id } : await request('/horse-packages/register', 'POST', { horseId, packageId });
-        // Preserve an unpaid registration if payment fails; a later attempt resumes it.
-        const isRecovery = state.packages.find(p => p.id === packageId)?.packageType === 'RECOVERY';
-        const paid = await request(`/horse-packages/${enc(registered.horsePackageId)}/${isRecovery ? 'simulate-recovery-payment' : 'simulate-payment'}`, 'POST', { successful });
-        return enrollmentFromApi(paid, state.packages, state.horses.find(h => h.id === horseId));
+        const payment = await request(`/horse-packages/${enc(registered.horsePackageId)}/payment-link`, 'POST');
+        if (!payment?.checkoutUrl) throw new Error("PayOS did not return a payment link. Please try again.");
+        return { enrollmentId: registered.horsePackageId as string, url: payment.checkoutUrl as string, orderCode: payment.orderCode as number };
+      });
+    },
+    // Ask BE to sync the PayOS state, then read the package back so PAID comes from BE only.
+    async syncPayment(horseId: string, enrollmentId: string): Promise<Res<Enrollment>> {
+      return result(`payment-sync-${enrollmentId}`, async () => {
+        await request(`/horse-packages/${enc(enrollmentId)}/payment-sync`, 'POST');
+        const packs = await request(`/horse-packages/horse/${enc(horseId)}`) as Array<{ horsePackageId: string }>;
+        const w = packs.find(p => p.horsePackageId === enrollmentId);
+        if (!w) throw new Error("Registration not found after payment check.");
+        const state = getState();
+        return enrollmentFromApi(w as never, state.packages, state.horses.find(h => h.id === horseId));
       });
     },
     savePackage: (draft: PackageDraft) => result<TrainingPackage>('package', async () => {

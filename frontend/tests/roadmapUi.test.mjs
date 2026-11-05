@@ -14,7 +14,7 @@ for(const name of await readdir(new URL('../src/',import.meta.url))) {
  const source=await readFile(new URL('../src/'+name,import.meta.url),'utf8');
  const output=ts.transpileModule(source.replace('import.meta.env','({})'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText
  .replace(/(['"])(\.\/[^'"]+)\1/g,(_,q,s)=>q+s+'.mjs'+q)
- .replace(/(['"])(react(?:\/jsx-runtime)?|react-dom(?:\/client)?|recharts)\1/g,(_,q,s)=>q+pathToFileURL(require.resolve(s)).href+q);
+ .replace(/(['"])(react(?:\/jsx-runtime)?|react-dom(?:\/client)?|recharts|qrcode\.react)\1/g,(_,q,s)=>q+pathToFileURL(require.resolve(s)).href+q);
  await writeFile(path.join(dir,name.replace(/\.tsx?$/,'.mjs')),output);
 }
 const {createElement:h}=require('react');const {renderToStaticMarkup:render}=require('react-dom/server');
@@ -40,7 +40,7 @@ test('catalogue and owner registrations expose curriculum previews without fetch
  const fetch=globalThis.fetch;globalThis.fetch=()=>{throw Error('Unexpected eager fetch');};
  try {
   const catalog=render(h(PackageCatalogPage,{packages:[pkg],enrollments:[],onSave:async()=>{},onToggle:async()=>{}}));
-  const owner=render(h(TrainingRegisterPage,{state,navigate:()=>{},onPurchase:async()=>{}}));
+  const owner=render(h(TrainingRegisterPage,{state,navigate:()=>{},onStartPayment:async()=>{},onSyncPayment:async()=>{}}));
   assert.ok(catalog.includes('View package roadmap'));assert.ok(owner.includes('View package roadmap'));
   assert.ok(!render(h(PackageRoadmapPreview,{packageId:pkg.id})).includes('Loading package roadmap'));
  } finally {globalThis.fetch=fetch;}

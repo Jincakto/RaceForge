@@ -1,7 +1,6 @@
 import { usePackageSuggestions, sortSuggestions, suggestionReason } from './trainingSuggestions';
 import { PackageRoadmapPreview } from './roadmapView';
 import { useEffect, useRef, useState } from 'react';
-// import { QRCodeSVG } from 'qrcode.react';
 import type { AppUser, Horse, Enrollment, TrainingPackage, Res, HealthRecord } from './data';
 import { Badge, Btn, Card } from './ui';
 import { IdChip, Modal } from './admin';
@@ -11,11 +10,11 @@ import { money, enrollmentTerm, isCurrent, EXPIRY_WARN_DAYS, TODAY } from './tra
 interface Props {
   state: { user: AppUser | null; horses: Horse[]; enrollments: Enrollment[]; packages: TrainingPackage[]; healthRecords: HealthRecord[] };
   navigate: (p: string) => void;
-  onPurchase: (horseId: string, packageId: string, renewOfId?: string, successful?: boolean) => Promise<Res<Enrollment>>;
+  onStartPayment: (horseId: string, packageId: string) => Promise<Res<{ enrollmentId: string; url: string; orderCode: number }>>;
+  onSyncPayment: (horseId: string, enrollmentId: string) => Promise<Res<Enrollment>>;
 }
 
 const STEPS = ["Choose horse", "Suggestions", "Review", "Payment", "Receipt"];
-type Scenario = 'success' | 'fail' | 'cancel';
 
 function StepBar({ step }: { step: number }) {
   return (
@@ -53,7 +52,24 @@ export function ReceiptView({ e, horseName }: { e: Enrollment; horseName: string
   );
 }
 
-export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
+// PayOS rejects iframe/overlay checkout for this merchant/origin ("Thông tin truyền lên không hợp lệ").
+// Set to true only after the site domain is allowed in the PayOS dashboard.
+const EMBED_PAYOS = false;
+const PAYOS_SCRIPT = 'https://cdn.payos.vn/payos-checkout/v1/stable/payos-initialize.js';
+let payOsScript: Promise<void> | undefined;
+function loadPayOsScript(): Promise<void> {
+  if ((window as any).PayOSCheckout) return Promise.resolve();
+  payOsScript ??= new Promise<void>((resolve, reject) => {
+    const el = document.createElement('script');
+    el.src = PAYOS_SCRIPT; el.async = true;
+    el.onload = () => resolve();
+    el.onerror = () => { payOsScript = undefined; el.remove(); reject(new Error('PayOS script failed to load')); };
+    document.head.appendChild(el);
+  });
+  return payOsScript;
+}
+
+export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPayment }: Props) {
   const user = state.user!;
   const myHorses = state.horses.filter(h => h.ownerId === user.id);
   const myEnr = state.enrollments.filter(e => myHorses.some(h => h.id === e.horseId)).slice().reverse();
@@ -64,12 +80,14 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
   const [pkgId, setPkgId] = useState('');
   const [horseId, setHorseId] = useState('');
   const [goal, setGoal] = useState('');
-  const suggestions = usePackageSuggestions(horseId, mode === 'wizard');
+  const [resumeEnr, setResumeEnr] = useState<Enrollment | null>(null);
+  const suggestions = usePackageSuggestions(horseId, mode === 'wizard' && !resumeEnr);
   const selectedSuggestion = suggestions.data?.horseId === horseId ? suggestions.data.packages.find(p => p.packageId === pkgId) : undefined;
   const canContinue = !!selectedSuggestion?.canRegister && !suggestions.loading && !suggestions.error;
   useEffect(() => { setPkgId(''); }, [horseId]);
   const [renewOf, setRenewOf] = useState<Enrollment | null>(null);
-  const [scenario, setScenario] = useState<Scenario>('success');
+  const [checkout, setCheckout] = useState<{ enrollmentId: string; url: string; orderCode: number } | null>(null);
+  const checking = useRef(false);
   const [paying, setPaying] = useState(false);
   const [payMsg, setPayMsg] = useState<{ kind: 'fail' | 'cancel' | 'error'; text: string } | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -79,19 +97,25 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
   const timer = useRef<number | null>(null);
   useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
 
-  const pkg = selectedSuggestion ? { id: selectedSuggestion.packageId, name: selectedSuggestion.packageName, price: selectedSuggestion.price, durationDays: selectedSuggestion.durationDays } : undefined;
+  const pkg = resumeEnr ? { id: resumeEnr.packageId, name: resumeEnr.packageName, price: resumeEnr.amount, durationDays: 0 } : selectedSuggestion ? { id: selectedSuggestion.packageId, name: selectedSuggestion.packageName, price: selectedSuggestion.price, durationDays: selectedSuggestion.durationDays } : undefined;
   const horse = myHorses.find(h => h.id === horseId);
   const latestExam = horse ? state.healthRecords.filter(r => r.horseId === horse.id).sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))[0] : undefined;
   const followUp = latestExam?.decision === 'conditional' || latestExam?.trainingEligibility === 'conditional' ? latestExam.followUpNote || latestExam.trainingNote || latestExam.conclusion : '';
 
   const start = (renew?: Enrollment) => {
-    setRenewOf(renew || null);
+    setResumeEnr(null); setRenewOf(renew || null);
     setPkgId(''); setGoal('');
     setHorseId(renew ? renew.horseId : '');
-    setStep(0); setScenario('success'); setPayMsg(null); setReceipt(null); setFieldError(''); setPaying(false);
+    setStep(0); setCheckout(null); setPayMsg(null); setReceipt(null); setFieldError(''); setPaying(false);
     setMode('wizard');
   };
-  const leave = () => { setMode('list'); setRenewOf(null); setPayMsg(null); setConfirmOpen(false); };
+  const resume = (e: Enrollment) => {
+    setResumeEnr(e); setRenewOf(null); setGoal('');
+    setHorseId(e.horseId); setPkgId(e.packageId);
+    setCheckout(null); setPayMsg(null); setReceipt(null); setFieldError(''); setPaying(false);
+    setStep(3); setMode('wizard');
+  };
+  const leave = () => { setMode('list'); setResumeEnr(null); setRenewOf(null); setPayMsg(null); setConfirmOpen(false); };
 
   const next = () => {
     setFieldError('');
@@ -100,20 +124,58 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
     setStep(s => s + 1);
   };
 
-  const pay = () => {
+  const pay = async () => {
     if (paying) return;
-    if (!horse || !pkg || !selectedSuggestion?.canRegister) { setPayMsg({ kind: 'error', text: 'Select an eligible package.' }); return; }
+    if (!horse || !pkg || (!resumeEnr && !selectedSuggestion?.canRegister)) { setPayMsg({ kind: 'error', text: 'Select an eligible package.' }); return; }
     setPayMsg(null); setPaying(true);
-    timer.current = window.setTimeout(async () => {
-
-      if (scenario === 'cancel') { setPaying(false); setPayMsg({ kind: 'cancel', text: "Payment cancelled. No registration was created — you may try again at any time." }); return; }
-      const r = await onPurchase(horseId, pkgId, renewOf?.id, scenario === 'success');
-      setPaying(false);
-      if (!r.ok) { setPayMsg({ kind: 'error', text: r.message }); return; }
-      if (r.data.paymentStatus !== 'PAID') { setPayMsg({ kind: 'fail', text: "Simulated payment failure recorded. The package has not been activated." }); return; }
-      setReceipt(r.data); setStep(4);
-    }, 1200);
+    const r = await onStartPayment(horseId, resumeEnr ? resumeEnr.packageId : pkgId);
+    setPaying(false);
+    if (!r.ok) { setPayMsg({ kind: 'error', text: r.message }); return; }
+    setCheckout(r.data);
   };
+
+  const check = async (silent = false) => {
+    if (!checkout || checking.current) return;
+    checking.current = true;
+    if (!silent) { setPayMsg(null); setPaying(true); }
+    const r = await onSyncPayment(horseId, checkout.enrollmentId);
+    checking.current = false;
+    if (!silent) setPaying(false);
+    if (!r.ok) { if (!silent) setPayMsg({ kind: 'error', text: r.message }); return; }
+    if (r.data.paymentStatus === 'PAID') { setReceipt(r.data); setCheckout(null); setStep(4); return; }
+    if (!silent) setPayMsg({ kind: 'fail', text: "Payment is not confirmed yet. If you have just paid, wait a few seconds and check again." });
+  };
+
+  useEffect(() => {
+    if (!checkout || step !== 3) return;
+    const id = window.setInterval(() => { void check(true); }, 5000);
+    return () => window.clearInterval(id);
+  }, [checkout, step]);
+
+  // Show the PayOS checkout (VietQR) as an overlay inside this page. The embedded
+  // layout is rejected by PayOS for this merchant, so the standard overlay is used.
+  const [embedError, setEmbedError] = useState('');
+  const payosApi = useRef<{ open: () => void; exit: () => void } | null>(null);
+  useEffect(() => {
+    if (!EMBED_PAYOS || !checkout || step !== 3) return;
+    setEmbedError('');
+    let cancelled = false;
+    loadPayOsScript().then(() => {
+      if (cancelled) return;
+      const api = (window as any).PayOSCheckout?.usePayOS({
+        RETURN_URL: window.location.origin + '/',
+        ELEMENT_ID: 'payos-embed',
+        CHECKOUT_URL: checkout.url,
+        embedded: false,
+        onSuccess: () => { void check(true); },
+        onCancel: () => { setCheckout(null); setPayMsg({ kind: 'cancel', text: "Payment cancelled. You may create a new payment link at any time." }); },
+        onExit: () => {},
+      });
+      if (!api) { setEmbedError("The PayOS checkout could not be started."); return; }
+      payosApi.current = api; api.open();
+    }).catch(() => { if (!cancelled) setEmbedError("The PayOS checkout could not be loaded. Use “Open payment page” instead."); });
+    return () => { cancelled = true; try { payosApi.current?.exit(); } catch { /* ignore */ } payosApi.current = null; };
+  }, [checkout?.url, step]);
 
   // ── Danh sách ──
   if (mode === 'list') {
@@ -132,19 +194,20 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
         ) : myEnr.map(e => {
           const t = enrollmentTerm(e);
           const pct = Math.round(e.sessionsDone / Math.max(1, e.sessionsTotal) * 100);
-          const live = isCurrent(e);
+          const unpaid = e.paymentStatus === 'PENDING';
+          const live = !unpaid && isCurrent(e);
           return (
             <Card key={e.id} className={`p-5 ${live && (t.warn || t.expired) ? 'border-l-4 border-amber-400' : ''}`}>
               <div className="flex flex-wrap items-center gap-2">
                 <IdChip kind="ENR" id={e.id} />
                 <span className="font-semibold text-[#0f1729]">Package {e.packageName}</span>
                 <span className="text-sm text-gray-500">· {horseName(e.horseId)}</span>
-                <Badge status={e.status === 'paused' ? 'Paused' : e.status === 'completed' ? 'Completed' : 'Active'} />
+                {unpaid ? <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Awaiting payment</span> : <Badge status={e.status === 'paused' ? 'Paused' : e.status === 'completed' ? 'Completed' : 'Active'} />}
                 {live && <TrainerStatusPill status={e.trainerStatus} />}
               </div>
               <div className="mt-2 grid gap-1 text-sm text-gray-600 sm:grid-cols-2">
-                <div>Term: <strong>{t.text}</strong></div>
-                <div>{live ? (t.expired ? <span className="font-medium text-red-600">Expired</span> : <>Remaining <strong className={t.warn ? 'text-amber-700' : ''}>{t.left}  days</strong></>) : "Ended"}</div>
+                <div>Term: <strong>{unpaid ? 'Starts after payment' : t.text}</strong></div>
+                <div>{unpaid ? 'Not paid yet' : live ? (t.expired ? <span className="font-medium text-red-600">Expired</span> : <>Remaining <strong className={t.warn ? 'text-amber-700' : ''}>{t.left}  days</strong></>) : "Ended"}</div>
                 <div>Trainer: {e.trainerName ? e.trainerName : <span className="italic text-gray-400">not assigned</span>}</div>
                 <div>Amount: {money(e.amount)}</div>
               </div>
@@ -161,7 +224,8 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
                 </div>
               )}
               <PackageRoadmapPreview packageId={e.packageId} />
-              <div className="mt-3 flex gap-2"><Btn size="sm" variant="secondary" onClick={() => setViewReceipt(e)}>View receipt</Btn></div>
+              {unpaid && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">This registration has not been paid. Continue to get a new PayOS payment link.</div>}
+              <div className="mt-3 flex gap-2">{unpaid ? <Btn size="sm" variant="gold" onClick={() => resume(e)}>Continue payment</Btn> : <Btn size="sm" variant="secondary" onClick={() => setViewReceipt(e)}>View receipt</Btn>}</div>
             </Card>
           );
         })}
@@ -237,40 +301,37 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
 
       {step === 3 && pkg && horse && (
         <Card className="space-y-4 p-6">
-          <div className="flex items-center justify-between"><h3 className="font-serif text-lg font-bold">Simulated payment</h3><span className="font-serif text-xl font-bold text-[#c9973b]">{money(pkg.price)}</span></div>
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Demo only — this QR code does not transfer money. Choose an outcome below, then confirm the simulation.</div>
-          <div className="flex flex-col items-center gap-5 rounded-xl border border-gray-200 bg-gray-50 p-5 sm:flex-row">
-            <div className="shrink-0 rounded-xl border border-gray-200 bg-white p-4">
-              {/* <QRCodeSVG
-                value={JSON.stringify({ type: 'RACEFORGE_PAYMENT_DEMO', horseId: horse.id, packageId: pkg.id, amount: pkg.price, currency: 'VND', notice: 'Demo only. No money transfer.' })}
-                size={192}
-                level="M"
-                marginSize={4}
-                title="RaceForge demo payment QR code — no money transfer"
-              /> */}
+          <div className="flex items-center justify-between"><h3 className="font-serif text-lg font-bold">Payment</h3><span className="font-serif text-xl font-bold text-[#c9973b]">{money(pkg.price)}</span></div>
+          {!checkout ? (
+            <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-800">You will receive a PayOS payment link with a QR code for this registration. The package is activated only after PayOS confirms the payment.</div>
+          ) : (
+            <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50 p-5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="inline-block rounded-full bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-800">PAYOS</span>
+                  <h4 className="mt-1 font-semibold text-[#0f1729]">{pkg.name}</h4>
+                  <p className="text-sm text-gray-600">Horse: {horse.name} | Order code: {checkout.orderCode}</p>
+                </div>
+                <a href={checkout.url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-[#c9973b] underline">Open payment page</a>
+              </div>
+              <style>{`#payos-embed iframe { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; border: 0 !important; z-index: 2000 !important; background: #fff; }`}</style>
+              <div id="payos-embed" />
+              <div className="flex flex-wrap items-center gap-3">
+                <Btn variant="gold" onClick={() => { window.open(checkout.url, '_blank', 'noopener,noreferrer'); }}>Open PayOS payment page (VietQR)</Btn>
+                {EMBED_PAYOS && <Btn size="sm" variant="secondary" onClick={() => { try { payosApi.current?.open(); } catch { /* ignore */ } }}>Show VietQR</Btn>}
+                {embedError && <span className="text-sm text-red-700">{embedError}</span>}
+              </div>
+              <p className="text-xs text-gray-500">Open the payment page, scan the VietQR code with your banking app and transfer the exact amount. Keep this page open: the status is checked automatically every few seconds and you will move to the receipt once PayOS confirms the payment.</p>
             </div>
-            <div className="min-w-0 space-y-2 text-center sm:text-left">
-              <span className="inline-block rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">QR DEMO</span>
-              <h4 className="font-semibold text-[#0f1729]">{pkg.name}</h4>
-              <p className="text-sm text-gray-600">Horse: {horse.name}</p>
-              <p className="font-serif text-2xl font-bold text-[#c9973b]">{money(pkg.price)}</p>
-              <p className="text-xs text-gray-500">Scan with a QR reader to view the demo details. Scanning does not confirm payment; use the simulation controls below.</p>
-            </div>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {([['success', "Success"], ['fail', "Failure"], ['cancel', "Cancel payment"]] as [Scenario, string][]).map(([k, l]) => (
-              <label key={k} className={`flex cursor-pointer items-center gap-2 rounded-lg border-2 px-4 py-3 text-sm font-medium ${scenario === k ? 'border-[#c9973b] bg-[#c9973b]/5' : 'border-gray-200'}`}>
-                <input type="radio" name="scenario" checked={scenario === k} disabled={paying} onChange={() => { setScenario(k); setPayMsg(null); }} />{l}
-              </label>
-            ))}
-          </div>
+          )}
           {payMsg && (
             <div className={`rounded-lg border p-3 text-sm ${payMsg.kind === 'cancel' ? 'border-gray-200 bg-gray-50 text-gray-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
               {payMsg.text}
-              <div className="mt-2 flex gap-2"><Btn size="sm" variant="gold" onClick={pay}>Retry</Btn><Btn size="sm" variant="secondary" onClick={() => { setPayMsg(null); setStep(1); suggestions.retry(); }}>Refresh suggestions</Btn></div>
+              <div className="mt-2 flex gap-2"><Btn size="sm" variant="gold" onClick={() => (checkout ? check() : pay())}>{checkout ? "Check again" : "Retry"}</Btn></div>
             </div>
           )}
-          {!payMsg && <Btn variant="gold" disabled={paying} onClick={pay}>{paying ? "Processing simulation..." : scenario === 'success' ? 'Simulate successful payment' : scenario === 'fail' ? 'Simulate failed payment' : 'Cancel demo payment'}</Btn>}
+          {!payMsg && !checkout && <Btn variant="gold" disabled={paying} onClick={pay}>{paying ? "Creating payment link..." : "Create payment link"}</Btn>}
+          {!payMsg && checkout && <Btn variant="gold" disabled={paying} onClick={() => check()}>{paying ? "Checking..." : "I have paid — check status"}</Btn>}
         </Card>
       )}
 
@@ -290,7 +351,7 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
           {step === 2 ? <Btn variant="gold" onClick={() => setConfirmOpen(true)}>Continue to payment</Btn> : <Btn variant="gold" disabled={(step === 0 && !horse) || (step === 1 && !canContinue)} onClick={next}>Continue →</Btn>}
         </div>
       )}
-      {step === 3 && !paying && !payMsg && <div><Btn variant="secondary" onClick={() => setStep(2)}>← Back</Btn></div>}
+      {step === 3 && !paying && !payMsg && <div><Btn variant="secondary" onClick={() => (resumeEnr ? leave() : setStep(2))}>← Back</Btn></div>}
 
       {confirmOpen && pkg && horse && (
         <Modal title="Confirm package registration?" onClose={() => setConfirmOpen(false)}>

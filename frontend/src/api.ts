@@ -12,8 +12,8 @@ export async function request<T = any>(path: string, method = 'GET', body?: unkn
   try {
     response = await fetch(`${base}${path}`, {
       method, credentials: 'include',
-      headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      headers: { Accept: 'application/json', ...(body === undefined || body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+      ...(body === undefined ? {} : { body: body instanceof FormData ? body : JSON.stringify(body) }),
     });
   } catch { throw new ApiError("Cannot connect to the server. Check the backend and API configuration.", 0); }
   if (response.status === 401 && retry && !path.startsWith('/auth/')) {

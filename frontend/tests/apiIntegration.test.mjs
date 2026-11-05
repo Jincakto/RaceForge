@@ -177,24 +177,36 @@ test('saves a BE draft before confirmation and returns the real record ID', asyn
   assert.equal(saved.id,'MED-099'); assert.equal(saved.status,'confirmed'); assert.equal(paths.length,3); assert.deepEqual(events,['reload']);
 });
 
-test('records payment failure on BE without claiming a successful payment', async () => {
-  const snapshot = state(); const { remote, events } = actions(snapshot); const calls=[];
+test('starts PayOS payment: registers then requests a payment link', async () => {
+  const snapshot = state(); const { remote } = actions(snapshot); const calls=[];
   globalThis.fetch = async (url, init) => {
-    calls.push([url, JSON.parse(init.body)]);
+    calls.push([url, init.method]);
     if (url.endsWith('/register')) return ok({ horsePackageId:'HP-001' });
-    return ok({ horsePackageId:'HP-001', horseId:'HOR-007', packageId:'PKG-001', paymentStatus:'FAILED', status:'CANCELLED', totalPrice:100 });
+    return ok({ orderCode:123, registrationId:'HP-001', amount:100, checkoutUrl:'https://pay.payos.vn/web/abc', paymentState:'PENDING', applied:false });
   };
-  const r = await remote.purchasePackage('HOR-007','PKG-001',undefined,false);
-  assert.equal(r.ok,true); assert.equal(r.data.paymentStatus,'FAILED'); assert.equal(r.data.status,'completed');
-  assert.deepEqual(calls[1][1],{ successful:false }); assert.equal(calls[1][0],'/api/horse-packages/HP-001/simulate-payment'); assert.equal(events[0],'reload');
+  const r = await remote.startPayment('HOR-007','PKG-001');
+  assert.equal(r.ok,true); assert.equal(r.data.url,'https://pay.payos.vn/web/abc'); assert.equal(r.data.enrollmentId,'HP-001');
+  assert.equal(calls[1][0],'/api/horse-packages/HP-001/payment-link');
 });
 
 test('resumes an unpaid registration rather than registering it again', async () => {
   const snapshot = state(); snapshot.enrollments = [{ id:'HP-001',horseId:'HOR-007',packageId:'PKG-001',paymentStatus:'PENDING' }];
   const { remote } = actions(snapshot); const calls=[];
-  globalThis.fetch = async (url) => { calls.push(url); return ok({ horsePackageId:'HP-001', horseId:'HOR-007', packageId:'PKG-001', status:'ACTIVE', paymentStatus:'PAID', startDate:'2026-10-21',endDate:'2026-11-30' }); };
-  const r = await remote.purchasePackage('HOR-007','PKG-001');
-  assert.equal(r.data.startedAt,'21/10/2026'); assert.deepEqual(calls,['/api/horse-packages/HP-001/simulate-payment']);
+  globalThis.fetch = async (url) => { calls.push(url); return ok({ orderCode:123, registrationId:'HP-001', amount:100, checkoutUrl:'https://pay.payos.vn/web/abc', paymentState:'PENDING', applied:false }); };
+  const r = await remote.startPayment('HOR-007','PKG-001');
+  assert.equal(r.ok,true); assert.deepEqual(calls,['/api/horse-packages/HP-001/payment-link']);
+});
+
+test('payment-sync reads the package back and reports PAID only from BE', async () => {
+  const snapshot = state(); const { remote } = actions(snapshot); const calls=[];
+  globalThis.fetch = async (url) => {
+    calls.push(url);
+    if (url.endsWith('/payment-sync')) return ok({ orderCode:123, registrationId:'HP-001', amount:100, paymentState:'PAID', applied:true });
+    return ok([{ horsePackageId:'HP-001', horseId:'HOR-007', packageId:'PKG-001', status:'ACTIVE', paymentStatus:'PAID', startDate:'2026-10-21', endDate:'2026-11-30' }]);
+  };
+  const r = await remote.syncPayment('HOR-007','HP-001');
+  assert.equal(r.ok,true); assert.equal(r.data.paymentStatus,'PAID'); assert.equal(r.data.startedAt,'21/10/2026');
+  assert.equal(calls[0],'/api/horse-packages/HP-001/payment-sync');
 });
 
 test('pending trainer requests remain visible without fetching restricted horse/context data', async () => {

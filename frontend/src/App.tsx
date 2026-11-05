@@ -4216,6 +4216,15 @@ function HorseCreatePage({
     evidenceFileUrl: "",
     evidenceNote: "",
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState("");
+  useEffect(() => {
+    if (!imageFile) { setImagePreview(""); return; }
+    const url = URL.createObjectURL(imageFile);
+    setImagePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
   const [raceHistory, setRaceHistory] = useState<RaceHistoryEntry[]>([]);
   const [showRaceForm, setShowRaceForm] = useState(false);
   const [newRace, setNewRace] = useState({
@@ -4282,15 +4291,14 @@ function HorseCreatePage({
         "UELN must contain 15 characters: 3 country digits and 12 letters or digits.";
     else if (state.horses.some((x) => x.microchip === form.microchip))
       e.microchip = "This identification number is already registered.";
-    if (!form.evidenceUrl.trim())
-      e.evidenceUrl = "Enter an evidence image URL.";
-    else if (!/^https?:\/\/\S+\.\S+/.test(form.evidenceUrl.trim()))
-      e.evidenceUrl = "Image URL must start with http:// or https://.";
-    if (
-      form.evidenceFileUrl.trim() &&
-      !/^https?:\/\/\S+/.test(form.evidenceFileUrl.trim())
-    )
-      e.evidenceFileUrl = "File URL must begin with http:// or https://.";
+    if (!imageFile) e.evidenceUrl = "Choose an evidence image (JPG, PNG or WebP, up to 5 MB).";
+    else if (!["image/jpeg", "image/png", "image/webp"].includes(imageFile.type))
+      e.evidenceUrl = "The image must be JPG, PNG or WebP.";
+    else if (imageFile.size > 5 * 1024 * 1024) e.evidenceUrl = "The image cannot exceed 5 MB.";
+    if (!documentFile) e.evidenceFileUrl = "Choose an evidence document (PDF or TXT, up to 10 MB).";
+    else if (!["application/pdf", "text/plain"].includes(documentFile.type))
+      e.evidenceFileUrl = "The document must be a PDF or TXT file.";
+    else if (documentFile.size > 10 * 1024 * 1024) e.evidenceFileUrl = "The document cannot exceed 10 MB.";
     if (form.evidenceNote.length > 300)
       e.evidenceNote = "Notes cannot exceed 300 characters.";
     if (!form.birthDate) e.birthDate = "Select a date of birth.";
@@ -4347,20 +4355,22 @@ function HorseCreatePage({
         wins: raceHistory.filter((r) => r.position === 1).length,
         vetClearance: false,
         biography: "",
-        imageUrl: form.evidenceUrl.trim(),
+        imageUrl: "",
         achievements: [],
         raceHistory,
         lifecycle: "pending",
         identityVerified: false,
         identityEvidence: {
-          url: form.evidenceUrl.trim(),
-          fileUrl: form.evidenceFileUrl.trim(),
+          url: "",
+          fileUrl: "",
           note: form.evidenceNote.trim(),
+          imageFile: imageFile!,
+          documentFile: documentFile!,
         },
         medicalHistory: "",
       });
     } catch (err) {
-      setErrors({ name: (err as Error).message });
+      setErrors({ submit: (err as Error).message });
     }
   };
 
@@ -4419,36 +4429,36 @@ function HorseCreatePage({
             error={errors.microchip}
           />
           <div className="col-span-2">
-            <Input
-              label="Evidence image URL"
-              value={form.evidenceUrl}
-              onChange={set("evidenceUrl")}
-              placeholder="https://..."
-              error={errors.evidenceUrl}
+            <label className="block text-sm font-medium text-gray-700">
+              Evidence image <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(ev) => setImageFile(ev.target.files?.[0] ?? null)}
+              className="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-[#c9973b] file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
             />
+            <p className="mt-1 text-xs text-gray-500">JPG, PNG or WebP, up to 5 MB.</p>
+            {errors.evidenceUrl && <p className="mt-1 text-xs text-red-600">{errors.evidenceUrl}</p>}
           </div>
           <div className="col-span-2">
-            <Input
-              label="Evidence file URL"
-              value={form.evidenceFileUrl}
-              onChange={set("evidenceFileUrl")}
-              placeholder="https://..."
-              error={errors.evidenceFileUrl}
+            <label className="block text-sm font-medium text-gray-700">
+              Evidence document <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="file"
+              accept="application/pdf,text/plain"
+              onChange={(ev) => setDocumentFile(ev.target.files?.[0] ?? null)}
+              className="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-[#c9973b] file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
             />
+            <p className="mt-1 text-xs text-gray-500">PDF or TXT, up to 10 MB.</p>
+            {errors.evidenceFileUrl && <p className="mt-1 text-xs text-red-600">{errors.evidenceFileUrl}</p>}
           </div>
-          {form.evidenceUrl.trim() &&
-            /^https?:\/\//.test(form.evidenceUrl.trim()) && (
-              <div className="col-span-2">
-                <img
-                  src={form.evidenceUrl.trim()}
-                  alt="Preview evidence"
-                  className="h-32 rounded-lg border border-gray-200 object-cover bg-gray-50"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                />
-              </div>
-            )}
+          {imagePreview && (
+            <div className="col-span-2">
+              <img src={imagePreview} alt="Preview evidence" className="h-32 rounded-lg border border-gray-200 object-cover bg-gray-50" />
+            </div>
+          )}
           <div className="col-span-2">
             
           </div>
@@ -4515,7 +4525,12 @@ function HorseCreatePage({
             error={errors.height}
           />
         </div>
-        {Object.values(errors).some(Boolean) && (
+        {errors.submit && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {errors.submit}
+          </div>
+        )}
+        {Object.entries(errors).some(([k, v]) => k !== "submit" && Boolean(v)) && (
           <p className="text-red-600 text-sm">
             Correct the fields highlighted in red.
           </p>
@@ -8828,7 +8843,8 @@ export default function App() {
           <TrainingRegisterPage
             state={state}
             navigate={navigate as (p: string) => void}
-            onPurchase={remote.purchasePackage}
+            onStartPayment={remote.startPayment}
+            onSyncPayment={remote.syncPayment}
           />
         );
       case "vet-assign":

@@ -57,6 +57,19 @@ export function horsePayload(h: Horse) {
     sire: h.sire || null, dam: h.dam || null, height: h.height || null, declaredMedicalHistory: h.medicalHistory || '',
     imageUrl: h.identityEvidence?.url || h.imageUrl, registrationNumber: h.microchip?.trim(), documentType: h.documentType || 'UELN', documentUrl: h.identityEvidence?.fileUrl || h.identityEvidence?.url || '' };
 }
+/** BE POST /horses is multipart: JSON part "horse" plus binary "image" and "document". */
+export function horseCreateForm(h: Horse): FormData {
+  const image = h.identityEvidence?.imageFile, document = h.identityEvidence?.documentFile;
+  if (!image || !document) throw new Error("Choose an evidence image and an evidence document before registering.");
+  const p = horsePayload(h);
+  // The files are the source of truth; BE replaces these placeholders with its stored file URLs.
+  const horse = { ...p, imageUrl: image.name, documentUrl: document.name };
+  const form = new FormData();
+  form.append('horse', new Blob([JSON.stringify(horse)], { type: 'application/json' }));
+  form.append('image', image, image.name);
+  form.append('document', document, document.name);
+  return form;
+}
 export function recordFromApi(w: Wire, horseId: string, users: AppUser[]): HealthRecord {
   const conclusion = ({ FIT: 'eligible', FIT_WITH_MONITORING: 'conditional', NOT_FIT: 'not-eligible' } as const)[w.finalConclusion as 'FIT'];
   const v = w.vitalSign || {};

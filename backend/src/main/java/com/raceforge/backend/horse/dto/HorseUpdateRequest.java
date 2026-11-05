@@ -54,7 +54,7 @@ public class HorseUpdateRequest {
              message = "UELN must have 15 alphanumeric characters (3 country digits, 3 issuer characters, 9 horse characters)")
     private String registrationNumber;
 
-    @NotBlank(message = "Document type is required")
+    // Optional legacy field. The HorseMapper intentionally stores NULL.
     @Size(max = 50, message = "Document type must not exceed 50 characters")
     private String documentType;
 

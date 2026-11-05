@@ -137,10 +137,9 @@ public class HorseAdmissionService {
     private void requireRegistrationDocuments(Horse horse) {
         if (isBlank(horse.getImageUrl())
                 || isBlank(horse.getRegistrationNumber())
-                || isBlank(horse.getDocumentType())
                 || isBlank(horse.getDocumentUrl())) {
             throw new BusinessRuleException(
-                    "Horse image, registration number, document type and document URL are required"
+                    "Horse image, registration number and document URL are required"
             );
         }
         // Existing horses, including records created before UELN validation, must also

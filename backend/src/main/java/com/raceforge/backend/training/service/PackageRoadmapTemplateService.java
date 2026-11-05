@@ -11,6 +11,14 @@ import java.time.*;
 import java.util.*;
 @Service @Transactional
 public class PackageRoadmapTemplateService {
+ @org.springframework.beans.factory.annotation.Autowired private TrainingPackageRepository packages;
+ public record Inspection(PackageRoadmapDto roadmap,String reason) {
+  public boolean configured(){return reason==null;}
+ }
+ public static class ConfigurationException extends BusinessRuleException {
+  public final String code;
+  public ConfigurationException(String code,String message){super(message);this.code=code;}
+ }
  private final PackageRoadmapTemplateRepository roadmaps; private final PackageStageTemplateRepository stages; private final ObjectMapper json;
  public PackageRoadmapTemplateService(PackageRoadmapTemplateRepository roadmaps,PackageStageTemplateRepository stages,ObjectMapper json){this.roadmaps=roadmaps;this.stages=stages;this.json=json;}
  @Transactional(readOnly=true,noRollbackFor=BusinessRuleException.class) public void validate(PackageRoadmapDto dto,int days){
@@ -24,13 +32,23 @@ public class PackageRoadmapTemplateService {
   int order=0;for(var s:dto.stages().stream().sorted(Comparator.comparingInt(Stage::startDay)).toList()){var row=new PackageStageTemplate();row.id=UUID.randomUUID().toString();row.roadmapId=r.id;row.stageOrder=++order;row.startDay=s.startDay();row.endDay=s.endDay();row.phaseCode=s.phaseCode();row.title=s.title();row.objective=s.objective();row.activityName=s.activityName();row.intensity=s.intensity();row.weekdaysJson=json.writeValueAsString(s.daysOfWeek());row.sessionTime=s.sessionTime();row.sessionEndTime=s.sessionEndTime();stages.save(row);}stages.flush();return read(packageId);
  }
  @Transactional(readOnly=true,noRollbackFor=BusinessRuleException.class) public PackageRoadmapDto read(String packageId){
-  var r=roadmaps.findByPackageId(packageId).orElseThrow(()->new BusinessRuleException("Package roadmap is not configured. Ask the manager to configure this package."));
-  var rows=stages.findByRoadmapIdOrderByStageOrderAsc(r.id);if(rows.isEmpty())throw new BusinessRuleException("Package roadmap has no stages");
+  var r=roadmaps.findByPackageId(packageId).orElseThrow(()->new ConfigurationException("ROADMAP_MISSING","Package roadmap is not configured. Ask the manager to configure this package."));
+  var rows=stages.findByRoadmapIdOrderByStageOrderAsc(r.id);if(rows.isEmpty())throw new ConfigurationException("STAGES_MISSING","Package roadmap has no stages");
   var result=rows.stream().map(s->new Stage(s.startDay,s.endDay,s.activityName,s.intensity,readWeekdays(s.weekdaysJson),s.sessionTime,s.sessionEndTime,s.title,s.objective,s.phaseCode)).toList();
-  return new PackageRoadmapDto(r.title,r.goal,r.revision,result);
+  var dto=new PackageRoadmapDto(r.title,r.goal,r.revision,result);
+  // Production reads validate against the owning package, never another package of the same type.
+  var owner=packages.findById(packageId).orElseThrow(()->new com.raceforge.backend.common.exception.ResourceNotFoundException("Training package not found"));
+  try{validate(dto,owner.getDurationDays());}
+  catch(BusinessRuleException invalid){throw new ConfigurationException("ROADMAP_INVALID",invalid.getMessage());}
+  return dto;
+ }
+ @Transactional(readOnly=true,noRollbackFor=BusinessRuleException.class)
+ public Inspection inspect(String packageId){
+  try{return new Inspection(read(packageId),null);}
+  catch(ConfigurationException invalid){return new Inspection(null,invalid.code);}
  }
  private Set<DayOfWeek> readWeekdays(String value){
   try{return new HashSet<>(Arrays.asList(json.readValue(value,DayOfWeek[].class)));}
-  catch(RuntimeException invalidJson){throw new BusinessRuleException("Package roadmap has invalid weekday configuration");}
+  catch(RuntimeException invalidJson){throw new ConfigurationException("ROADMAP_INVALID","Package roadmap has invalid weekday configuration");}
  }
 }

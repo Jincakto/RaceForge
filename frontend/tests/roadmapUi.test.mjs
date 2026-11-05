@@ -62,8 +62,8 @@ test('create-package form opens with duration unselected and clear workflow sect
 
 test('saved plan exposes stage editing only before sessions exist and while unlocked',()=>{
  const trainer={id:'HTR-001',role:'head_trainer',clubId:'club'};const horseForTrainer={...horse,headTrainerId:trainer.id,trainerIds:[trainer.id]};
- const plan={id:'PLN-001',horseId:horse.id,phase:'Saved plan',status:'Active',startDate:'01/01/2099',endDate:'31/12/2099',goals:'Practice cues',progress:0};
- const view=(trainingSessions=[],locked=false)=>render(h(TrainingHubPage,{state:{...state,user:trainer,horses:[horseForTrainer],trainingPlans:[{...plan,locked}],trainingSessions},navigate:()=>{}}));
+ const plan={id:'PLN-001',horseId:horse.id,horsePackageId:enrollment.id,phase:'Saved plan',status:'Active',startDate:'01/01/2099',endDate:'31/12/2099',goals:'Practice cues',progress:0};
+ const view=(trainingSessions=[],locked=false)=>render(h(TrainingHubPage,{state:{...state,user:trainer,horses:[horseForTrainer],enrollments:[{...enrollment,trainerId:trainer.id,trainerStatus:'confirmed',paymentStatus:'PAID'}],trainingPlans:[{...plan,locked}],trainingSessions},navigate:()=>{}}));
  assert.ok(view().includes('Edit stages'));assert.ok(!view([{id:'SES-001',planId:plan.id,horseId:horse.id,status:'Scheduled',date:'01/01/2099'}]).includes('Edit stages'));assert.ok(!view([],true).includes('Edit stages'));
 });
 

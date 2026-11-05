@@ -11,7 +11,7 @@ import {
   restoreSessionForLocation,
 } from "./passwordSetup";
 import { auth, request, ApiError, allPages } from "./api";
-import { loadRemote, userFromApi, CENTER, admittedClubHorses } from "./remote";
+import { loadRemote, userFromApi, CENTER, admittedClubHorses, RemoteSourceStore, type RemoteIssue } from "./remote";
 import { makeRemoteActions } from "./remoteActions";
 import { VetHealthFormPage, nextMedId, REGION_DEFS } from "./vetForm";
 import { HealthRecordsPage } from "./healthRecords";
@@ -8369,14 +8369,18 @@ export default function App() {
   );
 
   const loadVersion = useRef(0);
+  const remoteSources=useRef(new RemoteSourceStore());
+  const [remoteIssues,setRemoteIssues]=useState<RemoteIssue[]>([]);
   const verifiedHorses = useRef(new Set<string>());
-  const reloadRemote = useCallback(async () => {
+  const reloadRemote = useCallback(async (onlySource?: string) => {
     const user = stateRef.current.user;
     if (!user) return;
     const version = ++loadVersion.current;
     let data: Awaited<ReturnType<typeof loadRemote>>;
     try {
-      data = await loadRemote(user, showError);
+      data = await loadRemote(user, message=>{
+        if(version===loadVersion.current && stateRef.current.user?.id===user.id)showError(message);
+      },remoteSources.current,onlySource);
     } catch (e) {
       if (
         version === loadVersion.current &&
@@ -8390,6 +8394,7 @@ export default function App() {
       stateRef.current.user?.id !== user.id
     )
       return;
+    setRemoteIssues(data.trainingLoadIssues || []);
     if (data.serverPermissions) {
       const rolePerms: Record<string, string[]> = {};
       for (const [role, pages] of Object.entries(DEFAULT_ROLE_PERMS)) {
@@ -8417,11 +8422,17 @@ export default function App() {
     }));
   }, [showError]);
   useEffect(() => {
+    remoteSources.current.clear();
+    setRemoteIssues([]);
+    loadVersion.current++;
+    setState(s=>({...s,enrollments:[],trainingPlans:[],trainingSessions:[]}));
     if (state.user?.id) void reloadRemote();
-  }, [state.user?.id, state.page, reloadRemote]);
+  }, [state.user?.id, reloadRemote]);
+  useEffect(()=>{if(stateRef.current.user)void reloadRemote();},[state.page,reloadRemote]);
   useEffect(() => {
     let active = true;
     const expired = () => {
+      remoteSources.current.clear(); setRemoteIssues([]);
       loadVersion.current++;
       setState((s) => ({
         ...s,
@@ -8442,7 +8453,8 @@ export default function App() {
       (w) => {
         if (active) {
           const user = userFromApi(w);
-          setState((s) => ({ ...s, user, page: "dashboard" }));
+          remoteSources.current.clear(); loadVersion.current++; setRemoteIssues([]);
+    setState((s) => ({ ...s, user, page: "dashboard", horses:[],healthRecords:[],enrollments:[],trainingPlans:[],trainingSessions:[] }));
         }
       },
     ).catch((e) => {
@@ -8466,18 +8478,21 @@ export default function App() {
   };
 
   const handleLogin = useCallback((user: AppUser) => {
-    setState((s) => ({ ...s, user, page: "dashboard" }));
+    remoteSources.current.clear(); loadVersion.current++; setRemoteIssues([]);
+    setState((s) => ({ ...s, user, page: "dashboard", horses:[],healthRecords:[],enrollments:[],trainingPlans:[],trainingSessions:[] }));
   }, []);
 
   const handleRegister = useCallback(
     (user: AppUser) => {
-      setState((s) => ({ ...s, user, page: "dashboard" }));
+      remoteSources.current.clear(); loadVersion.current++; setRemoteIssues([]);
+    setState((s) => ({ ...s, user, page: "dashboard", horses:[],healthRecords:[],enrollments:[],trainingPlans:[],trainingSessions:[] }));
       showSuccess("Email verified and horse owner account signed in.");
     },
     [showSuccess],
   );
 
   const handleLogout = useCallback(() => {
+    remoteSources.current.clear(); setRemoteIssues([]);
     loadVersion.current++;
     verifiedHorses.current.clear();
     clearRecommendations();
@@ -8973,6 +8988,13 @@ export default function App() {
         navigate={navigate}
         state={state}
       >
+        {remoteIssues.length>0 && <section aria-label="Data loading issues" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <details><summary className="cursor-pointer font-semibold">{remoteIssues.length} data sources need attention</summary>
+          <ul className="mt-3 space-y-3">{remoteIssues.map(issue=><li key={issue.key} className="flex flex-wrap items-start justify-between gap-2">
+            <div><strong>{issue.key}</strong><p>{issue.message}</p><p className="text-xs">{issue.status===403?'Access was revoked. Restricted data has been removed.':issue.stale?'Showing previously loaded data; refresh failed.':'Data has not loaded successfully.'}</p></div>
+            <button className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-medium" onClick={()=>void reloadRemote(issue.key)}>Retry</button>
+          </li>)}</ul></details>
+        </section>}
         {renderPage()}
       </AppLayout>
     </>

@@ -17,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 /** Reads N's existing medical model; never changes veterinary records or decisions. */
 @Service
-@Transactional(readOnly=true)
+@Transactional(readOnly=true,noRollbackFor=com.raceforge.backend.common.exception.BusinessRuleException.class)
 public class TrainingMedicalReader {
  private final MedicalRecordRepository records;
  private final MedicalVitalSignRepository vitalSigns;

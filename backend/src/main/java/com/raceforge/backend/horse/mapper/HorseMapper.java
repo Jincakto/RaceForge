@@ -1,5 +1,6 @@
 package com.raceforge.backend.horse.mapper;
 
+import com.raceforge.backend.storage.StorageService;
 import com.raceforge.backend.horse.dto.HorseCreateRequest;
 import com.raceforge.backend.horse.dto.HorseResponse;
 import com.raceforge.backend.horse.dto.HorseUpdateRequest;
@@ -9,6 +10,9 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class HorseMapper {
+    @org.springframework.beans.factory.annotation.Autowired
+    private StorageService storage;
+
 
     public Horse toEntity(HorseCreateRequest request) {
         Horse horse = new Horse();
@@ -46,10 +50,10 @@ public class HorseMapper {
         response.setDam(horse.getDam());
         response.setHeight(horse.getHeight());
         response.setDeclaredMedicalHistory(horse.getDeclaredMedicalHistory());
-        response.setImageUrl(horse.getImageUrl());
+        response.setImageUrl(StorageService.managed(horse.getImageUrl()) ? storage.readUrl(StorageService.IMAGES, horse.getImageUrl()) : horse.getImageUrl());
         response.setRegistrationNumber(horse.getRegistrationNumber());
         response.setDocumentType(horse.getDocumentType());
-        response.setDocumentUrl(horse.getDocumentUrl());
+        response.setDocumentUrl(StorageService.managed(horse.getDocumentUrl()) ? storage.readUrl(StorageService.DOCUMENTS, horse.getDocumentUrl()) : horse.getDocumentUrl());
         response.setHealthStatus(horse.getHealthStatus());
         response.setTrainingLocked(horse.getTrainingLocked());
         response.setStatus(horse.getStatus());
@@ -68,10 +72,8 @@ public class HorseMapper {
         horse.setDam(request.getDam());
         horse.setHeight(request.getHeight());
         horse.setDeclaredMedicalHistory(request.getDeclaredMedicalHistory());
-        horse.setImageUrl(request.getImageUrl());
         if (request.getRegistrationNumber() != null) {
             horse.setRegistrationNumber(request.getRegistrationNumber());
         }
-        horse.setDocumentUrl(request.getDocumentUrl());
     }
 }

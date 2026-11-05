@@ -35,6 +35,8 @@ import java.util.List;
 @RequestMapping("/api")
 public class TrainerController {
     private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.raceforge.backend.storage.StorageService storage;
     private final UserRepository users;
     private final HorseRepository horses;
     private final TrainerRepository trainers;
@@ -282,6 +284,6 @@ public class TrainerController {
     }
 
     private TrainerSummary summary(User user) {
-        return new TrainerSummary(user.getUserId(), user.getFullName(), user.getAvatarUrl());
+        return new TrainerSummary(user.getUserId(), user.getFullName(), storage.readUrl(com.raceforge.backend.storage.StorageService.IMAGES, user.getAvatarUrl()));
     }
 }

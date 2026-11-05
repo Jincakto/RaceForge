@@ -57,8 +57,9 @@ public class HorseCreateRequest {
              message = "UELN must have 15 alphanumeric characters (3 country digits, 3 issuer characters, 9 horse characters)")
     private String registrationNumber;
 
-    // Optional legacy field. The HorseMapper intentionally stores NULL.
-    
+    @NotBlank(message = "Document URL is required")
+    @Size(max = 500, message = "Document URL must not exceed 500 characters")
+    private String documentUrl;
 
 
     public String getHorseName() {
@@ -146,14 +147,6 @@ public class HorseCreateRequest {
 
     public void setRegistrationNumber(String registrationNumber) {
         this.registrationNumber = registrationNumber;
-    }
-
-    public String getDocumentType() {
-        return documentType;
-    }
-
-    public void setDocumentType(String documentType) {
-        this.documentType = documentType;
     }
 
     public String getDocumentUrl() {

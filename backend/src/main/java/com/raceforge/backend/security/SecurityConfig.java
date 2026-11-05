@@ -58,6 +58,8 @@ public class SecurityConfig {
                                 "/swagger-ui.html", "/swagger-ui/**",
                                 "/v3/api-docs", "/v3/api-docs/**", "/v3/api-docs.yaml"
                         ).permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/payments/payos/webhook").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/payments/payos/return", "/api/payments/payos/cancel").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/health", "/actuator/health").permitAll()
                         .requestMatchers(HttpMethod.POST,

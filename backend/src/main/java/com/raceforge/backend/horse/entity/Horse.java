@@ -9,6 +9,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 @Entity
+@org.hibernate.annotations.DynamicUpdate
 @Table(name = "Horse")
 public class Horse {
 

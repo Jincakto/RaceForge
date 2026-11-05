@@ -45,8 +45,6 @@ public class HorseUpdateRequest {
     @Size(max = 1000)
     private String declaredMedicalHistory;
 
-    @NotBlank(message = "Image URL is required")
-    @Size(max = 500)
     private String imageUrl;
 
     // Optional for PUT: when omitted, the horse retains its existing UELN.
@@ -54,8 +52,7 @@ public class HorseUpdateRequest {
              message = "UELN must have 15 alphanumeric characters (3 country digits, 3 issuer characters, 9 horse characters)")
     private String registrationNumber;
 
-    // Optional legacy field. The HorseMapper intentionally stores NULL.
-   
+    private String documentUrl;
 
     public String getHorseName() {
         return horseName;
@@ -142,14 +139,6 @@ public class HorseUpdateRequest {
 
     public void setRegistrationNumber(String registrationNumber) {
         this.registrationNumber = registrationNumber;
-    }
-
-    public String getDocumentType() {
-        return documentType;
-    }
-
-    public void setDocumentType(String documentType) {
-        this.documentType = documentType;
     }
 
     public String getDocumentUrl() {

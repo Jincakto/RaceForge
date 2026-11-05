@@ -1,5 +1,6 @@
 package com.raceforge.backend.account.mapper;
 
+import com.raceforge.backend.storage.StorageService;
 import com.raceforge.backend.account.dto.AuthDtos.PageResponse;
 import com.raceforge.backend.account.dto.AuthDtos.RoleResponse;
 import com.raceforge.backend.account.dto.AuthDtos.UserResponse;
@@ -10,6 +11,9 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class AccountMapper {
+    @org.springframework.beans.factory.annotation.Autowired
+    private StorageService storage;
+
 
     public UserResponse toUserResponse(User user) {
         return new UserResponse(
@@ -19,7 +23,7 @@ public class AccountMapper {
                 user.getPhone(),
                 user.getStatus(),
                 user.isEmailVerified(),
-                user.getAvatarUrl(),
+                StorageService.managed(user.getAvatarUrl()) ? storage.readUrl(StorageService.IMAGES, user.getAvatarUrl()) : user.getAvatarUrl(),
                 toRoleResponse(user.getRole())
         );
     }

@@ -104,7 +104,7 @@ class HorsePackageAdmissionTest {
         registration.setStatus("PENDING");registration.setPaymentStatus("PENDING");
         when(registrations.findById("HPG-001")).thenReturn(Optional.of(registration));
         when(registrations.saveAndFlush(any())).thenAnswer(i->i.getArgument(0));
-        service.simulatePayment("HPG-001",true,"7");
+        service.applyPayment("HPG-001",true,"7");
         verify(guard,times(type.equals("RACING")?1:0)).requireRacingEligible(horse);
         assertEquals("ACTIVE",registration.getStatus());assertEquals("PAID",registration.getPaymentStatus());
     }
@@ -119,7 +119,7 @@ class HorsePackageAdmissionTest {
         registration.setStatus("PENDING");registration.setPaymentStatus("PENDING");
         when(registrations.findById("HPG-001")).thenReturn(Optional.of(registration));
         doThrow(new BusinessRuleException("RACING requires FIT")).when(guard).requireRacingEligible(horse);
-        assertThrows(BusinessRuleException.class,()->service.simulatePayment("HPG-001",true,"7"));
+        assertThrows(BusinessRuleException.class,()->service.applyPayment("HPG-001",true,"7"));
         assertEquals("PENDING",registration.getStatus());assertEquals("PENDING",registration.getPaymentStatus());
         verify(registrations,never()).saveAndFlush(any());verifyNoInteractions(events);
     }

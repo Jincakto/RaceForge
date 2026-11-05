@@ -181,12 +181,14 @@ class TrainingCalendarFixDatabaseTest {
                     int port=((WebServerApplicationContext)app).getWebServer().getPort();
                     String owner=login(port,"owner901@example.invalid");
                     sql(c,"UPDATE dbo.Medical_Record SET final_conclusion='FIT_WITH_MONITORING',monitoring_note=N'Synthetic monitoring' WHERE medical_record_id IN ('MED-901','MED-904'); DELETE dbo.Medical_Clinical_Exam WHERE clinical_exam_id='CLN-902';");
-                    http(port,owner,"POST","/api/horse-packages/HPG-901/simulate-payment",Map.of("successful",true),409);
-                    http(port,owner,"POST","/api/horse-packages/HPG-902/simulate-payment",Map.of("successful",true),409);
+                    http(port,owner,"POST","/api/horse-packages/HPG-901/simulate-payment",Map.of("successful",true),404);
+                    var payments = app.getBean(HorsePackageService.class);
+                    assertThrows(BusinessRuleException.class, () -> payments.applyPayment("HPG-901",true,"OWN-901"));
+                    assertThrows(BusinessRuleException.class, () -> payments.applyPayment("HPG-902",true,"OWN-901"));
                     assertEquals("PENDING",value(c,"SELECT status FROM dbo.HORSE_PACKAGE WHERE horse_package_id='HPG-901'"));
                     assertEquals("PENDING",value(c,"SELECT payment_status FROM dbo.HORSE_PACKAGE WHERE horse_package_id='HPG-902'"));
-                    http(port,owner,"POST","/api/horse-packages/HPG-903/simulate-payment",Map.of("successful",true),200);
-                    http(port,owner,"POST","/api/horse-packages/HPG-904/simulate-payment",Map.of("successful",true),200);
+                    payments.applyPayment("HPG-903",true,"OWN-901");
+                    payments.applyPayment("HPG-904",true,"OWN-901");
                     var sessions=app.getBean(TrainingSessionService.class);var roadmaps=app.getBean(TrainingRoadmapService.class);
                     var plans=app.getBean(TrainingPlanService.class);var assignments=app.getBean(TrainerAssignmentService.class);
                     var coordinator=app.getBean(TrainingScheduleCoordinator.class);

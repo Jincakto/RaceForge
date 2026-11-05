@@ -86,13 +86,13 @@ public class HorsePackageService {
                         : "Normal training package registration pending payment");
         packageEventService.notifyOwner(ownerId, horse.getHorseId(),
                 recovery ? "RECOVERY_OWNER_REGISTERED" : "NORMAL_PACKAGE_REGISTERED",
-                recovery ? "Your Recovery package is awaiting simulated payment."
+                recovery ? "Your Recovery package is awaiting payment."
                         : "Training package registration is awaiting payment.");
         return mapper.toResponse(saved);
     }
 
     @Transactional
-    public HorsePackageResponse simulatePayment(String registrationId, boolean successful, String ownerId) {
+    public HorsePackageResponse applyPayment(String registrationId, boolean successful, String ownerId) {
         requireOwnerId(ownerId);
 
         HorsePackage registration = horsePackageRepository.findById(registrationId)
@@ -105,7 +105,7 @@ public class HorsePackageService {
         requireApprovedAdmission(horse);
         expirationService.expireForLockedHorse(horse, LocalDate.now());
         if ("RECOVERY".equalsIgnoreCase(registration.getTrainingPackage().getPackageType())) {
-            throw new BusinessRuleException("Use /simulate-recovery-payment for Owner-paid Recovery; center-funded Recovery needs no payment");
+            throw new BusinessRuleException("Recovery registrations use the Recovery payment workflow");
         }
 
         if (!"PENDING".equals(registration.getStatus()) || !"PENDING".equals(registration.getPaymentStatus())) {
@@ -116,7 +116,7 @@ public class HorsePackageService {
             registration.setStatus("CANCELLED");
             HorsePackage failed = horsePackageRepository.saveAndFlush(registration);
             packageEventService.record(ownerId, horse.getHorseId(), failed.getHorsePackageId(),
-                    "NORMAL_PACKAGE_PAYMENT_FAILED", "Simulated payment failed");
+                    "NORMAL_PACKAGE_PAYMENT_FAILED", "Payment cancelled or expired");
             packageEventService.notifyOwner(ownerId, horse.getHorseId(),
                     "NORMAL_PACKAGE_PAYMENT_FAILED", "Training package payment failed.");
             return mapper.toResponse(failed);
@@ -147,7 +147,7 @@ public class HorsePackageService {
         registration.setRemainingDays(days);
         HorsePackage saved = horsePackageRepository.saveAndFlush(registration);
         packageEventService.record(ownerId, horse.getHorseId(), saved.getHorsePackageId(),
-                "NORMAL_PACKAGE_ACTIVATED", "Simulated payment successful");
+                "NORMAL_PACKAGE_ACTIVATED", "Verified payOS payment");
         packageEventService.notifyOwner(ownerId, horse.getHorseId(),
                 "NORMAL_PACKAGE_ACTIVATED", "Training package payment successful; package is active.");
         return mapper.toResponse(saved);

@@ -11,6 +11,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
+@org.hibernate.annotations.DynamicUpdate
 @Table(name = "[User]")
 public class User extends com.raceforge.backend.common.id.AssignedBusinessEntity {
 

@@ -23,7 +23,6 @@ public class HorseMapper {
         horse.setDeclaredMedicalHistory(request.getDeclaredMedicalHistory());
         horse.setImageUrl(request.getImageUrl());
         horse.setRegistrationNumber(request.getRegistrationNumber());
-        horse.setDocumentType(null); // Document type is no longer collected by the business flow.
         horse.setDocumentUrl(request.getDocumentUrl());
         return horse;
     }
@@ -73,7 +72,6 @@ public class HorseMapper {
         if (request.getRegistrationNumber() != null) {
             horse.setRegistrationNumber(request.getRegistrationNumber());
         }
-        horse.setDocumentType(null); // Document type is no longer collected by the business flow.
         horse.setDocumentUrl(request.getDocumentUrl());
     }
 }

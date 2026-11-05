@@ -1,7 +1,7 @@
 import { usePackageSuggestions, sortSuggestions, suggestionReason } from './trainingSuggestions';
 import { PackageRoadmapPreview } from './roadmapView';
 import { useEffect, useRef, useState } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+// import { QRCodeSVG } from 'qrcode.react';
 import type { AppUser, Horse, Enrollment, TrainingPackage, Res, HealthRecord } from './data';
 import { Badge, Btn, Card } from './ui';
 import { IdChip, Modal } from './admin';
@@ -241,13 +241,13 @@ export function TrainingRegisterPage({ state, navigate, onPurchase }: Props) {
           <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">Demo only — this QR code does not transfer money. Choose an outcome below, then confirm the simulation.</div>
           <div className="flex flex-col items-center gap-5 rounded-xl border border-gray-200 bg-gray-50 p-5 sm:flex-row">
             <div className="shrink-0 rounded-xl border border-gray-200 bg-white p-4">
-              <QRCodeSVG
+              {/* <QRCodeSVG
                 value={JSON.stringify({ type: 'RACEFORGE_PAYMENT_DEMO', horseId: horse.id, packageId: pkg.id, amount: pkg.price, currency: 'VND', notice: 'Demo only. No money transfer.' })}
                 size={192}
                 level="M"
                 marginSize={4}
                 title="RaceForge demo payment QR code — no money transfer"
-              />
+              /> */}
             </div>
             <div className="min-w-0 space-y-2 text-center sm:text-left">
               <span className="inline-block rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">QR DEMO</span>

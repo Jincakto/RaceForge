@@ -55,12 +55,7 @@ public class HorseUpdateRequest {
     private String registrationNumber;
 
     // Optional legacy field. The HorseMapper intentionally stores NULL.
-    @Size(max = 50, message = "Document type must not exceed 50 characters")
-    private String documentType;
-
-    @NotBlank(message = "Document URL is required")
-    @Size(max = 500, message = "Document URL must not exceed 500 characters")
-    private String documentUrl;
+   
 
     public String getHorseName() {
         return horseName;

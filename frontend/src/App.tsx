@@ -3289,13 +3289,7 @@ function HorseDetailPage({
                       setEditForm((f) => ({ ...f, evidenceFileUrl: v }))
                     }
                   />
-                  <Input
-                    label="Document Type"
-                    value={editForm.evidenceNote}
-                    onChange={(v) =>
-                      setEditForm((f) => ({ ...f, evidenceNote: v }))
-                    }
-                  />
+                  
                 </div>
               ) : (
                 <>
@@ -4456,13 +4450,7 @@ function HorseCreatePage({
               </div>
             )}
           <div className="col-span-2">
-            <Input
-              label="Document Type"
-              value={form.evidenceNote}
-              onChange={set("evidenceNote")}
-              placeholder="Example: Identification certificate"
-              error={errors.evidenceNote}
-            />
+            
           </div>
         </div>
       </Card>

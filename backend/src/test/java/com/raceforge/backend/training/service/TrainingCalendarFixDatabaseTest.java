@@ -151,6 +151,56 @@ class TrainingCalendarFixDatabaseTest {
         assertEquals(1,count(c,"SELECT COUNT(*) FROM dbo.Training_Stage WHERE plan_id='"+ids.get(916)+"'"));
         setClock(initial,sessions,coordinator,schedule);
     }
+    static void verifyReadScopes(Connection c,int port,String completed,String replacement,String secondPlan)throws Exception{
+        String oldToken=login(port,"trainer901@example.invalid"),newToken=login(port,"trainer902@example.invalid");
+        String oldProfile=value(c,"SELECT trainer_id FROM dbo.Trainer WHERE user_id='HTR-901'");
+        String newProfile=value(c,"SELECT trainer_id FROM dbo.Trainer WHERE user_id='HTR-902'");
+        http(port,oldToken,"GET","/api/trainer-profiles/"+newProfile+"/sessions",null,403);
+        var history=http(port,oldToken,"GET","/api/trainer-profiles/"+oldProfile+"/sessions",null,200);
+        assertTrue(history.toString().contains(completed));
+        http(port,oldToken,"GET","/api/training-sessions/"+completed+"/feedback",null,200);
+        http(port,oldToken,"PATCH","/api/training-sessions/"+completed+"/start",null,403);
+        var old=http(port,oldToken,"GET","/api/training-sessions/horse/HOR-903",null,200);
+        assertEquals(1,old.size());assertEquals(completed,old.get(0).path("sessionId").asText());
+        for(String status:List.of("PAUSED","COMPLETED")){
+            sql(c,"UPDATE dbo.HORSE_PACKAGE SET status='"+status+"' WHERE horse_package_id='HPG-903'");
+            assertTrue(http(port,newToken,"GET","/api/training-sessions/horse/HOR-903",null,200).size()>1);
+        }
+        sql(c,"UPDATE dbo.HORSE_PACKAGE SET status='ACTIVE' WHERE horse_package_id='HPG-903'");
+        sql(c,"UPDATE dbo.Training_Assignment SET ended_at=SYSDATETIME() WHERE assignment_id='"+replacement+"'");
+        http(port,newToken,"GET","/api/training-sessions/horse/HOR-903",null,403);
+        assertEquals(1,http(port,oldToken,"GET","/api/training-sessions/horse/HOR-903",null,200).size());
+        sql(c,"UPDATE dbo.Training_Assignment SET ended_at=NULL WHERE assignment_id='"+replacement+"'");
+        sql(c,"UPDATE dbo.Training_Session SET recorded_by=NULL WHERE session_id='"+completed+"'");
+        http(port,oldToken,"GET","/api/training-sessions/horse/HOR-903",null,403);
+        sql(c,"UPDATE dbo.Training_Session SET recorded_by='HTR-901' WHERE session_id='"+completed+"'");
+        // A second registration of the SAME horse belongs to the other trainer.
+        sql(c,"INSERT dbo.HORSE_PACKAGE(horse_package_id,horse_id,package_id,registered_at,start_date,end_date,status,payment_status,total_price,created_at,updated_at)"
+            +" SELECT 'HPG-990','HOR-903',package_id,registered_at,start_date,end_date,'COMPLETED','PAID',total_price,created_at,updated_at FROM dbo.HORSE_PACKAGE WHERE horse_package_id='HPG-904';"
+            +" INSERT dbo.Horse_Assignment(id,horse_id,kind,assigned_by,assignee_id,status,created_at) VALUES('ASN-990','HOR-903','TRAINER','CM-901','HTR-901','ACCEPTED',SYSDATETIME());"
+            +" INSERT dbo.Training_Assignment(assignment_id,horse_package_id) VALUES('ASN-990','HPG-990');"
+            +" INSERT dbo.Training_Plan(plan_id,created_by,plan_name,status,horse_package_id,trainer_assignment_id,horse_id,package_type)"
+            +" VALUES('PLN-990','HTR-901',N'Synthetic second registration','ACTIVE','HPG-990','ASN-990','HOR-903','BASIC');"
+            +" INSERT dbo.Horse_Plan(plan_id,horse_id,start_date,end_date,status) SELECT 'PLN-990','HOR-903',start_date,end_date,'ACTIVE' FROM dbo.HORSE_PACKAGE WHERE horse_package_id='HPG-990';"
+            +" INSERT dbo.Training_Session(session_id,plan_id,horse_id,scheduled_start,scheduled_end,status)"
+            +" SELECT TOP(1) 'SES-990','PLN-990','HOR-903',DATEADD(hour,6,scheduled_start),DATEADD(hour,6,scheduled_end),'SCHEDULED' FROM dbo.Training_Session WHERE plan_id='"+secondPlan+"';");
+        var newRows=http(port,newToken,"GET","/api/training-sessions/horse/HOR-903",null,200);
+        for(var row:newRows)assertEquals("HPG-903",row.path("horsePackageId").asText());
+        var oldRows=http(port,oldToken,"GET","/api/training-sessions/horse/HOR-903",null,200);
+        for(var row:oldRows)assertTrue(row.path("horsePackageId").asText().equals("HPG-990") || row.path("sessionId").asText().equals(completed));
+        // Missing stages/roadmap are recoverable context states, not transaction failures.
+        String packageId=value(c,"SELECT package_id FROM dbo.HORSE_PACKAGE WHERE horse_package_id='HPG-903'");
+        sql(c,"DELETE dbo.Package_Stage_Template WHERE roadmap_template_id IN (SELECT roadmap_template_id FROM dbo.Package_Roadmap_Template WHERE package_id='"+packageId+"')");
+        var context=http(port,newToken,"GET","/api/horse-packages/HPG-903/training-context",null,200);
+        assertEquals("STAGES_MISSING",context.path("roadmapConfigurationReason").asText());assertEquals("HPG-903",context.path("horsePackageId").asText());
+        sql(c,"DELETE dbo.Package_Roadmap_Template WHERE package_id='"+packageId+"'");
+        context=http(port,newToken,"GET","/api/horse-packages/HPG-903/training-context",null,200);
+        assertEquals("ROADMAP_MISSING",context.path("roadmapConfigurationReason").asText());
+        assertTrue(http(port,newToken,"GET","/api/training-sessions/horse/HOR-903",null,200).size()>1);
+        sql(c,"UPDATE dbo.Medical_Record SET status='DRAFT',confirmed_at=NULL WHERE profile_id IN (SELECT profile_id FROM dbo.Health_Profile WHERE horse_id='HOR-903')");
+        context=http(port,newToken,"GET","/api/horse-packages/HPG-903/training-context",null,200);
+        assertFalse(context.path("trainingAllowed").asBoolean());
+    }
     @Test void paymentsConcurrentCalendarsAndReassignmentAreAtomic()throws Exception{
         String name="RaceForgeTrainingTest_"+UUID.randomUUID().toString().replace("-","");
         String root="jdbc:sqlserver://"+System.getenv().getOrDefault("TRAINING_TEST_SQL_SERVER","localhost:1433")+";encrypt=true;trustServerCertificate=true;databaseName=";
@@ -248,7 +298,9 @@ class TrainingCalendarFixDatabaseTest {
                     actor("HTR-902","HEAD_TRAINER");assertTrue(assertThrows(BusinessRuleException.class,()->assignments.respond(replacement,new Decision(true,"Accept"))).getMessage().contains("Trainer"));
                     assertEquals("ASSIGNED",value(c,"SELECT status FROM dbo.Horse_Assignment WHERE id='"+replacement+"'"));
                     var schedule=app.getBean(TrainingScheduleService.class);
+                    actor("HTR-901","HEAD_TRAINER");
                     assertEquals("HTR-901",schedule.getScheduleByHorseId("HOR-903").stream().filter(s->s.getSessionId().equals(completed)).findFirst().orElseThrow().getTrainerUserId());
+                    actor("HTR-902","HEAD_TRAINER");
                     for(var row:occupied)sessions.adjustSession(row.getSessionId(),new AdjustSessionRequest(row.getScheduledStart().withHour(18),row.getScheduledEnd().withHour(18),"LOW","Free transfer slots"));
                     String datesBefore=value(c,"SELECT STRING_AGG(CONVERT(varchar(max),session_id)+CONVERT(varchar,scheduled_start,126),'|') WITHIN GROUP(ORDER BY session_id) FROM dbo.Training_Session WHERE plan_id='"+a+"'");
                     assignments.respond(replacement,new Decision(true,"Accept after reviewing conflicts"));
@@ -267,6 +319,7 @@ class TrainingCalendarFixDatabaseTest {
                     actor("CM-901","CLUB_MANAGER");String duplicate=assignmentId(assignments.assign(new AssignmentRequest("HPG-903","HTR-901")));
                     actor("HTR-901","HEAD_TRAINER");assertThrows(BusinessRuleException.class,()->assignments.respond(duplicate,new Decision(true,"Must not have two accepted trainers")));
                     assertEquals("ASSIGNED",value(c,"SELECT status FROM dbo.Horse_Assignment WHERE id='"+duplicate+"'"));
+                    verifyReadScopes(c,port,completed,replacement,b);
                     // Legacy ambiguity is reported rather than silently choosing an assignee.
                     sql(c,"UPDATE dbo.Horse_Assignment SET status='ACCEPTED' WHERE id='"+duplicate+"'");
                     assertTrue(assertThrows(BusinessRuleException.class,()->coordinator.requireTrainer("HPG-903")).getMessage().contains("multiple"));

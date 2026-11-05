@@ -111,7 +111,7 @@ function useTrainerHorses(state: HubState) {
   const me = state.user!;
   const club = state.horses.filter(h => h.clubId === me.clubId);
   const mine = me.role === 'head_trainer'
-    ? club.filter(h => h.headTrainerId === me.id || state.enrollments.some(e => e.horseId === h.id && e.trainerId === me.id && e.status !== 'completed'))
+    ? club.filter(h => h.headTrainerId === me.id || state.enrollments.some(e => e.horseId === h.id && e.trainerId === me.id && e.trainerStatus === 'confirmed'))
     : club;
   return { me, club, mine };
 }
@@ -146,8 +146,9 @@ export function TrainingHubPage(props: HubProps) {
   const horseIds = new Set(mine.map(h => h.id));
   const myEnr = state.enrollments.filter(e => horseIds.has(e.horseId));
   const pendingMine = isTrainer ? state.enrollments.filter(e => e.trainerId === me.id && e.trainerStatus === 'pending' && e.status !== 'completed') : [];
-  const mySessions = state.trainingSessions.filter(s => horseIds.has(s.horseId)).sort((a, b) => sortDiff(b.date, a.date) || b.time.localeCompare(a.time));
+  const mySessions = state.trainingSessions.filter(s => horseIds.has(s.horseId) || (isTrainer && s.trainerId === me.id && ['Completed','Not Performed'].includes(s.status))).sort((a, b) => sortDiff(b.date, a.date) || b.time.localeCompare(a.time));
   const myPlans = state.trainingPlans.filter(p => horseIds.has(p.horseId));
+  const writablePlans=myPlans.filter(p=>state.enrollments.some(e=>e.id===p.horsePackageId&&e.trainerId===me.id&&e.trainerStatus==='confirmed'&&e.status==='active'&&e.paymentStatus==='PAID')&&!state.horses.find(h=>h.id===p.horseId)?.lock);
   const hn = (id: string) => state.horses.find(h => h.id === id)?.name || "Horses";
 
   const done = mySessions.filter(s => s.result);
@@ -173,9 +174,9 @@ export function TrainingHubPage(props: HubProps) {
         <div><h2 className="font-serif text-xl font-bold">Training &amp; plans</h2><p className="text-sm text-gray-500">{isTrainer ? "Trainer" : 'Xem'} · {mine.length}  assigned horses</p></div>
         <div className="flex gap-2">
           {isTrainer && tab === 'plans' && <Btn variant="gold" onClick={() => setView('wizard')}>+ Create plan</Btn>}
-          {isTrainer && tab === 'sessions' && <>
+          {isTrainer && tab === 'sessions' && writablePlans.length>0 && <>
             <Btn variant="secondary" onClick={() => setSingle(true)}>+ Add session</Btn>
-            <Btn variant="gold" onClick={() => { const p = myPlans.find(x => x.status === 'Active'); if (!p) { setActionError("No active roadmap — create a roadmap before generating sessions."); return; } setGen({ horseId: p.horseId, planId: p.id }); }}>Generate sessions</Btn>
+            <Btn variant="gold" onClick={() => { const p = writablePlans.find(x => x.status === 'Active'); if (!p) { setActionError("No active roadmap — create a roadmap before generating sessions."); return; } setGen({ horseId: p.horseId, planId: p.id }); }}>Generate sessions</Btn>
           </>}
         </div>
       </div>
@@ -209,7 +210,7 @@ export function TrainingHubPage(props: HubProps) {
           {myEnr.length > 0 && (
             <div className="space-y-3">
               <h3 className="font-semibold text-[#0f1729]">Assigned training packages</h3>
-              {myEnr.filter(e => e.status !== 'completed').map(e => {
+              {myEnr.map(e => {
                 const h = state.horses.find(x => x.id === e.horseId)!;
                 const t = enrollmentTerm(e);
                 const voided = state.trainingSessions.filter(x => x.horseId === e.horseId && x.voidedByLock && x.status === 'Not Performed');
@@ -219,10 +220,12 @@ export function TrainingHubPage(props: HubProps) {
                     <div className="flex items-start gap-3">
                       {h.imageUrl ? <img src={h.imageUrl || undefined} alt="" className="h-11 w-11 rounded-lg bg-gray-200 object-cover" /> : <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gray-100">🐎</div>}
                       <div className="flex-1">
-                        <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{h.name}</span><IdChip kind="ENR" id={e.id} /><span className="text-xs text-gray-500">Package {e.packageName}</span><Badge status={e.status === 'paused' ? 'Paused' : 'Active'} /><TrainerStatusPill status={e.trainerStatus} /></div>
+                        <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{h.name}</span><IdChip kind="ENR" id={e.id} /><span className="text-xs text-gray-500">Package {e.packageName}</span><Badge status={e.status === 'paused' ? 'Paused' : e.status === 'completed' ? 'Completed' : 'Active'} /><TrainerStatusPill status={e.trainerStatus} /></div>
                         <div className="mt-1 text-xs text-gray-500">Validity {t.text} · {t.expired ? "expired" : `remaining ${t.left} days`}{e.trainerName && e.trainerId !== me.id && isTrainer ? ` · HLV: ${e.trainerName}` : ''}</div>
                         <div className="mt-2"><div className="mb-1 flex justify-between text-xs text-gray-500"><span>Created {e.sessionsTotal} sessions / Completed {e.sessionsDone}</span><span>{e.sessionsTotal ? Math.round(e.sessionsDone / e.sessionsTotal * 100) : 0}% completed</span></div><div className="h-2 w-full rounded-full bg-gray-200"><div className="h-2 rounded-full bg-[#c9973b]" style={{ width: `${Math.round(e.sessionsDone / Math.max(1, e.sessionsTotal) * 100)}%` }} /></div></div>
-                        <PackageRoadmapPreview packageId={e.packageId} />
+                        {e.roadmapConfigured===false
+                          ? <p role="alert" className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{e.roadmapConfigurationReason}: Ask the manager to configure this package. Saved sessions remain available.</p>
+                          : <PackageRoadmapPreview packageId={e.packageId} />}
                         {e.status === 'paused' && <div className="mt-2 text-xs text-red-600">⏸ Paused since {e.pausedAt}: {e.pauseReason}. Progress is retained while awaiting veterinary clearance.</div>}
 
                       </div>
@@ -246,7 +249,7 @@ export function TrainingHubPage(props: HubProps) {
                 {p.algorithmRationale && <div className="mt-1 text-xs text-[#c9973b]">🤖 {p.algorithmRationale}</div>}
                 {p.weeklyKm && <div className="mt-1 text-xs text-gray-400">{p.weeklyKm}  km/week · {p.sessionsPerWeek}  sessions · {p.restDaysPerWeek}  rest days · Score {p.intensityScore}</div>}
                 <div className="mt-2"><div className="mb-1 flex justify-between text-xs text-gray-500"><span>Progress</span><span>{p.progress}%</span></div><div className="h-2 w-full rounded-full bg-gray-200"><div className="h-2 rounded-full bg-[#c9973b]" style={{ width: `${p.progress}%` }} /></div></div>
-                {isTrainer && p.status === 'Active' && <div className="mt-3 flex gap-2">{n===0&&!p.locked&&!state.horses.find(h=>h.id===p.horseId)?.lock&&isoDay(p.endDate)>=isoDay(trainingTimestamp().slice(0,10))&&<Btn size="sm" variant="secondary" onClick={()=>setEditingStages(p)}>Edit stages</Btn>}<Btn size="sm" variant="secondary" onClick={() => { setTab('sessions'); if(!state.trainingSessions.some(s=>s.planId===p.id))setGen({ horseId: p.horseId, planId: p.id }); }}>{n>0?'View sessions':'Generate sessions'}</Btn>{n>0&&<Btn size="sm" variant="gold" onClick={()=>setGen({horseId:p.horseId,planId:p.id})}>Add / suggest sessions</Btn>}</div>}
+                {isTrainer && p.status === 'Active' && writablePlans.some(w=>w.id===p.id) && <div className="mt-3 flex gap-2">{n===0&&!p.locked&&!state.horses.find(h=>h.id===p.horseId)?.lock&&isoDay(p.endDate)>=isoDay(trainingTimestamp().slice(0,10))&&<Btn size="sm" variant="secondary" onClick={()=>setEditingStages(p)}>Edit stages</Btn>}<Btn size="sm" variant="secondary" onClick={() => { setTab('sessions'); if(!state.trainingSessions.some(s=>s.planId===p.id))setGen({ horseId: p.horseId, planId: p.id }); }}>{n>0?'View sessions':'Generate sessions'}</Btn>{n>0&&<Btn size="sm" variant="gold" onClick={()=>setGen({horseId:p.horseId,planId:p.id})}>Add / suggest sessions</Btn>}</div>}
               </Card>
             );
           })}
@@ -260,7 +263,7 @@ export function TrainingHubPage(props: HubProps) {
           </div>
           {listed.length === 0 && <Card className="p-8 text-center text-sm text-gray-500">No sessions yet{statusFilter !== 'all' ? " matching this filter" : ''}.</Card>}
           {listed.map(s => {
-            const ownsSession=isTrainer && s.trainerId===me.id;
+            const ownsSession=isTrainer && s.trainerId===me.id && state.enrollments.some(e=>e.id===s.horsePackageId&&e.trainerId===me.id&&e.trainerStatus==='confirmed'&&e.status==='active'&&e.paymentStatus==='PAID');
             const canCheckIn = ownsSession && s.status === 'Scheduled' && !s.attendance && s.date === today;
             const startState=sessionStartState(s,state.trainingSessions,me.id,now);
             return (
@@ -489,6 +492,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
   useEffect(() => {
     let active = true; setSug(null); setSubmitErr(''); setTemplateLoading(false);
     if (!en?.assignmentId || en.trainerStatus !== 'confirmed') return;
+    if(en.roadmapConfigured===false){setSubmitErr((en.roadmapConfigurationReason || 'ROADMAP_MISSING')+': Ask the manager to configure this package before creating a plan.');return;}
     setTemplateLoading(true);
     void packageRoadmapFor(en.id).then(value => {
       if (!active) return;
@@ -498,7 +502,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
       setTime(value.stages?.[0]?.sessionTime?.slice(0,5) || '07:30');
     }).catch(e => { if (active) setSubmitErr((e as Error).message); }).finally(()=>{if(active)setTemplateLoading(false);});
     return () => { active = false; };
-  }, [en?.id, en?.assignmentId, en?.trainerStatus, templateVersion]);
+  }, [en?.id, en?.assignmentId, en?.trainerStatus, en?.roadmapConfigured, templateVersion]);
   const decision = rec ? (rec.decision === 'not-eligible' || rec.trainingEligibility === 'not-eligible' ? 'not-eligible' : rec.trainingEligibility === 'conditional' ? 'conditional' : 'eligible') : null;
   const sugLevel = sug ? suggestedLevel(sug) : 0;
   const level = f.level || INTENSITY_LEVELS[sugLevel];

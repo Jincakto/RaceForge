@@ -159,6 +159,8 @@ export type TrainerAssignStatus = 'unassigned' | 'pending' | 'confirmed';
 export interface AssignEntry { time: string; kind: 'assign' | 'replace' | 'confirm' | 'decline'; from: string | null; to: string; by: string; reason: string }
 
 export interface Enrollment {
+  roadmapConfigured?: boolean;
+  roadmapConfigurationReason?: string | null;
   directAssignmentId?: string;
   assignmentId?: string;
   paymentStatus?: string;

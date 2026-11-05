@@ -44,6 +44,7 @@ public class TrainingScheduleService {
   private static final String REASON_TRAINING_LOCK = "TRAINING_LOCK";
 
 
+  @Autowired private TrainingReadAccess readAccess;
   @Autowired private TrainingWorkflowGuard workflowGuard;
   @Autowired private SessionStageBinder stageBinder;
   @Autowired private TrainingCalendarRules calendar;
@@ -209,6 +210,6 @@ public class TrainingScheduleService {
       if (!horseRepository.existsById(horseId)) {
           throw new ResourceNotFoundException("Horse not found: " + horseId);
       }
-      return sessionMapper.toResponses(sessionRepository.findByHorse_HorseIdOrderByScheduledStartAsc(horseId));
+      return sessionMapper.toResponses(readAccess.filter(workflowGuard.actor(),horseId,sessionRepository.findByHorse_HorseIdOrderByScheduledStartAsc(horseId)));
   }
 }

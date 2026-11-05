@@ -12,6 +12,7 @@ import java.util.*;
 @Transactional
 public class TrainerAssignmentService {
   @org.springframework.beans.factory.annotation.Autowired private TrainingScheduleCoordinator scheduleCoordinator;
+  @org.springframework.beans.factory.annotation.Autowired private com.raceforge.backend.permission.service.PermissionService permissions;
   private final JdbcTemplate jdbc;
   private final TrainingWorkflowGuard guard;
   private final AuditLogService audit;
@@ -215,8 +216,12 @@ public class TrainerAssignmentService {
   @Transactional(readOnly = true)
   public List<Map<String, Object>> sessionHistory(String id) {
     var p = authorizeProfile(id);
+    var actor = guard.actor();
+    if ("HEAD_TRAINER".equals(actor.roleName())
+        && (!"ACTIVE".equals(p.get("status")) || !permissions.hasPermission(actor.roleName(),"VIEW_TRAINING")))
+      throw new org.springframework.security.access.AccessDeniedException("An active trainer profile and VIEW_TRAINING are required");
     return jdbc.queryForList(
-        "SELECT ts.*,h.horse_name,p.plan_name,p.horse_package_id FROM dbo.Training_Session ts JOIN dbo.Training_Plan p ON p.plan_id=ts.plan_id JOIN dbo.Horse h ON h.horse_id=ts.horse_id WHERE ts.recorded_by=? ORDER BY ts.actual_end DESC,ts.scheduled_start DESC",
+        "SELECT ts.*,h.horse_name,p.plan_name,p.horse_package_id FROM dbo.Training_Session ts JOIN dbo.Training_Plan p ON p.plan_id=ts.plan_id JOIN dbo.Horse h ON h.horse_id=ts.horse_id WHERE ts.recorded_by=? AND ts.status IN ('COMPLETED','MISSED') ORDER BY ts.actual_end DESC,ts.scheduled_start DESC",
         p.get("user_id"));
   }
 

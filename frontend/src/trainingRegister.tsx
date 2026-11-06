@@ -278,7 +278,7 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
             {p.workload && <p className="text-sm text-gray-600">Entry {p.workload.entryIntensity} | Peak {p.workload.peakIntensity} | First 7 days: {p.workload.firstWeekSessionsMin}-{p.workload.firstWeekSessionsMax} sessions, {p.workload.firstWeekMinutesMin}-{p.workload.firstWeekMinutesMax} minutes (depends on start weekday).</p>}
             <ul className="space-y-1 text-sm text-gray-600">{p.blockReasons.map(r => <li key={r.code} className="text-red-700">{r.message}</li>)}{p.reasonCodes.filter(c => !p.blockReasons.some(r => r.code === c)).map(c => <li key={c}>{suggestionReason(c)}</li>)}</ul>
             {p.workload && <PackageRoadmapPreview packageId={p.packageId} />}
-            <Btn variant="gold" disabled={!p.canRegister} onClick={() => { setPkgId(p.packageId); setFieldError(''); }}>{!p.canRegister ? 'Registration unavailable' : pkgId === p.packageId ? 'Selected' : 'Select package'}</Btn>
+            <Btn variant="gold" disabled={!p.canRegister} onClick={() => { setPkgId(p.packageId); setFieldError(''); setStep(2); }}>{!p.canRegister ? 'Registration unavailable' : 'Select package'}</Btn>
           </Card>)}
           {suggestions.data.packages.length === 0 && <Card className="p-5">No active packages are available. Contact the club manager.</Card>}
           <p className="text-xs text-gray-500">Rule {suggestions.data.ruleVersion} | Evaluated {suggestions.data.evaluatedAt.replace('T', ' ').slice(0,16)} Bangkok time.</p>

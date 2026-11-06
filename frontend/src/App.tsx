@@ -94,6 +94,7 @@ import {
   type Incident,
 } from "./data";
 import { Badge, Card, Btn, Input, Select, Textarea } from "./ui";
+import { readRows, parseRaceRows, SAMPLE_CSV, type RaceImportRow } from "./raceImport";
 import { TrainerHistoryTab, PhotosTab, logChange } from "./horseExtras";
 import {
   ReasonDialog,
@@ -2971,6 +2972,50 @@ function HorseDetailPage({
     prize: "",
   });
   const [raceE, setRaceE] = useState<Record<string, string>>({});
+  const [imp, setImp] = useState<RaceImportRow[] | null>(null);
+  const [impErr, setImpErr] = useState("");
+  const [impBusy, setImpBusy] = useState(false);
+  const onPickFile = async (f?: File) => {
+    if (!f) return;
+    setImpErr("");
+    setImp(null);
+    try {
+      const [bd, bm, by] = (horse.birthDate || "").split("/");
+      setImp(
+        parseRaceRows(await readRows(f), {
+          birthIso: by ? `${by}-${bm}-${bd}` : undefined,
+          todayIso: toISO(TODAY),
+        }),
+      );
+    } catch (err) {
+      setImpErr((err as Error).message);
+    }
+  };
+  const confirmImport = async () => {
+    const items = (imp || []).flatMap((r) => (r.entry ? [r.entry] : []));
+    if (!items.length) return;
+    setImpBusy(true);
+    try {
+      const list = [...items, ...horse.raceHistory];
+      await onUpdateHorse({
+        ...horse,
+        raceHistory: list,
+        totalRaces: list.length,
+        wins: list.filter((r) => r.position === 1).length,
+      });
+      setImp(null);
+    } catch (err) {
+      setImpErr((err as Error).message);
+    } finally {
+      setImpBusy(false);
+    }
+  };
+  const downloadSample = () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([SAMPLE_CSV], { type: "text/csv" }));
+    a.download = "race-history-sample.csv";
+    a.click();
+  };
   const saveRace = async () => {
     const e: Record<string, string> = {};
     if (!raceF.raceName.trim()) e.raceName = "Enter a race name.";
@@ -3973,6 +4018,21 @@ function HorseDetailPage({
               </div>
             </div>
             {isOwner && (
+              <div className="flex gap-2">
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept=".xlsx,.csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    void onPickFile(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
+                <span className="inline-block px-3 py-2 rounded-lg border border-gray-300 text-sm bg-white hover:bg-gray-50">
+                  Import Excel
+                </span>
+              </label>
               <Btn
                 variant="gold"
                 onClick={() => {
@@ -3994,8 +4054,61 @@ function HorseDetailPage({
               >
                 + Add result
               </Btn>
+              </div>
             )}
           </div>
+          {(imp || impErr) && isOwner && (
+            <Card className="p-5 border-l-4 border-[#c9973b]">
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="font-semibold">Import from Excel</h4>
+                <button className="text-sm text-gray-500 underline" onClick={downloadSample}>
+                  Download sample (.csv)
+                </button>
+              </div>
+              {impErr && (
+                <div className="text-sm text-red-600 bg-red-50 rounded p-2 mb-2">{impErr}</div>
+              )}
+              {imp && (
+                <>
+                  <div className="text-sm text-gray-600 mb-2">
+                    {imp.filter((r) => r.entry).length} valid · {imp.filter((r) => !r.entry).length} with errors (skipped)
+                  </div>
+                  <div className="max-h-64 overflow-auto text-sm divide-y">
+                    {imp.map((r) => (
+                      <div key={r.line} className="py-1.5">
+                        {r.entry ? (
+                          <span>
+                            Row {r.line}: {r.entry.raceName} · {r.entry.date} · {r.entry.distance} · #{r.entry.position}
+                          </span>
+                        ) : (
+                          <span className="text-red-600">
+                            Row {r.line}: {r.errors.join(" ")}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <Btn
+                      variant="gold"
+                      onClick={confirmImport}
+                      disabled={impBusy || !imp.some((r) => r.entry)}
+                    >
+                      {impBusy ? "Importing…" : "Import valid rows"}
+                    </Btn>
+                    <Btn variant="secondary" onClick={() => { setImp(null); setImpErr(""); }}>
+                      Cancel
+                    </Btn>
+                  </div>
+                </>
+              )}
+              {!imp && (
+                <Btn variant="secondary" onClick={() => setImpErr("")}>
+                  Close
+                </Btn>
+              )}
+            </Card>
+          )}
           {raceFormOpen && isOwner && (
             <Card className="p-5 border-l-4 border-[#c9973b]">
               <h4 className="font-semibold mb-3">
@@ -4227,6 +4340,28 @@ function HorseCreatePage({
   }, [imageFile]);
   const [raceHistory, setRaceHistory] = useState<RaceHistoryEntry[]>([]);
   const [showRaceForm, setShowRaceForm] = useState(false);
+  const [imp, setImp] = useState<RaceImportRow[] | null>(null);
+  const [impErr, setImpErr] = useState("");
+  const onPickFile = async (f?: File) => {
+    if (!f) return;
+    setImpErr("");
+    setImp(null);
+    try {
+      setImp(
+        parseRaceRows(await readRows(f), {
+          birthIso: form.birthDate || undefined,
+          todayIso: toISO(TODAY),
+        }),
+      );
+    } catch (err) {
+      setImpErr((err as Error).message);
+    }
+  };
+  const confirmImport = () => {
+    const items = (imp || []).flatMap((r) => (r.entry ? [r.entry] : []));
+    setRaceHistory((h) => [...items, ...h]);
+    setImp(null);
+  };
   const [newRace, setNewRace] = useState({
     date: "",
     raceName: "",
@@ -4239,6 +4374,24 @@ function HorseCreatePage({
     prize: "",
   });
   const [raceErr, setRaceErr] = useState<Record<string, string>>({});
+  const [editRid, setEditRid] = useState<string | null>(null);
+  const openRace = (r: RaceHistoryEntry) => {
+    const [d, m, y] = r.date.split("/");
+    setNewRace({
+      date: y ? `${y}-${m}-${d}` : "",
+      raceName: r.raceName,
+      distance: r.distance,
+      position: String(r.position),
+      totalHorses: String(r.totalHorses || 10),
+      time: r.time,
+      venue: r.venue,
+      jockey: r.jockey,
+      prize: r.prize,
+    });
+    setRaceErr({});
+    setEditRid(r.id);
+    setShowRaceForm(true);
+  };
   const [errors, setErrors] = useState<Record<string, string>>({});
   const todayIso = toISO(TODAY);
   const previewId = "Server-assigned ID";
@@ -4255,16 +4408,17 @@ function HorseCreatePage({
       e.date = "Race date cannot be in the future.";
     setRaceErr(e);
     if (Object.keys(e).length) return;
-    setRaceHistory((r) => [
-      ...r,
-      {
-        id: `rh${Date.now()}`,
-        ...newRace,
-        date: toDDMMYYYY(newRace.date),
-        position: Number(newRace.position),
-        totalHorses: Number(newRace.totalHorses),
-      },
-    ]);
+    const item: RaceHistoryEntry = {
+      id: editRid || `rh${Date.now()}`,
+      ...newRace,
+      date: toDDMMYYYY(newRace.date),
+      position: Number(newRace.position),
+      totalHorses: Number(newRace.totalHorses),
+    };
+    setRaceHistory((r) =>
+      editRid ? r.map((x) => (x.id === editRid ? item : x)) : [...r, item],
+    );
+    setEditRid(null);
     setNewRace({
       date: "",
       raceName: "",
@@ -4548,13 +4702,65 @@ function HorseCreatePage({
               Optional — provide details to support the center's assessment
             </p>
           </div>
-          <Btn
-            variant="secondary"
-            onClick={() => setShowRaceForm(!showRaceForm)}
-          >
-            + Add result
-          </Btn>
+          <div className="flex gap-2">
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                accept=".xlsx,.csv"
+                className="hidden"
+                onChange={(e) => {
+                  void onPickFile(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+              <span className="inline-block px-3 py-2 rounded-lg border border-gray-300 text-sm bg-white hover:bg-gray-50">
+                Import Excel
+              </span>
+            </label>
+            <Btn
+              variant="secondary"
+              onClick={() => {
+                setEditRid(null);
+                setShowRaceForm(!showRaceForm);
+              }}
+            >
+              + Add result
+            </Btn>
+          </div>
         </div>
+        {(imp || impErr) && (
+          <div className="bg-gray-50 rounded-xl p-4 mb-4 text-sm">
+            {impErr && <div className="text-red-600 mb-2">{impErr}</div>}
+            {imp && (
+              <>
+                <div className="mb-2">
+                  {imp.filter((r) => r.entry).length} valid ·{" "}
+                  {imp.filter((r) => !r.entry).length} with errors (skipped)
+                </div>
+                {imp.map((r) => (
+                  <div key={r.line} className={r.entry ? "" : "text-red-600"}>
+                    Row {r.line}:{" "}
+                    {r.entry
+                      ? `${r.entry.raceName} · ${r.entry.date}`
+                      : r.errors.join(" ")}
+                  </div>
+                ))}
+                <div className="flex gap-2 mt-3">
+                  <Btn
+                    variant="gold"
+                    onClick={confirmImport}
+                    disabled={!imp.some((r) => r.entry)}
+                  >
+                    Import valid rows
+                  </Btn>
+                  <Btn variant="secondary" onClick={() => setImp(null)}>
+                    Cancel
+                  </Btn>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {showRaceForm && (
           <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
             <div className="grid grid-cols-2 gap-3">
@@ -4587,7 +4793,13 @@ function HorseCreatePage({
                   "1400m",
                   "1600m",
                   "2000m",
-                ].map((v) => ({ value: v, label: v }))}
+                ]
+                  .concat(
+                    ["800m","1000m","1200m","1400m","1600m","2000m"].includes(newRace.distance)
+                      ? []
+                      : [newRace.distance],
+                  )
+                  .map((v) => ({ value: v, label: v }))}
               />
               <Select
                 label="Position"
@@ -4625,9 +4837,15 @@ function HorseCreatePage({
             </div>
             <div className="flex gap-2">
               <Btn variant="gold" onClick={addRace}>
-                ✓ Add
+                {editRid ? "✓ Save" : "✓ Add"}
               </Btn>
-              <Btn variant="secondary" onClick={() => setShowRaceForm(false)}>
+              <Btn
+                variant="secondary"
+                onClick={() => {
+                  setShowRaceForm(false);
+                  setEditRid(null);
+                }}
+              >
                 Cancel
               </Btn>
             </div>
@@ -4637,7 +4855,8 @@ function HorseCreatePage({
           raceHistory.map((r) => (
             <div
               key={r.id}
-              className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100 mb-2"
+              onClick={() => openRace(r)}
+              className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100 mb-2 cursor-pointer hover:bg-gray-100"
             >
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${r.position === 1 ? "bg-[#c9973b] text-white" : "bg-gray-400 text-white"}`}
@@ -4651,9 +4870,10 @@ function HorseCreatePage({
                 </div>
               </div>
               <button
-                onClick={() =>
-                  setRaceHistory((h) => h.filter((x) => x.id !== r.id))
-                }
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  setRaceHistory((h) => h.filter((x) => x.id !== r.id));
+                }}
                 className="text-red-400 hover:text-red-600 text-xs"
               >
                 ✕ Delete

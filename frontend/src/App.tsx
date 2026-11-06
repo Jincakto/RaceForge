@@ -8001,6 +8001,8 @@ function VetExamHubPage({
     initialView === "new" && canExam ? "new" : canPost ? "locked" : "new",
   );
   const [formKey, setFormKey] = useState(0);
+  const [releasingId, setReleasingId] = useState<string | null>(null);
+  const [unlockErrors, setUnlockErrors] = useState<Record<string, string>>({});
   const user = state.user!;
   const allHorses = state.horses.filter(h => h.clubId === state.user!.clubId);
   const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
@@ -8044,6 +8046,29 @@ function VetExamHubPage({
     onUnlockExam(horseId);
     setFormKey((k) => k + 1);
     setView("new");
+  };
+  // Same release as the button on the examination result screen, for a horse already examined and found fit.
+  const releaseLock = async (h: Horse) => {
+    if (releasingId) return;
+    setReleasingId(h.id);
+    setUnlockErrors((e) => ({ ...e, [h.id]: "" }));
+    const latest = state.healthRecords
+      .filter((r) => r.horseId === h.id && r.status === "confirmed")
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))[0];
+    const reason = `${latest ? `Follow-up examination ${latest.id}: confirmed` : "Follow-up examination confirmed"} fit for training; lock released from the Training locks list.`;
+    try {
+      const err = await onUnlock(h.id, reason);
+      if (err) setUnlockErrors((e) => ({ ...e, [h.id]: err }));
+      else {
+        onSave("Training lock released after a successful examination.");
+        // A fresh form, so a stale "record saved / release the lock" screen does not linger.
+        setFormKey((k) => k + 1);
+      }
+    } catch (e) {
+      setUnlockErrors((m) => ({ ...m, [h.id]: (e as Error).message }));
+    } finally {
+      setReleasingId(null);
+    }
   };
 
   return (
@@ -8265,7 +8290,22 @@ function VetExamHubPage({
               <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Reason for training lock</p><p className="mt-1.5 text-sm leading-6 text-slate-700">{h.lock!.reason}</p>{h.lock!.notes && <p className="mt-1 text-sm leading-6 text-slate-500">{h.lock!.notes}</p>}{(h.lock!.lockedAt || h.lock!.lockedByName) && <p className="mt-2 text-xs text-slate-400">{[h.lock!.lockedAt,h.lock!.lockedByName].filter(Boolean).join(' · ')}</p>}</div>
               <div className="rounded-xl bg-slate-50 p-3.5"><p className="text-xs font-semibold text-slate-500">Recovery package</p><p className="mt-1 text-sm text-[#1a2844]">{h.rehab ? h.rehab.name + ' · ' + h.rehab.durationWeeks + ' weeks' : 'Awaiting manager activation'}</p></div>
             </div>
-            <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><p className="max-w-xs text-xs leading-5 text-slate-500">A follow-up examination is required before this horse can be cleared for training.</p><Btn variant="primary" className="w-full shrink-0 !rounded-xl !px-4 !py-2.5 sm:w-auto" onClick={()=>startUnlockExam(h.id)}>Start follow-up exam →</Btn></div>
+            <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-4">
+              {unlockErrors[h.id] && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{unlockErrors[h.id]}</p>}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                {h.healthStatus === "Eligible" ? (
+                  <>
+                    <p className="max-w-xs text-xs leading-5 text-emerald-700">The follow-up examination found this horse fit. Release the lock to let the manager review resuming training.</p>
+                    <Btn variant="gold" className="w-full shrink-0 !rounded-xl !border-emerald-600 !bg-emerald-600 !px-4 !py-2.5 !text-white hover:!bg-emerald-700 sm:w-auto" disabled={releasingId === h.id} onClick={() => releaseLock(h)}>{releasingId === h.id ? "Releasing lock..." : "Release training lock"}</Btn>
+                  </>
+                ) : (
+                  <>
+                    <p className="max-w-xs text-xs leading-5 text-slate-500">A follow-up examination is required before this horse can be cleared for training.</p>
+                    <Btn variant="primary" className="w-full shrink-0 !rounded-xl !px-4 !py-2.5 sm:w-auto" onClick={()=>startUnlockExam(h.id)}>Start follow-up exam →</Btn>
+                  </>
+                )}
+              </div>
+            </div>
           </Card>
         ))}
         </div>

@@ -167,7 +167,7 @@ public class RecoveryPackageService {
     }
 
     @Transactional
-    public HorsePackageResponse simulateRecoveryPayment(
+    public HorsePackageResponse applyRecoveryPayment(
             String recoveryRegistrationId, boolean successful, String ownerId
     ) {
         HorsePackage registration = horsePackageRepository.findById(recoveryRegistrationId)
@@ -175,7 +175,7 @@ public class RecoveryPackageService {
         Horse horse = lockedHorse(registration.getHorse().getHorseId());
         if (ownerId == null || horse.getOwner() == null
                 || !ownerId.equals(horse.getOwner().getUserId())) {
-            throw new BusinessRuleException("Only the Horse Owner may simulate payment");
+            throw new BusinessRuleException("Only the Horse Owner may pay for this registration");
         }
 
         entityManager.lock(registration, LockModeType.PESSIMISTIC_WRITE);
@@ -196,7 +196,7 @@ public class RecoveryPackageService {
             registration.setStatus("CANCELLED");
             HorsePackage failed = horsePackageRepository.saveAndFlush(registration);
             packageEventService.record(ownerId, horse.getHorseId(), failed.getHorsePackageId(),
-                    "RECOVERY_PAYMENT_FAILED", "Simulated payment failed");
+                    "RECOVERY_PAYMENT_FAILED", "Payment cancelled or expired");
             packageEventService.notifyManagers(horse.getHorseId(),
                     "RECOVERY_PAYMENT_FAILED", "Recovery payment was not successful.");
             return mapper.toResponse(failed);

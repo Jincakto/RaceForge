@@ -13,8 +13,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class TrainingWorkflowController {
  private static final String MANAGER="hasAuthority('CLUB_MANAGER') and @permissionAccess.has(authentication,'ASSIGN_TRAINER')";
  private static final String TRAINER="hasAuthority('HEAD_TRAINER') and @permissionAccess.has(authentication,'MANAGE_TRAINING')";
- private final TrainerAssignmentService assignments;private final TrainingRecommendationService recommendations;private final TrainingRoadmapService roadmaps;
- public TrainingWorkflowController(TrainerAssignmentService assignments,TrainingRecommendationService recommendations,TrainingRoadmapService roadmaps){this.assignments=assignments;this.recommendations=recommendations;this.roadmaps=roadmaps;}
+ private final TrainerAssignmentService assignments;private final TrainingPackageContextService packageContext;private final TrainingRoadmapService roadmaps;
+ public TrainingWorkflowController(TrainerAssignmentService assignments,TrainingPackageContextService packageContext,TrainingRoadmapService roadmaps){this.assignments=assignments;this.packageContext=packageContext;this.roadmaps=roadmaps;}
  // Trainers own their professional details; never accept a userId supplied by the client.
  @PostMapping("/trainer-profiles") @PreAuthorize("hasAuthority('HEAD_TRAINER')")
  public Object createProfile(@Valid @RequestBody ProfileUpdate body){return ApiResponse.success("Trainer profile created",assignments.createOwnProfile(body));}
@@ -44,20 +44,16 @@ public class TrainingWorkflowController {
  public Object replace(@PathVariable String id,@Valid @RequestBody Replacement body){return ApiResponse.success("Replacement pending trainer acceptance",assignments.replace(id,body));}
  @GetMapping("/horse-packages/{id}/trainer-assignments")
  public Object forPackage(@PathVariable String id){return ApiResponse.success("Package assignment history",assignments.forPackage(id));}
- @PostMapping("/horse-packages/{id}/training-recommendations") @PreAuthorize(TRAINER)
- public Object recommend(@PathVariable String id,@Valid @RequestBody RecommendationRequest body){return ApiResponse.success("Draft suggestion requires trainer confirmation",recommendations.recommend(id,body));}
  @GetMapping("/horse-packages/{id}/training-context") @PreAuthorize(TRAINER)
- public Object context(@PathVariable String id){return ApiResponse.success("Horse and medical information for training",recommendations.context(id));}
- @GetMapping("/training-recommendations/{id}") @PreAuthorize(TRAINER)
- public Object recommendation(@PathVariable String id){return ApiResponse.success("Saved training suggestion and evidence",recommendations.savedRecommendation(id));}
+ public Object context(@PathVariable String id){return ApiResponse.success("Horse and medical information for training",packageContext.context(id));}
  @GetMapping("/training-plans/{id}/stages") @PreAuthorize(TRAINER)
  public Object stages(@PathVariable String id){return ApiResponse.success("Training roadmap",roadmaps.stages(id));}
  @PutMapping("/training-plans/{id}/stages") @PreAuthorize(TRAINER)
  public Object stages(@PathVariable String id,@Valid @RequestBody StagesRequest body){return ApiResponse.success("Training roadmap updated",roadmaps.replace(id,body.stages()));}
  @GetMapping("/horse-packages/{id}/roadmap-template") @PreAuthorize(TRAINER)
- public Object registeredTemplate(@PathVariable String id){return ApiResponse.success("Package-specific roadmap template",recommendations.registeredTemplate(id));}
+ public Object registeredTemplate(@PathVariable String id){return ApiResponse.success("Package-specific roadmap template",packageContext.registeredTemplate(id));}
  @GetMapping("/training-packages/{id}/roadmap-template") @PreAuthorize("hasAnyAuthority('HORSE_OWNER','HEAD_TRAINER','CLUB_MANAGER','VETERINARIAN','ADMIN')")
- public Object catalogTemplate(@PathVariable String id){return ApiResponse.success("Package curriculum preview",recommendations.catalogTemplate(id));}
+ public Object catalogTemplate(@PathVariable String id){return ApiResponse.success("Package curriculum preview",packageContext.catalogTemplate(id));}
  @PostMapping("/training-plans/{id}/generate-sessions") @PreAuthorize(TRAINER)
  public Object generate(@PathVariable String id,@Valid @RequestBody GenerateRequest body){return ApiResponse.success("Roadmap sessions generated",roadmaps.generate(id));}
 }

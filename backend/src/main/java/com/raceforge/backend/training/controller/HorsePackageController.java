@@ -1,7 +1,7 @@
 package com.raceforge.backend.training.controller;
 
 import com.raceforge.backend.common.response.ApiResponse;
-import com.raceforge.backend.training.dto.HorsePackagePaymentRequest;
+
 import com.raceforge.backend.training.dto.HorsePackageRegisterRequest;
 import com.raceforge.backend.training.dto.HorsePackageResponse;
 import com.raceforge.backend.training.service.HorsePackageService;
@@ -36,18 +36,6 @@ public class HorsePackageController {
                 .body(ApiResponse.success("Registration created", service.register(request, ownerId)));
     }
 
-    @PreAuthorize("hasAuthority('HORSE_OWNER')")
-    @PostMapping("/{id}/simulate-payment")
-    public ResponseEntity<ApiResponse<HorsePackageResponse>> simulatePayment(
-            @PathVariable String id,
-            @Valid @RequestBody HorsePackagePaymentRequest request,
-            @AuthenticationPrincipal(expression = "userId") String ownerId
-    ) {
-        return ResponseEntity.ok(ApiResponse.success(
-                "Payment simulation processed",
-                service.simulatePayment(id, request.successful(), ownerId)
-        ));
-    }
 
     /** CM oversight: unlike Owner history, this endpoint has no ownership filter. */
     @PreAuthorize("hasAuthority('CLUB_MANAGER')")

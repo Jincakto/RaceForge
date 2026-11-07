@@ -24,6 +24,8 @@ import java.util.List;
 @Tag(name = "Horses")
 public class HorseController {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.raceforge.backend.storage.ProfileFiles files;
     private final HorseService horseService;
     private final HorseAccess horseAccess;
 
@@ -32,18 +34,20 @@ public class HorseController {
         this.horseAccess = horseAccess;
     }
 
-    @PostMapping
+    @PostMapping(consumes = "multipart/form-data")
     @PreAuthorize("hasAuthority('HORSE_OWNER')")
     public ResponseEntity<ApiResponse<HorseResponse>> createHorse(
             @RequestParam(required = false) String ownerId,
             @AuthenticationPrincipal AuthenticatedUser actor,
-            @Valid @RequestBody HorseCreateRequest request) {
+            @RequestPart("horse") HorseCreateRequest request,
+            @RequestPart("image") org.springframework.web.multipart.MultipartFile image,
+            @RequestPart("document") org.springframework.web.multipart.MultipartFile document) {
 
         if (ownerId != null && !ownerId.equals(actor.userId())) {
             throw new BusinessRuleException("Owner ID must match the logged-in account");
         }
 
-        HorseResponse horse = horseService.createHorse(actor.userId(), request);
+        HorseResponse horse = files.create(actor.userId(), request, image, document);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("Horse created successfully", horse));
     }
@@ -53,9 +57,7 @@ public class HorseController {
             @RequestParam(required = false) String keyword,
             Authentication authentication) {
 
-        List<HorseResponse> horses = horseService.searchHorses(keyword).stream()
-                .filter(horse -> horseAccess.read(authentication, horse.getHorseId()))
-                .toList();
+        List<HorseResponse> horses = horseService.searchHorses(keyword, id -> horseAccess.read(authentication, id));
 
         return ResponseEntity.ok(ApiResponse.success("Horses retrieved successfully", horses));
     }

@@ -11,6 +11,8 @@ import java.util.*;
 @Service
 @Transactional
 public class TrainerAssignmentService {
+  @org.springframework.beans.factory.annotation.Autowired private TrainingScheduleCoordinator scheduleCoordinator;
+  @org.springframework.beans.factory.annotation.Autowired private com.raceforge.backend.permission.service.PermissionService permissions;
   private final JdbcTemplate jdbc;
   private final TrainingWorkflowGuard guard;
   private final AuditLogService audit;
@@ -61,6 +63,7 @@ public class TrainerAssignmentService {
   }
 
   public Map<String, Object> profileStatus(String id, String status) {
+    scheduleCoordinator.lockSchedule();
     profile(id);
     if (!Set.of("ACTIVE", "INACTIVE").contains(status))
       throw new BusinessRuleException("Profile status must be ACTIVE or INACTIVE");
@@ -102,6 +105,7 @@ public class TrainerAssignmentService {
   }
 
   public Map<String, Object> assign(AssignmentRequest body) {
+    scheduleCoordinator.lockSchedule();
     var pack = guard.paidPackage(body.horsePackageId());
     var selected = trainers.findById(body.trainerId())
         .orElseThrow(() -> new ResourceNotFoundException("Trainer not found"));
@@ -127,6 +131,7 @@ public class TrainerAssignmentService {
   }
 
   public Map<String, Object> respond(String id, Decision decision) {
+    scheduleCoordinator.lockSchedule();
     var row = locked(id);
     if (!guard.actor().userId().equals(row.get("assignee_id")))
       throw new org.springframework.security.access.AccessDeniedException("Only the assigned trainer can respond");
@@ -140,6 +145,7 @@ public class TrainerAssignmentService {
       if (!"ACTIVE".equals(p.get("status")))
         throw new BusinessRuleException("Trainer profile is inactive");
       eligibleUser(guard.actor().userId());
+      scheduleCoordinator.validateAcceptance((String) row.get("horse_package_id"), guard.actor().userId());
       jdbc.update(
           "INSERT dbo.Horse_Trainer(horse_id,trainer_id) SELECT ?,? WHERE NOT EXISTS(SELECT 1 FROM dbo.Horse_Trainer WITH(UPDLOCK,HOLDLOCK) WHERE horse_id=? AND trainer_id=?)",
           row.get("horse_id"), row.get("trainer_id"), row.get("horse_id"), row.get("trainer_id"));
@@ -157,9 +163,11 @@ public class TrainerAssignmentService {
   }
 
   private Map<String, Object> close(String id, String reason, String status) {
+    scheduleCoordinator.lockSchedule();
     var row = locked(id);
     if (!Set.of("ASSIGNED", "ACCEPTED").contains(row.get("status")))
       throw new BusinessRuleException("Assignment is already closed");
+    if ("ACCEPTED".equals(row.get("status"))) scheduleCoordinator.requireNoUnfinishedWork((String) row.get("horse_package_id"));
     jdbc.update("UPDATE dbo.Horse_Assignment SET status=?,reason=? WHERE id=? AND kind='TRAINER'", status, reason, id);
     jdbc.update("UPDATE dbo.Training_Assignment SET ended_at=SYSDATETIME() WHERE assignment_id=?", id);
     jdbc.update(
@@ -171,6 +179,7 @@ public class TrainerAssignmentService {
   }
 
   public Map<String, Object> replace(String id, Replacement body) {
+    scheduleCoordinator.lockSchedule();
     var old = locked(id);
     if (body.trainerId().equals(old.get("trainer_id")))
       throw new BusinessRuleException("Select a different trainer");
@@ -207,8 +216,12 @@ public class TrainerAssignmentService {
   @Transactional(readOnly = true)
   public List<Map<String, Object>> sessionHistory(String id) {
     var p = authorizeProfile(id);
+    var actor = guard.actor();
+    if ("HEAD_TRAINER".equals(actor.roleName())
+        && (!"ACTIVE".equals(p.get("status")) || !permissions.hasPermission(actor.roleName(),"VIEW_TRAINING")))
+      throw new org.springframework.security.access.AccessDeniedException("An active trainer profile and VIEW_TRAINING are required");
     return jdbc.queryForList(
-        "SELECT ts.*,h.horse_name,p.plan_name,p.horse_package_id FROM dbo.Training_Session ts JOIN dbo.Training_Plan p ON p.plan_id=ts.plan_id JOIN dbo.Horse h ON h.horse_id=ts.horse_id WHERE ts.recorded_by=? ORDER BY ts.actual_end DESC,ts.scheduled_start DESC",
+        "SELECT ts.*,h.horse_name,p.plan_name,p.horse_package_id FROM dbo.Training_Session ts JOIN dbo.Training_Plan p ON p.plan_id=ts.plan_id JOIN dbo.Horse h ON h.horse_id=ts.horse_id WHERE ts.recorded_by=? AND ts.status IN ('COMPLETED','MISSED') ORDER BY ts.actual_end DESC,ts.scheduled_start DESC",
         p.get("user_id"));
   }
 

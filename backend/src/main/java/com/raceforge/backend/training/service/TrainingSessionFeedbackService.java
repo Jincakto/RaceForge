@@ -8,6 +8,7 @@ import java.util.*;
 /** Configurable application heuristic from two entered readings; not a diagnosis. */
 @Service
 public class TrainingSessionFeedbackService {
+ @org.springframework.beans.factory.annotation.Autowired private TrainingReadAccess readAccess;
  private final TrainingSessionRepository sessions;
  private final TrainingWorkflowGuard guard;
  @Value("${raceforge.training.feedback.reduction-ratio:0.20}") private double reductionRatio=0.20;
@@ -16,7 +17,7 @@ public class TrainingSessionFeedbackService {
  @jakarta.annotation.PostConstruct void validateThresholds(){if(!(reductionRatio>0&&reductionRatio<increaseRatio&&increaseRatio<1))throw new IllegalStateException("Feedback ratios must satisfy 0 < reduction < increase < 1");}
  @Transactional(readOnly=true)
  public Map<String,Object> feedback(String id){
-  var s=sessions.findById(id).orElseThrow(()->new ResourceNotFoundException("Training session not found"));guard.authorizePlan(s.getPlan());
+  var s=sessions.findById(id).orElseThrow(()->new ResourceNotFoundException("Training session not found"));readAccess.requireSession(guard.actor(),s);
   Integer end=s.getEndExerciseHeartRate(),recovery=s.getRecoveryHeartRate2Min();
   String action="INSUFFICIENT_DATA",note="Complete both heart-rate readings before reviewing recovery.";
   if("COMPLETED".equals(s.getStatus())&&end!=null&&recovery!=null&&end>0&&recovery>0){

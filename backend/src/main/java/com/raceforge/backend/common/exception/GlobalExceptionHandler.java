@@ -37,6 +37,19 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.NOT_FOUND, "RESOURCE_NOT_FOUND", "Endpoint not found", request.getRequestURI());
     }
 
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<ErrorResponse>> oversizedFile(HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.PAYLOAD_TOO_LARGE, "UPLOAD_TOO_LARGE",
+                "Upload exceeds the limit. Images: 5 MB, PDF: 10 MB, TXT: 1 MB.", request.getRequestURI());
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.support.MissingServletRequestPartException.class)
+    public ResponseEntity<ApiResponse<ErrorResponse>> missingFile(
+            org.springframework.web.multipart.support.MissingServletRequestPartException exception, HttpServletRequest request) {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, "MISSING_UPLOAD_PART",
+                "Missing required upload part: " + exception.getRequestPartName(), request.getRequestURI());
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<ErrorResponse>> handleResourceNotFound(
             ResourceNotFoundException exception,

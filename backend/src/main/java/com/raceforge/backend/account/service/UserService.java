@@ -61,7 +61,6 @@ public class UserService {
         User user = findUser(userId);
         user.setFullName(request.fullName().trim());
         user.setPhone(request.phone());
-        user.setAvatarUrl(request.avatarUrl());
         return mapper.toUserResponse(user);
     }
 

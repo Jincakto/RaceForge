@@ -4,6 +4,12 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public class TrainingSessionResponse {
+  private String trainerUserId;
+  private String trainerName;
+  public String getTrainerUserId(){return trainerUserId;}
+  public void setTrainerUserId(String value){trainerUserId=value;}
+  public String getTrainerName(){return trainerName;}
+  public void setTrainerName(String value){trainerName=value;}
 
   private Integer restingHeartRate;
   public Integer getRestingHeartRate(){return restingHeartRate;}
@@ -49,6 +55,9 @@ public class TrainingSessionResponse {
   public Boolean getTrainingLocked(){return trainingLocked;}
   public void setTrainingLocked(Boolean value){trainingLocked=value;}
 
+  private String startBlockedReason;
+  public String getStartBlockedReason(){return startBlockedReason;}
+  public void setStartBlockedReason(String value){startBlockedReason=value;}
   private Boolean canStart;
   public Boolean getCanStart(){return canStart;}
   public void setCanStart(Boolean value){canStart=value;}

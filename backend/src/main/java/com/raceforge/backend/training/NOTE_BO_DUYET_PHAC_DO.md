@@ -1,3 +1,5 @@
+# Historical note ? superseded by backend/scripts/training/README.md
+
 ﻿# Bỏ bước Vet duyệt phác đồ
 
 - Bỏ API quản lý/duyệt training-protocols; không xóa bảng hay dữ liệu cũ.

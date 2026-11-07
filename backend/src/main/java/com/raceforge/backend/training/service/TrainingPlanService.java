@@ -19,10 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TrainingPlanService {
+  @Autowired private TrainingScheduleCoordinator scheduleCoordinator;
 
   @Autowired private TrainingWorkflowGuard workflowGuard;
-  @Autowired private PackageRoadmapPolicy packageRoadmaps;
-  @Autowired private TrainingRecommendationService recommendations;
+  @Autowired private PackageRoadmapTemplateService packageRoadmaps;
   @Autowired private TrainingRoadmapService roadmaps;
   @Autowired
   private TrainingPlanRepository trainingPlanRepository;
@@ -51,6 +51,7 @@ public class TrainingPlanService {
 
   @Transactional
   public TrainingPlanResponse createPlan(String horseId, TrainingPlanCreateRequest request, String actorId) {
+      scheduleCoordinator.lockSchedule();
       if (request.getStartDate() != null && request.getEndDate() != null
               && request.getEndDate().isBefore(request.getStartDate())) {
           throw new com.raceforge.backend.common.exception.BusinessRuleException("endDate must not precede startDate.");
@@ -59,21 +60,18 @@ public class TrainingPlanService {
               .orElseThrow(() -> new ResourceNotFoundException("Horse not found: " + horseId));
 
       var pack=workflowGuard.assignment(request.getAssignmentId(),horseId);
+      if(trainingPlanRepository.existsByHorsePackageId(pack.getHorsePackageId()))throw new com.raceforge.backend.common.exception.BusinessRuleException("This registration already has a training plan. Use its existing schedule.");
+      var template=packageRoadmaps.read(pack.getTrainingPackage().getPackageId());
       java.util.List<com.raceforge.backend.training.dto.TrainingWorkflowDtos.Stage> stages=request.getStages();
-      if(request.getRecommendationId()!=null){
-          if(!Boolean.TRUE.equals(request.getRecommendationConfirmed()))throw new com.raceforge.backend.common.exception.BusinessRuleException("Trainer must confirm the suggestion before creating a plan");
-          var suggested=recommendations.stagesForPlan(request.getRecommendationId(),pack.getHorsePackageId(),request.getAssignmentId());
-          if(stages==null||stages.isEmpty())stages=suggested;
-      }
-      TrainingRecommendationService.validateStages(stages,(int)java.time.temporal.ChronoUnit.DAYS.between(pack.getStartDate(),pack.getEndDate())+1);
+      TrainingStageValidator.validateStages(stages,(int)java.time.temporal.ChronoUnit.DAYS.between(pack.getStartDate(),pack.getEndDate())+1);
       if((request.getStartDate()!=null&&!request.getStartDate().equals(pack.getStartDate()))||(request.getEndDate()!=null&&!request.getEndDate().equals(pack.getEndDate())))throw new com.raceforge.backend.common.exception.BusinessRuleException("Plan dates must match the selected paid package period");
       TrainingPlan plan = new TrainingPlan();
       plan.setHorseId(horseId);
-      plan.setPackageType(pack.getTrainingPackage().getPackageType());plan.setRoadmapVersion(PackageRoadmapPolicy.VERSION);
-      plan.setHorsePackageId(pack.getHorsePackageId());plan.setTrainerAssignmentId(request.getAssignmentId());plan.setRecommendationId(request.getRecommendationId());
+      plan.setPackageType(pack.getTrainingPackage().getPackageType());plan.setRoadmapVersion("DB:"+pack.getTrainingPackage().getPackageId()+":"+template.revision());
+      plan.setHorsePackageId(pack.getHorsePackageId());plan.setTrainerAssignmentId(request.getAssignmentId());
       plan.setCreatedBy(actorId);
       plan.setPlanName(request.getPlanName());
-      plan.setGoal(request.getGoal()==null||request.getGoal().isBlank()?packageRoadmaps.template(plan.getPackageType(),(int)java.time.temporal.ChronoUnit.DAYS.between(pack.getStartDate(),pack.getEndDate())+1).goal():request.getGoal());
+      plan.setGoal(request.getGoal()==null||request.getGoal().isBlank()?template.goal():request.getGoal());
       plan.setDuration(request.getDuration());
       plan.setNotes(request.getNotes());
       plan.setStatus("ACTIVE");

@@ -75,8 +75,13 @@ public class HorseService {
 
     @Transactional(readOnly = true)
     public List<HorseResponse> searchHorses(String keyword) {
+        return searchHorses(keyword, id -> true);
+    }
+
+    @Transactional(readOnly = true)
+    public List<HorseResponse> searchHorses(String keyword, java.util.function.Predicate<String> visible) {
         if (keyword == null || keyword.isBlank()) {
-            return horseRepository.findAll().stream().map(horseMapper::toResponse).toList();
+            return horseRepository.findAll().stream().filter(h -> visible.test(h.getHorseId())).map(horseMapper::toResponse).toList();
         }
 
         String value = keyword.trim();
@@ -90,7 +95,7 @@ public class HorseService {
                         matches.add(horse);
                     }
                 });
-        return matches.stream().map(horseMapper::toResponse).toList();
+        return matches.stream().filter(h -> visible.test(h.getHorseId())).map(horseMapper::toResponse).toList();
     }
 
     @Transactional(readOnly = true)

@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import {mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';import path from 'node:path';import {pathToFileURL} from 'node:url';import ts from 'typescript';
 const dir=await mkdtemp(path.join(tmpdir(),'training-schedule-'));
-for(const name of ['trainingSchedule','trainingTimestamp','api','remote','remoteActions','permissionApi','recommendations','proxyOrigin','data','trainingLogic']){
+for(const name of ['sessionPreview', 'packageBuilder', 'packageRoadmap','trainingSchedule','trainingTimestamp','api','remote','remoteActions','permissionApi','recommendations','proxyOrigin','data','trainingLogic']){
  const source=await readFile(new URL('../src/'+name+'.ts',import.meta.url),'utf8');
  const code=ts.transpileModule(source.replace('import.meta.env','({})'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace(/(['"])(\.\/[^'"]+)\1/g,(_,q,s)=>q+s+'.mjs'+q);await writeFile(path.join(dir,name+'.mjs'),code);
 }
-const {selectedStages,scheduleRows,validateSessionWindow,packageSessions}=await import(pathToFileURL(path.join(dir,'trainingSchedule.mjs')));
+const {selectedStages,scheduleRows,validateSessionWindow,packageSessions,sessionStartState}=await import(pathToFileURL(path.join(dir,'trainingSchedule.mjs')));
 const api=await import(pathToFileURL(path.join(dir,'api.mjs')));
 const {sessionFromApi}=await import(pathToFileURL(path.join(dir,'remote.mjs')));
 const {makeRemoteActions}=await import(pathToFileURL(path.join(dir,'remoteActions.mjs')));
@@ -22,7 +22,7 @@ test('one through six unique weekdays only',()=>{assert.throws(()=>selectedStage
 test('preview uses actual dates across all stages and handles partial weeks',()=>{const rows=scheduleRows(selectedStages(stages,[1,3,5],'09:00'),'22/10/2026');assert.equal(rows.length,13);assert.equal(rows[0].date,'23/10/2026');assert.equal(rows.at(-1).date,'20/11/2026');assert.ok(rows.some(r=>r.type==='Progression'&&r.endTime==='09:40'));assert.ok(rows.every(r=>r.time==='09:00'));});
 const windowInput={date:'23/10/2026',time:'09:00',endTime:'09:30',startDate:'22/10/2026',endDate:'20/11/2026',horseId:'HOR-101',trainerId:'HTR-001'};
 const now=new Date('2026-10-22T00:00:00');const slot=(id,time,endTime,extra={})=>({id,horseId:'HOR-101',trainerId:'HTR-001',date:'23/10/2026',time,endTime,status:'Scheduled',...extra});
-test('multiple daily sessions and back-to-back sessions are allowed',()=>assert.equal(validateSessionWindow(windowInput,[slot('one','07:00','07:30'),slot('two','08:30','09:00'),slot('three','10:00','10:30')],now),''));
+test('a third daily session is allowed when all intervals are free',()=>assert.equal(validateSessionWindow(windowInput,[slot('one','07:00','07:30'),slot('two','08:30','09:00'),slot('three','10:00','10:30')],now),''));
 test('overlapping horse and trainer windows are blocked',()=>{assert.match(validateSessionWindow(windowInput,[slot('one','09:15','09:45')],now),/horse/);assert.match(validateSessionWindow(windowInput,[slot('one','09:15','09:45',{horseId:'HOR-002'})],now),/trainer/);});
 test('adjustment excludes itself while cancelled sessions do not block',()=>assert.equal(validateSessionWindow({...windowInput,excludeId:'self'},[slot('self','09:00','09:30'),slot('cancelled','09:00','09:30',{status:'Cancelled'})],now),''));
 test('date outside term, past start and inverted window are blocked',()=>{assert.match(validateSessionWindow({...windowInput,date:'21/11/2026'},[],now),/period/);assert.match(validateSessionWindow({...windowInput,endTime:'08:59'},[],now),/after/);assert.match(validateSessionWindow(windowInput,[],new Date('2026-10-24T00:00:00')),/future/);});
@@ -39,7 +39,70 @@ test('failed adjust never refreshes or announces success',async()=>{const e=env(
 
 test('create-plan request stores selected days and time in every stage',async()=>{
  const s=state();s.enrollments=[{id:'HPG-CREATE',horseId:'HOR-101',trainerId:'HTR-001',trainerStatus:'confirmed',status:'active',assignmentId:'ASN-CREATE',startedAt:'22/10/2026',expiresAt:'20/11/2026'}];
- const e=env(s);globalThis.fetch=async(url,init)=>{const body=init?.body?JSON.parse(init.body):undefined;e.calls.push({url:String(url),body});const data=String(url).includes('training-recommendations')?{recommendationId:'REC-001',stages}: {planId:'PLN-NEW',horseId:'HOR-101',startDate:'2026-10-22',endDate:'2026-11-20'};return new Response(JSON.stringify({success:true,data}),{headers:{'Content-Type':'application/json'}});};
- const r=await e.actions.createPlan({horseId:'HOR-101',phase:'Trainer plan',goals:'Build fitness safely',startDate:'22/10/2026',endDate:'20/11/2026',weekdays:[2,4],time:'09:00',workload:'Medium'});
- assert.equal(r.ok,true);const saved=e.calls.at(-1).body;assert.equal(saved.startDate,'2026-10-22');assert.equal(saved.endDate,'2026-11-20');assert.deepEqual(saved.stages[0].daysOfWeek,['TUESDAY','THURSDAY']);assert.equal(saved.stages[0].sessionTime,'09:00:00');assert.equal(saved.stages[0].sessionEndTime,'09:30:00');assert.equal(saved.stages[1].sessionEndTime,'09:40:00');assert.equal(saved.stages[1].intensity,'MODERATE');
+ const e=env(s);globalThis.fetch=async(url,init)=>{const body=init?.body?JSON.parse(init.body):undefined;e.calls.push({url:String(url),body});const data={planId:'PLN-NEW',horseId:'HOR-101',startDate:'2026-10-22',endDate:'2026-11-20'};return new Response(JSON.stringify({success:true,data}),{headers:{'Content-Type':'application/json'}});};
+ const r=await e.actions.createPlan({horseId:'HOR-101',phase:'Trainer plan',goals:'Build fitness safely',startDate:'22/10/2026',endDate:'20/11/2026',weekdays:[2,4],time:'09:00',workload:'Medium',suggestion:{stages}});
+ assert.equal(r.ok,true);assert.equal(e.calls.length,1);const saved=e.calls.at(-1).body;assert.equal('recommendationId' in saved,false);assert.equal('recommendationConfirmed' in saved,false);assert.equal(saved.startDate,'2026-10-22');assert.equal(saved.endDate,'2026-11-20');assert.deepEqual(saved.stages[0].daysOfWeek,['TUESDAY','THURSDAY']);assert.equal(saved.stages[0].sessionTime,'09:00:00');assert.equal(saved.stages[0].sessionEndTime,'09:30:00');assert.equal(saved.stages[1].sessionEndTime,'09:40:00');assert.equal(saved.stages[1].intensity,'MODERATE');
+});
+
+const {futureSchedule,scheduleWarning,trainingStart}=await import(pathToFileURL(path.join(dir,'trainingSchedule.mjs')));
+test('Bangkok past/equal/future filtering is independent of the browser timezone',()=>{
+ const cutoff=new Date('2026-10-27T00:00:00Z');const rows=[{date:'27/10/2026',time:'06:59'},{date:'27/10/2026',time:'07:00'},{date:'27/10/2026',time:'07:01'}];
+ assert.equal(trainingStart('27/10/2026','07:00').toISOString(),'2026-10-27T00:00:00.000Z');assert.deepEqual(futureSchedule(rows,cutoff),[rows[2]]);assert.match(scheduleWarning(rows,cutoff),/Some scheduled/);assert.match(scheduleWarning(rows,trainingStart('27/10/2026','07:02')),/No future/);
+ assert.equal(scheduleWarning([rows[2]],cutoff),'');assert.equal(validateSessionWindow({...windowInput,date:'27/10/2026'},[],trainingStart('27/10/2026','09:00')),'The session must start in the future.');
+});
+test('preview clock advancing past a session changes eligibility without shifting its date',()=>{
+ const rows=[{date:'27/10/2026',time:'07:00'},{date:'28/10/2026',time:'07:00'}];assert.equal(futureSchedule(rows,new Date('2026-10-26T23:59:00Z')).length,2);assert.equal(futureSchedule(rows,new Date('2026-10-27T00:01:00Z')).length,1);assert.equal(rows[0].date,'27/10/2026');
+});
+test('lost generation response is reconciled before retry and never creates another calendar',async()=>{
+ const s=state();const e=env(s);let attempts=0,reads=0;
+ globalThis.fetch=async(url)=>{if(String(url).includes('/training-sessions/horse/')){reads++;return new Response(JSON.stringify({success:true,data:attempts?[{sessionId:'SES-SAVED',planId:'PLN-001',status:'SCHEDULED'}]:[]}),{headers:{'Content-Type':'application/json'}});}attempts++;throw Error('Connection lost after server commit');};
+ assert.equal((await e.actions.generateSessions('HOR-101','PLN-001',[])).ok,false);const retry=await e.actions.generateSessions('HOR-101','PLN-001',[]);assert.equal(retry.ok,true);assert.equal(retry.data[0].id,'SES-SAVED');assert.equal(attempts,1);assert.equal(reads,2);assert.equal(e.reloads(),1);
+});
+test('failure to reconcile server state prevents generation',async()=>{
+ const e=env(state());let writes=0;globalThis.fetch=async(url,init)=>{if(init?.method==='POST')writes++;throw Error('Unable to verify existing schedule');};const r=await e.actions.generateSessions('HOR-101','PLN-001',[]);assert.equal(r.ok,false);assert.equal(writes,0);
+});
+
+test('editing persisted stages preserves the backend phase code and time metadata',async()=>{
+ const {normalizeStages}=await import(pathToFileURL(path.join(dir,'trainingSchedule.mjs')));
+ const [stage]=normalizeStages([{start_day:1,end_day:5,phase_code:'RACING_BASELINE',title:'Baseline',objective:'Review',activity_name:'Baseline work',intensity:'LOW',weekdays_json:'["MONDAY"]',session_time:'07:00:00',session_end_time:'07:40:00'}]);
+ assert.equal(stage.phaseCode,'RACING_BASELINE');assert.equal(stage.sessionEndTime,'07:40:00');assert.deepEqual(stage.daysOfWeek,['MONDAY']);assert.equal(stage.objective,'Review');
+});
+
+test('Start allows early and late exercise on exactly the Bangkok scheduled day',()=>{
+ const session=slot('start','10:00','10:30',{date:'04/11/2026',canStart:true});
+ for(const now of ['2026-11-04T00:01:00+07:00','2026-11-04T23:59:00+07:00'])
+  assert.equal(sessionStartState(session,[],'HTR-001',new Date(now)).allowed,true);
+ for(const now of ['2026-11-03T23:59:59+07:00','2026-11-05T00:00:00+07:00'])
+  assert.match(sessionStartState(session,[],'HTR-001',new Date(now)).reason,/scheduled date/);
+});
+test('Start blocks running and stopped sessions until results are completed, across horses',()=>{
+ const target=slot('target','10:00','10:30',{date:'04/11/2026',canStart:true});
+ const now=new Date('2026-11-04T01:00:00Z');
+ for(const actualEnd of [undefined,'2026-11-04T08:00:00']){
+  const pending={...target,id:'pending',horseId:'OTHER',status:'In Progress',actualEnd};
+  assert.equal(sessionStartState(target,[pending],'HTR-001',now).allowed,false);
+  assert.match(sessionStartState(target,[pending],'HTR-001',now).reason,/pending/);
+ }
+ assert.equal(sessionStartState(target,[{...target,id:'done',status:'Completed'}],'HTR-001',now).allowed,true);
+ assert.equal(sessionStartState(target,[{...target,id:'other',horseId:'OTHER',trainerId:'OTHER',status:'In Progress'}],'HTR-001',now).allowed,true);
+ assert.equal(sessionStartState(target,[{...target,id:'same-horse',trainerId:'OTHER',status:'In Progress'}],'HTR-001',now).allowed,false);
+ assert.equal(sessionStartState(target,[],'OTHER',now).allowed,false);
+});
+test('Start refreshes a date-only hint across Bangkok midnight and preserves server blocks',()=>{
+ const target=slot('target','10:00','10:30',{date:'05/11/2026',canStart:false,startBlockedReason:'Start this session on its scheduled date (Bangkok time).'});
+ assert.equal(sessionStartState(target,[],'HTR-001',new Date('2026-11-04T16:59:59Z')).allowed,false);
+ assert.equal(sessionStartState(target,[],'HTR-001',new Date('2026-11-04T17:00:00Z')).allowed,true);
+ const locked={...target,startBlockedReason:'Horse is training-locked.'};
+ assert.equal(sessionStartState(locked,[],'HTR-001',new Date('2026-11-04T17:00:01Z')).reason,locked.startBlockedReason);
+});
+test('session adapter preserves the backend Start explanation',()=>{
+ assert.equal(sessionFromApi({sessionId:'x',status:'SCHEDULED',canStart:false,startBlockedReason:'Finish SES-1 first'}).startBlockedReason,'Finish SES-1 first');
+});
+test('failed Start and completion return errors and never announce success',async()=>{
+ const session={user:{id:'HTR-001'},trainingPlans:[],trainingSessions:[],horses:[],enrollments:[]};
+ const {actions,messages}=env(session);
+ globalThis.fetch=async()=>new Response(JSON.stringify({success:false,message:'Finish SES-1 first'}),{status:409,headers:{'Content-Type':'application/json'}});
+ assert.match(await actions.startSession('SES-2'),/Finish SES-1/);
+ const failure=await actions.completeSession('SES-1',{time:'1',speed:'10',heartRate:90,performanceScore:60,recoveryMeasuredAt:'2026-11-04T08:00:00',notes:'Keep form'});
+ assert.match(failure,/Finish SES-1/);assert.equal(messages.length,0);
 });

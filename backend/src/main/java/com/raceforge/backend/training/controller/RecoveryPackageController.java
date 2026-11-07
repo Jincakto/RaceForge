@@ -2,7 +2,7 @@ package com.raceforge.backend.training.controller;
 
 import com.raceforge.backend.common.response.ApiResponse;
 
-import com.raceforge.backend.training.dto.HorsePackagePaymentRequest;
+
 import com.raceforge.backend.training.dto.HorsePackageResponse;
 import com.raceforge.backend.training.dto.RecoveryApprovalRequest;
 import com.raceforge.backend.training.service.RecoveryPackageService;
@@ -38,16 +38,4 @@ public class RecoveryPackageController {
         ));
     }
 
-    @PreAuthorize("hasAuthority('HORSE_OWNER')")
-    @PostMapping("/{id}/simulate-recovery-payment")
-    public ResponseEntity<ApiResponse<HorsePackageResponse>> simulateRecoveryPayment(
-            @PathVariable String id,
-            @Valid @RequestBody HorsePackagePaymentRequest request,
-            @AuthenticationPrincipal(expression = "userId") String ownerId
-    ) {
-        return ResponseEntity.ok(ApiResponse.success(
-                "Owner-paid initial Recovery payment simulation processed",
-                service.simulateRecoveryPayment(id, request.successful(), ownerId)
-        ));
-    }
 }

@@ -15,6 +15,7 @@ import java.util.Map;
 /** Central business guard, used by every plan/session write path. */
 @Service
 public class TrainingWorkflowGuard {
+ @org.springframework.beans.factory.annotation.Autowired @org.springframework.beans.factory.annotation.Qualifier("trainingClock") private java.time.Clock clock;
  private final JdbcTemplate jdbc;
  private final HorsePackageRepository packages;
  @org.springframework.beans.factory.annotation.Autowired private com.raceforge.backend.training.service.TrainingMedicalReader medicalReader;
@@ -32,7 +33,7 @@ public class TrainingWorkflowGuard {
   jdbc.queryForList("SELECT horse_id FROM dbo.Horse WITH(UPDLOCK,HOLDLOCK) WHERE horse_id=?",pack.getHorse().getHorseId());
   jdbc.queryForList("SELECT horse_package_id FROM dbo.HORSE_PACKAGE WITH(UPDLOCK,HOLDLOCK) WHERE horse_package_id=?",id);
   entityManager.refresh(pack.getHorse());entityManager.refresh(pack);
-  if(!"ACTIVE".equals(pack.getStatus())||!"PAID".equals(pack.getPaymentStatus())||pack.getStartDate()==null||pack.getEndDate()==null||pack.getEndDate().isBefore(pack.getStartDate())||pack.getEndDate().isBefore(LocalDate.now()))throw new BusinessRuleException("Horse package must be active, paid and within its valid period");
+  if(!"ACTIVE".equals(pack.getStatus())||!"PAID".equals(pack.getPaymentStatus())||pack.getStartDate()==null||pack.getEndDate()==null||pack.getEndDate().isBefore(pack.getStartDate())||pack.getEndDate().isBefore(LocalDate.now(clock)))throw new BusinessRuleException("Horse package must be active, paid and within its valid period");
   requireHealthy(pack.getHorse());return pack;
  }
  public Map<String,Object> medical(Horse horse){return medicalReader.snapshot(horse.getHorseId());}
@@ -62,7 +63,7 @@ public class TrainingWorkflowGuard {
  }
  public java.math.BigDecimal weight(Horse horse){return medicalReader.weight(horse.getHorseId());}
  public boolean canAccessPackage(String packageId,String userId){
-  return jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Horse_Assignment a JOIN dbo.Training_Assignment ta ON ta.assignment_id=a.id JOIN dbo.Trainer p ON p.user_id=a.assignee_id JOIN dbo.Trainer_Detail d ON d.trainer_id=p.trainer_id JOIN dbo.Horse_Trainer ht ON ht.horse_id=a.horse_id AND ht.trainer_id=p.trainer_id JOIN dbo.[User] u ON u.user_id=p.user_id WHERE a.kind='TRAINER' AND ta.horse_package_id=? AND p.user_id=? AND a.status='ACCEPTED' AND d.status='ACTIVE' AND u.status='ACTIVE' AND u.email_verified=1 AND u.role_id=(SELECT role_id FROM dbo.Role WHERE role_name='HEAD_TRAINER')",Integer.class,packageId,userId)>0;
+  return jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Horse_Assignment a JOIN dbo.Training_Assignment ta ON ta.assignment_id=a.id JOIN dbo.Trainer p ON p.user_id=a.assignee_id JOIN dbo.Trainer_Detail d ON d.trainer_id=p.trainer_id JOIN dbo.Horse_Trainer ht ON ht.horse_id=a.horse_id AND ht.trainer_id=p.trainer_id JOIN dbo.[User] u ON u.user_id=p.user_id WHERE a.kind='TRAINER' AND ta.horse_package_id=? AND p.user_id=? AND a.status='ACCEPTED' AND ta.ended_at IS NULL AND d.status='ACTIVE' AND u.status='ACTIVE' AND u.email_verified=1 AND u.role_id=(SELECT role_id FROM dbo.Role WHERE role_name='HEAD_TRAINER')",Integer.class,packageId,userId)>0;
  }
  public HorsePackage assignedPackage(String packageId){
   var user=actor();if(!"HEAD_TRAINER".equals(user.roleName())||!canAccessPackage(packageId,user.userId()))throw new org.springframework.security.access.AccessDeniedException("An accepted trainer assignment is required");
@@ -75,7 +76,7 @@ public class TrainingWorkflowGuard {
   return packages.findById(packageId).orElseThrow(()->new ResourceNotFoundException("Horse package not found"));
  }
  public HorsePackage assignment(String assignmentId,String horseId){
-  var rows=jdbc.queryForList("SELECT ta.horse_package_id,a.assignee_id AS user_id FROM dbo.Horse_Assignment a JOIN dbo.Training_Assignment ta ON ta.assignment_id=a.id WHERE a.id=? AND a.kind='TRAINER' AND a.status='ACCEPTED'",assignmentId);
+  var rows=jdbc.queryForList("SELECT ta.horse_package_id,a.assignee_id AS user_id FROM dbo.Horse_Assignment a JOIN dbo.Training_Assignment ta ON ta.assignment_id=a.id WHERE a.id=? AND a.kind='TRAINER' AND a.status='ACCEPTED' AND ta.ended_at IS NULL",assignmentId);
   if(rows.isEmpty()||!actor().userId().equals(rows.get(0).get("user_id")))throw new org.springframework.security.access.AccessDeniedException("Select your accepted trainer assignment");
   var pack=assignedPackage((String)rows.get(0).get("horse_package_id"));
   if(!pack.getHorse().getHorseId().equals(horseId))throw new BusinessRuleException("Assignment belongs to another horse");return pack;

@@ -159,6 +159,8 @@ export type TrainerAssignStatus = 'unassigned' | 'pending' | 'confirmed';
 export interface AssignEntry { time: string; kind: 'assign' | 'replace' | 'confirm' | 'decline'; from: string | null; to: string; by: string; reason: string }
 
 export interface Enrollment {
+  roadmapConfigured?: boolean;
+  roadmapConfigurationReason?: string | null;
   directAssignmentId?: string;
   assignmentId?: string;
   paymentStatus?: string;
@@ -251,7 +253,7 @@ export interface Horse {
   sire?: string;
   dam?: string;
   identityVerified?: boolean;
-  identityEvidence?: { url: string; fileUrl?: string; note: string };
+  identityEvidence?: { url: string; fileUrl?: string; note: string; imageFile?: File; documentFile?: File };
   intakeExamId?: string;
   medicalHistory?: string;
   birthDate?: string;
@@ -312,6 +314,7 @@ export interface TrainingSession {
   intensity?: string;
   actualEnd?: string;
   canStart?: boolean;
+  startBlockedReason?: string;
   canStop?: boolean;
   canComplete?: boolean;
   id: string;

@@ -12,6 +12,7 @@ public record TrainingPackageResponse(
         BigDecimal price,
         String status,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        PackageRoadmapDto roadmapTemplate
         ) {
 }

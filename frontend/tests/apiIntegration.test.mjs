@@ -8,11 +8,7 @@ import ts from 'typescript';
 
 // Run the actual TS adapters without Vite or a database; HTTP is the test boundary.
 const dir = await mkdtemp(path.join(tmpdir(), 'raceforge-api-tests-'));
-<<<<<<< HEAD
-for (const name of ['api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
-=======
-for (const name of ['trainingTimestamp', 'api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
->>>>>>> a0f9749 (Luu tam code local)
+for (const name of ['sessionPreview', 'packageBuilder', 'packageRoadmap', 'trainingSchedule', 'trainingTimestamp', 'api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
   const source = await readFile(new URL(`../src/${name}.ts`, import.meta.url), 'utf8');
   const code = ts.transpileModule(source.replace('import.meta.env', '({})'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText
     .replace(/(['"])(\.\/[^'"]+)\1/g, (_, quote, specifier) => `${quote}${specifier}.mjs${quote}`);
@@ -46,7 +42,6 @@ const denied = (status = 403) => new Response(JSON.stringify({ success: false, m
 const user = role => mapping.userFromApi({ userId: role === 'owner' ? 'OWN-001' : 'HTR-001', fullName: 'Test User', email: 'test@example.invalid', emailVerified: true, status: 'ACTIVE', role: { roleName: mapping.ROLE_NAMES[role], roleId: mapping.ROLE_IDS[role] } });
 const horse = () => mapping.horseFromApi({ horseId:'HOR-007', ownerId:'OWN-001', horseName:'Thunder', dateOfBirth:'2020-01-02', gender:'GELDING', admissionStatus:'APPROVED', healthStatus:'READY', trainerIds:['HTR-001','HTR-002'], registrationNumber:'704ABC000000001', imageUrl:'https://example.invalid/horse.jpg', documentUrl:'https://example.invalid/ueln.pdf' }, []);
 const state = () => ({ user:user('owner'), users:[], horses:[horse()], packages:[], enrollments:[], trainingPlans:[], trainingSessions:[], notifications:[], healthRecords:[], horseClubRequests:[] });
-<<<<<<< HEAD
 test('owner treats a missing health profile as no examination records, while preserving other errors', async () => {
   for (const [status, message, expectedWarnings] of [
     [404, 'Health profile not found', 0],
@@ -82,44 +77,29 @@ test('admin login loads administration data without calling business APIs', asyn
   assert.equal(Object.keys(data.serverPermissions).length, 6);
   assert.ok(urls.every(url => url.startsWith('/api/users') || url.startsWith('/api/admin/permissions/')));
 });
-=======
->>>>>>> a0f9749 (Luu tam code local)
 function actions(snapshot) {
   const events = [];
   return { events, remote: makeRemoteActions({ getState:() => snapshot, reload:async () => { events.push('reload'); }, success:message => events.push(message), error:message => events.push(`error:${message}`), navigate:page => events.push(`page:${page}`) }) };
 }
 
-<<<<<<< HEAD
-test('package create and edit send the DTO and use the server response', async () => {
-  const draft = {name:' Normal ',packageType:'RACING',description:'Training',durationDays:30,price:5000000};
-  for (const id of [undefined, 'PKG-001']) {
-    const {remote,events} = actions(state());
-    globalThis.fetch = async (url, init) => {
-      assert.equal(url, id ? `/api/training-packages/${id}` : '/api/training-packages');
-      assert.equal(init.method, id ? 'PUT' : 'POST');
-      assert.deepEqual(JSON.parse(init.body), {packageName:'Normal',packageType:'RACING',description:'Training',durationDays:30,price:5000000});
-      return ok({packageId:'PKG-001',packageName:'Normal',packageType:'RACING',durationDays:30,price:5000000,status:'ACTIVE'});
-    };
-    const result = await remote.savePackage({...draft,id});
-    assert.equal(result.ok, true);
-    assert.equal(result.data.id, 'PKG-001');
-    assert.ok(events.includes('reload'));
-  }
+test('package creation sends the DTO and uses the server response', async () => {
+  const draft={name:' Normal ',packageType:'RACING',description:'Training',durationDays:90,price:5000000,roadmapTemplate:roadmapFixture()};
+  const {remote,events}=actions(state());
+  globalThis.fetch=async(url,init)=>{
+    assert.equal(url,'/api/training-packages');assert.equal(init.method,'POST');
+    assert.deepEqual(JSON.parse(init.body),{packageName:'Normal',packageType:'RACING',description:'Training',durationDays:90,price:5000000,roadmapTemplate:draft.roadmapTemplate});
+    return ok({packageId:'PKG-001',packageName:'Normal',packageType:'RACING',durationDays:90,price:5000000,status:'ACTIVE'});
+  };
+  const result=await remote.savePackage(draft);assert.equal(result.ok,true);assert.equal(result.data.id,'PKG-001');assert.ok(events.includes('reload'));
 });
 
-test('package status sends ACTIVE or INACTIVE and maps the response', async () => {
-  for (const active of [true, false]) {
-    const {remote} = actions(state());
-    globalThis.fetch = async (url, init) => {
-      assert.equal(url, '/api/training-packages/PKG-001/status');
-      assert.equal(init.method, 'PATCH');
-      assert.deepEqual(JSON.parse(init.body), {status:active ? 'ACTIVE' : 'INACTIVE'});
-      return ok({packageId:'PKG-001',packageName:'Normal',status:active ? 'ACTIVE' : 'INACTIVE'});
-    };
-    const result = await remote.togglePackage('PKG-001', active);
-    assert.equal(result.ok, true);
-    assert.equal(result.data.active, active);
-  }
+test('unavailable package edit and status operations do not send requests',async()=>{
+  const {remote,events}=actions(state());let calls=0;
+  globalThis.fetch=async()=>{calls++;return ok({});};
+  assert.equal((await remote.savePackage({id:'PKG-001',name:'Normal'})).ok,false);
+  assert.equal((await remote.togglePackage('PKG-001',true)).ok,false);
+  assert.equal((await remote.togglePackage('PKG-001',false)).ok,false);
+  assert.equal(calls,0);assert.ok(events.every(event=>event.startsWith('error:')));
 });
 
 test('unavailable package routes report failure without success or reload', async () => {
@@ -131,8 +111,6 @@ test('unavailable package routes report failure without success or reload', asyn
   assert.ok(events.every(event => event.startsWith('error:')));
 });
 
-=======
->>>>>>> a0f9749 (Luu tam code local)
 test('attaches bearer auth and cookie credentials, unwraps the BE response', async () => {
   api.setAccessToken('access');
   globalThis.fetch = async (url, init) => { assert.equal(url, '/api/horses'); assert.equal(init.credentials, 'include'); assert.equal(init.headers.Authorization, 'Bearer access'); return ok([{ horseId:'HOR-007' }]); };
@@ -199,24 +177,36 @@ test('saves a BE draft before confirmation and returns the real record ID', asyn
   assert.equal(saved.id,'MED-099'); assert.equal(saved.status,'confirmed'); assert.equal(paths.length,3); assert.deepEqual(events,['reload']);
 });
 
-test('records payment failure on BE without claiming a successful payment', async () => {
-  const snapshot = state(); const { remote, events } = actions(snapshot); const calls=[];
+test('starts PayOS payment: registers then requests a payment link', async () => {
+  const snapshot = state(); const { remote } = actions(snapshot); const calls=[];
   globalThis.fetch = async (url, init) => {
-    calls.push([url, JSON.parse(init.body)]);
+    calls.push([url, init.method]);
     if (url.endsWith('/register')) return ok({ horsePackageId:'HP-001' });
-    return ok({ horsePackageId:'HP-001', horseId:'HOR-007', packageId:'PKG-001', paymentStatus:'FAILED', status:'CANCELLED', totalPrice:100 });
+    return ok({ orderCode:123, registrationId:'HP-001', amount:100, checkoutUrl:'https://pay.payos.vn/web/abc', paymentState:'PENDING', applied:false });
   };
-  const r = await remote.purchasePackage('HOR-007','PKG-001',undefined,false);
-  assert.equal(r.ok,true); assert.equal(r.data.paymentStatus,'FAILED'); assert.equal(r.data.status,'completed');
-  assert.deepEqual(calls[1][1],{ successful:false }); assert.equal(calls[1][0],'/api/horse-packages/HP-001/simulate-payment'); assert.equal(events[0],'reload');
+  const r = await remote.startPayment('HOR-007','PKG-001');
+  assert.equal(r.ok,true); assert.equal(r.data.url,'https://pay.payos.vn/web/abc'); assert.equal(r.data.enrollmentId,'HP-001');
+  assert.equal(calls[1][0],'/api/horse-packages/HP-001/payment-link');
 });
 
 test('resumes an unpaid registration rather than registering it again', async () => {
   const snapshot = state(); snapshot.enrollments = [{ id:'HP-001',horseId:'HOR-007',packageId:'PKG-001',paymentStatus:'PENDING' }];
   const { remote } = actions(snapshot); const calls=[];
-  globalThis.fetch = async (url) => { calls.push(url); return ok({ horsePackageId:'HP-001', horseId:'HOR-007', packageId:'PKG-001', status:'ACTIVE', paymentStatus:'PAID', startDate:'2026-10-21',endDate:'2026-11-30' }); };
-  const r = await remote.purchasePackage('HOR-007','PKG-001');
-  assert.equal(r.data.startedAt,'21/10/2026'); assert.deepEqual(calls,['/api/horse-packages/HP-001/simulate-payment']);
+  globalThis.fetch = async (url) => { calls.push(url); return ok({ orderCode:123, registrationId:'HP-001', amount:100, checkoutUrl:'https://pay.payos.vn/web/abc', paymentState:'PENDING', applied:false }); };
+  const r = await remote.startPayment('HOR-007','PKG-001');
+  assert.equal(r.ok,true); assert.deepEqual(calls,['/api/horse-packages/HP-001/payment-link']);
+});
+
+test('payment-sync reads the package back and reports PAID only from BE', async () => {
+  const snapshot = state(); const { remote } = actions(snapshot); const calls=[];
+  globalThis.fetch = async (url) => {
+    calls.push(url);
+    if (url.endsWith('/payment-sync')) return ok({ orderCode:123, registrationId:'HP-001', amount:100, paymentState:'PAID', applied:true });
+    return ok([{ horsePackageId:'HP-001', horseId:'HOR-007', packageId:'PKG-001', status:'ACTIVE', paymentStatus:'PAID', startDate:'2026-10-21', endDate:'2026-11-30' }]);
+  };
+  const r = await remote.syncPayment('HOR-007','HP-001');
+  assert.equal(r.ok,true); assert.equal(r.data.paymentStatus,'PAID'); assert.equal(r.data.startedAt,'21/10/2026');
+  assert.equal(calls[0],'/api/horse-packages/HP-001/payment-sync');
 });
 
 test('pending trainer requests remain visible without fetching restricted horse/context data', async () => {
@@ -288,13 +278,9 @@ test('admin staff creation maps groom to database role 5, and refuses public-own
 test('completion sends actual exercise/recovery fields and does not invent a max speed', async () => {
   const snapshot = state(); const { remote } = actions(snapshot); let payload;
   globalThis.fetch = async (url, init) => { assert.equal(url,'/api/training-sessions/SES-001/complete'); assert.equal(init.method,'PATCH'); payload=JSON.parse(init.body); return ok({}); };
-  assert.equal(await remote.completeSession('SES-001',{ time:'1.25',speed:'18.2',heartRate:180,performanceScore:88,notes:'Measured recovery' }),null);
+  assert.equal(await remote.completeSession('SES-001',{ time:'1.25',speed:'18.2',heartRate:180,performanceScore:88,notes:'Measured recovery',recoveryMeasuredAt:'2026-10-21T07:32:00.123' }),null);
   assert.equal(payload.distance,1.25); assert.equal(payload.endExerciseHeartRate,180); assert.equal(payload.recoveryHeartRate2Min,88); assert.equal(payload.avgSpeed,18.2);
-<<<<<<< HEAD
-  assert.match(payload.recoveryMeasuredAt,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/); assert.ok(!('maxSpeed' in payload));
-=======
   assert.match(payload.recoveryMeasuredAt,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/); assert.ok(!('maxSpeed' in payload));
->>>>>>> a0f9749 (Luu tam code local)
 });
 
 test('medical confirmation failure keeps its draft ID and retries using the draft update API', async () => {
@@ -367,11 +353,7 @@ test('only admin can create a profile for an activated Trainer', async () => {
 });
 test('trainer assignment uses profile ID, not account ID', async () => {
   const target={...user('head_trainer'),trainerProfileId:'HTR-099'};
-<<<<<<< HEAD
-  const snapshot={...state(),user:user('manager'),users:[target],enrollments:[{id:'HPG-001',horseId:'HOR-007'}]}; const {remote}=actions(snapshot);
-=======
   const snapshot={...state(),user:user('manager'),users:[target],enrollments:[{id:'HPG-001',horseId:'HOR-007',apiStatus:'ACTIVE',paymentStatus:'PAID'}]}; const {remote}=actions(snapshot);
->>>>>>> a0f9749 (Luu tam code local)
   globalThis.fetch=async(url,init)=>{assert.equal(url,'/api/trainer-assignments'); assert.deepEqual(JSON.parse(init.body),{trainerId:'HTR-099',horsePackageId:'HPG-001'}); return ok({});};
   assert.equal((await remote.assignTrainer('HPG-001',target.id)).ok,true);
 });
@@ -399,16 +381,16 @@ test('trainer profile reports missing records and server errors without pretendi
   await assert.rejects(saveOwnTrainerProfile({trainer_id:'HTR-099',user_id:'HTR-001'},'HTR-001','bio','cert'),e=>e.status===403);
 });
 
-const protocolDraft=()=>({name:'Vet authored protocol',packageType:'BASIC',minWeight:400,maxWeight:500,rationale:'Test rationale',sources:['https://www.merckvetmanual.com/test'],stages:[{startDay:1,endDay:7,activityName:'Vet authored activity',intensity:'LOW',daysOfWeek:['MONDAY'],sessionTime:'08:00',sessionEndTime:'08:30'}]});
+const protocolDraft=()=>({name:'Vet authored protocol',packageType:'BASIC',minWeight:400,maxWeight:500,rationale:'Test rationale',stages:[{startDay:1,endDay:7,activityName:'Vet authored activity',intensity:'LOW',daysOfWeek:['MONDAY'],sessionTime:'08:00',sessionEndTime:'08:30'}]});
 test('protocol APIs preserve vet-authored content and use draft/approval/retire endpoints', async()=>{
   const calls=[];globalThis.fetch=async(url,init)=>{calls.push({url,init});return ok({});};
   const draft=protocolDraft();await protocols.createProtocol(draft);await protocols.changeProtocolStatus('PRO-001','approve');await protocols.changeProtocolStatus('PRO-001','retire');
   assert.deepEqual(JSON.parse(calls[0].init.body),draft);
   assert.deepEqual(calls.map(c=>c.url),['/api/training-protocols','/api/training-protocols/PRO-001/approve','/api/training-protocols/PRO-001/retire']);
 });
-test('invalid protocol weight, stages and source are blocked before HTTP', async()=>{
+test('invalid protocol weight and stages are blocked before HTTP', async()=>{
   let calls=0;globalThis.fetch=async()=>{calls++;return ok({});};
-  for(const change of [{minWeight:0},{maxWeight:400},{sources:['https://example.com']},{sources:[]},{rationale:''},{stages:[]},{stages:[{...protocolDraft().stages[0],sessionEndTime:'07:00'}]},{stages:[...protocolDraft().stages,...protocolDraft().stages]}]) {
+  for(const change of [{minWeight:0},{maxWeight:400},{rationale:''},{stages:[]},{stages:[{...protocolDraft().stages[0],sessionEndTime:'07:00'}]},{stages:[...protocolDraft().stages,...protocolDraft().stages]}]) {
     assert.throws(()=>protocols.createProtocol({...protocolDraft(),...change}));
   }assert.equal(calls,0);
 });
@@ -418,8 +400,6 @@ test('published protocol weight intervals are half-open and package-specific',()
   assert.equal(protocols.protocolOverlap({...active,protocol_id:'PRO-2',min_weight:500,max_weight:550},[active]),false);
   assert.equal(protocols.protocolOverlap({...active,protocol_id:'PRO-2',package_type:'RECOVERY'},[active]),false);
 });
-<<<<<<< HEAD
-=======
 
 
 test('unpaid and paused packages cannot create trainer assignments', async () => {
@@ -517,4 +497,111 @@ test('invalid intensity does not create a training plan',async()=>{
  globalThis.fetch=async(url)=>{if(url.endsWith('/training-recommendations'))return ok(suggestion);writes++;return ok({});};
  assert.equal((await remote.createPlan({...draft,workload:'INVALID'})).ok,false);assert.equal(writes,0);
 });
->>>>>>> a0f9749 (Luu tam code local)
+
+test('veterinarian loads current assignments and medical records without history endpoint', async () => {
+  const me = user('veterinarian'); const calls = []; const warnings = [];
+  globalThis.fetch = async url => {
+    const endpoint = String(url); calls.push(endpoint);
+    if (endpoint.endsWith('/horses')) return ok([{horseId:'HOR-007',horseName:'Thunder',admissionStatus:'APPROVED',healthStatus:'READY'}]);
+    if (endpoint.endsWith('/medical/assignments/mine')) return ok([{assignmentId:'ASN-007',horseId:'HOR-007',veterinarianId:me.id,veterinarianName:me.name,status:'ACCEPTED',createdAt:'2026-10-26T08:00:00'}]);
+    if (endpoint.endsWith('/medical/horses/HOR-007/records')) return ok([{medicalRecordId:'MED-007',veterinarianId:me.id,status:'CONFIRMED',finalConclusion:'FIT',examinedAt:'2026-10-26T09:00:00'}]);
+    return ok([]);
+  };
+  const data = await mapping.loadRemote(me, message => warnings.push(message));
+  assert.equal(data.horses[0].vetId,me.id);
+  assert.equal(data.horses[0].vetAssign.status,'accepted');
+  assert.equal(data.healthRecords[0].horseId,'HOR-007');
+  assert.equal(data.vetAssignmentsError,undefined);
+  assert.equal(calls.some(url=>url.includes('/mine/history')),false);
+  assert.deepEqual(warnings,[]);
+});
+
+test('veterinary assignment denial is preserved separately from an empty assignment list', async () => {
+  globalThis.fetch = async url => String(url).endsWith('/medical/assignments/mine') ? denied() : ok([]);
+  const warnings=[];
+  const data=await mapping.loadRemote(user('veterinarian'),message=>warnings.push(message));
+  assert.match(data.vetAssignmentsError,/server denied access/);
+  assert.equal(warnings.length,1);
+});
+
+
+test('manager treats only a missing health profile as empty medical history', async () => {
+ for (const [status,message,count] of [[404,'Health profile not found',0],[404,'Horse not found',1],[403,'Denied',1],[500,'Health profile not found',1]]) {
+  globalThis.fetch=async url=>url==='/api/horses'?ok([{horseId:'HOR-002',horseName:'Brown',admissionStatus:'PENDING'}]):url==='/api/medical/horses/HOR-002/records'?new Response(JSON.stringify({success:false,message}),{status}):ok([]);
+  const warnings=[]; const data=await mapping.loadRemote(user('manager'),m=>warnings.push(m));
+  assert.equal(data.horses.length,1); assert.deepEqual(data.healthRecords,[]); assert.equal(warnings.length,count);
+ }
+});
+
+test('admitted club list excludes pending, rejected and other clubs regardless of health', () => {
+ const base=horse();
+ const horses=[base,{...base,id:'pending',approvalStatus:'pending',healthStatus:'Eligible'},{...base,id:'rejected',approvalStatus:'rejected'},{...base,id:'other',clubId:'other'}];
+ assert.deepEqual(mapping.admittedClubHorses(horses,mapping.CENTER).map(h=>h.id),[base.id]);
+ assert.equal(horses.length,4);
+});
+
+test('latest confirmed follow-up replaces initial conclusion and ignores newer drafts', () => {
+ const initial={id:'initial',horseId:'HOR-007',intake:true,status:'confirmed',date:'27/10/2026',createdAt:1,decision:'not-eligible'};
+ const followup={...initial,id:'followup',intake:false,createdAt:2,decision:'eligible'};
+ const draft={...followup,id:'draft',status:'draft',createdAt:3,decision:'not-eligible'};
+ const other={...followup,id:'other',horseId:'HOR-008',createdAt:4};
+ assert.equal(mapping.latestConfirmedExam([initial,draft,other,followup],'HOR-007').id,'followup');
+ assert.equal(mapping.latestConfirmedExam([initial,draft],'HOR-007').id,'initial');
+ assert.equal(mapping.latestConfirmedExam([draft],'HOR-007'),undefined);
+});
+
+function roadmapFixture() { return {title:'Racing foundation',goal:'Build stamina safely',stages:[{startDay:1,endDay:30,title:'Foundation',phaseCode:'FOUNDATION',objective:'Build endurance',activityName:'Easy canter',intensity:'LOW',daysOfWeek:['MONDAY','WEDNESDAY','FRIDAY'],sessionTime:'07:30',sessionEndTime:'08:00'}]}; }
+
+test('package roadmap mapping preserves every configured stage field', async()=>{
+ const recommendations=await import(pathToFileURL(path.join(dir,'recommendations.mjs')).href);
+ const template=roadmapFixture();template.stages.push({...template.stages[0],startDay:31,endDay:45,activityName:'Tempo run',intensity:'HIGH',sessionTime:'08:00',sessionEndTime:'08:45'});
+ const mapped=recommendations.recommendationView(template);
+ assert.equal(mapped.stages.length,2);assert.equal(mapped.stages[0].activityName,'Easy canter');assert.deepEqual(mapped.stages[0].daysOfWeek,template.stages[0].daysOfWeek);
+ assert.equal(mapped.stages[1].intensity,'HIGH');assert.equal(mapped.stages[1].sessionEndTime,'08:45');assert.equal(mapped.stages[0].phaseCode,'FOUNDATION');assert.equal(mapped.rationale[0],template.goal);
+});
+
+test('package roadmap validation rejects invalid stage ranges, times and missing curriculum',async()=>{
+ const {validateRoadmap}=await import(pathToFileURL(path.join(dir,'packageRoadmap.mjs')).href);
+ assert.equal(validateRoadmap(roadmapFixture(),30),'');
+ assert.ok(validateRoadmap(undefined,30));
+ for(const patch of [{endDay:31},{startDay:0},{title:''},{phaseCode:''},{activityName:''},{daysOfWeek:[]},{daysOfWeek:['MONDAY','MONDAY']},{daysOfWeek:['NODAY']},{sessionEndTime:'07:00'},{intensity:'UNSAFE'}]) {
+  const template=roadmapFixture();template.stages[0]={...template.stages[0],...patch};assert.ok(validateRoadmap(template,30),JSON.stringify(patch));
+ }
+ const overlap=roadmapFixture();overlap.stages.push({...overlap.stages[0],startDay:20});assert.match(validateRoadmap(overlap,30),/overlap/);
+});
+
+test('invalid package roadmap is blocked before HTTP',async()=>{
+ const {remote}=actions(state());let calls=0;globalThis.fetch=async()=>{calls++;return ok({});};
+ assert.equal((await remote.savePackage({name:'Package',packageType:'BASIC',description:'',durationDays:30,price:1000000})).ok,false);assert.equal(calls,0);
+});
+
+test('trainer submits stage-specific schedules and intensities without flattening the template',async()=>{
+ const fixture=scheduleFixture('HPG-stage-specific');const template=roadmapFixture();template.stages[0].endDay=15;template.stages.push({...template.stages[0],startDay:16,endDay:30,title:'Performance',phaseCode:'PERFORMANCE',intensity:'HIGH',activityName:'Tempo run',daysOfWeek:['TUESDAY'],sessionTime:'08:00',sessionEndTime:'08:45'});
+ let payload;globalThis.fetch=async(url,init)=>{payload=JSON.parse(init.body);return ok({planId:'PLN-1',horseId:'HOR-007'});};
+ const result=await fixture.remote.createPlan({...fixture.draft,phase:template.title,goals:template.goal,weekdays:undefined,time:undefined,workload:'',suggestion:{stages:template.stages}});
+ assert.equal(result.ok,true);assert.deepEqual(payload.stages.map(s=>[s.activityName,s.intensity,s.daysOfWeek,s.sessionTime,s.sessionEndTime]),template.stages.map(s=>[s.activityName,s.intensity,s.daysOfWeek,s.sessionTime+':00',s.sessionEndTime+':00']));
+});
+
+
+test('combined roadmap stages cannot create a seven-day training week',async()=>{
+ const {validateRoadmap}=await import(pathToFileURL(path.join(dir,'packageRoadmap.mjs')).href);
+ const template=roadmapFixture();template.stages[0]={...template.stages[0],endDay:6,daysOfWeek:['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY']};
+ template.stages.push({...template.stages[0],startDay:7,endDay:30,daysOfWeek:['TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY']});
+ assert.match(validateRoadmap(template,30),/rest day/);
+ assert.match(validateRoadmap(template,30,'2026-11-02'),/rest day/);
+});
+
+test('empty roadmap responses report a configuration error rather than inventing stages',async()=>{
+ const recommendations=await import(pathToFileURL(path.join(dir,'recommendations.mjs')).href);
+ assert.throws(()=>recommendations.recommendationView({title:'Empty',stages:[]}),/No package roadmap stages/);
+ assert.throws(()=>recommendations.recommendationView({phases:[{title:'Legacy'}]}),/No package roadmap stages/);
+});
+
+
+test('retrying an unconfigured roadmap reloads the template instead of caching an empty result',async()=>{
+ const recommendations=await import(pathToFileURL(path.join(dir,'recommendations.mjs')).href);recommendations.clearRecommendations();let calls=0;
+ globalThis.fetch=async url=>{assert.equal(url,'/api/horse-packages/HPG-retry/roadmap-template');calls++;return ok(calls===1?{stages:[]}:roadmapFixture());};
+ await assert.rejects(recommendations.packageRoadmapFor('HPG-retry'),/No package roadmap stages/);
+ const value=await recommendations.packageRoadmapFor('HPG-retry');assert.equal(value.stages.length,1);assert.equal(calls,2);
+ recommendations.clearRecommendations();
+});

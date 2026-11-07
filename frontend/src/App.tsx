@@ -1,5 +1,6 @@
-import { TrainingProtocolsPage } from "./trainingProtocolsPage";
+import { PackageRoadmapPreview } from './roadmapView';
 import { TrainerProfileForm } from "./trainerProfileForm";
+import { memberHorses } from "./memberHorses";
 import { permissionForPage } from "./permissionApi";
 import { clearRecommendations } from "./recommendations";
 import {
@@ -10,7 +11,7 @@ import {
   restoreSessionForLocation,
 } from "./passwordSetup";
 import { auth, request, ApiError, allPages } from "./api";
-import { loadRemote, userFromApi, CENTER } from "./remote";
+import { loadRemote, userFromApi, CENTER, admittedClubHorses, RemoteSourceStore, type RemoteIssue } from "./remote";
 import { makeRemoteActions } from "./remoteActions";
 import { VetHealthFormPage, nextMedId, REGION_DEFS } from "./vetForm";
 import { HealthRecordsPage } from "./healthRecords";
@@ -93,6 +94,7 @@ import {
   type Incident,
 } from "./data";
 import { Badge, Card, Btn, Input, Select, Textarea } from "./ui";
+import { readRows, parseRaceRows, SAMPLE_CSV, type RaceImportRow } from "./raceImport";
 import { TrainerHistoryTab, PhotosTab, logChange } from "./horseExtras";
 import {
   ReasonDialog,
@@ -149,6 +151,8 @@ type Page =
   | "inventory-log";
 
 interface AppState {
+  unlockExamHorseId?: string;
+  vetAssignmentsError?: string;
   user: AppUser | null;
   page: Page;
   users: AppUser[];
@@ -1498,11 +1502,10 @@ const NAV_ITEMS: Partial<
     { icon: "🐎", label: "Horses", page: "horse-list" },
     { icon: "🧑‍⚕️", label: "Assigned horses", page: "vet-assign" },
     { icon: "🏥", label: "Medical records", page: "health-records" },
-    { icon: "📝", label: "Health examination", page: "vet-health-form" },
     {
-      icon: "🩺",
-      label: "Post-training exams & locks",
-      page: "post-exam",
+      icon: "📝",
+      label: "Health examination",
+      page: "vet-health-form",
       badge: "vetTodo",
     },
     { icon: "🔔", label: "Notifications", page: "notifications" },
@@ -1529,9 +1532,12 @@ const DEFAULT_ROLE_PERMS: Record<string, string[]> = Object.fromEntries(
   (["manager", "head_trainer", "veterinarian", "groom", "owner"] as Role[]).map(
     (r) => [
       r,
-      (NAV_ITEMS[r] || [])
-        .map((i) => i.page as string)
-        .filter((pg) => FEATURES.some((f) => f.page === pg)),
+      [
+        ...(NAV_ITEMS[r] || []).map((i) => i.page as string),
+        // "post-exam" no longer has its own sidebar item (it is part of "Health examination"),
+        // but it stays a grantable permission for veterinarians.
+        ...(r === "veterinarian" ? ["post-exam"] : []),
+      ].filter((pg) => FEATURES.some((f) => f.page === pg)),
     ],
   ),
 );
@@ -1595,6 +1601,7 @@ function Sidebar({
     !isFeature(pg) ||
     (rolePerms[user.role!] || []).includes(pg);
   const matrixExtra = (rolePerms[user.role!] || [])
+    .filter((pg) => pg !== "post-exam") // merged into "Health examination"
     .filter((pg) => !(NAV_ITEMS[user.role!] || []).some((i) => i.page === pg))
     .map((pg) => FEATURES.find((f) => f.page === pg)!)
     .filter(Boolean)
@@ -1639,7 +1646,9 @@ function Sidebar({
                   : badge === "rehabReqs"
                     ? rehabCount
                     : 0;
-          const active = page === item.page;
+          const active =
+            page === item.page ||
+            (page === "post-exam" && item.page === "vet-health-form");
           return (
             <button
               key={item.page}
@@ -1778,8 +1787,16 @@ function ManagerDashboard({
   state: AppState;
   navigate: (p: Page) => void;
 }) {
-  const myClub = state.clubs.find((c) => c.managerId === state.user!.id);
-  const horses = state.horses.filter((h) => h.clubId === myClub?.id);
+  const clubId = state.user!.clubId;
+  const myClub = state.clubs.find((c) => c.id === clubId);
+  const horses = state.horses.filter((h) => !!clubId && h.clubId === clubId && h.approvalStatus === 'approved');
+  const members = state.users.filter(u => !!clubId && u.clubId === clubId);
+  const [performanceHorseId, setPerformanceHorseId] = useState('');
+  const performanceHorse = horses.find(h => h.id === performanceHorseId) || horses[0];
+  const performanceData = state.trainingSessions
+    .filter(s => s.horseId === performanceHorse?.id && s.result && Number.isFinite(Number(s.result.speed)))
+    .map(s => ({ date: s.date, speed: Number(s.result!.speed), sortKey: s.date.split('/').reverse().join('-') + s.time }))
+    .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
   const pendingHorses = myClub
     ? state.horseClubRequests.filter(
         (r) => r.clubId === myClub.id && r.status === "pending",
@@ -1884,7 +1901,7 @@ function ManagerDashboard({
         />
         <StatCard
           label="Members"
-          value={myClub?.memberCount || 0}
+          value={members.length}
           color="navy"
         />
       </div>
@@ -1896,6 +1913,7 @@ function ManagerDashboard({
               View all →
             </Btn>
           </div>
+          {horses.length === 0 && <p className="py-8 text-center text-sm text-gray-500">No admitted horses in the club yet.</p>}
           {horses.map((h) => (
             <div
               key={h.id}
@@ -1918,18 +1936,14 @@ function ManagerDashboard({
           ))}
         </Card>
         <Card className="p-5">
-          <h3 className="font-semibold mb-4">Performance — Thunder King</h3>
-          <ResponsiveContainer width="100%" height={200}>
+          <h3 className="font-semibold mb-4">Performance{performanceHorse ? ` — ${performanceHorse.name}` : ''}</h3>
+          {horses.length > 0 && <div className="mb-4"><Select label="Horse" value={performanceHorse?.id || ''} onChange={setPerformanceHorseId} options={horses.map(h => ({ value: h.id, label: `${h.name} (${h.id})` }))} /></div>}
+          {performanceData.length === 0 ? <p className="py-8 text-center text-sm text-gray-500">No training performance results available for this horse.</p> : <ResponsiveContainer width="100%" height={200}>
             <LineChart
-              data={state.trainingSessions
-                .filter((s) => s.result)
-                .map((s) => ({
-                  month: s.date,
-                  speed: Number(s.result?.speed),
-                }))}
+              data={performanceData}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+              <XAxis dataKey="date" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} />
               <Tooltip />
               <Line
@@ -1937,19 +1951,11 @@ function ManagerDashboard({
                 dataKey="speed"
                 stroke="#c9973b"
                 strokeWidth={2}
-                dot={false}
+                dot={{ r: 4 }}
                 name="Speed km/h"
               />
-              <Line
-                type="monotone"
-                dataKey="fitness"
-                stroke="#1a4a3a"
-                strokeWidth={2}
-                dot={false}
-                name="Fitness %"
-              />
             </LineChart>
-          </ResponsiveContainer>
+          </ResponsiveContainer>}
         </Card>
       </div>
     </div>
@@ -1990,7 +1996,7 @@ function HeadTrainerDashboard({
                   "Not Performed"
                 </div>
               </div>
-              <span className="text-red-600 text-sm font-medium">Xem →</span>
+              <span className="text-red-600 text-sm font-medium">View →</span>
             </div>
           </Card>
         ))}
@@ -2175,7 +2181,7 @@ function VetDashboard({
                     </div>
                   </div>
                   <span className="text-sky-600 text-sm font-medium">
-                    Xem →
+                    View →
                   </span>
                 </div>
               </Card>
@@ -2581,7 +2587,7 @@ function HorseListPage({
   const PER = 6;
   const q = search.trim().toLowerCase();
   const list = (
-    clubId ? horses.filter((h) => h.clubId === clubId) : horses
+    role === 'manager' ? admittedClubHorses(horses, clubId) : clubId ? horses.filter((h) => h.clubId === clubId) : horses
   ).filter((h) => {
     const ms =
       !q ||
@@ -2741,7 +2747,7 @@ function HorseListPage({
                 </td>
                 <td className="px-5 py-3">
                   <span className="text-[#c9973b] text-xs font-medium">
-                    Xem →
+                    View →
                   </span>
                 </td>
               </tr>
@@ -2802,6 +2808,7 @@ function HorseListPage({
 // ── Horse Detail ──────────────────────────────────────────────────────────────
 
 function HorseDetailPage({
+  onUnlockExam,
   state,
   navigate,
   onUpdateHorse,
@@ -2810,6 +2817,7 @@ function HorseDetailPage({
   onAudit,
   intakeActions,
 }: {
+  onUnlockExam: (horseId: string) => void;
   state: AppState;
   navigate: (p: Page) => void;
   onUpdateHorse: (h: Horse) => Promise<unknown>;
@@ -2964,6 +2972,50 @@ function HorseDetailPage({
     prize: "",
   });
   const [raceE, setRaceE] = useState<Record<string, string>>({});
+  const [imp, setImp] = useState<RaceImportRow[] | null>(null);
+  const [impErr, setImpErr] = useState("");
+  const [impBusy, setImpBusy] = useState(false);
+  const onPickFile = async (f?: File) => {
+    if (!f) return;
+    setImpErr("");
+    setImp(null);
+    try {
+      const [bd, bm, by] = (horse.birthDate || "").split("/");
+      setImp(
+        parseRaceRows(await readRows(f), {
+          birthIso: by ? `${by}-${bm}-${bd}` : undefined,
+          todayIso: toISO(TODAY),
+        }),
+      );
+    } catch (err) {
+      setImpErr((err as Error).message);
+    }
+  };
+  const confirmImport = async () => {
+    const items = (imp || []).flatMap((r) => (r.entry ? [r.entry] : []));
+    if (!items.length) return;
+    setImpBusy(true);
+    try {
+      const list = [...items, ...horse.raceHistory];
+      await onUpdateHorse({
+        ...horse,
+        raceHistory: list,
+        totalRaces: list.length,
+        wins: list.filter((r) => r.position === 1).length,
+      });
+      setImp(null);
+    } catch (err) {
+      setImpErr((err as Error).message);
+    } finally {
+      setImpBusy(false);
+    }
+  };
+  const downloadSample = () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([SAMPLE_CSV], { type: "text/csv" }));
+    a.download = "race-history-sample.csv";
+    a.click();
+  };
   const saveRace = async () => {
     const e: Record<string, string> = {};
     if (!raceF.raceName.trim()) e.raceName = "Enter a race name.";
@@ -3165,10 +3217,15 @@ function HorseDetailPage({
               </div>
               <div className="text-xs text-red-500">
                 {user.role === "veterinarian"
-                  ? 'You can release the lock in "Post-training examinations and locks".'
+                  ? 'Complete a follow-up examination with all checks normal before releasing the lock.'
                   : "Only a veterinarian can release the training lock."}
               </div>
             </div>
+            {user.role === "veterinarian" && (
+              <Btn variant="gold" onClick={() => onUnlockExam(horse.id)}>
+                Examine to unlock
+              </Btn>
+            )}
           </div>
         </Card>
       )}
@@ -3184,21 +3241,6 @@ function HorseDetailPage({
         ))}
       </div>
 
-      {tab === "overview" && isApproved && (
-        <Card className="flex items-start gap-3 border-l-4 border-[#1a2844] bg-slate-50 p-4">
-          <span className="text-2xl">🔒</span>
-          <div className="text-sm">
-            <div className="font-semibold text-[#0f1729]">
-              Profile information is locked
-            </div>
-            <div className="text-gray-600">
-              The horse has been admitted to the club; original registration
-              details are locked. Update race results and prizes in the race
-              history tab.
-            </div>
-          </div>
-        </Card>
-      )}
       {tab === "overview" &&
         !isApproved &&
         (() => {
@@ -3225,6 +3267,12 @@ function HorseDetailPage({
           <div className="col-span-2">
             <Card className="p-5">
               <h3 className="font-semibold mb-4">Horse information</h3>
+              <div className="mb-4 flex items-center gap-3 text-sm">
+                <span className="text-gray-500">Profile status</span>
+                <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${isApproved ? "bg-slate-100 text-slate-700" : "bg-amber-100 text-amber-800"}`}>
+                  {isApproved ? "Locked" : "Unlocked"}
+                </span>
+              </div>
               {editMode ? (
                 <div className="space-y-3">
                   <Input
@@ -3286,13 +3334,7 @@ function HorseDetailPage({
                       setEditForm((f) => ({ ...f, evidenceFileUrl: v }))
                     }
                   />
-                  <Input
-                    label="Document Type"
-                    value={editForm.evidenceNote}
-                    onChange={(v) =>
-                      setEditForm((f) => ({ ...f, evidenceNote: v }))
-                    }
-                  />
+                  
                 </div>
               ) : (
                 <>
@@ -3607,6 +3649,10 @@ function HorseDetailPage({
                 </Btn>
               )}
             </div>
+            {(user.role === 'manager' || user.role === 'owner') && <div className="space-y-3">
+              <p className="text-sm text-gray-500">The detailed horse roadmap is currently available to the assigned trainer. You can preview each package curriculum below and view saved sessions in the training schedule.</p>
+              {state.enrollments.filter(e=>e.horseId===horse.id).map(e=><div key={e.id}><p className="text-sm font-medium">{e.packageName}</p><PackageRoadmapPreview packageId={e.packageId}/></div>)}
+            </div>}
             {state.trainingPlans
               .filter((p) => p.horseId === horse.id)
               .map((p) => (
@@ -3646,7 +3692,7 @@ function HorseDetailPage({
                   </div>
                 </Card>
               ))}
-            {state.trainingPlans.filter((p) => p.horseId === horse.id)
+            {user.role !== "manager" && user.role !== "owner" && state.trainingPlans.filter((p) => p.horseId === horse.id)
               .length === 0 && (
               <Card className="p-8 text-center text-sm text-gray-400">
                 No training roadmap yet.
@@ -3972,6 +4018,21 @@ function HorseDetailPage({
               </div>
             </div>
             {isOwner && (
+              <div className="flex gap-2">
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept=".xlsx,.csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    void onPickFile(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
+                <span className="inline-block px-3 py-2 rounded-lg border border-gray-300 text-sm bg-white hover:bg-gray-50">
+                  Import Excel
+                </span>
+              </label>
               <Btn
                 variant="gold"
                 onClick={() => {
@@ -3993,8 +4054,61 @@ function HorseDetailPage({
               >
                 + Add result
               </Btn>
+              </div>
             )}
           </div>
+          {(imp || impErr) && isOwner && (
+            <Card className="p-5 border-l-4 border-[#c9973b]">
+              <div className="flex justify-between items-center mb-2">
+                <h4 className="font-semibold">Import from Excel</h4>
+                <button className="text-sm text-gray-500 underline" onClick={downloadSample}>
+                  Download sample (.csv)
+                </button>
+              </div>
+              {impErr && (
+                <div className="text-sm text-red-600 bg-red-50 rounded p-2 mb-2">{impErr}</div>
+              )}
+              {imp && (
+                <>
+                  <div className="text-sm text-gray-600 mb-2">
+                    {imp.filter((r) => r.entry).length} valid · {imp.filter((r) => !r.entry).length} with errors (skipped)
+                  </div>
+                  <div className="max-h-64 overflow-auto text-sm divide-y">
+                    {imp.map((r) => (
+                      <div key={r.line} className="py-1.5">
+                        {r.entry ? (
+                          <span>
+                            Row {r.line}: {r.entry.raceName} · {r.entry.date} · {r.entry.distance} · #{r.entry.position}
+                          </span>
+                        ) : (
+                          <span className="text-red-600">
+                            Row {r.line}: {r.errors.join(" ")}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <Btn
+                      variant="gold"
+                      onClick={confirmImport}
+                      disabled={impBusy || !imp.some((r) => r.entry)}
+                    >
+                      {impBusy ? "Importing…" : "Import valid rows"}
+                    </Btn>
+                    <Btn variant="secondary" onClick={() => { setImp(null); setImpErr(""); }}>
+                      Cancel
+                    </Btn>
+                  </div>
+                </>
+              )}
+              {!imp && (
+                <Btn variant="secondary" onClick={() => setImpErr("")}>
+                  Close
+                </Btn>
+              )}
+            </Card>
+          )}
           {raceFormOpen && isOwner && (
             <Card className="p-5 border-l-4 border-[#c9973b]">
               <h4 className="font-semibold mb-3">
@@ -4215,8 +4329,39 @@ function HorseCreatePage({
     evidenceFileUrl: "",
     evidenceNote: "",
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState("");
+  useEffect(() => {
+    if (!imageFile) { setImagePreview(""); return; }
+    const url = URL.createObjectURL(imageFile);
+    setImagePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [imageFile]);
   const [raceHistory, setRaceHistory] = useState<RaceHistoryEntry[]>([]);
   const [showRaceForm, setShowRaceForm] = useState(false);
+  const [imp, setImp] = useState<RaceImportRow[] | null>(null);
+  const [impErr, setImpErr] = useState("");
+  const onPickFile = async (f?: File) => {
+    if (!f) return;
+    setImpErr("");
+    setImp(null);
+    try {
+      setImp(
+        parseRaceRows(await readRows(f), {
+          birthIso: form.birthDate || undefined,
+          todayIso: toISO(TODAY),
+        }),
+      );
+    } catch (err) {
+      setImpErr((err as Error).message);
+    }
+  };
+  const confirmImport = () => {
+    const items = (imp || []).flatMap((r) => (r.entry ? [r.entry] : []));
+    setRaceHistory((h) => [...items, ...h]);
+    setImp(null);
+  };
   const [newRace, setNewRace] = useState({
     date: "",
     raceName: "",
@@ -4229,6 +4374,24 @@ function HorseCreatePage({
     prize: "",
   });
   const [raceErr, setRaceErr] = useState<Record<string, string>>({});
+  const [editRid, setEditRid] = useState<string | null>(null);
+  const openRace = (r: RaceHistoryEntry) => {
+    const [d, m, y] = r.date.split("/");
+    setNewRace({
+      date: y ? `${y}-${m}-${d}` : "",
+      raceName: r.raceName,
+      distance: r.distance,
+      position: String(r.position),
+      totalHorses: String(r.totalHorses || 10),
+      time: r.time,
+      venue: r.venue,
+      jockey: r.jockey,
+      prize: r.prize,
+    });
+    setRaceErr({});
+    setEditRid(r.id);
+    setShowRaceForm(true);
+  };
   const [errors, setErrors] = useState<Record<string, string>>({});
   const todayIso = toISO(TODAY);
   const previewId = "Server-assigned ID";
@@ -4245,16 +4408,17 @@ function HorseCreatePage({
       e.date = "Race date cannot be in the future.";
     setRaceErr(e);
     if (Object.keys(e).length) return;
-    setRaceHistory((r) => [
-      ...r,
-      {
-        id: `rh${Date.now()}`,
-        ...newRace,
-        date: toDDMMYYYY(newRace.date),
-        position: Number(newRace.position),
-        totalHorses: Number(newRace.totalHorses),
-      },
-    ]);
+    const item: RaceHistoryEntry = {
+      id: editRid || `rh${Date.now()}`,
+      ...newRace,
+      date: toDDMMYYYY(newRace.date),
+      position: Number(newRace.position),
+      totalHorses: Number(newRace.totalHorses),
+    };
+    setRaceHistory((r) =>
+      editRid ? r.map((x) => (x.id === editRid ? item : x)) : [...r, item],
+    );
+    setEditRid(null);
     setNewRace({
       date: "",
       raceName: "",
@@ -4281,15 +4445,14 @@ function HorseCreatePage({
         "UELN must contain 15 characters: 3 country digits and 12 letters or digits.";
     else if (state.horses.some((x) => x.microchip === form.microchip))
       e.microchip = "This identification number is already registered.";
-    if (!form.evidenceUrl.trim())
-      e.evidenceUrl = "Enter an evidence image URL.";
-    else if (!/^https?:\/\/\S+\.\S+/.test(form.evidenceUrl.trim()))
-      e.evidenceUrl = "Image URL must start with http:// or https://.";
-    if (
-      form.evidenceFileUrl.trim() &&
-      !/^https?:\/\/\S+/.test(form.evidenceFileUrl.trim())
-    )
-      e.evidenceFileUrl = "File URL must begin with http:// or https://.";
+    if (!imageFile) e.evidenceUrl = "Choose an evidence image (JPG, PNG or WebP, up to 5 MB).";
+    else if (!["image/jpeg", "image/png", "image/webp"].includes(imageFile.type))
+      e.evidenceUrl = "The image must be JPG, PNG or WebP.";
+    else if (imageFile.size > 5 * 1024 * 1024) e.evidenceUrl = "The image cannot exceed 5 MB.";
+    if (!documentFile) e.evidenceFileUrl = "Choose an evidence document (PDF or TXT, up to 10 MB).";
+    else if (!["application/pdf", "text/plain"].includes(documentFile.type))
+      e.evidenceFileUrl = "The document must be a PDF or TXT file.";
+    else if (documentFile.size > 10 * 1024 * 1024) e.evidenceFileUrl = "The document cannot exceed 10 MB.";
     if (form.evidenceNote.length > 300)
       e.evidenceNote = "Notes cannot exceed 300 characters.";
     if (!form.birthDate) e.birthDate = "Select a date of birth.";
@@ -4346,20 +4509,22 @@ function HorseCreatePage({
         wins: raceHistory.filter((r) => r.position === 1).length,
         vetClearance: false,
         biography: "",
-        imageUrl: form.evidenceUrl.trim(),
+        imageUrl: "",
         achievements: [],
         raceHistory,
         lifecycle: "pending",
         identityVerified: false,
         identityEvidence: {
-          url: form.evidenceUrl.trim(),
-          fileUrl: form.evidenceFileUrl.trim(),
+          url: "",
+          fileUrl: "",
           note: form.evidenceNote.trim(),
+          imageFile: imageFile!,
+          documentFile: documentFile!,
         },
         medicalHistory: "",
       });
     } catch (err) {
-      setErrors({ name: (err as Error).message });
+      setErrors({ submit: (err as Error).message });
     }
   };
 
@@ -4418,44 +4583,38 @@ function HorseCreatePage({
             error={errors.microchip}
           />
           <div className="col-span-2">
-            <Input
-              label="Evidence image URL"
-              value={form.evidenceUrl}
-              onChange={set("evidenceUrl")}
-              placeholder="https://..."
-              error={errors.evidenceUrl}
+            <label className="block text-sm font-medium text-gray-700">
+              Evidence image <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(ev) => setImageFile(ev.target.files?.[0] ?? null)}
+              className="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-[#c9973b] file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
             />
+            <p className="mt-1 text-xs text-gray-500">JPG, PNG or WebP, up to 5 MB.</p>
+            {errors.evidenceUrl && <p className="mt-1 text-xs text-red-600">{errors.evidenceUrl}</p>}
           </div>
           <div className="col-span-2">
-            <Input
-              label="Evidence file URL"
-              value={form.evidenceFileUrl}
-              onChange={set("evidenceFileUrl")}
-              placeholder="https://..."
-              error={errors.evidenceFileUrl}
+            <label className="block text-sm font-medium text-gray-700">
+              Evidence document <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="file"
+              accept="application/pdf,text/plain"
+              onChange={(ev) => setDocumentFile(ev.target.files?.[0] ?? null)}
+              className="mt-1 block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-[#c9973b] file:px-3 file:py-2 file:text-sm file:font-medium file:text-white"
             />
+            <p className="mt-1 text-xs text-gray-500">PDF or TXT, up to 10 MB.</p>
+            {errors.evidenceFileUrl && <p className="mt-1 text-xs text-red-600">{errors.evidenceFileUrl}</p>}
           </div>
-          {form.evidenceUrl.trim() &&
-            /^https?:\/\//.test(form.evidenceUrl.trim()) && (
-              <div className="col-span-2">
-                <img
-                  src={form.evidenceUrl.trim()}
-                  alt="Preview evidence"
-                  className="h-32 rounded-lg border border-gray-200 object-cover bg-gray-50"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
-                  }}
-                />
-              </div>
-            )}
+          {imagePreview && (
+            <div className="col-span-2">
+              <img src={imagePreview} alt="Preview evidence" className="h-32 rounded-lg border border-gray-200 object-cover bg-gray-50" />
+            </div>
+          )}
           <div className="col-span-2">
-            <Input
-              label="Document Type"
-              value={form.evidenceNote}
-              onChange={set("evidenceNote")}
-              placeholder="Example: Identification certificate"
-              error={errors.evidenceNote}
-            />
+            
           </div>
         </div>
       </Card>
@@ -4520,7 +4679,12 @@ function HorseCreatePage({
             error={errors.height}
           />
         </div>
-        {Object.values(errors).some(Boolean) && (
+        {errors.submit && (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {errors.submit}
+          </div>
+        )}
+        {Object.entries(errors).some(([k, v]) => k !== "submit" && Boolean(v)) && (
           <p className="text-red-600 text-sm">
             Correct the fields highlighted in red.
           </p>
@@ -4538,13 +4702,65 @@ function HorseCreatePage({
               Optional — provide details to support the center's assessment
             </p>
           </div>
-          <Btn
-            variant="secondary"
-            onClick={() => setShowRaceForm(!showRaceForm)}
-          >
-            + Add result
-          </Btn>
+          <div className="flex gap-2">
+            <label className="cursor-pointer">
+              <input
+                type="file"
+                accept=".xlsx,.csv"
+                className="hidden"
+                onChange={(e) => {
+                  void onPickFile(e.target.files?.[0]);
+                  e.target.value = "";
+                }}
+              />
+              <span className="inline-block px-3 py-2 rounded-lg border border-gray-300 text-sm bg-white hover:bg-gray-50">
+                Import Excel
+              </span>
+            </label>
+            <Btn
+              variant="secondary"
+              onClick={() => {
+                setEditRid(null);
+                setShowRaceForm(!showRaceForm);
+              }}
+            >
+              + Add result
+            </Btn>
+          </div>
         </div>
+        {(imp || impErr) && (
+          <div className="bg-gray-50 rounded-xl p-4 mb-4 text-sm">
+            {impErr && <div className="text-red-600 mb-2">{impErr}</div>}
+            {imp && (
+              <>
+                <div className="mb-2">
+                  {imp.filter((r) => r.entry).length} valid ·{" "}
+                  {imp.filter((r) => !r.entry).length} with errors (skipped)
+                </div>
+                {imp.map((r) => (
+                  <div key={r.line} className={r.entry ? "" : "text-red-600"}>
+                    Row {r.line}:{" "}
+                    {r.entry
+                      ? `${r.entry.raceName} · ${r.entry.date}`
+                      : r.errors.join(" ")}
+                  </div>
+                ))}
+                <div className="flex gap-2 mt-3">
+                  <Btn
+                    variant="gold"
+                    onClick={confirmImport}
+                    disabled={!imp.some((r) => r.entry)}
+                  >
+                    Import valid rows
+                  </Btn>
+                  <Btn variant="secondary" onClick={() => setImp(null)}>
+                    Cancel
+                  </Btn>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {showRaceForm && (
           <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
             <div className="grid grid-cols-2 gap-3">
@@ -4577,7 +4793,13 @@ function HorseCreatePage({
                   "1400m",
                   "1600m",
                   "2000m",
-                ].map((v) => ({ value: v, label: v }))}
+                ]
+                  .concat(
+                    ["800m","1000m","1200m","1400m","1600m","2000m"].includes(newRace.distance)
+                      ? []
+                      : [newRace.distance],
+                  )
+                  .map((v) => ({ value: v, label: v }))}
               />
               <Select
                 label="Position"
@@ -4615,9 +4837,15 @@ function HorseCreatePage({
             </div>
             <div className="flex gap-2">
               <Btn variant="gold" onClick={addRace}>
-                ✓ Add
+                {editRid ? "✓ Save" : "✓ Add"}
               </Btn>
-              <Btn variant="secondary" onClick={() => setShowRaceForm(false)}>
+              <Btn
+                variant="secondary"
+                onClick={() => {
+                  setShowRaceForm(false);
+                  setEditRid(null);
+                }}
+              >
                 Cancel
               </Btn>
             </div>
@@ -4627,7 +4855,8 @@ function HorseCreatePage({
           raceHistory.map((r) => (
             <div
               key={r.id}
-              className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100 mb-2"
+              onClick={() => openRace(r)}
+              className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100 mb-2 cursor-pointer hover:bg-gray-100"
             >
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${r.position === 1 ? "bg-[#c9973b] text-white" : "bg-gray-400 text-white"}`}
@@ -4641,9 +4870,10 @@ function HorseCreatePage({
                 </div>
               </div>
               <button
-                onClick={() =>
-                  setRaceHistory((h) => h.filter((x) => x.id !== r.id))
-                }
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  setRaceHistory((h) => h.filter((x) => x.id !== r.id));
+                }}
                 className="text-red-400 hover:text-red-600 text-xs"
               >
                 ✕ Delete
@@ -7394,6 +7624,10 @@ function StaffPage({
   onUpdatePermissions: (userId: string, pages: Page[]) => void;
 }) {
   const [accounts, setAccounts] = useState<AppUser[]>([]);
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const normalizeMemberSearch = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
   const [loadingAccounts, setLoadingAccounts] = useState(true);
   const [accountsError, setAccountsError] = useState('');
   const [accountsVersion, setAccountsVersion] = useState(0);
@@ -7413,6 +7647,9 @@ function StaffPage({
     (u) => !!state.user!.clubId && u.clubId === state.user!.clubId && u.id !== state.user!.id,
   );
   const [permModalUserId, setPermModalUserId] = useState<string | null>(null);
+  const filteredMembers = members.filter(m => (roleFilter === 'all' || m.role === roleFilter)
+    && normalizeMemberSearch(`${m.name} ${m.email}`).includes(normalizeMemberSearch(search.trim())));
+  const detailMember = members.find(m => m.id === detailId);
   const permMember = members.find((m) => m.id === permModalUserId);
   const rolePages = (role: Role | null): Set<Page> =>
     new Set((role ? NAV_ITEMS[role] || [] : []).map((i) => i.page));
@@ -7425,6 +7662,39 @@ function StaffPage({
       : [...current, page];
     onUpdatePermissions(userId, next);
   };
+
+  if (detailMember) {
+    const related = memberHorses(detailMember, state.horses, state.healthRecords, state.enrollments);
+    const examinedCount = related.filter(row => row.labels.includes('Examined')).length;
+    const activeCount = related.filter(row => row.labels.some(label => label === 'Currently assigned' || label === 'Currently training' || label === 'Owned horse')).length;
+    const pendingCount = related.filter(row => row.labels.includes('Awaiting acceptance')).length;
+    return <div className="mx-auto max-w-6xl space-y-5">
+      <Btn variant="ghost" onClick={() => setDetailId(null)}>← Back to staff</Btn>
+      <Card className="p-6">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#1a2844] text-xl font-bold text-white">{detailMember.avatar}</div>
+          <div className="flex-1"><h2 className="font-serif text-2xl font-bold text-[#1a2844]">{detailMember.name}</h2><p className="mt-1 text-sm text-gray-500">{detailMember.email}</p><p className="mt-1 text-sm text-gray-500">{detailMember.phone || 'No phone number provided'}</p></div>
+          {detailMember.role && <Badge status={detailMember.role} />}
+        </div>
+        <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="rounded-xl bg-slate-50 p-4"><div className="text-2xl font-bold text-[#1a2844]">{activeCount}</div><p className="mt-1 text-sm text-gray-500">{detailMember.role === 'owner' ? 'Horses owned' : detailMember.role === 'veterinarian' ? 'Currently assigned horses' : 'Horses in training'}</p></div>
+          {detailMember.role === 'veterinarian' && <div className="rounded-xl bg-emerald-50 p-4"><div className="text-2xl font-bold text-emerald-800">{examinedCount}</div><p className="mt-1 text-sm text-emerald-700">Horses examined</p></div>}
+          {detailMember.role !== 'owner' && <div className="rounded-xl bg-amber-50 p-4"><div className="text-2xl font-bold text-amber-800">{pendingCount}</div><p className="mt-1 text-sm text-amber-700">Awaiting acceptance</p></div>}
+        </div>
+      </Card>
+      <div><h3 className="text-lg font-semibold text-[#1a2844]">{detailMember.role === 'owner' ? 'Owned horses' : 'Associated horses'} · {related.length}</h3><p className="mt-1 text-xs text-gray-500">Each horse is counted once. Examination totals use confirmed records available in this club.</p></div>
+      <div className="grid gap-4 md:grid-cols-2">
+        {related.map(({horse, labels}) => <Card key={horse.id} className="p-5">
+          <div className="flex items-center gap-4">
+            {horse.imageUrl ? <img src={horse.imageUrl} alt="" className="h-16 w-16 rounded-xl bg-gray-100 object-cover" /> : <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gray-100 text-2xl">🐎</div>}
+            <div className="min-w-0 flex-1"><h4 className="font-semibold">{horse.name}</h4><p className="mt-1 font-mono text-xs text-gray-500">{horse.id}</p><p className="mt-1 text-sm text-gray-500">{horse.breed} · {horse.age} years old</p></div>
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">{labels.map(label => <span key={label} className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{label}</span>)}</div>
+        </Card>)}
+      </div>
+      {related.length === 0 && <Card className="p-10 text-center text-sm text-gray-500">No associated horses are available for this member in the club.</Card>}
+    </div>;
+  }
 
   return (
     <>
@@ -7449,8 +7719,16 @@ function StaffPage({
           <Btn variant="secondary" disabled={loadingAccounts} onClick={() => setAccountsVersion(v => v + 1)}>Refresh list</Btn>
         </div>
         {accountsError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600">Unable to load staff accounts: {accountsError}</p>}
-        <div className="grid grid-cols-2 gap-4">
-          {members.map((m) => {
+        <Card className="p-4">
+          <div className="grid gap-4 md:grid-cols-[1fr_240px_auto] md:items-end">
+            <Input label="Search by name or email" value={search} onChange={setSearch} placeholder="Enter a name or email..." />
+            <Select label="Role" value={roleFilter} onChange={setRoleFilter} options={[{value:'all',label:'All roles'}, ...Array.from(new Set(members.map(m => m.role).filter((role): role is Role => !!role))).map(role => ({value:role,label:ROLE_LABELS[role]}))]} />
+            {(search || roleFilter !== 'all') && <Btn variant="ghost" onClick={() => {setSearch(''); setRoleFilter('all');}}>Clear filters</Btn>}
+          </div>
+          <p role="status" className="mt-3 text-xs text-gray-500">Showing {filteredMembers.length} of {members.length} members</p>
+        </Card>
+        <div className="grid gap-4 md:grid-cols-2">
+          {filteredMembers.map((m) => {
             const extraCount = grantedPages(m.id).filter(
               (p) => !rolePages(m.role).has(p),
             ).length;
@@ -7461,7 +7739,9 @@ function StaffPage({
                     {m.avatar}
                   </div>
                   <div className="flex-1">
-                    <div className="font-semibold">{m.name}</div>
+                    {m.role && ['owner', 'veterinarian', 'head_trainer'].includes(m.role)
+                      ? <button type="button" onClick={() => setDetailId(m.id)} className="text-left font-semibold text-[#1a2844] hover:text-[#a47622] hover:underline">{m.name}</button>
+                      : <div className="font-semibold">{m.name}</div>}
                     <div className="text-sm text-gray-500">
                       {m.role ? ROLE_LABELS[m.role] : "Not assigned"}
                     </div>
@@ -7482,6 +7762,7 @@ function StaffPage({
                   {m.role && <Badge status={m.role} />}
                 </div>
                 <div className="mt-3 pt-3 border-t border-gray-100">
+                  {m.role && ['owner', 'veterinarian', 'head_trainer'].includes(m.role) && <Btn variant="ghost" size="sm" className="mr-2" onClick={() => setDetailId(m.id)}>View horses · {memberHorses(m, state.horses, state.healthRecords, state.enrollments).length}</Btn>}
                   <Btn
                     variant="secondary"
                     size="sm"
@@ -7494,12 +7775,12 @@ function StaffPage({
             );
           })}
         </div>
-        {!loadingAccounts && !accountsError && members.length === 0 && (
+        {!loadingAccounts && !accountsError && filteredMembers.length === 0 && (
           <Card className="p-10 text-center">
             <div className="text-4xl mb-3">👥</div>
-            <div className="font-semibold text-gray-600">No members yet</div>
+            <div className="font-semibold text-gray-600">{members.length ? 'No members match your filters' : 'No members yet'}</div>
             <div className="text-sm text-gray-400 mt-1">
-              Contact your administrator to create a staff account.
+              {members.length ? 'Try another name, email or role.' : 'Contact your administrator to create a staff account.'}
             </div>
           </Card>
         )}
@@ -7677,28 +7958,62 @@ function ProfilePage({
 
 // ── Post-session exam & Lock (Vet) ────────────────────────────────────────────
 
-function PostExamPage({
+type ExamView = "new" | "locked" | "pending" | "awaiting" | "manual";
+
+// Health examination hub: the new-examination form, pre-/post-training examinations, training locks
+// and manual locks share one page (and one sidebar entry) for veterinarians.
+function VetExamHubPage({
   state,
   navigate,
   onSave,
+  onSaveRecord,
   onPostExam,
-  onUnlock,
+  onUnlockExam,
   onManualLock,
+  unlockHorseId,
+  onUnlock,
+  onExamHorse,
+  onConsumeExamHorse,
+  canExam,
+  canPost,
+  initialView,
 }: {
   state: AppState;
   navigate: (p: Page) => void;
   onSave: (msg: string) => void;
+  onSaveRecord: (rec: HealthRecord) => Promise<HealthRecord>;
+  unlockHorseId?: string;
+  onUnlock: (horseId: string, reason: string) => Promise<string | null>;
+  onExamHorse: (horseId: string) => void;
+  onConsumeExamHorse: () => void;
+  canExam: boolean;
+  canPost: boolean;
+  initialView: ExamView;
   onPostExam: (
     sessionId: string,
     rec: HealthRecord,
   ) => string | null | Promise<string | null>;
-  onUnlock: (
-    horseId: string,
-    note: string,
-  ) => string | null | Promise<string | null>;
+  onUnlockExam: (horseId: string) => void;
   onManualLock: (horseId: string, reason: string) => string | null;
 }) {
-  const horses = state.horses.filter((h) => h.clubId === state.user!.clubId);
+  const [search, setSearch] = useState('');
+  const [view, setView] = useState<ExamView>(
+    initialView === "new" && canExam ? "new" : canPost ? "locked" : "new",
+  );
+  const [formKey, setFormKey] = useState(0);
+  const [releasingId, setReleasingId] = useState<string | null>(null);
+  const [unlockErrors, setUnlockErrors] = useState<Record<string, string>>({});
+  const user = state.user!;
+  const allHorses = state.horses.filter(h => h.clubId === state.user!.clubId);
+  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+  const query = normalize(search.trim());
+  const horses = allHorses.filter(h => normalize(`${h.name} ${h.id}`).includes(query));
+  const totals = {
+    locked: allHorses.filter(h => h.lock).length,
+    pending: state.trainingSessions.filter(s => s.status === 'Completed' && !s.postExamDone && allHorses.some(h => h.id === s.horseId)).length,
+    awaiting: allHorses.filter(h => getLifecycle(h) === 'awaiting_vet' && h.approvalStatus === 'approved').length,
+    manual: allHorses.filter(h => !h.lock && getLifecycle(h) === 'training').length,
+  };
   const awaiting = horses.filter(
     (h) =>
       getLifecycle(h) === "awaiting_vet" && h.approvalStatus === "approved",
@@ -7710,8 +8025,8 @@ function PostExamPage({
       horses.some((h) => h.id === s.horseId),
   );
   const locked = horses.filter((h) => h.lock);
-  const [unlockFor, setUnlockFor] = useState<string | null>(null);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+
+
   const [activeId, setActiveId] = useState<string | null>(null);
   const lockable = horses.filter(
     (h) => !h.lock && getLifecycle(h) === "training",
@@ -7721,35 +8036,100 @@ function PostExamPage({
   const [manualError, setManualError] = useState("");
   const activeSession = state.trainingSessions.find((x) => x.id === activeId);
 
-  if (activeSession) {
-    return (
-      <VetHealthFormPage
-        key={activeSession.id}
-        state={state}
-        navigate={navigate}
-        onSave={onSave}
-        onSaveRecord={async (rec) => rec}
-        today={TODAY}
-        postSession={activeSession}
-        onPostSubmit={onPostExam}
-        onBack={() => setActiveId(null)}
-      />
-    );
-  }
+  // Opening a horse from a list pre-selects it in the examination form.
+  const examine = (horseId: string) => {
+    onExamHorse(horseId);
+    setFormKey((k) => k + 1);
+    setView("new");
+  };
+  const startUnlockExam = (horseId: string) => {
+    onUnlockExam(horseId);
+    setFormKey((k) => k + 1);
+    setView("new");
+  };
+  // Same release as the button on the examination result screen, for a horse already examined and found fit.
+  const releaseLock = async (h: Horse) => {
+    if (releasingId) return;
+    setReleasingId(h.id);
+    setUnlockErrors((e) => ({ ...e, [h.id]: "" }));
+    const latest = state.healthRecords
+      .filter((r) => r.horseId === h.id && r.status === "confirmed")
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0))[0];
+    const reason = `${latest ? `Follow-up examination ${latest.id}: confirmed` : "Follow-up examination confirmed"} fit for training; lock released from the Training locks list.`;
+    try {
+      const err = await onUnlock(h.id, reason);
+      if (err) setUnlockErrors((e) => ({ ...e, [h.id]: err }));
+      else {
+        onSave("Training lock released after a successful examination.");
+        // A fresh form, so a stale "record saved / release the lock" screen does not linger.
+        setFormKey((k) => k + 1);
+      }
+    } catch (e) {
+      setUnlockErrors((m) => ({ ...m, [h.id]: (e as Error).message }));
+    } finally {
+      setReleasingId(null);
+    }
+  };
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div>
-        <h2 className="text-xl font-serif font-bold text-[#0f1729]">
-          Post-training examinations and locks
-        </h2>
-        <p className="text-sm text-gray-500">
-          Only veterinarians may apply or release a TRAINING LOCK
-        </p>
-      </div>
+    <div className="mx-auto max-w-6xl space-y-6">
+      {activeSession && (
+        <VetHealthFormPage
+          key={activeSession.id}
+          state={state}
+          navigate={navigate}
+          onSave={onSave}
+          onSaveRecord={async (rec) => rec}
+          today={TODAY}
+          postSession={activeSession}
+          onPostSubmit={onPostExam}
+          onBack={() => setActiveId(null)}
+        />
+      )}
+      {/* Hidden (not unmounted) while a post-training form is open, so in-progress data is kept. */}
+      <div className={activeSession ? "hidden" : "space-y-6"}>
 
-      <TrainingProtocolsPage />
-      <section className="space-y-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5" role="group" aria-label="Examination sections">
+        {([
+          ['new', 'New examination', 'Record a health examination', '📝'],
+          ['locked', 'Training locks', 'Horses paused for recovery', '🔒'],
+          ['pending', 'Post-training exams', 'Completed sessions to review', '🩺'],
+          ['awaiting', 'Pre-training exams', 'Horses awaiting clearance', '🐎'],
+          ['manual', 'Apply a lock', 'Stop training for examination', '＋'],
+        ] as const).filter(([key]) => (key === 'new' ? canExam : canPost)).map(([key, title, subtitle, icon]) => (
+          <button key={key} type="button" aria-pressed={view === key} onClick={() => setView(key)} className={`rounded-2xl border p-4 text-left transition ${view === key ? 'border-[#1a2844] bg-[#1a2844] text-white shadow-md' : 'border-gray-200 bg-white text-[#1a2844] hover:border-[#c9973b]'}`}>
+            <div className="flex items-center justify-between"><span className="text-xl">{icon}</span><span className="text-2xl font-bold">{key === 'new' ? '＋' : totals[key]}</span></div>
+            <div className="mt-3 text-sm font-semibold">{title}</div><div className={`mt-1 text-xs ${view === key ? 'text-slate-300' : 'text-gray-500'}`}>{subtitle}</div>
+          </button>
+        ))}
+      </div>
+      {view !== "new" && (
+      <Card className="!rounded-2xl !border-slate-200 !shadow-sm p-4 sm:p-5">
+        <label htmlFor="post-exam-search" className="mb-2 block text-sm font-medium text-[#1a2844]">Find a horse</label>
+        <div className="flex items-center gap-3">
+          <input id="post-exam-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search by horse name or ID (HOR-001)..." className="w-full rounded-xl border border-gray-300 bg-gray-50 px-4 py-3 text-sm outline-none focus:border-[#c9973b] focus:ring-2 focus:ring-[#c9973b]/20" />
+          {search && <Btn variant="ghost" onClick={() => setSearch('')}>Clear</Btn>}
+        </div>
+        <p role="status" className="mt-2 text-xs text-gray-500">{search ? `${horses.length} of ${allHorses.length} horses match your search` : 'Type a name or ID to filter the current list instantly.'}</p>
+      </Card>
+      )}
+
+      {canExam && (
+        <div className={view === "new" ? "" : "hidden"}>
+          <VetHealthFormPage
+            key={formKey}
+            unlockHorseId={unlockHorseId}
+            onUnlock={onUnlock}
+            state={state}
+            navigate={navigate}
+            onSave={onSave}
+            onSaveRecord={onSaveRecord}
+            today={TODAY}
+            onConsumeExamHorse={onConsumeExamHorse}
+          />
+        </div>
+      )}
+      {view === "awaiting" && <section className="space-y-3">
         <h3 className="font-semibold flex items-center gap-2">
           🩺 Awaiting pre-training examination{" "}
           <span className="text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full">
@@ -7758,38 +8138,48 @@ function PostExamPage({
         </h3>
         {awaiting.length === 0 && (
           <Card className="p-5 text-sm text-gray-400 text-center">
-            No horses are awaiting examination
+            {search ? "No horses awaiting examination match your search." : "No horses are awaiting examination."}
           </Card>
         )}
-        {awaiting.map((h) => (
+        {awaiting.map((h) => {
+          const mine = vetVisible(h, user);
+          return (
           <Card key={h.id} className="p-4 flex items-center gap-3">
             <img
               src={h.imageUrl || undefined}
               className="w-12 h-12 rounded-lg object-cover bg-gray-200"
             />
             <div className="flex-1">
-              <div className="font-semibold">{h.name}</div>
+              <div className="font-semibold">{h.name}</div><div className="mt-0.5 font-mono text-xs text-gray-500">{h.id}</div>
               <div className="text-xs text-gray-500">
-                Owner: {h.ownerName} · {h.breed} · {h.age}t
+                Owner: {h.ownerName} · {h.breed} · {h.age} years old
               </div>
             </div>
             <LifecycleBadge horse={h} />
-            <Btn
-              variant="gold"
-              size="sm"
-              onClick={() => navigate("vet-health-form")}
-            >
-              Examine and record →
-            </Btn>
+            {mine ? (
+              <Btn
+                variant="gold"
+                size="sm"
+                disabled={!canExam}
+                onClick={() => examine(h.id)}
+              >
+                Examine and record →
+              </Btn>
+            ) : (
+              <span className="max-w-[9rem] text-right text-xs text-gray-400">
+                Assigned to another veterinarian
+              </span>
+            )}
           </Card>
-        ))}
+          );
+        })}
         <p className="text-xs text-gray-400">
           A "Fit for training" examination result marks the horse as medically
           ready and notifies the owner.
         </p>
-      </section>
+      </section>}
 
-      <section className="space-y-3">
+      {view === "pending" && <section className="space-y-3">
         <h3 className="font-semibold flex items-center gap-2">
           🏇 Sessions awaiting re-examination{" "}
           <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
@@ -7798,7 +8188,7 @@ function PostExamPage({
         </h3>
         {pending.length === 0 && (
           <Card className="p-5 text-sm text-gray-400 text-center">
-            No completed sessions require examination
+            {search ? "No sessions match this horse name or ID." : "No completed sessions require examination."}
           </Card>
         )}
         {pending.map((s) => {
@@ -7814,7 +8204,7 @@ function PostExamPage({
                   {h.name} · {s.type} {s.distance}
                 </div>
                 <div className="text-xs text-gray-500">
-                  {s.date} · {s.time} · HLV {s.trainerName}
+                  {s.date} · {s.time} · Trainer: {s.trainerName}
                 </div>
               </div>
               <Btn variant="gold" size="sm" onClick={() => setActiveId(s.id)}>
@@ -7828,9 +8218,9 @@ function PostExamPage({
           standards (vitals, clinical findings and automated assessment). A "Not
           fit" result automatically applies a TRAINING LOCK.
         </p>
-      </section>
+      </section>}
 
-      <section className="space-y-3">
+      {view === "manual" && <section className="space-y-3">
         <h3 className="font-semibold flex items-center gap-2">
           Manual training lock
         </h3>
@@ -7847,9 +8237,9 @@ function PostExamPage({
             <div className="space-y-3">
               <Select
                 label="Horses requiring a lock"
-                value={manualHorseId}
+                value={lockable.some(h => h.id === manualHorseId) ? manualHorseId : lockable[0]?.id || ""}
                 onChange={setManualHorseId}
-                options={lockable.map((h) => ({ value: h.id, label: h.name }))}
+                options={lockable.map((h) => ({ value: h.id, label: `${h.name} (${h.id})` }))}
               />
               <Textarea
                 label="Veterinary reason / instructions"
@@ -7864,7 +8254,7 @@ function PostExamPage({
               <Btn
                 variant="danger"
                 onClick={() => {
-                  const err = onManualLock(manualHorseId, manualReason);
+                  const err = onManualLock(lockable.some(h => h.id === manualHorseId) ? manualHorseId : lockable[0]?.id || "", manualReason);
                   setManualError(err || "");
                   if (!err) setManualReason("");
                 }}
@@ -7874,81 +8264,53 @@ function PostExamPage({
             </div>
           )}
         </Card>
-      </section>
+      </section>}
 
-      <section className="space-y-3">
+      {view === "locked" && <section className="space-y-3">
         <h3 className="font-semibold flex items-center gap-2">
-          🔒 Horses under a training lock{" "}
+          Horses with paused training{" "}
           <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
             {locked.length}
           </span>
         </h3>
         {locked.length === 0 && (
           <Card className="p-5 text-sm text-gray-400 text-center">
-            No horses are locked
+            {search ? "No locked horses match this name or ID." : "No horses are currently under a training lock."}
           </Card>
         )}
+        <div className="grid gap-4 xl:grid-cols-2">
         {locked.map((h) => (
-          <Card key={h.id} className="p-5 border-l-4 border-red-500">
-            <div className="flex items-center gap-3 mb-3">
-              <img
-                src={h.imageUrl || undefined}
-                className="w-11 h-11 rounded-lg object-cover bg-gray-200"
-              />
-              <div className="flex-1">
-                <div className="font-semibold">{h.name}</div>
-                <div className="text-xs text-gray-500">
-                  Lock {h.lock!.lockedAt} · {h.lock!.lockedByName}
-                </div>
+          <Card key={h.id} className="overflow-hidden !rounded-2xl !border-slate-200 !shadow-sm">
+            <div className="flex items-start gap-3 border-b border-slate-100 p-5">
+              {h.imageUrl ? <img src={h.imageUrl} alt={h.name} className="h-14 w-14 shrink-0 rounded-xl bg-slate-100 object-cover"/> : <div aria-hidden="true" className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-xl">🐎</div>}
+              <div className="min-w-0 flex-1"><h4 className="truncate text-lg font-semibold text-[#1a2844]">{h.name}</h4><div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500"><IdChip kind="HRS" id={h.id}/>{h.ownerName && <span>{h.ownerName}</span>}</div></div>
+              <span className="shrink-0 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700">Training paused</span>
+            </div>
+            <div className="space-y-4 p-5">
+              <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Reason for training lock</p><p className="mt-1.5 text-sm leading-6 text-slate-700">{h.lock!.reason}</p>{h.lock!.notes && <p className="mt-1 text-sm leading-6 text-slate-500">{h.lock!.notes}</p>}{(h.lock!.lockedAt || h.lock!.lockedByName) && <p className="mt-2 text-xs text-slate-400">{[h.lock!.lockedAt,h.lock!.lockedByName].filter(Boolean).join(' · ')}</p>}</div>
+              <div className="rounded-xl bg-slate-50 p-3.5"><p className="text-xs font-semibold text-slate-500">Recovery package</p><p className="mt-1 text-sm text-[#1a2844]">{h.rehab ? h.rehab.name + ' · ' + h.rehab.durationWeeks + ' weeks' : 'Awaiting manager activation'}</p></div>
+            </div>
+            <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-4">
+              {unlockErrors[h.id] && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{unlockErrors[h.id]}</p>}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                {h.healthStatus === "Eligible" ? (
+                  <>
+                    <p className="max-w-xs text-xs leading-5 text-emerald-700">The follow-up examination found this horse fit. Release the lock to let the manager review resuming training.</p>
+                    <Btn variant="gold" className="w-full shrink-0 !rounded-xl !border-emerald-600 !bg-emerald-600 !px-4 !py-2.5 !text-white hover:!bg-emerald-700 sm:w-auto" disabled={releasingId === h.id} onClick={() => releaseLock(h)}>{releasingId === h.id ? "Releasing lock..." : "Release training lock"}</Btn>
+                  </>
+                ) : (
+                  <>
+                    <p className="max-w-xs text-xs leading-5 text-slate-500">A follow-up examination is required before this horse can be cleared for training.</p>
+                    <Btn variant="primary" className="w-full shrink-0 !rounded-xl !px-4 !py-2.5 sm:w-auto" onClick={()=>startUnlockExam(h.id)}>Start follow-up exam →</Btn>
+                  </>
+                )}
               </div>
-              <LifecycleBadge horse={h} />
             </div>
-            <div className="text-sm text-gray-700 mb-1">
-              <strong>Diagnosis:</strong> {h.lock!.reason}
-            </div>
-            {h.lock!.notes && (
-              <div className="text-sm text-gray-500 mb-1">{h.lock!.notes}</div>
-            )}
-            <div className="text-xs text-gray-500 mb-3">
-              {h.rehab
-                ? `Recovery package: ${h.rehab.name} (${h.rehab.durationWeeks} weeks)`
-                : "Awaiting manager activation of a recovery package"}
-            </div>
-            <p className="text-xs text-gray-500">
-              Release the lock only when the horse is fit to resume training. A
-              reason is required and recorded in the audit log and horse
-              history.
-            </p>
-            {errors[h.id] && (
-              <div className="text-sm text-red-600 mt-2">{errors[h.id]}</div>
-            )}
-            <Btn
-              variant="primary"
-              className="mt-3"
-              onClick={() => setUnlockFor(h.id)}
-            >
-              🔓 Release training lock
-            </Btn>
           </Card>
         ))}
-      </section>
-      {unlockFor &&
-        (() => {
-          const uh = state.horses.find((x) => x.id === unlockFor);
-          return uh ? (
-            <ReasonDialog
-              title={`Release training lock — ${uh.name}`}
-              confirmLabel="Confirm release"
-              description="Releasing the lock allows training to resume. State the supporting examination findings, measurements and recovery time. The reason is recorded in the audit log."
-              onClose={() => setUnlockFor(null)}
-              onConfirm={async (reason) => {
-                const err = await onUnlock(uh.id, reason);
-                setErrors((e) => ({ ...e, [uh.id]: err || "" }));
-                setUnlockFor(null);
-              }}
-            />
-          ) : null;
-        })()}
+        </div>
+      </section>}
+      </div>
     </div>
   );
 }
@@ -8125,7 +8487,7 @@ const PAGE_TITLES: Partial<Record<Page, string>> = {
   profile: "Profile",
   "training-register": "Training registration",
   "vet-assign": "Assigned horses",
-  "post-exam": "Post-training exams & locks",
+  "post-exam": "Health examination",
   "rehab-center": "Rehabilitation packages",
   inventory: "My inventory",
   "inventory-log": "Inventory history",
@@ -8231,7 +8593,7 @@ export default function App() {
   stateRef.current = state;
 
   const navigate = useCallback(
-    (page: Page) => setState((s) => ({ ...s, page })),
+    (page: Page) => setState((s) => ({ ...s, page, unlockExamHorseId: page === "vet-health-form" ? s.unlockExamHorseId : undefined })),
     [],
   );
 
@@ -8267,14 +8629,18 @@ export default function App() {
   );
 
   const loadVersion = useRef(0);
+  const remoteSources=useRef(new RemoteSourceStore());
+  const [remoteIssues,setRemoteIssues]=useState<RemoteIssue[]>([]);
   const verifiedHorses = useRef(new Set<string>());
-  const reloadRemote = useCallback(async () => {
+  const reloadRemote = useCallback(async (onlySource?: string) => {
     const user = stateRef.current.user;
     if (!user) return;
     const version = ++loadVersion.current;
     let data: Awaited<ReturnType<typeof loadRemote>>;
     try {
-      data = await loadRemote(user, showError);
+      data = await loadRemote(user, message=>{
+        if(version===loadVersion.current && stateRef.current.user?.id===user.id)showError(message);
+      },remoteSources.current,onlySource);
     } catch (e) {
       if (
         version === loadVersion.current &&
@@ -8288,6 +8654,7 @@ export default function App() {
       stateRef.current.user?.id !== user.id
     )
       return;
+    setRemoteIssues(data.trainingLoadIssues || []);
     if (data.serverPermissions) {
       const rolePerms: Record<string, string[]> = {};
       for (const [role, pages] of Object.entries(DEFAULT_ROLE_PERMS)) {
@@ -8315,11 +8682,17 @@ export default function App() {
     }));
   }, [showError]);
   useEffect(() => {
+    remoteSources.current.clear();
+    setRemoteIssues([]);
+    loadVersion.current++;
+    setState(s=>({...s,enrollments:[],trainingPlans:[],trainingSessions:[]}));
     if (state.user?.id) void reloadRemote();
-  }, [state.user?.id, state.page, reloadRemote]);
+  }, [state.user?.id, reloadRemote]);
+  useEffect(()=>{if(stateRef.current.user)void reloadRemote();},[state.page,reloadRemote]);
   useEffect(() => {
     let active = true;
     const expired = () => {
+      remoteSources.current.clear(); setRemoteIssues([]);
       loadVersion.current++;
       setState((s) => ({
         ...s,
@@ -8340,7 +8713,8 @@ export default function App() {
       (w) => {
         if (active) {
           const user = userFromApi(w);
-          setState((s) => ({ ...s, user, page: "dashboard" }));
+          remoteSources.current.clear(); loadVersion.current++; setRemoteIssues([]);
+    setState((s) => ({ ...s, user, page: "dashboard", horses:[],healthRecords:[],enrollments:[],trainingPlans:[],trainingSessions:[] }));
         }
       },
     ).catch((e) => {
@@ -8364,18 +8738,21 @@ export default function App() {
   };
 
   const handleLogin = useCallback((user: AppUser) => {
-    setState((s) => ({ ...s, user, page: "dashboard" }));
+    remoteSources.current.clear(); loadVersion.current++; setRemoteIssues([]);
+    setState((s) => ({ ...s, user, page: "dashboard", horses:[],healthRecords:[],enrollments:[],trainingPlans:[],trainingSessions:[] }));
   }, []);
 
   const handleRegister = useCallback(
     (user: AppUser) => {
-      setState((s) => ({ ...s, user, page: "dashboard" }));
+      remoteSources.current.clear(); loadVersion.current++; setRemoteIssues([]);
+    setState((s) => ({ ...s, user, page: "dashboard", horses:[],healthRecords:[],enrollments:[],trainingPlans:[],trainingSessions:[] }));
       showSuccess("Email verified and horse owner account signed in.");
     },
     [showSuccess],
   );
 
   const handleLogout = useCallback(() => {
+    remoteSources.current.clear(); setRemoteIssues([]);
     loadVersion.current++;
     verifiedHorses.current.clear();
     clearRecommendations();
@@ -8457,6 +8834,45 @@ export default function App() {
       return (
         <NoPermission text="Your role does not have access to this feature." />
       );
+    const hasPage = (pg: Page) =>
+      role === "admin" ||
+      (state.rolePerms[role] || []).includes(pg) ||
+      (state.userPermissions[state.user!.id] || []).includes(pg);
+    const examHub = (initialView: ExamView) => (
+      <VetExamHubPage
+        key={initialView}
+        state={state}
+        navigate={navigate}
+        onSave={showSuccess}
+        onSaveRecord={remote.saveHealth}
+        onPostExam={remote.postExam}
+        onUnlockExam={(id) =>
+          setState((s) => ({
+            ...s,
+            examHorseId: id,
+            unlockExamHorseId: id,
+            page: "vet-health-form",
+          }))
+        }
+        onManualLock={() =>
+          "Complete an examination and confirm NOT_FIT to apply a training lock on the server."
+        }
+        unlockHorseId={state.unlockExamHorseId}
+        onUnlock={async (id, reason) => {
+          const result = await remote.unlock(id, reason);
+          if (!result.ok) return result.message;
+          setState((s) => ({ ...s, unlockExamHorseId: undefined }));
+          return null;
+        }}
+        onExamHorse={(id) => setState((s) => ({ ...s, examHorseId: id }))}
+        onConsumeExamHorse={() =>
+          setState((s) => ({ ...s, examHorseId: null }))
+        }
+        canExam={hasPage("vet-health-form")}
+        canPost={hasPage("post-exam")}
+        initialView={initialView}
+      />
+    );
     switch (state.page) {
       case "accounts":
         return (
@@ -8521,6 +8937,7 @@ export default function App() {
           <NoAccess text="No horse data is available to display." />
         ) : (
           <HorseDetailPage
+            onUnlockExam={(id) => setState(s => ({ ...s, examHorseId: id, unlockExamHorseId: id, page: "vet-health-form" }))}
             state={state}
             navigate={navigate}
             onUpdateHorse={remote.updateHorse}
@@ -8645,18 +9062,7 @@ export default function App() {
       case "vet-health-form":
         if (state.user!.role !== "veterinarian")
           return <HealthRecordsPage state={state} navigate={navigate} />;
-        return (
-          <VetHealthFormPage
-            state={state}
-            navigate={navigate}
-            onSave={showSuccess}
-            onSaveRecord={remote.saveHealth}
-            today={TODAY}
-            onConsumeExamHorse={() =>
-              setState((s) => ({ ...s, examHorseId: null }))
-            }
-          />
-        );
+        return examHub("new");
       case "training-hub":
         return (
           <TrainingHubPage
@@ -8712,7 +9118,8 @@ export default function App() {
           <TrainingRegisterPage
             state={state}
             navigate={navigate as (p: string) => void}
-            onPurchase={remote.purchasePackage}
+            onStartPayment={remote.startPayment}
+            onSyncPayment={remote.syncPayment}
           />
         );
       case "vet-assign":
@@ -8720,6 +9127,7 @@ export default function App() {
           return <NoAccess text="Only veterinarians may access this page" />;
         return (
           <VetAssignedPage
+            loadError={state.vetAssignmentsError}
             user={state.user!}
             horses={state.horses}
             requests={state.horseClubRequests}
@@ -8743,21 +9151,7 @@ export default function App() {
       case "post-exam":
         if (state.user!.role !== "veterinarian")
           return <NoAccess text="Only veterinarians may access this page" />;
-        return (
-          <PostExamPage
-            state={state}
-            navigate={navigate}
-            onSave={showSuccess}
-            onPostExam={remote.postExam}
-            onUnlock={async (...args) => {
-              const r = await remote.unlock(...args);
-              return r.ok ? null : r.message;
-            }}
-            onManualLock={() =>
-              "Complete an examination and confirm NOT_FIT to apply a training lock on the server."
-            }
-          />
-        );
+        return examHub("locked");
       case "rehab-center":
         if (state.user!.role !== "manager")
           return (
@@ -8854,6 +9248,13 @@ export default function App() {
         navigate={navigate}
         state={state}
       >
+        {remoteIssues.length>0 && <section aria-label="Data loading issues" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <details><summary className="cursor-pointer font-semibold">{remoteIssues.length} data sources need attention</summary>
+          <ul className="mt-3 space-y-3">{remoteIssues.map(issue=><li key={issue.key} className="flex flex-wrap items-start justify-between gap-2">
+            <div><strong>{issue.key}</strong><p>{issue.message}</p><p className="text-xs">{issue.status===403?'Access was revoked. Restricted data has been removed.':issue.stale?'Showing previously loaded data; refresh failed.':'Data has not loaded successfully.'}</p></div>
+            <button className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-medium" onClick={()=>void reloadRemote(issue.key)}>Retry</button>
+          </li>)}</ul></details>
+        </section>}
         {renderPage()}
       </AppLayout>
     </>

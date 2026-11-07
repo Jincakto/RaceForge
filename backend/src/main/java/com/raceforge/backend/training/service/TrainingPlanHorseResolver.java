@@ -23,6 +23,8 @@ public class TrainingPlanHorseResolver {
   @Autowired
   private HorsePlanRepository horsePlanRepository;
 
+  public LocalDate anchor(TrainingPlan plan,String horseId){return horsePlanRepository.findById(new HorsePlanId(plan.getPlanId(),horseId)).orElseThrow(()->new BusinessRuleException("Plan date anchor is missing")).getStartDate();}
+
   public void validateSchedule(TrainingPlan plan, String horseId, LocalDate date) {
       workflowGuard.requirePlan(plan);workflowGuard.requirePackageDate(plan,horseId,date);
       HorsePlan link = horsePlanRepository.findById(new HorsePlanId(plan.getPlanId(), horseId))

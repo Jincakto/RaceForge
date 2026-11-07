@@ -1,3 +1,4 @@
+import { packageInfoErrors, stageDraftErrors } from './packageBuilder';
 import {
   nextSeq, getLifecycle, isHeavySession,
   type AppUser, type Horse, type Enrollment, type TrainingPlan, type TrainingSession,
@@ -94,7 +95,7 @@ export function trainerPlanBlockReason(h: Horse, enrollments: Enrollment[], trai
 
 // ── Session validation (preview + final) ─────────────────────────────────────
 
-export interface SessionWriteOptions { mode: 'single' | 'adjust'; sessionId?: string; intensity?: string; reason?: string }
+export interface SessionWriteOptions { mode: 'single' | 'adjust' | 'preview'; sessionId?: string; intensity?: string; reason?: string }
 export interface SessionDraft { endTime?: string; date: string; time: string; type: string; distance: string; targetTime: string; notes: string }
 
 export interface SessionCheckCtx {
@@ -161,19 +162,18 @@ export interface TrainingEnv<S extends TrainingSlice> {
   notif: (n: Omit<AppNotification, 'id' | 'time' | 'read'>) => AppNotification;
 }
 
-export interface PackageDraft { packageType?: string; id?: string; name: string; description: string; sessions: number; durationDays: number; price: number }
+export interface PackageDraft { roadmapTemplate?: import('./packageRoadmap').PackageRoadmap; packageType?: string; id?: string; name: string; description: string; sessions: number; durationDays: number; price: number }
 export interface PlanDraft { recommendationId?: string; weekdays?: number[]; time?: string; horseId: string; phase: string; startDate: string; endDate: string; distance: string; workload: string; surface: string; goals: string; suggestion?: TrainingSuggestion }
 export interface AttemptInfo { horseId: string; packageId: string; renewOfId?: string }
 
 export function validatePackage(d: PackageDraft, others: TrainingPackage[]): Record<string, string> {
-  const e: Record<string, string> = {};
-  const name = d.name.trim();
-  if (name.length < 3 || name.length > 60) e.name = "Package name must contain 3–60 characters.";
-  else if (others.some(p => p.id !== d.id && p.name.trim().toLowerCase() === name.toLowerCase())) e.name = "Package name already exists.";
-  if (!Number.isInteger(d.price) || d.price <= 0) e.price = "Price must be a positive integer in VND.";
-  if (!['BASIC', 'RACING', 'PERFORMANCE', 'RECOVERY'].includes(d.packageType || '')) e.packageType = "Select a valid package type.";
-  if (!Number.isInteger(d.durationDays) || d.durationDays < 7 || d.durationDays > 365) e.durationDays = "Duration must be between 7 and 365 days.";
-  if (d.description.length > 300) e.description = "Description cannot exceed 300 characters.";
+  const e = packageInfoErrors(d);
+  if (others.some(p => p.id !== d.id && p.name.trim().toLowerCase() === d.name.trim().toLowerCase())) e.name = 'Package name already exists.';
+  if (!d.roadmapTemplate) e.roadmapTemplate = 'Choose a curriculum or create one manually.';
+  else {
+    const errors = stageDraftErrors(d.roadmapTemplate, d.durationDays);
+    if (Object.keys(errors.fields).length || errors.stages.some(stage => Object.keys(stage).length)) e.roadmapTemplate = 'Review the curriculum fields, stage dates and weekly schedule before saving.';
+  }
   return e;
 }
 

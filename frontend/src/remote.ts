@@ -57,6 +57,19 @@ export function horsePayload(h: Horse) {
     sire: h.sire || null, dam: h.dam || null, height: h.height || null, declaredMedicalHistory: h.medicalHistory || '',
     imageUrl: h.identityEvidence?.url || h.imageUrl, registrationNumber: h.microchip?.trim(), documentType: h.documentType || 'UELN', documentUrl: h.identityEvidence?.fileUrl || h.identityEvidence?.url || '' };
 }
+/** BE POST /horses is multipart: JSON part "horse" plus binary "image" and "document". */
+export function horseCreateForm(h: Horse): FormData {
+  const image = h.identityEvidence?.imageFile, document = h.identityEvidence?.documentFile;
+  if (!image || !document) throw new Error("Choose an evidence image and an evidence document before registering.");
+  const p = horsePayload(h);
+  // The files are the source of truth; BE replaces these placeholders with its stored file URLs.
+  const horse = { ...p, imageUrl: image.name, documentUrl: document.name };
+  const form = new FormData();
+  form.append('horse', new Blob([JSON.stringify(horse)], { type: 'application/json' }));
+  form.append('image', image, image.name);
+  form.append('document', document, document.name);
+  return form;
+}
 export function recordFromApi(w: Wire, horseId: string, users: AppUser[]): HealthRecord {
   const conclusion = ({ FIT: 'eligible', FIT_WITH_MONITORING: 'conditional', NOT_FIT: 'not-eligible' } as const)[w.finalConclusion as 'FIT'];
   const v = w.vitalSign || {};
@@ -69,9 +82,18 @@ export function recordFromApi(w: Wire, horseId: string, users: AppUser[]): Healt
     vitals: { temperature: String(v.bodyTemperature ?? ''), heartRate: String(v.restingHeartRate ?? ''), respRate: String(v.restingRespiratoryRate ?? ''), weight: String(v.weight ?? ''), bloodPressure: '' }, profileId: w.profileId,
   };
 }
+/** Confirmed follow-ups supersede the intake conclusion; drafts never do. */
+export function latestConfirmedExam(records: HealthRecord[], horseId: string): HealthRecord | undefined {
+  const day = (r: HealthRecord) => r.date?.split('/').reverse().join('-') || '';
+  return records.filter(r => r.horseId === horseId && r.status === 'confirmed')
+    .sort((a, b) => day(b).localeCompare(day(a)) || (b.createdAt || 0) - (a.createdAt || 0))[0];
+}
+export function admittedClubHorses(horses: Horse[], clubId: string | null): Horse[] {
+  return horses.filter(h => h.approvalStatus === 'approved' && (!clubId || h.clubId === clubId));
+}
 export function medicalPayload(rec: HealthRecord, profileId: string) {
   const num = (s?: string) => s?.trim() ? Number(s.replace(',', '.')) : null;
-  return { profileId, examType: rec.intake ? 'INITIAL' : rec.isPostTraining || /Tái khám/i.test(rec.type) ? 'FOLLOW_UP' : 'PERIODIC', examinedAt: `${isoDate(rec.date)}T${new Date().toTimeString().slice(0, 8)}`,
+  return { profileId, examType: rec.intake ? 'INITIAL' : rec.isPostTraining || /Tái khám|Follow-up examination/i.test(rec.type) ? 'FOLLOW_UP' : 'PERIODIC', examinedAt: `${isoDate(rec.date)}T${new Date().toTimeString().slice(0, 8)}`,
     finalConclusion: ({ eligible: 'FIT', conditional: 'FIT_WITH_MONITORING', 'not-eligible': 'NOT_FIT' } as Record<string, string>)[rec.decision || ''],
     overrideReason: rec.overrideReason || null, monitoringNote: rec.followUpNote || null, trainingLockReason: rec.decisionReason || null,
     diagnosis: rec.diagnosis || rec.conclusion || '', treatment: '', medication: rec.medications || '', careRecommendation: rec.recommendations || '', notes: rec.notes || '',
@@ -90,26 +112,75 @@ export function planFromApi(w: Wire, en?: Enrollment): TrainingPlan {
 }
 export function sessionFromApi(w: Wire, user?: AppUser): TrainingSession {
   const statuses: Record<string, TrainingSession['status']> = { SCHEDULED: 'Scheduled', COMPLETED: 'Completed', CANCELLED: 'Cancelled', IN_PROGRESS: 'In Progress', STOPPED: 'In Progress', NOT_PERFORMED: 'Not Performed', MISSED: 'Not Performed' };
-  return { id: w.sessionId, horsePackageId: w.horsePackageId, endTime: w.scheduledEnd?.slice(11,16), intensity: w.intensity, horseId: w.horseId, planId: w.planId, date: dateText(w.scheduledStart), time: w.scheduledStart?.slice(11, 16) || '', type: w.activityName || w.stageTitle || w.intensity || '', trainerId: w.recordedBy || user?.id || '', trainerName: user?.name || '', assignedStaffIds: [], assignedStaffNames: [], status: w.status === 'SCHEDULED' && w.actualStart ? 'In Progress' : statuses[w.status] || 'Scheduled', distance: String(w.distance ?? ''), targetTime: '', notes: w.notes || '', conflictChecked: true, actualEnd: w.actualEnd, canStart: w.canStart, canStop: w.canStop, canComplete: w.canComplete,
+  return { id: w.sessionId, horsePackageId: w.horsePackageId, endTime: w.scheduledEnd?.slice(11,16), intensity: w.intensity, horseId: w.horseId, planId: w.planId, date: dateText(w.scheduledStart), time: w.scheduledStart?.slice(11, 16) || '', type: w.activityName || w.stageTitle || w.intensity || '', trainerId: w.trainerUserId || w.recordedBy || '', trainerName: w.trainerName || '', assignedStaffIds: [], assignedStaffNames: [], status: w.status === 'SCHEDULED' && w.actualStart ? 'In Progress' : statuses[w.status] || 'Scheduled', distance: String(w.distance ?? ''), targetTime: '', notes: w.notes || '', conflictChecked: true, actualEnd: w.actualEnd, canStart: w.canStart, startBlockedReason: w.startBlockedReason, canStop: w.canStop, canComplete: w.canComplete,
     ...(w.status === 'COMPLETED' ? { result: { time: String(w.actualDurationSeconds || ''), speed: String(w.avgSpeed || ''), heartRate: w.endExerciseHeartRate ?? w.heartRate ?? 0, notes: w.evaluation || w.notes || '', performanceScore: w.recoveryHeartRate2Min ?? 0 } } : {}),
   };
 }
 
-export interface RemoteSlice { users: AppUser[]; horses: Horse[]; healthRecords: HealthRecord[]; horseClubRequests: HorseClubRequest[]; packages: TrainingPackage[]; enrollments: Enrollment[]; trainingPlans: TrainingPlan[]; trainingSessions: TrainingSession[]; notifications: AppNotification[]; serverPermissions?: Record<string, string[]>; permissionAudit?: any[]; }
-export async function loadRemote(user: AppUser, report: (message: string) => void): Promise<RemoteSlice> {
-  const data: RemoteSlice = { users: [user], horses: [], healthRecords: [], horseClubRequests: [], packages: [], enrollments: [], trainingPlans: [], trainingSessions: [], notifications: [] };
+export interface RemoteIssue { key: string; message: string; status: number; stale: boolean }
+export class RemoteSourceStore {
+  private account = '';
+  private generation = 0;
+  private values = new Map<string, unknown>();
+  private failures = new Map<string, RemoteIssue>();
+  clear() { this.account=''; this.generation++; this.values.clear(); this.failures.clear(); }
+  begin(account: string) {
+    if (this.account !== account) { this.clear(); this.account=account; }
+    return ++this.generation;
+  }
+  issues() { return [...this.failures.values()]; }
+  async read<T>(generation: number, key: string, action: () => Promise<T>, fallback: T, onlySource?: string): Promise<T> {
+    if (generation !== this.generation) throw new Error('Superseded data request');
+    if (onlySource && key !== onlySource) return (this.values.has(key) ? this.values.get(key) : fallback) as T;
+    try {
+      const value = await action();
+      if (generation !== this.generation) throw new Error('Superseded data request');
+      this.values.set(key,value); this.failures.delete(key); return value;
+    } catch(error) {
+      if (generation !== this.generation) throw error;
+      if(key==='Notifications' && error instanceof ApiError && error.status===403) throw error;
+      if(key.startsWith('Examination records ') && error instanceof ApiError && error.status===404 && error.message==='Health profile not found'){
+        this.values.set(key,fallback);this.failures.delete(key);return fallback;
+      }
+      const status=error instanceof ApiError ? error.status : 0;
+      if (status===403 || status===401) this.values.delete(key);
+      const stale=this.values.has(key);
+      this.failures.set(key,{key,message:(error as Error).message,status,stale});
+      // A technical refresh failure retains only this source's last successful data.
+      return (stale ? this.values.get(key) : fallback) as T;
+    }
+  }
+}
+export const currentTrainerAssignment = (a: Wire) => a.status === 'ACCEPTED' && a.ended_at == null;
+export function uniqueSessions(sessions: TrainingSession[]) {
+  const byId=new Map<string,TrainingSession>();
+  // The scoped schedule DTO has richer stage metadata than the legacy result-history rows.
+  for(const session of sessions)if(!byId.has(session.id))byId.set(session.id,session);
+  return [...byId.values()];
+}
+export interface RemoteSlice { trainingLoadIssues?: RemoteIssue[]; vetAssignmentsError?: string; users: AppUser[]; horses: Horse[]; healthRecords: HealthRecord[]; horseClubRequests: HorseClubRequest[]; packages: TrainingPackage[]; enrollments: Enrollment[]; trainingPlans: TrainingPlan[]; trainingSessions: TrainingSession[]; notifications: AppNotification[]; serverPermissions?: Record<string, string[]>; permissionAudit?: any[]; }
+export async function loadRemote(user: AppUser, report: (message: string) => void, store = new RemoteSourceStore(), onlySource?: string): Promise<RemoteSlice> {
+  const generation=store.begin(user.id+":"+user.role);
+  const data: RemoteSlice = { users: [user], horses: [], healthRecords: [], horseClubRequests: [], packages: [], enrollments: [], trainingPlans: [], trainingSessions: [], notifications: [], vetAssignmentsError: undefined };
   if (user.status !== 'active' || user.locked || !user.verified) {
     report("This account is not active and verified. The server has not granted access to operational features.");
-    return data;
+    data.trainingLoadIssues=store.issues(); return data;
   }
   const errors = new Set<string>();
   async function read<T>(label: string, action: () => Promise<T>, fallback: T): Promise<T> {
-    try { return await action(); } catch (error) {
+    try {
+      const value=await store.read(generation,label,action,fallback,onlySource);
+      const issue=store.issues().find(i=>i.key===label);
+      if(issue) errors.add(label);
+      return value;
+    } catch (error) {
       // Notifications are available to every active business role. A denial here
       // means the session cannot enter the business API; do not cascade more 403s.
       if (label === "Notifications" && error instanceof ApiError && error.status === 403 && (error.details as any)?.code === 'ACCESS_DENIED') {
         throw new ApiError(`The server denied operational access for account ${user.id} (${ROLE_NAMES[user.role!]}, role ID ${user.apiRoleId ?? "not returned"}). Backend role IDs must match the database Role catalog; the frontend cannot grant access itself.`, 403, error.details);
       }
+      // A horse without a health profile has not been examined yet.
+      if (label.startsWith('Examination records ') && error instanceof ApiError && error.status === 404 && error.message === 'Health profile not found') return fallback;
       errors.add(`${label}: ${(error as Error).message}`); return fallback;
     }
   }
@@ -127,13 +198,22 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
     data.serverPermissions = Object.fromEntries(grants);
     const logs = await Promise.all(roles.map(role => read(`Permission history ${role}`, () => request<any[]>(`/admin/permissions/${ROLE_NAMES[role]}/audit-log`), [])));
     data.permissionAudit = logs.flat().map(w => ({ id: w.logId, time: dateText(w.performedAt), actor: w.performedBy, actorRole: 'admin', action: `Permissions: ${w.action}`, target: `${w.roleName}: ${w.permissionCode}` }));
-    if (errors.size) report([...errors].join('\n')); return data;
+    data.trainingLoadIssues=store.issues(); if (errors.size) report('Some data could not be refreshed. See the affected sources and retry.'); return data;
   }
   data.horses = (await read("Horses", () => request<Wire[]>('/horses'), [])).map(w => horseFromApi(w, data.users));
   if (['manager', 'owner', 'head_trainer'].includes(user.role || '')) data.packages = (await read("Package catalogue", () => request<Wire[]>(user.role === 'manager' ? '/training-packages/all' : '/training-packages'), [])).map(packageFromApi);
 
 
-  const vetAssignments: Wire[] = user.role === 'veterinarian' ? await read("Assign veterinarian", () => request('/medical/assignments/mine/history'), []) : [];
+  let vetAssignments: Wire[] = [];
+  if (user.role === 'veterinarian') {
+    try { vetAssignments = await request<Wire[]>('/medical/assignments/mine'); }
+    catch (error) {
+      data.vetAssignmentsError = error instanceof ApiError && error.status === 403
+        ? 'The server denied access to your veterinary assignments. Assigned horses and medical records cannot be fully displayed. Please sign in again; if this persists, contact the administrator.'
+        : `Could not load veterinary assignments: ${(error as Error).message}`;
+      errors.add(data.vetAssignmentsError);
+    }
+  }
   const myAssignments: Wire[] = user.role === 'head_trainer' ? await read("Trainer assignments", () => request('/trainer-assignments/me'), []) : [];
   // Pending assignments intentionally do not grant /horses/{id} access. Show the
   // assignment's own summary, so the trainer can accept before fetching private data.
@@ -147,7 +227,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
     if (user.role === 'head_trainer' && !horse.trainerIds?.includes(user.id)) continue;
     const path = `/horses/${enc(horse.id)}`;
     const assignments = user.role === 'manager' ? await read("Assign veterinarian", () => request<Wire[]>(`/medical/assignments/horses/${enc(horse.id)}`), []) : vetAssignments.filter(a => a.horseId === horse.id);
-    const current = assignments.find(a => ['ASSIGNED', 'ACCEPTED'].includes(a.status)) || assignments[0];
+    const current = [...assignments].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
     if (current) {
       horse.vetId = current.veterinarianId; horse.vetName = current.veterinarianName; horse.vetAssignmentId = current.assignmentId;
       horse.vetAssign = { status: ['ACCEPTED','COMPLETED'].includes(current.status) ? 'accepted' : current.status === 'ASSIGNED' ? 'pending' : 'declined', history: [...assignments].reverse().map(a => ({ time: dateText(a.createdAt), from: null, to: a.veterinarianName, by: a.assignedBy, reason: a.reason || a.status })) };
@@ -156,7 +236,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
       const records = await read(`Examination records ${horse.id}`, () => request<Wire[]>(`/medical/horses/${enc(horse.id)}/records`), []);
       const mapped = records.map(w => recordFromApi(w, horse.id, data.users));
       data.healthRecords.push(...mapped);
-      const latest = [...mapped].filter(r => r.status === 'confirmed').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))[0];
+      const latest = latestConfirmedExam(mapped, horse.id);
       horse.intakeExamId = mapped.find(r => r.intake && r.status === 'confirmed')?.id;
       horse.weight = Number(latest?.vitals?.weight || 0);
       if (latest?.decision === 'conditional') horse.healthStatus = 'Monitor';
@@ -170,19 +250,27 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
       const packs = await read(`Package ${horse.id}`, () => request<Wire[]>(`/horse-packages/${user.role === 'manager' ? 'manage/' : ''}horse/${enc(horse.id)}`), []);
       data.enrollments.push(...packs.map(w => enrollmentFromApi(w, data.packages, horse)));
     }
-    if (user.role === 'head_trainer' && myAssignments.some(a => a.horse_id === horse.id && a.status === 'ACCEPTED')) {
+    if (user.role === 'head_trainer' && myAssignments.some(a => a.horse_id === horse.id && currentTrainerAssignment(a))) {
       const plans = await read(`Plans ${horse.id}`, () => request<Wire[]>(`${path}/training-plans`), []);
       data.trainingPlans.push(...plans.map(w => planFromApi(w)));
     }
-    if (['owner', 'manager'].includes(user.role || '') || (user.role === 'head_trainer' && myAssignments.some(a => a.horse_id === horse.id && a.status === 'ACCEPTED'))) data.trainingSessions.push(...(await read(`Training schedule ${horse.id}`, () => request<Wire[]>(`/training-sessions/horse/${enc(horse.id)}`), [])).map(w => sessionFromApi(w, user.role === 'head_trainer' ? user : undefined)));
+    if (['owner', 'manager'].includes(user.role || '')) data.trainingSessions.push(...(await read(`Training schedule ${horse.id}`, () => request<Wire[]>(`/training-sessions/horse/${enc(horse.id)}`), [])).map(w => sessionFromApi(w, user.role === 'head_trainer' ? user : undefined)));
   }
   if (user.role === 'head_trainer') {
+    for(const horseId of new Set<string>(myAssignments.filter(currentTrainerAssignment).map(a=>a.horse_id))){
+      const sessions=await read<Wire[]>('Training schedule '+horseId,()=>request('/training-sessions/horse/'+enc(horseId)),[]);
+      data.trainingSessions.push(...sessions.map(w=>sessionFromApi(w)));
+    }
     for (const a of myAssignments) {
       if (data.enrollments.some(e => e.id === a.horse_package_id)) continue;
-      if (a.status !== 'ACCEPTED') continue;
+      if (!currentTrainerAssignment(a)) continue;
       const context = await read(`Assigned packages ${a.horse_package_id}`, () => request(`/horse-packages/${enc(a.horse_package_id)}/training-context`), null);
       if (context) {
-        const e = enrollmentFromApi({ horsePackageId: a.horse_package_id, horseId: a.horse_id, packageId: '', packageName: context.packageName, status: context.packageStatus, paymentStatus: context.paymentStatus, totalPrice: 0, startDate: context.startDate, endDate: context.endDate }, [], data.horses.find(h => h.id === a.horse_id));
+        if(!data.horses.some(h=>h.id===a.horse_id))
+          data.horses.push(horseFromApi({horseId:a.horse_id,horseName:context.horseName,trainerIds:[],healthStatus:context.healthStatus,admissionStatus:context.admissionStatus},data.users));
+        const e = enrollmentFromApi({ horsePackageId: a.horse_package_id, horseId: a.horse_id, packageId: context.packageId, packageName: context.packageName, status: context.packageStatus, paymentStatus: context.paymentStatus, totalPrice: 0, startDate: context.startDate, endDate: context.endDate }, [], data.horses.find(h => h.id === a.horse_id));
+        e.roadmapConfigured=context.roadmapConfigured;
+        e.roadmapConfigurationReason=context.roadmapConfigurationReason;
         data.enrollments.push(e);
         const m = context.latestMedical;
         if (m?.medical_record_id) data.healthRecords.push(recordFromApi({ medicalRecordId: m.medical_record_id, veterinarianId: m.veterinarian_name, finalConclusion: m.fitness_conclusion, examinedAt: m.examined_at, createdAt: m.examined_at, status: 'CONFIRMED', vitalSign: { weight: context.weightKg, restingHeartRate: m.resting_heart_rate, bodyTemperature: m.body_temperature, restingRespiratoryRate: m.resting_respiratory_rate } }, a.horse_id, data.users));
@@ -190,12 +278,31 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
       }
     }
   }
+  if(user.role==='head_trainer'){
+    const profile=await read<Wire|null>('Training profile',()=>request('/trainer-profiles/me'),null);
+    if(profile?.trainer_id){
+      const history=await read<Wire[]>('Training result history',()=>request('/trainer-profiles/'+enc(profile.trainer_id)+'/sessions'),[]);
+      for(const row of history){
+        const w={sessionId:row.session_id,horsePackageId:row.horse_package_id,planId:row.plan_id,horseId:row.horse_id,
+          scheduledStart:row.scheduled_start,scheduledEnd:row.scheduled_end,status:row.status,recordedBy:row.recorded_by,
+          trainerUserId:row.recorded_by,trainerName:user.name,intensity:row.intensity,actualEnd:row.actual_end,
+          actualDurationSeconds:row.actual_start && row.actual_end ? (Date.parse(row.actual_end)-Date.parse(row.actual_start))/1000 : undefined,
+          distance:row.distance,avgSpeed:row.avg_speed,notes:row.notes,evaluation:row.evaluation,
+          endExerciseHeartRate:row.end_exercise_heart_rate,recoveryHeartRate2Min:row.recovery_heart_rate_2_min,
+          canStart:false,canStop:false,canComplete:false};
+        data.trainingSessions.push(sessionFromApi(w));
+        if(!data.horses.some(h=>h.id===row.horse_id))
+          data.horses.push(horseFromApi({horseId:row.horse_id,horseName:row.horse_name,trainerIds:[]},data.users));
+      }
+    }
+  }
+  data.trainingSessions=uniqueSessions(data.trainingSessions);
   for (const e of data.enrollments) {
     if (e.directAssignmentId) continue;
     const assignments = user.role === 'head_trainer' ? myAssignments.filter(a => a.horse_package_id === e.id) : await read(`Package trainer ${e.id}`, () => request<Wire[]>(`/horse-packages/${enc(e.id)}/trainer-assignments`), []);
-    const a = assignments.find(a => a.status === 'ACCEPTED') || assignments.find(a => a.status === 'ASSIGNED');
-    if (a) { e.trainerId = a.assignee_id; e.trainerName = a.trainer_name; e.trainerStatus = a.status === 'ACCEPTED' ? 'confirmed' : 'pending'; e.assignmentId = a.assignment_id || a.id; }
-    e.assignHistory = [...assignments].reverse().map(a => ({ time: dateText(a.created_at), kind: a.status === 'ACCEPTED' ? 'confirm' : a.status === 'DECLINED' ? 'decline' : 'assign', from: null, to: a.trainer_name, by: a.assigned_by_name, reason: a.reason || a.status }));
+    const a = assignments.find(a => currentTrainerAssignment(a)) || assignments.find(a => a.status === 'ASSIGNED');
+    if (a) { e.trainerId = a.assignee_id; e.trainerName = a.trainer_name; e.trainerStatus = currentTrainerAssignment(a) ? 'confirmed' : 'pending'; e.assignmentId = a.assignment_id || a.id; }
+    e.assignHistory = [...assignments].reverse().map(a => ({ time: dateText(a.created_at), kind: currentTrainerAssignment(a) ? 'confirm' : a.status === 'DECLINED' ? 'decline' : 'assign', from: null, to: a.trainer_name, by: a.assigned_by_name, reason: a.reason || a.status }));
     const sessions = packageSessions(data.trainingSessions, data.trainingPlans, e.id); e.sessionsTotal = sessions.length; e.sessionsDone = sessions.filter(s => s.status === 'Completed').length;
     e.scheduleConfirmed = sessions.length > 0;
     const packageType = data.packages.find(p => p.id === e.packageId)?.packageType;
@@ -205,6 +312,6 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
     }
   }
   for (const p of data.trainingPlans) { const e = data.enrollments.find(e => e.id === p.horsePackageId) || data.enrollments.find(e => e.horseId === p.horseId && e.trainerStatus === 'confirmed' && e.status === 'active'); if (e) { p.startDate ||= e.startedAt; p.endDate ||= e.expiresAt; p.horsePackageId ||= e.id; p.assignmentId ||= e.assignmentId; } }
-  if (errors.size) report([...errors].join('\n'));
-  return data;
+  if (errors.size) report('Some data could not be refreshed. See the affected sources and retry.');
+  data.trainingLoadIssues=store.issues(); return data;
 }

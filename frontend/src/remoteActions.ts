@@ -1,12 +1,13 @@
-import { selectedStages, scheduleRows } from './trainingSchedule';
+import { rowProblem, persistedRow, type PreviewContext, type PreviewSession } from './sessionPreview';
+import { selectedStages, scheduleRows, normalizeStages } from './trainingSchedule';
 import { trainingTimestamp } from './trainingTimestamp';
 import { ApiError, idPath as enc, request } from './api';
-import { staffRoleId, ROLE_NAMES, isoDate, enrollmentFromApi, horsePayload, medicalPayload, packageFromApi, planFromApi, recordFromApi, sessionFromApi } from './remote';
+import { staffRoleId, ROLE_NAMES, isoDate, enrollmentFromApi, horsePayload, horseCreateForm, medicalPayload, packageFromApi, planFromApi, recordFromApi, sessionFromApi } from './remote';
 import type { RemoteSlice } from './remote';
 import type { AppUser, Horse, HealthRecord, Res, Enrollment, TrainingPackage, TrainingPlan, TrainingSession, Role } from './data';
-import type { PackageDraft, PlanDraft, SessionDraft, SessionWriteOptions } from './trainingLogic';
+import { validatePackage, type PackageDraft, type PlanDraft, type SessionDraft, type SessionWriteOptions } from './trainingLogic';
 import { changePermission, permissionForPage } from './permissionApi';
-import { recommendationFor } from './recommendations';
+
 
 interface State extends RemoteSlice { user: AppUser | null; }
 interface Env { getState: () => State; reload: () => Promise<void>; success: (message: string) => void; error: (message: string) => void; navigate: (page: string) => void; }
@@ -48,7 +49,7 @@ export function makeRemoteActions(env: Env) {
         const key = `${getState().user?.id}:${horse.microchip?.trim().toUpperCase()}`;
         let progress = createdRegistrations.get(key);
         if (!progress) {
-          const created = await request('/horses', 'POST', horsePayload(horse));
+          const created = await request('/horses', 'POST', horseCreateForm(horse));
           progress = { id: created.horseId, raceKeys: new Set() }; createdRegistrations.set(key, progress);
         }
         horse.id = progress.id;
@@ -122,20 +123,33 @@ export function makeRemoteActions(env: Env) {
     }, "Staff account created. A password setup invitation email will be sent."),
     toggleLock: (id: string, _reason: string) => fire(`account-${id}`, () => request(`/users/${enc(id)}/status`, 'PATCH', { status: getState().users.find(u => u.id === id)?.locked ? 'ACTIVE' : 'INACTIVE' })),
     invite: (id: string, _reason: string) => fire(`invite-${id}`, () => request(`/admin/users/${enc(id)}/invitation`, 'POST'), "Password setup invitation email resent."),
-    async purchasePackage(horseId: string, packageId: string, _renewOfId?: string, successful = true): Promise<Res<Enrollment>> {
+    // PayOS: create the registration (or reuse an unpaid one) and request a payment link.
+    async startPayment(horseId: string, packageId: string): Promise<Res<{ enrollmentId: string; url: string; orderCode: number }>> {
       return result(`purchase-${horseId}`, async () => {
         const state = getState();
         const pending = state.enrollments.find(e => e.horseId === horseId && e.packageId === packageId && e.paymentStatus === 'PENDING');
         const registered = pending ? { horsePackageId: pending.id } : await request('/horse-packages/register', 'POST', { horseId, packageId });
-        // Preserve an unpaid registration if payment fails; a later attempt resumes it.
-        const isRecovery = state.packages.find(p => p.id === packageId)?.packageType === 'RECOVERY';
-        const paid = await request(`/horse-packages/${enc(registered.horsePackageId)}/${isRecovery ? 'simulate-recovery-payment' : 'simulate-payment'}`, 'POST', { successful });
-        return enrollmentFromApi(paid, state.packages, state.horses.find(h => h.id === horseId));
+        const payment = await request(`/horse-packages/${enc(registered.horsePackageId)}/payment-link`, 'POST');
+        if (!payment?.checkoutUrl) throw new Error("PayOS did not return a payment link. Please try again.");
+        return { enrollmentId: registered.horsePackageId as string, url: payment.checkoutUrl as string, orderCode: payment.orderCode as number };
+      });
+    },
+    // Ask BE to sync the PayOS state, then read the package back so PAID comes from BE only.
+    async syncPayment(horseId: string, enrollmentId: string): Promise<Res<Enrollment>> {
+      return result(`payment-sync-${enrollmentId}`, async () => {
+        await request(`/horse-packages/${enc(enrollmentId)}/payment-sync`, 'POST');
+        const packs = await request(`/horse-packages/horse/${enc(horseId)}`) as Array<{ horsePackageId: string }>;
+        const w = packs.find(p => p.horsePackageId === enrollmentId);
+        if (!w) throw new Error("Registration not found after payment check.");
+        const state = getState();
+        return enrollmentFromApi(w as never, state.packages, state.horses.find(h => h.id === horseId));
       });
     },
     savePackage: (draft: PackageDraft) => result<TrainingPackage>('package', async () => {
       if (draft.id) unavailable("editing training packages");
-      return packageFromApi(await request('/training-packages', 'POST', { packageName: draft.name.trim(), packageType: draft.packageType, description: draft.description, durationDays: draft.durationDays, price: draft.price }));
+      const errors = validatePackage(draft, getState().packages);
+      if (Object.keys(errors).length) throw new Error(Object.values(errors).join(' '));
+      return packageFromApi(await request('/training-packages', 'POST', { packageName: draft.name.trim(), packageType: draft.packageType, description: draft.description, durationDays: draft.durationDays, price: draft.price, roadmapTemplate: draft.roadmapTemplate }));
     }),
     togglePackage: (_id: string, _active: boolean) => result<TrainingPackage>('package-status', async () => unavailable("enabling or disabling training packages")),
     assignTrainer: (enrollmentId: string, userId: string, reason = '') => result<Enrollment>(`assign-${enrollmentId}`, async () => {
@@ -156,14 +170,46 @@ export function makeRemoteActions(env: Env) {
       const state = getState();
       const e = state.enrollments.find(e => e.horseId === draft.horseId && e.trainerId === state.user?.id && e.trainerStatus === 'confirmed' && e.status === 'active');
       if (!e?.assignmentId) throw new Error("A paid package and an accepted trainer assignment are required.");
-      const recommendation = await recommendationFor(e.id, e.assignmentId);
+      if (!draft.suggestion?.stages?.length) throw new Error('Provide roadmap stages before creating a plan.');
       const selectedIntensity = draft.workload ? ({Low:'LOW',Medium:'MODERATE',High:'HIGH'} as Record<string,string>)[draft.workload] : undefined;
-      const stages = selectedStages(recommendation.stages || [], draft.weekdays, draft.time, selectedIntensity);
+      const stages = selectedStages(draft.suggestion.stages, draft.weekdays, draft.time, selectedIntensity);
       if (isoDate(draft.startDate) !== isoDate(e.startedAt) || isoDate(draft.endDate) !== isoDate(e.expiresAt)) throw new Error("Roadmap dates must match the paid package term.");
-      const plan = await request(`/horses/${enc(draft.horseId)}/training-plans`, 'POST', { planName: draft.phase, goal: draft.goals, startDate: isoDate(e.startedAt), endDate: isoDate(e.expiresAt), assignmentId: e.assignmentId, recommendationId: recommendation.recommendationId, recommendationConfirmed: true, stages, notes: `${recommendation.rationale || ''}\n${recommendation.limitations || ''}` });
+      const plan = await request(`/horses/${enc(draft.horseId)}/training-plans`, 'POST', { planName: draft.phase, goal: draft.goals, startDate: isoDate(e.startedAt), endDate: isoDate(e.expiresAt), assignmentId: e.assignmentId, stages });
       return planFromApi(plan, e);
     }),
     generateSessions: (horseId: string, planId: string, drafts: SessionDraft[], options?: SessionWriteOptions) => result<TrainingSession[]>(`generate-${planId}`, async () => {
+      if (options?.mode === 'preview') {
+        if (!drafts.length) throw new Error('Add at least one session to the preview.');
+        const state=getState();const plan=state.trainingPlans.find(p=>p.id===planId&&p.horseId===horseId);
+        if(!plan)throw new Error('The training plan is no longer available. Refresh the plan list.');
+        const stages=normalizeStages(await request<any[]>('/training-plans/'+enc(planId)+'/stages'));
+        const scheduleHorseIds=[...new Set([horseId,...state.trainingPlans.map(p=>p.horseId)])];
+        const readSchedules=async()=> (await Promise.all(scheduleHorseIds.map(id=>request<any[]>('/training-sessions/horse/'+enc(id))))).flat().map(w=>sessionFromApi(w,state.user||undefined));
+        let current=await readSchedules();
+        const context:PreviewContext={planId,horseId,trainerId:state.user!.id,startDate:plan.startDate,endDate:plan.endDate,stages,sessions:[...state.trainingSessions.filter(s=>!scheduleHorseIds.includes(s.horseId)),...current],now:new Date()};
+        const rows:PreviewSession[]=drafts.map((d,i)=>{
+          const day=Math.round((Date.parse(isoDate(d.date))-Date.parse(isoDate(plan.startDate)))/86400000)+1;
+          const matches=stages.map((s,index)=>({s,index})).filter(({s})=>day>=s.startDay&&day<=s.endDay);
+          return {...d,endTime:d.endTime||'',key:'create-'+i,stageIndex:matches.length===1?matches[0].index:-1};
+        });
+        const invalid=rows.map(row=>rowProblem(row,rows,context)).find(Boolean);if(invalid)throw new Error(invalid);
+        const saved:TrainingSession[]=[];
+        try {
+          for(const row of rows){
+            const found=persistedRow(row,context);if(found){saved.push(found);continue;}
+            const data=await request('/training-sessions','POST',{planId,horseId,scheduledTime:isoDate(row.date)+'T'+row.time+':00',scheduledEnd:isoDate(row.date)+'T'+row.endTime+':00'});
+            const session=sessionFromApi(data,state.user||undefined);saved.push(session);context.sessions.push(session);
+          }
+          return saved;
+        } catch(error) {
+          // A timeout can occur after commit. Reconcile before offering a retry.
+          try { current=await readSchedules();context.sessions=[...state.trainingSessions.filter(s=>!scheduleHorseIds.includes(s.horseId)),...current]; } catch {}
+          const confirmed=rows.map(row=>persistedRow(row,context)).filter((s):s is TrainingSession=>!!s);
+          if(confirmed.length===rows.length)return confirmed;
+          try{await reload();}catch{}
+          throw new Error(confirmed.length+' of '+rows.length+' requested sessions are confirmed saved. Remaining rows were not confirmed. Retry will check existing sessions before creating more. '+(error as Error).message);
+        }
+      }
       if (options) {
         const d = drafts[0];
         if (!d || !d.endTime) throw new Error('Enter a planned end time.');
@@ -175,11 +221,9 @@ export function makeRemoteActions(env: Env) {
         return [sessionFromApi(saved, getState().user || undefined)];
       }
       if (getState().trainingSessions.some(s=>s.planId===planId)) throw new Error('This plan already has sessions. Add or adjust individual sessions instead.');
-      const stored = await request<any[]>('/training-plans/'+enc(planId)+'/stages');
-      const plan = getState().trainingPlans.find(p=>p.id===planId);
-      if (!plan) throw new Error('Training plan not found.');
-      const expected = scheduleRows(stored,plan.startDate);
-      if (drafts.length!==expected.length || drafts.some((d,i)=>d.date!==expected[i].date || d.time!==expected[i].time || d.endTime!==expected[i].endTime)) throw new Error('The saved schedule changed. Reload the preview.');
+      // Reconcile with server before every generation/retry, including lost responses.
+      const current=await request<any[]>('/training-sessions/horse/'+enc(horseId));
+      if(current.some(w=>w.planId===planId))return current.filter(w=>w.planId===planId).map(w=>sessionFromApi(w,getState().user||undefined));
       const generated = await request('/training-plans/'+enc(planId)+'/generate-sessions', 'POST', {confirmed:true});
       return (Array.isArray(generated)?generated:generated.sessions||[]).map((w:any)=>sessionFromApi(w,getState().user||undefined));
     }),

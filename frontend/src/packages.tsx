@@ -1,8 +1,10 @@
+import { PackageRoadmapPreview } from './roadmapView';
+import { CreatePackageForm } from './packageCreateForm';
 import { useState } from 'react';
 import type { AppUser, Horse, Enrollment, TrainingPackage, Res } from './data';
 import { Badge, Btn, Card, Input, Select } from './ui';
 import { IdChip, Modal } from './admin';
-import { money, validatePackage, TRAINER_STATUS_LABEL, isCurrent, daysLeft, type PackageDraft } from './trainingLogic';
+import { money, TRAINER_STATUS_LABEL, isCurrent, daysLeft, type PackageDraft } from './trainingLogic';
 
 export const TRAINER_PILL: Record<Enrollment['trainerStatus'], string> = {
   unassigned: 'bg-amber-100 text-amber-800 border-amber-200',
@@ -23,9 +25,8 @@ interface CatalogProps {
   onToggle: (id: string, active: boolean) => Promise<Res<TrainingPackage>>;
 }
 
-export function PackageCatalogPage({ packages, enrollments, onSave, onToggle }: CatalogProps) {
-  const [editing, setEditing] = useState<TrainingPackage | 'new' | null>(null);
-  const [confirmOff, setConfirmOff] = useState<TrainingPackage | null>(null);
+export function PackageCatalogPage({ packages, enrollments, onSave }: CatalogProps) {
+  const [creating, setCreating] = useState(false);
   const [actionError, setActionError] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
@@ -39,7 +40,7 @@ export function PackageCatalogPage({ packages, enrollments, onSave, onToggle }: 
           <h2 className="font-serif text-xl font-bold text-[#0f1729]">Training package catalogue</h2>
           <p className="text-sm text-gray-500">{packages.filter(p => p.active).length}/{packages.length}  active packages · Disabled packages are hidden from horse owners</p>
         </div>
-        <Btn variant="gold" onClick={() => { setEditing('new'); setActionError(''); }}>+ Create package</Btn>
+        <Btn variant="gold" onClick={() => { setCreating(true); setActionError(''); }}>+ Create package</Btn>
       </div>
 
       <div className="flex gap-2">
@@ -54,7 +55,7 @@ export function PackageCatalogPage({ packages, enrollments, onSave, onToggle }: 
         <Card className="p-10 text-center">
           <div className="mb-2 text-4xl">📦</div>
           <div className="font-semibold text-gray-600">{packages.length === 0 ? "No training packages yet" : "No packages match this filter"}</div>
-          {packages.length === 0 && <div className="mt-3"><Btn variant="gold" onClick={() => setEditing('new')}>+ Create your first package</Btn></div>}
+          {packages.length === 0 && <div className="mt-3"><Btn variant="gold" onClick={() => setCreating(true)}>+ Create your first package</Btn></div>}
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
@@ -74,6 +75,7 @@ export function PackageCatalogPage({ packages, enrollments, onSave, onToggle }: 
                 </div>
               </div>
               <p className="mt-2 text-sm text-gray-600">{p.description || "No description"}</p>
+              <PackageRoadmapPreview packageId={p.id} />
               <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs">
                 <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Duration</div><div className="font-mono text-sm font-bold">{p.durationDays}  days</div></div>
                 <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Registered</div><div className="font-mono text-sm font-bold">{usage(p.id)}</div></div>
@@ -83,60 +85,9 @@ export function PackageCatalogPage({ packages, enrollments, onSave, onToggle }: 
         </div>
       )}
 
-      {editing && <PackageForm pkg={editing === 'new' ? null : editing} others={packages} onSave={onSave} onClose={() => setEditing(null)} />}
+      {creating && <CreatePackageForm packages={packages} onSave={onSave} onClose={()=>setCreating(false)} />}
 
-      {confirmOff && (
-        <Modal title="Deactivate package?" onClose={() => setConfirmOff(null)}>
-          <p className="text-sm text-gray-600">Package <strong>{confirmOff.name}</strong>  will be hidden from horse owners' registration list. Existing registrations continue normally{usage(confirmOff.id) > 0 ? ` (${usage(confirmOff.id)} existing registrations)` : ''}.</p>
-          <div className="mt-5 flex justify-end gap-2">
-            <Btn variant="secondary" onClick={() => setConfirmOff(null)}>Cancel</Btn>
-            <Btn variant="danger" onClick={async () => { const r = await onToggle(confirmOff.id, false); setActionError(r.ok ? '' : r.message); setConfirmOff(null); }}>Confirm disable</Btn>
-          </div>
-        </Modal>
-      )}
     </div>
-  );
-}
-
-function PackageForm({ pkg, others, onSave, onClose }: { pkg: TrainingPackage | null; others: TrainingPackage[]; onSave: (d: PackageDraft) => Promise<Res<TrainingPackage>>; onClose: () => void }) {
-  const [f, setF] = useState({ name: pkg?.name ?? '', description: pkg?.description ?? '', sessions: String(pkg?.sessions ?? ''), packageType: pkg?.packageType || 'BASIC', durationDays: String(pkg?.durationDays ?? ''), price: String(pkg?.price ?? '') });
-  const [errs, setErrs] = useState<Record<string, string>>({});
-  const [submitError, setSubmitError] = useState('');
-  const set = (k: keyof typeof f) => (v: string) => { setF(p => ({ ...p, [k]: v })); setErrs(e => ({ ...e, [k]: '' })); setSubmitError(''); };
-  const num = (s: string) => (s.trim() === '' || !/^-?\d+$/.test(s.trim()) ? NaN : Number(s.trim()));
-
-  const submit = async () => {
-    const draft: PackageDraft = { packageType: f.packageType, id: pkg?.id, name: f.name, description: f.description, sessions: num(f.sessions), durationDays: num(f.durationDays), price: num(f.price) };
-    const e = validatePackage(draft, others);
-    setErrs(e);
-    if (Object.keys(e).length) return;
-    const r = await onSave(draft);
-    if (!r.ok) { setSubmitError(r.message); return; }
-    onClose();
-  };
-
-  return (
-    <Modal title={pkg ? "Edit training package" : "Create training package"} onClose={onClose} wide>
-      <div className="space-y-4">
-        {pkg && <div className="flex items-center gap-2 text-sm text-gray-500">Package ID: <IdChip kind="PKG" id={pkg.id} /><span className="text-xs">(read only)</span></div>}
-        <Input label="Package name" required value={f.name} onChange={set('name')} maxLength={60} placeholder="e.g. Performance" hint="3–60 characters; must be unique" error={errs.name} />
-        <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">Description</label>
-          <textarea value={f.description} onChange={e => set('description')(e.target.value)} rows={3} className={`w-full resize-none rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b] ${errs.description ? 'border-red-400 bg-red-50/40' : 'border-gray-300'}`} placeholder="Main package content" />
-          <div className="flex justify-between text-xs"><span className="text-red-600">{errs.description}</span><span className="text-gray-400">{f.description.length}/300</span></div>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-        <div><Select label="Package type" value={f.packageType} onChange={set('packageType')} options={['BASIC', 'RACING', 'PERFORMANCE', 'RECOVERY'].map(value => ({ value, label: value }))} />{errs.packageType && <p className="text-xs text-red-600">{errs.packageType}</p>}</div>
-          <Input label="Duration (days)" required type="number" value={f.durationDays} onChange={set('durationDays')} hint="7–365 days" error={errs.durationDays} />
-        </div>
-        <Input label="Price (VND)" required type="number" value={f.price} onChange={set('price')} hint={Number.isFinite(num(f.price)) && num(f.price) > 0 ? `= ${money(num(f.price))}` : "Integer greater than 0"} error={errs.price} />
-        {submitError && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{submitError}</div>}
-        <div className="flex justify-end gap-2 pt-1">
-          <Btn variant="secondary" onClick={onClose}>Cancel</Btn>
-          <Btn variant="gold" onClick={submit}>{pkg ? "Save changes" : "Create package"}</Btn>
-        </div>
-      </div>
-    </Modal>
   );
 }
 
@@ -164,7 +115,7 @@ export function TrainerAssignPage({ user, users, horses, enrollments, onAssign }
   const myEnr = enrollments.filter(e => isCurrent(e) && !e.directAssignmentId && e.apiStatus === 'ACTIVE' && e.paymentStatus === 'PAID' && horses.some(h => h.id === e.horseId && h.clubId === user.clubId));
   const count = (s: Enrollment['trainerStatus']) => myEnr.filter(e => e.trainerStatus === s).length;
   const rows = myEnr.filter(e => tab === 'all' || e.trainerStatus === tab);
-  const load = (id: string) => myEnr.filter(e => e.trainerId === id).length;
+  const load = (id: string) => new Set(myEnr.filter(e => e.trainerId === id && (e.trainerStatus === 'pending' || e.trainerStatus === 'confirmed')).map(e => e.horseId)).size;
   const replacing = !!dlg && dlg.trainerStatus !== 'unassigned' && !!dlg.trainerId;
 
   const open = (e: Enrollment) => { setDlg(e); setTrainerId(''); setTrainerSearch(''); setReason(''); setErr(''); };
@@ -256,14 +207,14 @@ export function TrainerAssignPage({ user, users, horses, enrollments, onAssign }
               <div className="mt-1">Valid: {dlg.startedAt} – {dlg.expiresAt} · Paid</div>
             </div>
             <Select label="Trainer" required value={trainerId} onChange={v => { setTrainerId(v); setErr(''); }}
-              options={[{ value: '', label: "— Select a trainer —" }, ...trainers.filter(t => t.id !== dlg.trainerId || !replacing).map(t => ({ value: t.id, label: `${t.name} (${load(t.id)} assigned packages)` }))]}
-              hint={replacing ? "Choose a replacement" : "The trainer will be notified and must respond"} />
+              options={[{ value: '', label: "— Select a trainer —" }, ...trainers.filter(t => t.id !== dlg.trainerId || !replacing).map(t => ({ value: t.id, label: `${t.name} (${load(t.id)} horses assigned)` }))]}
+              hint={`${trainerId ? `${load(trainerId)} horses currently assigned to this trainer. ` : ''}Counts unique horses in active paid packages, including assignments awaiting confirmation.`} />
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Search trainers directly</label>
               <input value={trainerSearch} onChange={e => setTrainerSearch(e.target.value)} placeholder="Search by trainer name or ID…" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]" />
               {trainerSearch && <div className="mt-1 max-h-36 overflow-y-auto rounded-lg border border-gray-200 bg-white p-1">
                 {trainers.filter(t => (t.id !== dlg.trainerId || !replacing) && `${t.name} ${t.id}`.toLowerCase().includes(trainerSearch.toLowerCase())).map(t =>
-                  <button key={t.id} type="button" onClick={() => { setTrainerId(t.id); setTrainerSearch(t.name); setErr(''); }} className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-amber-50"><span className="font-medium">{t.name}</span><span className="text-xs text-gray-400">{t.id} · {load(t.id)} active</span></button>)}
+                  <button key={t.id} type="button" onClick={() => { setTrainerId(t.id); setTrainerSearch(t.name); setErr(''); }} className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-amber-50"><span className="font-medium">{t.name}</span><span className="text-xs text-gray-400">{t.id} · {load(t.id)} horses assigned</span></button>)}
               </div>}
             </div>
             {replacing && (

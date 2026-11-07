@@ -24,6 +24,7 @@ public class TrainingPackageService {
     private final TrainingPackageRepository repository;
     private final HorsePackageRepository horsePackageRepository;
     private final TrainingPackageMapper mapper;
+    @org.springframework.beans.factory.annotation.Autowired private PackageRoadmapTemplateService roadmaps;
 
     public TrainingPackageService(TrainingPackageRepository repository, HorsePackageRepository horsePackageRepository, TrainingPackageMapper mapper,
             com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator) {
@@ -52,9 +53,11 @@ public class TrainingPackageService {
     @Transactional
     public TrainingPackageResponse create(TrainingPackageCreateRequest request) {
         validateType(request.packageType());
-        TrainingPackage entity = mapper.toEntity(request);
-        entity.setPackageId(nextPackageId());
-        return mapper.toResponse(repository.saveAndFlush(entity));
+        roadmaps.validate(request.roadmapTemplate(),request.durationDays());
+        TrainingPackage entity=mapper.toEntity(request);entity.setPackageId(nextPackageId());repository.saveAndFlush(entity);
+        var template=roadmaps.create(entity.getPackageId(),request.roadmapTemplate(),request.durationDays());
+        var r=mapper.toResponse(entity);
+        return new TrainingPackageResponse(r.packageId(),r.packageName(),r.packageType(),r.description(),r.durationDays(),r.price(),r.status(),r.createdAt(),r.updatedAt(),template);
     }
 
     @Transactional
@@ -67,6 +70,7 @@ public class TrainingPackageService {
             throw new BusinessRuleException(
                     "This package already has registrations; create a new package instead of editing it");
         }
+        if(!java.util.Objects.equals(entity.getDurationDays(),request.durationDays())||!java.util.Objects.equals(entity.getPackageType(),request.packageType()))throw new BusinessRuleException("Create a new package to change roadmap type or duration");
         mapper.updateEntity(entity, request);
         return mapper.toResponse(repository.saveAndFlush(entity));
     }
@@ -78,6 +82,7 @@ public class TrainingPackageService {
             throw new BusinessRuleException("Invalid training package status: " + request.status());
         }
         TrainingPackage entity = findById(id);
+        if("ACTIVE".equals(status))roadmaps.read(id);
         entity.setStatus(status);
         return mapper.toResponse(repository.saveAndFlush(entity));
     }

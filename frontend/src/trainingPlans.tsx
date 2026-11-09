@@ -265,7 +265,7 @@ export function TrainingHubPage(props: HubProps) {
           {listed.map(s => {
             const ownsSession=isTrainer && s.trainerId===me.id && state.enrollments.some(e=>e.id===s.horsePackageId&&e.trainerId===me.id&&e.trainerStatus==='confirmed'&&e.status==='active'&&e.paymentStatus==='PAID');
             const canCheckIn = ownsSession && s.status === 'Scheduled' && !s.attendance && s.date === today;
-            const startState=sessionStartState(s,state.trainingSessions,me.id,now);
+            const startState=sessionStartState(s,state.trainingSessions,me.id);
             return (
               <Card key={s.id} className="p-5">
                 <div className="flex items-start justify-between gap-3">

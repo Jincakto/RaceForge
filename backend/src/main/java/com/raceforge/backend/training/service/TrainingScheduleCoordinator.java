@@ -198,8 +198,7 @@ public class TrainingScheduleCoordinator {
         }
         var work=unfinishedWork();
         for (var response : responses) {
-            boolean currentWork = "SCHEDULED".equals(response.getStatus()) &&
-                (response.getActualStart() != null || (response.getScheduledStart() != null && !response.getScheduledStart().toLocalDate().isBefore(today)));
+            boolean currentWork = "SCHEDULED".equals(response.getStatus());
             Trainer trainer = currentWork ? current.get(response.getHorsePackageId()) :
                 recorded.getOrDefault(response.getRecordedBy(), original.get(response.getPlanId()));
             response.setTrainerUserId(trainer == null ? null : trainer.userId());
@@ -209,8 +208,6 @@ public class TrainingScheduleCoordinator {
             else if(response.getActualStart()!=null)reason=response.getActualEnd()==null?
                 "Exercise is in progress. Stop it and record recovery results.":"Exercise stopped; recovery results are pending.";
             else if(Boolean.TRUE.equals(response.getTrainingLocked()))reason="Horse is training-locked.";
-            else if(response.getScheduledStart()==null || !response.getScheduledStart().toLocalDate().equals(today))
-                reason="Start this session on its scheduled date (Bangkok time).";
             else if(trainer==null)reason="An ACCEPTED trainer assignment is required.";
             else if(!Boolean.TRUE.equals(validPlans.get(response.getPlanId())))reason="The plan and paid package must be active and valid today.";
             else reason=unfinishedReason(work,response.getHorseId(),trainer.userId(),response.getSessionId());

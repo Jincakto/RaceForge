@@ -44,17 +44,14 @@ export function scheduleWarning(rows:{date:string;time:string}[],now=new Date())
 }
 
 /** Loaded schedules provide early hints; the Start endpoint repeats all checks atomically. */
-export function sessionStartState(session:TrainingSession,sessions:TrainingSession[],trainerId:string,now=new Date()){
+export function sessionStartState(session:TrainingSession,sessions:TrainingSession[],trainerId:string){
  if(session.trainerId!==trainerId)return {allowed:false,reason:'This session belongs to another trainer.'};
  if(session.status!=='Scheduled')return {allowed:false,reason:session.status==='In Progress'?
   (session.actualEnd?'Exercise stopped; recovery results are pending.':'Exercise is in progress.'):'Only a scheduled session can be started.'};
- const dateReason='Start this session on its scheduled date (Bangkok time).';
- if(isoDay(session.date)!==trainingTimestamp(now).slice(0,10))return {allowed:false,reason:dateReason};
  const pending=sessions.find(s=>s.id!==session.id&&s.status==='In Progress'&&(s.horseId===session.horseId||s.trainerId===trainerId));
  if(pending)return {allowed:false,reason:'Finish session '+pending.id+' first. '+(pending.actualEnd?'Save its recovery results.':'Stop it and save its recovery results.')};
- // A date-only hint becomes stale at midnight. Re-evaluate that hint locally;
- // server authorization/medical/package checks remain authoritative on Start.
- if(session.canStart===false&&session.startBlockedReason!==dateReason)
+ // Preserve server blocks for permissions, medical locks, and package validity.
+ if(session.canStart===false)
   return {allowed:false,reason:session.startBlockedReason||'Refresh the schedule to check whether this session can start.'};
  return {allowed:true,reason:''};
 }

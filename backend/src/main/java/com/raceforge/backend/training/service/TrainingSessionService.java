@@ -70,8 +70,7 @@ public class TrainingSessionService {
         if(session.getActualStart()!=null)throw new BusinessRuleException("Session has already started; it cannot be restarted.");
         LocalDateTime now=LocalDateTime.now(clock);
         workflowGuard.requirePackageDate(session.getPlan(),session.getHorse().getHorseId(),now.toLocalDate());
-        if(session.getScheduledStart()==null || !session.getScheduledStart().toLocalDate().equals(now.toLocalDate()))
-            throw new BusinessRuleException("Start this session on its scheduled date (Bangkok time).");
+        // Planned dates are retained; actual exercise may start on another valid package day.
         scheduleCoordinator.requireStartAvailable(session.getPlan().getHorsePackageId(),session.getHorse().getHorseId(),sessionId);
         captureRestingHeartRate(session);
         session.setActualStart(now);

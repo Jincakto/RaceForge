@@ -70,7 +70,9 @@ public class HorsePackageService {
         TrainingPackage trainingPackage = trainingPackageRepository.findById(request.packageId())
                 .orElseThrow(() -> new ResourceNotFoundException("Training package not found: " + request.packageId()));
         eligibility.requireEligible(horse, trainingPackage, registrationToday);
-        boolean recovery = "RECOVERY".equals(trainingPackage.getPackageType());
+        if ("RECOVERY".equalsIgnoreCase(trainingPackage.getPackageType())) {
+            throw new BusinessRuleException("Recovery registration is retired");
+        }
 
         HorsePackage registration = new HorsePackage();
         registration.setHorsePackageId(idAllocator.next("HPG"));
@@ -81,13 +83,9 @@ public class HorsePackageService {
         registration.setPaymentStatus("PENDING");
         HorsePackage saved = horsePackageRepository.saveAndFlush(registration);
         packageEventService.record(ownerId, horse.getHorseId(), saved.getHorsePackageId(),
-                recovery ? "RECOVERY_OWNER_REGISTERED" : "NORMAL_PACKAGE_REGISTERED",
-                recovery ? "First-time Owner-paid Recovery awaiting payment"
-                        : "Normal training package registration pending payment");
+                "NORMAL_PACKAGE_REGISTERED", "Normal training package registration pending payment");
         packageEventService.notifyOwner(ownerId, horse.getHorseId(),
-                recovery ? "RECOVERY_OWNER_REGISTERED" : "NORMAL_PACKAGE_REGISTERED",
-                recovery ? "Your Recovery package is awaiting payment."
-                        : "Training package registration is awaiting payment.");
+                "NORMAL_PACKAGE_REGISTERED", "Training package registration is awaiting payment.");
         return mapper.toResponse(saved);
     }
 

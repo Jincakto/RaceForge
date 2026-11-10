@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Objects;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/medical")
@@ -120,6 +121,25 @@ public class MedicalRecordController {
         return ApiResponse.success("Medical record confirmed",
                 medicalRecordService.confirmMedicalRecord(
                         medicalRecordId, currentUser(authentication).userId()));
+    }
+
+    @PutMapping(value = "/records/{medicalRecordId}/clinical-exams/{area}/evidence",
+            consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAuthority('VETERINARIAN')")
+    public ApiResponse<MedicalRecordResponse> uploadEvidence(
+            @PathVariable String medicalRecordId, @PathVariable String area,
+            @RequestPart("file") MultipartFile file, Authentication authentication) {
+        return ApiResponse.success("Clinical evidence uploaded", medicalRecordService.uploadClinicalEvidence(
+                medicalRecordId, currentUser(authentication).userId(), area, file));
+    }
+
+    @DeleteMapping("/records/{medicalRecordId}/clinical-exams/{area}/evidence")
+    @PreAuthorize("hasAuthority('VETERINARIAN')")
+    public ApiResponse<MedicalRecordResponse> removeEvidence(
+            @PathVariable String medicalRecordId, @PathVariable String area,
+            Authentication authentication) {
+        return ApiResponse.success("Clinical evidence removed", medicalRecordService.deleteClinicalEvidence(
+                medicalRecordId, currentUser(authentication).userId(), area));
     }
 
     @PostMapping("/horses/{horseId}/training-lock/unlock")

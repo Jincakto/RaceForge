@@ -107,12 +107,11 @@ public class TrainingPackageExpirationService {
             if (Boolean.TRUE.equals(horse.getTrainingLocked())) {
                 events.notifyManagers(horseId, type,
                         "Recovery has expired, but Training Lock remains active. "
-                        + "Arrange veterinary review and decide the next Recovery plan; "
-                        + "the original training package must remain PAUSED.");
+                        + "Arrange veterinary review; any preserved original package remains PAUSED.");
             } else if (registration.getReplacedHorsePackage() != null) {
                 events.notifyManagers(horseId, type,
                         "Center-funded Recovery ended. If the horse is READY and unlocked, "
-                        + "CM can review resuming preserved training days.");
+                        + "the assigned Trainer may accept resumption of preserved training days.");
             }
         }
         return true;

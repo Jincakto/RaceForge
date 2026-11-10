@@ -11,7 +11,7 @@ import java.util.Set;
 @Component
 public class MedicalClinicalExamValidator {
 
-    // The eight areas in the current medical-examination UI.
+    // The four areas in the current medical-examination UI.
     // Frontend and backend must send the same identifiers, not Vietnamese labels.
     private static final Set<String> REQUIRED_AREAS = Set.of(
             "EYES", "NOSE", "MOUTH", "MOVEMENT_LEGS"
@@ -19,11 +19,11 @@ public class MedicalClinicalExamValidator {
     private static final Set<String> VALID_EXAM_TYPES = Set.of(
             "INITIAL", "PERIODIC", "FOLLOW_UP"
     );
-    private static final Set<String> VALID_CONDITIONS = Set.of("NORMAL", "ABNORMAL");
-    private static final int MAX_ABNORMAL_NOTES = 200;
+    private static final Set<String> VALID_CONDITIONS = Set.of("NORMAL", "ABNORMAL", "CRITICAL");
+    private static final int MAX_ABNORMAL_NOTES = 500;
 
     /**
-     * @return true if all eight areas are present with valid statuses and notes.
+     * @return true if all four areas are present with valid statuses and notes.
      *         Returns false for incomplete drafts; throws for invalid supplied values.
      */
     public boolean validate(String examType, List<MedicalClinicalExamRequest> exams) {
@@ -61,14 +61,14 @@ public class MedicalClinicalExamValidator {
             if (!VALID_CONDITIONS.contains(condition)) {
                 throw new IllegalArgumentException("Unsupported condition status: " + condition);
             }
-            if ("ABNORMAL".equals(condition)) {
-                String notes = exam.getNotes();
-                if (notes == null || notes.isBlank()) {
-                    complete = false;
-                } else if (notes.trim().length() > MAX_ABNORMAL_NOTES) {
-                    throw new IllegalArgumentException(
-                            "Abnormal description exceeds " + MAX_ABNORMAL_NOTES + " characters: " + area);
-                }
+            String notes = exam.getNotes();
+            if (notes != null && notes.trim().length() > MAX_ABNORMAL_NOTES) {
+                throw new IllegalArgumentException(
+                        "Clinical finding description exceeds " + MAX_ABNORMAL_NOTES + " characters: " + area);
+            }
+            if (("ABNORMAL".equals(condition) || "CRITICAL".equals(condition))
+                    && (notes == null || notes.isBlank())) {
+                complete = false;
             }
         }
         return complete && submittedAreas.containsAll(REQUIRED_AREAS);

@@ -18,7 +18,7 @@ import java.util.Set;
 public class TrainingPackageService {
     private final com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator;
 
-    private static final Set<String> ALLOWED_TYPES = Set.of("BASIC", "RACING", "PERFORMANCE", "RECOVERY");
+    private static final Set<String> ALLOWED_TYPES = Set.of("BASIC", "RACING", "PERFORMANCE");
     private static final Set<String> ALLOWED_STATUSES = Set.of("ACTIVE", "INACTIVE");
 
     private final TrainingPackageRepository repository;
@@ -37,7 +37,8 @@ public class TrainingPackageService {
     @Transactional(readOnly = true)
     public List<TrainingPackageResponse> getActivePackages() {
         return repository.findByStatusOrderByPackageNameAsc("ACTIVE")
-                .stream().map(mapper::toResponse).toList();
+                .stream().filter(p -> !"RECOVERY".equalsIgnoreCase(p.getPackageType()))
+                .map(mapper::toResponse).toList();
     }
 
     @Transactional(readOnly = true)
@@ -82,6 +83,9 @@ public class TrainingPackageService {
             throw new BusinessRuleException("Invalid training package status: " + request.status());
         }
         TrainingPackage entity = findById(id);
+        if ("RECOVERY".equalsIgnoreCase(entity.getPackageType()) && "ACTIVE".equals(status)) {
+            throw new BusinessRuleException("Recovery packages are retired and cannot be reactivated");
+        }
         if("ACTIVE".equals(status))roadmaps.read(id);
         entity.setStatus(status);
         return mapper.toResponse(repository.saveAndFlush(entity));

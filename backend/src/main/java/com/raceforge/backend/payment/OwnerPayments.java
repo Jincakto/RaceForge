@@ -4,7 +4,6 @@ import com.raceforge.backend.common.exception.BusinessRuleException;
 import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.training.entity.HorsePackage;
 import com.raceforge.backend.training.service.HorsePackageService;
-import com.raceforge.backend.training.service.RecoveryPackageService;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.security.SecureRandom;
@@ -24,17 +23,15 @@ public class OwnerPayments {
     private final TransactionTemplate tx;
     private final PayOsGateway gateway;
     private final HorsePackageService normal;
-    private final RecoveryPackageService recovery;
     private final SecureRandom random = new SecureRandom();
 
     public OwnerPayments(JdbcTemplate sql, EntityManager db, TransactionTemplate tx, PayOsGateway gateway,
-                         HorsePackageService normal, RecoveryPackageService recovery) {
+                         HorsePackageService normal) {
         this.sql = sql;
         this.db = db;
         this.tx = tx;
         this.gateway = gateway;
         this.normal = normal;
-        this.recovery = recovery;
     }
 
     private Order map(ResultSet rs, int row) throws SQLException {
@@ -51,6 +48,9 @@ public class OwnerPayments {
             HorsePackage pack = db.find(HorsePackage.class, id, LockModeType.PESSIMISTIC_WRITE);
             if (pack == null || !owner.equals(pack.getHorse().getOwner().getUserId()))
                 throw new ResourceNotFoundException("Package registration not found");
+            if ("RECOVERY".equalsIgnoreCase(pack.getTrainingPackage().getPackageType())) {
+                throw new BusinessRuleException("Recovery checkout is retired; contact support for old orders");
+            }
             var existing = sql.query("SELECT * FROM dbo.PayOS_Order WHERE horse_package_id=?", this::map, id);
             if (!existing.isEmpty()) return existing.get(0);
             if (!create) throw new ResourceNotFoundException("Create the payOS checkout first");
@@ -122,9 +122,11 @@ public class OwnerPayments {
                 if (locked.payment().applied() || !state.equals(locked.payment().paymentState())) return;
                 var pack = db.find(HorsePackage.class, order.payment().registrationId());
                 String owner = pack.getHorse().getOwner().getUserId();
-                if ("RECOVERY".equalsIgnoreCase(pack.getTrainingPackage().getPackageType()))
-                    recovery.applyRecoveryPayment(pack.getHorsePackageId(), paid, owner);
-                else normal.applyPayment(pack.getHorsePackageId(), paid, owner);
+                if ("RECOVERY".equalsIgnoreCase(pack.getTrainingPackage().getPackageType())) {
+                    // Verified historical receipts remain PAID / applied=false for manual reconciliation.
+                    throw new BusinessRuleException("Historical Recovery order requires manual reconciliation");
+                }
+                normal.applyPayment(pack.getHorsePackageId(), paid, owner);
                 sql.update("UPDATE dbo.PayOS_Order SET applied=1 WHERE order_code=?", code);
             });
         } catch (BusinessRuleException blocked) {

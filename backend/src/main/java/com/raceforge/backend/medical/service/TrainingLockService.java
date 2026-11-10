@@ -110,7 +110,7 @@ public class TrainingLockService {
         auditLogService.record(veterinarian.getUserId(), horse.getHorseId(),
                 "TRAINING_LOCK", lock.getLockId(), "TRAINING_LOCKED", "SUCCESS", lockReason);
         notifyManagers(horse.getHorseId(), "TRAINING_LOCKED",
-                "Vet confirmed Training Lock. Review the horse and approve the Recovery workflow if appropriate.");
+                "Veterinarian confirmed Training Lock; ordinary training is paused.");
         notifyAssignedTrainers(horse, "TRAINING_SUSPENDED",
                 "Medical Training Lock confirmed. Ordinary training is suspended; your assignment is retained.");
     }
@@ -147,9 +147,9 @@ public class TrainingLockService {
         auditLogService.record(veterinarianId, horseId, "TRAINING_LOCK",
                 activeLock.getLockId(), "TRAINING_UNLOCKED", "SUCCESS", unlockReason);
         notifyManagers(horseId, "TRAINING_UNLOCKED",
-                "Vet released Training Lock. Review and approve resumption of the previous training package when eligible.");
-        notifyAssignedTrainers(horse, "HORSE_TRAINING_UNLOCKED",
-                "Training Lock has been released, but ordinary training remains suspended until Club Manager resumes the original package.");
+                "Veterinarian released Training Lock. Assigned trainers can now accept resumption of a paused paid package.");
+        notifyAssignedTrainers(horse, "TRAINER_RESUMPTION_AVAILABLE",
+                "Training Lock has been released. If you have an accepted assignment on a paused paid package, review and accept resumption.");
         return activeLock;
     }
 

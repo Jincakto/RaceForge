@@ -20,9 +20,16 @@ public class MedicalClinicalExam {
     @Column(name = "condition_status", nullable = false, length = 20)
     private String conditionStatus;
 
-    // NORMAL or ABNORMAL. The veterinarian describes any abnormality in notes.
+    // NORMAL, ABNORMAL or CRITICAL. Keep one private Supabase object path per area.
     @Column(name = "notes", length = 500)
     private String notes;
+
+    @Column(name = "evidence_image_path", length = 255)
+    private String evidenceImagePath;
+
+    public String getEvidenceImagePath() { return evidenceImagePath; }
+
+    public void setEvidenceImagePath(String evidenceImagePath) { this.evidenceImagePath = evidenceImagePath; }
 
     public MedicalClinicalExam() {
     }

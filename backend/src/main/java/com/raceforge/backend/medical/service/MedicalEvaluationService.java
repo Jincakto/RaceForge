@@ -90,8 +90,11 @@ public class MedicalEvaluationService {
 
         if (clinicalExams != null) {
             for (MedicalClinicalExamRequest exam : clinicalExams) {
-                if (exam != null && "ABNORMAL".equalsIgnoreCase(exam.getConditionStatus())) {
-                    // Binary clinical status cannot establish severity or prove an injury.
+                if (exam == null || exam.getConditionStatus() == null) continue;
+                if ("CRITICAL".equalsIgnoreCase(exam.getConditionStatus())) {
+                    critical = true;
+                    findings.add("Critical clinical finding in " + exam.getExaminationArea() + ".");
+                } else if ("ABNORMAL".equalsIgnoreCase(exam.getConditionStatus())) {
                     warning = true;
                     findings.add("Clinical abnormality in " + exam.getExaminationArea() + ".");
                 }

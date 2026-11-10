@@ -65,16 +65,8 @@ public class TrainingPackageEligibilityService {
                 && !("ACTIVE".equals(p.getStatus()) && p.getEndDate() != null && p.getEndDate().isBefore(today))))
             reasons.add(new Reason("EXISTING_PACKAGE", "Horse already has a pending or ongoing package"));
 
-        if ("RECOVERY".equals(pack.getPackageType())) {
-            if (!Boolean.TRUE.equals(horse.getTrainingLocked()) || !"NOT_FIT".equalsIgnoreCase(horse.getHealthStatus()))
-                reasons.add(new Reason("RECOVERY_LOCK_REQUIRED", "Owner-paid Recovery requires a confirmed NOT_FIT Training Lock"));
-            var lock = locks.findFirstByHorse_HorseIdAndUnlockedAtIsNullOrderByLockedAtDesc(horse.getHorseId());
-            if (lock.isEmpty() || lock.get().getMedicalRecord() == null
-                    || !"CONFIRMED".equalsIgnoreCase(lock.get().getMedicalRecord().getStatus())
-                    || lock.get().getMedicalRecord().getMedicalRecordId() == null)
-                reasons.add(new Reason("RECOVERY_CONFIRMED_LOCK_REQUIRED", "Recovery requires a lock from a confirmed examination"));
-            if (history.stream().anyMatch(p -> !"RECOVERY".equalsIgnoreCase(p.getTrainingPackage().getPackageType())))
-                reasons.add(new Reason("RECOVERY_MANAGER_ROUTE", "Contact Club Manager for an in-training injury"));
+        if ("RECOVERY".equalsIgnoreCase(pack.getPackageType())) {
+            reasons.add(new Reason("RECOVERY_RETIRED", "Recovery registration is no longer offered"));
         } else {
             check(reasons, "MEDICAL_NOT_AUTHORIZED", () -> guard.requireHealthy(horse));
             if ("RACING".equals(pack.getPackageType()))

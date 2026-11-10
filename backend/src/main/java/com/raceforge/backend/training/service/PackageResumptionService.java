@@ -5,235 +5,190 @@ import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.repository.HorseRepository;
 import com.raceforge.backend.training.dto.HorsePackageResponse;
+import com.raceforge.backend.training.dto.TrainerResumptionResponse;
 import com.raceforge.backend.training.entity.HorsePackage;
 import com.raceforge.backend.training.mapper.HorsePackageMapper;
 import com.raceforge.backend.training.repository.HorsePackageRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
+/** A Vet unlocks medically; an already-accepted Trainer resumes the preserved paid package. */
 @Service
 public class PackageResumptionService {
-
-    private final HorseRepository horseRepository;
-    private final HorsePackageRepository horsePackageRepository;
+    private final HorseRepository horses;
+    private final HorsePackageRepository packages;
     private final HorsePackageMapper mapper;
     private final EntityManager entityManager;
-    private final PackageEventService packageEventService;
+    private final PackageEventService events;
+    private final TrainingWorkflowGuard guard;
+    private final JdbcTemplate jdbc;
+    private final Clock clock;
+    private final TrainingScheduleCoordinator scheduleCoordinator;
 
-    public PackageResumptionService(
-            HorseRepository horseRepository,
-            HorsePackageRepository horsePackageRepository,
-            HorsePackageMapper mapper,
-            EntityManager entityManager,
-            PackageEventService packageEventService
-    ) {
-        this.horseRepository = horseRepository;
-        this.horsePackageRepository = horsePackageRepository;
+    public PackageResumptionService(HorseRepository horses, HorsePackageRepository packages,
+            HorsePackageMapper mapper, EntityManager entityManager, PackageEventService events,
+            TrainingWorkflowGuard guard, JdbcTemplate jdbc, @Qualifier("trainingClock") Clock clock,
+            TrainingScheduleCoordinator scheduleCoordinator) {
+        this.horses = horses;
+        this.packages = packages;
         this.mapper = mapper;
         this.entityManager = entityManager;
-        this.packageEventService = packageEventService;
+        this.events = events;
+        this.guard = guard;
+        this.jdbc = jdbc;
+        this.clock = clock;
+        this.scheduleCoordinator = scheduleCoordinator;
     }
 
-    /**
-     * A veterinarian may unlock a horse before CM activates center-funded
-     * Recovery. CM can then resume the preserved ordinary package directly.
-     * This does not create a Recovery registration or charge the Horse Owner.
-     */
+    @Transactional(readOnly = true)
+    public List<TrainerResumptionResponse> myPending(String trainerId) {
+        // The database query is scoped to accepted package-level assignments of this actor.
+        List<String> ids = jdbc.queryForList("""
+                SELECT DISTINCT hp.horse_package_id FROM dbo.HORSE_PACKAGE hp
+                JOIN dbo.Training_Assignment ta ON ta.horse_package_id = hp.horse_package_id
+                JOIN dbo.Horse_Assignment a ON a.id = ta.assignment_id
+                WHERE a.kind='TRAINER' AND a.status='ACCEPTED' AND a.assignee_id=?
+                  AND ta.ended_at IS NULL AND hp.status='PAUSED' AND hp.payment_status='PAID'
+                  AND hp.pause_reason LIKE 'TRAINING_LOCK_MEDICAL:%'
+                ORDER BY hp.horse_package_id
+                """, String.class, trainerId);
+        return ids.stream().filter(id -> guard.canAccessPackage(id, trainerId))
+                .map(packages::findById).flatMap(java.util.Optional::stream)
+                .filter(p -> medicalReady(p.getHorse()))
+                .map(p -> response(p, trainerId))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public TrainerResumptionResponse detail(String id, String trainerId) {
+        requireAssignment(id, trainerId);
+        HorsePackage original = packages.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Package not found"));
+        requirePreserved(original);
+        return response(original, trainerId);
+    }
+
     @Transactional
-    public HorsePackageResponse resumeWithoutRecovery(
-            String originalRegistrationId,
-            String reason,
-            String managerId
-    ) {
-        if (reason == null || reason.isBlank()) {
-            throw new BusinessRuleException("CM confirmation reason is required");
-        }
-
-        HorsePackage original = horsePackageRepository.findById(originalRegistrationId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Original package registration not found: " + originalRegistrationId));
-        if (original.getHorse() == null) {
-            throw new BusinessRuleException("Original package has no horse");
-        }
-
-        Horse horse = horseRepository.findById(original.getHorse().getHorseId())
+    public HorsePackageResponse accept(String originalId, String trainerId) {
+        // Same global schedule lock used by TrainerAssignmentService; acquire before horse lock.
+        scheduleCoordinator.lockSchedule();
+        HorsePackage snapshot = packages.findById(originalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Package not found"));
+        String horseId = snapshot.getHorse().getHorseId();
+        // Globally consistent lock ordering: Horse -> its package rows.
+        Horse horse = horses.findById(horseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found"));
-        // Same lock order as the regular resumption workflow: Horse, then package.
         entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);
-        entityManager.lock(original, LockModeType.PESSIMISTIC_WRITE);
-
-        if (Boolean.TRUE.equals(horse.getTrainingLocked())) {
-            throw new BusinessRuleException("Veterinarian must unlock training before resumption");
+        HorsePackage original = packages.findForUpdate(originalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Package not found"));
+        if (!horseId.equals(original.getHorse().getHorseId())) {
+            throw new BusinessRuleException("Horse package changed while requesting resumption");
         }
-        if (!"READY".equalsIgnoreCase(horse.getHealthStatus())) {
-            throw new BusinessRuleException("Horse health status must be READY");
+        requireAssignment(originalId, trainerId); // re-check after locking
+        if (!trainerId.equals(scheduleCoordinator.requireTrainer(originalId).userId())) {
+            throw new AccessDeniedException("Only the accepted trainer of this package can resume it");
         }
-        if (original.getHorse() == null
-                || !horse.getHorseId().equals(original.getHorse().getHorseId())) {
-            throw new BusinessRuleException("Original package belongs to another horse");
+        requirePreserved(original);
+        if (!medicalReady(horse)) {
+            throw new BusinessRuleException("Veterinarian must clear the horse and release Training Lock first");
         }
-        requirePreservedOriginal(original);
-
-        // Only packages paused by the confirmed Training Lock are eligible for
-        // this shortcut, not arbitrary manually paused packages.
-        if (original.getPausedAt() == null
-                || original.getPauseReason() == null
-                || !original.getPauseReason().startsWith("TRAINING_LOCK_MEDICAL:")) {
-            throw new BusinessRuleException("Original package was not paused by a Training Lock");
+        guard.requireHealthy(horse); // also checks active lock row and latest confirmed medical eligibility
+        if (hasPending(horseId)) {
+            throw new BusinessRuleException("Resolve pending package payment before resumption");
         }
-
-        // If a Recovery registration is already tied to this original package,
-        // the CM must use the existing /{recoveryId}/resume-original flow.
-        List<HorsePackage> registrations = horsePackageRepository
-                .findByHorseIdOrderByRegisteredAtDesc(horse.getHorseId());
-        boolean recoveryExists = registrations.stream()
-                .anyMatch(p -> p.getReplacedHorsePackage() != null
-                        && originalRegistrationId.equals(
-                                p.getReplacedHorsePackage().getHorsePackageId()));
-        if (recoveryExists) {
-            throw new BusinessRuleException(
-                    "Recovery registration already exists; use resume-original instead");
+        List<HorsePackage> active = packages.findByHorseIdAndStatusForUpdate(horseId, "ACTIVE");
+        HorsePackage oldCenterRecovery = linkedCenterRecovery(original, active);
+        if (active.size() > (oldCenterRecovery == null ? 0 : 1)) {
+            throw new BusinessRuleException("Another package is ACTIVE; cannot resume training");
         }
-        if (registrations.stream().anyMatch(p -> "PENDING".equalsIgnoreCase(p.getStatus()))) {
-            throw new BusinessRuleException("Resolve pending package registrations before resumption");
+        if (oldCenterRecovery != null) {
+            // Historical center-funded Recovery is concluded atomically; never two active packages.
+            oldCenterRecovery.setStatus("COMPLETED");
+            oldCenterRecovery.setRemainingDays(0);
+            packages.save(oldCenterRecovery);
         }
-
-        if (!horsePackageRepository
-                .findByHorse_HorseIdAndStatus(horse.getHorseId(), "ACTIVE").isEmpty()) {
-            throw new BusinessRuleException("Another package is ACTIVE; cannot resume original");
-        }
-
-        return activatePreservedOriginal(original, horse, managerId, reason,
-                "ORIGINAL_PACKAGE_RESUMED_WITHOUT_RECOVERY");
-    }
-
-    /**
-     * CM resumes an original, paid training package after veterinarian Unlock.
-     * Center-funded Recovery may still be ACTIVE or may already be COMPLETED.
-     * It is never necessary to pay for center-funded Recovery.
-     */
-    @Transactional
-    public HorsePackageResponse resumeOriginalPackage(
-            String recoveryRegistrationId,
-            String reason,
-            String managerId
-    ) {
-        if (reason == null || reason.isBlank()) {
-            throw new BusinessRuleException("CM confirmation reason is required");
-        }
-
-        HorsePackage recovery = horsePackageRepository.findById(recoveryRegistrationId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Recovery registration not found: " + recoveryRegistrationId));
-
-        Horse horse = horseRepository.findById(recovery.getHorse().getHorseId())
-                .orElseThrow(() -> new ResourceNotFoundException("Horse not found"));
-        // Match the locking order used by the Training Lock and payment workflows.
-        entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);
-        entityManager.lock(recovery, LockModeType.PESSIMISTIC_WRITE);
-
-        if (Boolean.TRUE.equals(horse.getTrainingLocked())) {
-            throw new BusinessRuleException(
-                    "Veterinarian must unlock training before resumption");
-        }
-        if (!"READY".equalsIgnoreCase(horse.getHealthStatus())) {
-            throw new BusinessRuleException("Horse health status must be READY");
-        }
-
-        boolean recoveryActive = "ACTIVE".equalsIgnoreCase(recovery.getStatus());
-        boolean recoveryCompleted = "COMPLETED".equalsIgnoreCase(recovery.getStatus());
-        if (recovery.getTrainingPackage() == null
-                || !"RECOVERY".equalsIgnoreCase(recovery.getTrainingPackage().getPackageType())
-                || !"CENTER_COVERED".equalsIgnoreCase(recovery.getPaymentStatus())
-                || (!recoveryActive && !recoveryCompleted)) {
-            throw new BusinessRuleException(
-                    "Only ACTIVE or COMPLETED center-funded Recovery can resume its original package");
-        }
-
-        HorsePackage original = recovery.getReplacedHorsePackage();
-        if (original == null) {
-            throw new BusinessRuleException(
-                    "Owner-paid first-time Recovery has no original package to resume");
-        }
-        entityManager.lock(original, LockModeType.PESSIMISTIC_WRITE);
-
-        if (original.getHorse() == null
-                || !horse.getHorseId().equals(original.getHorse().getHorseId())) {
-            throw new BusinessRuleException("Original package belongs to another horse");
-        }
-        requirePreservedOriginal(original);
-
-        // Match the direct-resumption branch: a pending registration must
-        // never coexist with the reactivated ordinary package.
-        if (horsePackageRepository.findByHorseIdOrderByRegisteredAtDesc(horse.getHorseId())
-                .stream().anyMatch(p -> "PENDING".equalsIgnoreCase(p.getStatus()))) {
-            throw new BusinessRuleException("Resolve pending package registrations before resumption");
-        }
-
-        List<HorsePackage> active = horsePackageRepository
-                .findByHorse_HorseIdAndStatus(horse.getHorseId(), "ACTIVE");
-        if (recoveryActive) {
-            // Recovery is the ONLY package allowed to be ACTIVE before resumption.
-            if (active.size() != 1
-                    || !recovery.getHorsePackageId().equals(active.get(0).getHorsePackageId())) {
-                throw new BusinessRuleException(
-                        "Unexpected active package; cannot safely resume the original package");
-            }
-        } else if (!active.isEmpty()) {
-            // Recovery already ended: there must not be another active package.
-            throw new BusinessRuleException(
-                    "Another package is ACTIVE; cannot resume a completed Recovery");
-        }
-
-        if (recoveryActive) {
-            recovery.setStatus("COMPLETED");
-            horsePackageRepository.save(recovery);
-        }
-        return activatePreservedOriginal(original, horse, managerId, reason,
-                "ORIGINAL_PACKAGE_RESUMED");
-    }
-
-    private void requirePreservedOriginal(HorsePackage original) {
-        if (!"PAUSED".equalsIgnoreCase(original.getStatus())
-                || !"PAID".equalsIgnoreCase(original.getPaymentStatus())
-                || original.getTrainingPackage() == null
-                || "RECOVERY".equalsIgnoreCase(original.getTrainingPackage().getPackageType())) {
-            throw new BusinessRuleException("Original package must be a paid, paused ordinary package");
-        }
-        if (original.getRemainingDays() == null || original.getRemainingDays() <= 0) {
-            throw new BusinessRuleException("Original package has no preserved days to resume");
-        }
-    }
-
-    private HorsePackageResponse activatePreservedOriginal(
-            HorsePackage original,
-            Horse horse,
-            String managerId,
-            String reason,
-            String action
-    ) {
-        // Use only the remaining days frozen when Training Lock was confirmed.
-        int remaining = original.getRemainingDays();
-        LocalDate today = LocalDate.now();
+        int days = original.getRemainingDays();
+        LocalDate today = LocalDate.now(clock);
         original.setStartDate(today);
-        original.setEndDate(today.plusDays(remaining - 1L));
+        original.setEndDate(today.plusDays(days - 1L));
         original.setStatus("ACTIVE");
         original.setPausedAt(null);
         original.setPauseReason(null);
+        HorsePackage result = packages.saveAndFlush(original);
+        events.record(trainerId, horseId, result.getHorsePackageId(),
+                "TRAINER_RESUMPTION_ACCEPTED", "Assigned trainer accepted resumption after medical clearance");
+        if (horse.getOwner() != null) {
+            events.notifyOwner(horse.getOwner().getUserId(), horseId, "TRAINING_RESUMED",
+                    "Trainer accepted resumption; " + days + " preserved days are now active.");
+        }
+        events.notifyAssignedTrainers(horse, "TRAINING_RESUMED",
+                "Training package " + result.getHorsePackageId() + " has resumed.");
+        return mapper.toResponse(result);
+    }
 
-        HorsePackage saved = horsePackageRepository.saveAndFlush(original);
-        packageEventService.record(managerId, horse.getHorseId(), saved.getHorsePackageId(),
-                action, reason);
-        packageEventService.notifyOwner(horse.getOwner().getUserId(), horse.getHorseId(),
-                "PACKAGE_RESUMED", "Original training package resumed with "
-                        + remaining + " preserved days.");
-        packageEventService.notifyAssignedTrainers(horse, "TRAINING_RESUMED",
-                "Club Manager approved resumption of the original ordinary training package. Your accepted assignment is retained.");
-        return mapper.toResponse(saved);
+    private TrainerResumptionResponse response(HorsePackage p, String trainerId) {
+        Horse h = p.getHorse();
+        boolean eligible = guard.canAccessPackage(p.getHorsePackageId(), trainerId)
+                && validPreserved(p) && medicalReady(h)
+                && !hasPending(h.getHorseId()) && activeCompatible(p);
+        return new TrainerResumptionResponse(p.getHorsePackageId(), h.getHorseId(), h.getHorseName(),
+                p.getTrainingPackage().getPackageName(), p.getTrainingPackage().getPackageType(),
+                p.getRemainingDays() == null ? 0 : p.getRemainingDays(), p.getPausedAt(),
+                h.getHealthStatus(), Boolean.TRUE.equals(h.getTrainingLocked()), eligible);
+    }
+
+    private void requireAssignment(String packageId, String trainerId) {
+        if (trainerId == null || !guard.canAccessPackage(packageId, trainerId)) {
+            throw new AccessDeniedException("A current accepted Head Trainer assignment for this package is required");
+        }
+    }
+    private boolean medicalReady(Horse h) {
+        return h != null && !Boolean.TRUE.equals(h.getTrainingLocked())
+                && "READY".equalsIgnoreCase(h.getHealthStatus())
+                && "APPROVED".equalsIgnoreCase(h.getAdmissionStatus())
+                && "ACTIVE".equalsIgnoreCase(h.getStatus());
+    }
+    private void requirePreserved(HorsePackage p) {
+        if (!validPreserved(p)) throw new BusinessRuleException(
+                "Only a paid ordinary package paused by Medical Lock with remaining days may resume");
+    }
+    private boolean validPreserved(HorsePackage p) {
+        return p != null && "PAUSED".equalsIgnoreCase(p.getStatus())
+                && "PAID".equalsIgnoreCase(p.getPaymentStatus())
+                && p.getRemainingDays() != null && p.getRemainingDays() > 0
+                && p.getPausedAt() != null && p.getPauseReason() != null
+                && p.getPauseReason().startsWith("TRAINING_LOCK_MEDICAL:")
+                && p.getTrainingPackage() != null
+                && !"RECOVERY".equalsIgnoreCase(p.getTrainingPackage().getPackageType());
+    }
+    private boolean hasPending(String horseId) {
+        return packages.findByHorseIdOrderByRegisteredAtDesc(horseId).stream()
+                .anyMatch(p -> "PENDING".equalsIgnoreCase(p.getStatus()));
+    }
+    private HorsePackage linkedCenterRecovery(HorsePackage original, List<HorsePackage> active) {
+        HorsePackage found = null;
+        for (HorsePackage p : active) {
+            if (p.getReplacedHorsePackage() == null
+                    || !original.getHorsePackageId().equals(p.getReplacedHorsePackage().getHorsePackageId())
+                    || p.getTrainingPackage() == null
+                    || !"RECOVERY".equalsIgnoreCase(p.getTrainingPackage().getPackageType())
+                    || !"CENTER_COVERED".equalsIgnoreCase(p.getPaymentStatus())) continue;
+            if (found != null) throw new BusinessRuleException("Multiple active Recovery packages found");
+            found = p;
+        }
+        return found;
+    }
+    private boolean activeCompatible(HorsePackage p) {
+        List<HorsePackage> active = packages.findByHorse_HorseIdAndStatus(p.getHorse().getHorseId(), "ACTIVE");
+        return active.size() <= (linkedCenterRecovery(p, active) == null ? 0 : 1);
     }
 }

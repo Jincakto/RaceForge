@@ -27,7 +27,6 @@ export const reasonLabels: Record<string, string> = {
   ENTRY_INTENSITY_EXCEEDS_HISTORY: 'The initial intensity exceeds the recorded sustained level.',
   ENTRY_WORKLOAD_EXCEEDS_HISTORY: 'The initial workload exceeds the recent recorded workload.',
   HISTORY_AND_WORKLOAD_MATCH: 'The recorded history and initial workload match the rules.',
-  RECOVERY_SEPARATE_ROUTE: 'Recovery uses its own registration requirements.',
   INTENSITY_JUMP: 'The roadmap skips an intensity level.',
   MULTIPLE_LOAD_INCREASES: 'More than one workload factor increases at the same transition.',
   INTENSITY_PERIOD_TOO_SHORT: 'An intensity increases before a 30-day stage period.',

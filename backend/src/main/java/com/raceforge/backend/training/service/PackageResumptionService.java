@@ -106,15 +106,8 @@ public class PackageResumptionService {
             throw new BusinessRuleException("Resolve pending package payment before resumption");
         }
         List<HorsePackage> active = packages.findByHorseIdAndStatusForUpdate(horseId, "ACTIVE");
-        HorsePackage oldCenterRecovery = linkedCenterRecovery(original, active);
-        if (active.size() > (oldCenterRecovery == null ? 0 : 1)) {
+        if (!active.isEmpty()) {
             throw new BusinessRuleException("Another package is ACTIVE; cannot resume training");
-        }
-        if (oldCenterRecovery != null) {
-            // Historical center-funded Recovery is concluded atomically; never two active packages.
-            oldCenterRecovery.setStatus("COMPLETED");
-            oldCenterRecovery.setRemainingDays(0);
-            packages.save(oldCenterRecovery);
         }
         int days = original.getRemainingDays();
         LocalDate today = LocalDate.now(clock);
@@ -168,27 +161,14 @@ public class PackageResumptionService {
                 && p.getPausedAt() != null && p.getPauseReason() != null
                 && p.getPauseReason().startsWith("TRAINING_LOCK_MEDICAL:")
                 && p.getTrainingPackage() != null
-                && !"RECOVERY".equalsIgnoreCase(p.getTrainingPackage().getPackageType());
+                && Set.of("BASIC", "RACING", "PERFORMANCE").contains(p.getTrainingPackage().getPackageType());
     }
     private boolean hasPending(String horseId) {
         return packages.findByHorseIdOrderByRegisteredAtDesc(horseId).stream()
                 .anyMatch(p -> "PENDING".equalsIgnoreCase(p.getStatus()));
     }
-    private HorsePackage linkedCenterRecovery(HorsePackage original, List<HorsePackage> active) {
-        HorsePackage found = null;
-        for (HorsePackage p : active) {
-            if (p.getReplacedHorsePackage() == null
-                    || !original.getHorsePackageId().equals(p.getReplacedHorsePackage().getHorsePackageId())
-                    || p.getTrainingPackage() == null
-                    || !"RECOVERY".equalsIgnoreCase(p.getTrainingPackage().getPackageType())
-                    || !"CENTER_COVERED".equalsIgnoreCase(p.getPaymentStatus())) continue;
-            if (found != null) throw new BusinessRuleException("Multiple active Recovery packages found");
-            found = p;
-        }
-        return found;
-    }
     private boolean activeCompatible(HorsePackage p) {
         List<HorsePackage> active = packages.findByHorse_HorseIdAndStatus(p.getHorse().getHorseId(), "ACTIVE");
-        return active.size() <= (linkedCenterRecovery(p, active) == null ? 0 : 1);
+        return active.isEmpty();
     }
 }

@@ -1,3 +1,5 @@
+import { TrainingAssessmentNotification } from './TrainingAssessmentNotification';
+import { isAssessmentNotification, type TrainingAssessmentContext } from './trainingAssessment';
 import { PackageRoadmapPreview } from './roadmapView';
 import { TrainerProfileForm } from "./trainerProfileForm";
 import { memberHorses } from "./memberHorses";
@@ -62,7 +64,6 @@ import {
   computeTrainingSuggestion,
   SEED_ENROLLMENTS,
   TRAINING_PACKAGES,
-  REHAB_PACKAGES,
   type TrainingPackage,
   LIFECYCLE_LABEL,
   LIFECYCLE_ORDER,
@@ -146,7 +147,6 @@ type Page =
   | "training-register"
   | "vet-assign"
   | "post-exam"
-  | "rehab-center"
   | "inventory"
   | "inventory-log";
 
@@ -161,6 +161,8 @@ interface AppState {
   horses: Horse[];
   horseClubRequests: HorseClubRequest[];
   examHorseId: string | null;
+  trainingAssessmentNotificationId?: string;
+  postTrainingContext?: TrainingAssessmentContext;
   healthRecords: HealthRecord[];
   trainingPlans: TrainingPlan[];
   trainingSessions: TrainingSession[];
@@ -237,7 +239,6 @@ const LIFECYCLE_STYLE: Record<Lifecycle, string> = {
   ready: "bg-emerald-100 text-emerald-800 border-emerald-200",
   training: "bg-blue-100 text-blue-800 border-blue-200",
   locked: "bg-red-100 text-red-700 border-red-300",
-  rehab: "bg-orange-100 text-orange-800 border-orange-200",
 };
 
 function LifecycleBadge({ horse }: { horse: Horse }) {
@@ -273,7 +274,6 @@ function LifecycleStepper({ horse }: { horse: Horse }) {
     "ready",
     "training",
     "locked",
-    "rehab",
   ];
   const idx = LIFECYCLE_ORDER.indexOf(lc);
   return (
@@ -1479,12 +1479,6 @@ const NAV_ITEMS: Partial<
     },
     { icon: "🏷", label: "Package catalogue", page: "package-catalog" },
     { icon: "🧑‍🏫", label: "Trainer assignments", page: "trainer-assign" },
-    {
-      icon: "🩹",
-      label: "Rehabilitation packages",
-      page: "rehab-center",
-      badge: "rehabReqs",
-    },
     { icon: "👥", label: "Staff", page: "staff" },
     { icon: "🏆", label: "Race results", page: "race-results" },
     { icon: "📊", label: "Reports", page: "reports" },
@@ -1581,7 +1575,6 @@ function Sidebar({
   memberReqCount,
   horseReqCount,
   vetTodoCount,
-  rehabCount,
   grantedPages,
   rolePerms,
 }: {
@@ -1591,7 +1584,6 @@ function Sidebar({
   memberReqCount: number;
   horseReqCount: number;
   vetTodoCount: number;
-  rehabCount: number;
   grantedPages: Page[];
   rolePerms: Record<string, string[]>;
 }) {
@@ -1643,9 +1635,7 @@ function Sidebar({
                 ? horseReqCount
                 : badge === "vetTodo"
                   ? vetTodoCount
-                  : badge === "rehabReqs"
-                    ? rehabCount
-                    : 0;
+                  : 0;
           const active =
             page === item.page ||
             (page === "post-exam" && item.page === "vet-health-form");
@@ -1719,13 +1709,10 @@ function AppLayout({
     : 0;
   const grantedPages = state.userPermissions[user.id] || [];
   const clubHorses = state.horses.filter((h) => h.clubId === user.clubId);
-  const rehabCount = myClub
-    ? clubHorses.filter((h) => h.lock && !h.rehab).length
-    : 0;
   const vetTodoCount =
     user.role === "veterinarian"
       ? clubHorses.filter((h) =>
-          ["awaiting_vet", "locked", "rehab"].includes(getLifecycle(h)),
+          ["awaiting_vet", "locked"].includes(getLifecycle(h)),
         ).length +
         state.trainingSessions.filter(
           (s) =>
@@ -1743,7 +1730,6 @@ function AppLayout({
         memberReqCount={pendingMembers}
         horseReqCount={pendingHorses}
         vetTodoCount={vetTodoCount}
-        rehabCount={rehabCount}
         grantedPages={grantedPages}
         rolePerms={state.rolePerms}
       />
@@ -1859,26 +1845,25 @@ function ManagerDashboard({
         </Card>
       )}
       {horses
-        .filter((h) => h.lock && !h.rehab)
+        .filter((h) => h.lock)
         .map((h) => (
           <Card
             key={h.id}
             className="p-4 border-l-4 border-red-500 bg-red-50"
-            onClick={() => navigate("rehab-center")}
+            onClick={() => navigate("horse-list")}
           >
             <div className="flex items-center gap-3">
               <span className="text-xl">🔒</span>
               <div className="flex-1">
                 <div className="font-semibold text-red-800">
-                  {h.name} has a training lock — activate a rehabilitation
-                  package
+                  {h.name} has a training lock - veterinary clearance is required
                 </div>
                 <div className="text-sm text-red-600">
                   Diagnosis: {h.lock!.reason}
                 </div>
               </div>
               <span className="text-red-600 text-sm font-medium">
-                Choose package →
+                View horses
               </span>
             </div>
           </Card>
@@ -2371,7 +2356,7 @@ function GroomDashboard({
               </div>
               <div className="text-sm text-gray-500">
                 {h.stable}, Stall {h.stall}
-                {h.rehab ? ` · Recovery: ${h.rehab.name}` : ""}
+
               </div>
             </div>
             <span className="text-sm text-[#c9973b] font-medium">
@@ -2458,7 +2443,7 @@ function OwnerDashboard({
                 </div>
                 <div className="text-sm text-red-600">
                   Status: {h.lock!.reason}
-                  {h.rehab ? ` · Recovering: ${h.rehab.name}` : ""}
+
                 </div>
               </div>
             </div>
@@ -3211,9 +3196,7 @@ function HorseDetailPage({
               </div>
               <div className="text-xs text-red-500 mt-1">
                 Locked by {horse.lock.lockedByName} · {horse.lock.lockedAt}
-                {horse.rehab
-                  ? ` · Recovering: ${horse.rehab.name}`
-                  : " · Awaiting recovery package activation by the manager"}
+                Awaiting veterinary clearance and trainer acceptance
               </div>
               <div className="text-xs text-red-500">
                 {user.role === "veterinarian"
@@ -3334,7 +3317,7 @@ function HorseDetailPage({
                       setEditForm((f) => ({ ...f, evidenceFileUrl: v }))
                     }
                   />
-                  
+
                 </div>
               ) : (
                 <>
@@ -4614,7 +4597,7 @@ function HorseCreatePage({
             </div>
           )}
           <div className="col-span-2">
-            
+
           </div>
         </div>
       </Card>
@@ -5347,7 +5330,7 @@ const INV_CAT_LABEL: Record<InvCategory, string> = {
 const INV_UNITS: InvUnit[] = ["kg", "liters", "packages", "items"];
 
 function needsTreatment(h: Horse): boolean {
-  return !!h.lock || !!h.rehab || h.healthStatus === "Injured";
+  return !!h.lock || h.healthStatus === "Injured";
 }
 function numOf(v: string): number {
   return v.trim() === "" ? NaN : Number(v.replace(",", "."));
@@ -6142,7 +6125,7 @@ function CareHubPage({
                       <div className="font-semibold">{h.name}</div>
                       <div className="text-xs text-gray-500">
                         {h.stable}, Stall {h.stall}
-                        {h.rehab ? ` · Recovery: ${h.rehab.name}` : ""}
+
                       </div>
                     </div>
                   </div>
@@ -7804,7 +7787,6 @@ function NotificationsPage({
     race: "🏆",
     system: "⚙️",
     lock: "🔒",
-    rehab: "🩹",
     approval: "🐎",
     inventory: "📦",
     incident: "🚨",
@@ -8025,7 +8007,6 @@ function VetExamHubPage({
       horses.some((h) => h.id === s.horseId),
   );
   const locked = horses.filter((h) => h.lock);
-
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const lockable = horses.filter(
@@ -8288,7 +8269,7 @@ function VetExamHubPage({
             </div>
             <div className="space-y-4 p-5">
               <div><p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Reason for training lock</p><p className="mt-1.5 text-sm leading-6 text-slate-700">{h.lock!.reason}</p>{h.lock!.notes && <p className="mt-1 text-sm leading-6 text-slate-500">{h.lock!.notes}</p>}{(h.lock!.lockedAt || h.lock!.lockedByName) && <p className="mt-2 text-xs text-slate-400">{[h.lock!.lockedAt,h.lock!.lockedByName].filter(Boolean).join(' · ')}</p>}</div>
-              <div className="rounded-xl bg-slate-50 p-3.5"><p className="text-xs font-semibold text-slate-500">Recovery package</p><p className="mt-1 text-sm text-[#1a2844]">{h.rehab ? h.rehab.name + ' · ' + h.rehab.durationWeeks + ' weeks' : 'Awaiting manager activation'}</p></div>
+              <div className="rounded-xl bg-slate-50 p-3.5"><p className="text-xs font-semibold text-slate-500">Training status</p><p className="mt-1 text-sm text-[#1a2844]">Paused until veterinary clearance and trainer acceptance</p></div>
             </div>
             <div className="border-t border-slate-100 bg-slate-50/50 px-5 py-4">
               {unlockErrors[h.id] && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{unlockErrors[h.id]}</p>}
@@ -8314,152 +8295,6 @@ function VetExamHubPage({
     </div>
   );
 }
-
-// ── Rehab Center (Manager) ────────────────────────────────────────────────────
-
-function RehabCenterPage({
-  state,
-  onActivate,
-}: {
-  state: AppState;
-  onActivate: (horseId: string, packageId: string) => Promise<string | null>;
-}) {
-  const horses = state.horses.filter((h) => h.clubId === state.user!.clubId);
-  const waiting = horses.filter((h) => h.lock && !h.rehab);
-  const active = horses.filter((h) => h.lock && h.rehab);
-  const [choice, setChoice] = useState<Record<string, string>>({});
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  return (
-    <div className="space-y-6 max-w-4xl">
-      <div>
-        <h2 className="text-xl font-serif font-bold text-[#0f1729]">
-          Recovery packages
-        </h2>
-        <p className="text-sm text-gray-500">
-          Activate a recovery package for a locked horse · The original training
-          package remains "Paused"
-        </p>
-      </div>
-      <section className="space-y-3">
-        <h3 className="font-semibold flex items-center gap-2">
-          Awaiting activation{" "}
-          <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
-            {waiting.length}
-          </span>
-        </h3>
-        {waiting.length === 0 && (
-          <Card className="p-8 text-center text-gray-400 text-sm">
-            <div className="text-3xl mb-2">✅</div>No horses need a recovery
-            package
-          </Card>
-        )}
-        {waiting.map((h) => {
-          const en = state.enrollments.find(
-            (e) => e.horseId === h.id && e.status !== "completed",
-          );
-          return (
-            <Card key={h.id} className="p-5 border-l-4 border-red-500">
-              <div className="flex items-center gap-3 mb-3">
-                <img
-                  src={h.imageUrl || undefined}
-                  className="w-12 h-12 rounded-lg object-cover bg-gray-200"
-                />
-                <div className="flex-1">
-                  <div className="font-semibold">
-                    {h.name}{" "}
-                    <span className="text-xs text-gray-400 font-normal">
-                      · Owner: {h.ownerName}
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    Locked by {h.lock!.lockedByName} · {h.lock!.lockedAt}
-                  </div>
-                </div>
-                <LifecycleBadge horse={h} />
-              </div>
-              <div className="p-3 bg-red-50 rounded-lg text-sm text-red-800 mb-3">
-                <strong>Veterinary diagnosis:</strong> {h.lock!.reason}
-                {h.lock!.notes ? ` — ${h.lock!.notes}` : ""}
-              </div>
-              {en && (
-                <div className="text-xs text-gray-500 mb-3">
-                  Training package "{en.packageName}": <Badge status="Paused" />{" "}
-                  · Retain {en.sessionsDone}/{en.sessionsTotal} sessions
-                </div>
-              )}
-              <div className="grid grid-cols-3 gap-3">
-                {state.packages
-                  .filter((p) => p.active && p.packageType === "RECOVERY")
-                  .map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => setChoice((c) => ({ ...c, [h.id]: p.id }))}
-                      className={`text-left p-3 rounded-xl border-2 bg-white transition-all ${choice[h.id] === p.id ? "border-[#c9973b] bg-[#c9973b]/5" : "border-gray-200 hover:border-[#c9973b]/50"}`}
-                    >
-                      <div className="font-semibold text-sm">{p.name}</div>
-                      <div className="text-xs text-[#c9973b] font-medium mb-1">
-                        {p.durationDays} days
-                      </div>
-                      <div className="text-xs text-gray-500 mb-2">
-                        {p.description}
-                      </div>
-                      <ul className="space-y-0.5">
-                        {[].map((i: string) => (
-                          <li key={i} className="text-[11px] text-gray-600">
-                            • {i}
-                          </li>
-                        ))}
-                      </ul>
-                    </button>
-                  ))}
-              </div>
-              {errors[h.id] && (
-                <div className="text-sm text-red-600 mt-2">{errors[h.id]}</div>
-              )}
-              <Btn
-                variant="gold"
-                className="mt-3"
-                disabled={!choice[h.id]}
-                onClick={async () => {
-                  const message = await onActivate(h.id, choice[h.id]);
-                  setErrors((e) => ({ ...e, [h.id]: message || "" }));
-                }}
-              >
-                Activate recovery package →
-              </Btn>
-            </Card>
-          );
-        })}
-      </section>
-      {active.length > 0 && (
-        <section className="space-y-3">
-          <h3 className="font-semibold">In rehabilitation</h3>
-          {active.map((h) => (
-            <Card key={h.id} className="p-4 flex items-center gap-3">
-              <img
-                src={h.imageUrl || undefined}
-                className="w-11 h-11 rounded-lg object-cover bg-gray-200"
-              />
-              <div className="flex-1">
-                <div className="font-semibold">{h.name}</div>
-                <div className="text-xs text-gray-500">
-                  {h.rehab!.name} · {h.rehab!.durationWeeks} weeks · from{" "}
-                  {h.rehab!.activatedAt}
-                </div>
-              </div>
-              <LifecycleBadge horse={h} />
-              <span className="text-xs text-gray-400">
-                Awaiting veterinarian release of the lock
-              </span>
-            </Card>
-          ))}
-        </section>
-      )}
-    </div>
-  );
-}
-
-// ── Page titles ───────────────────────────────────────────────────────────────
 
 const PAGE_TITLES: Partial<Record<Page, string>> = {
   accounts: "Account management",
@@ -8488,7 +8323,6 @@ const PAGE_TITLES: Partial<Record<Page, string>> = {
   "training-register": "Training registration",
   "vet-assign": "Assigned horses",
   "post-exam": "Health examination",
-  "rehab-center": "Rehabilitation packages",
   inventory: "My inventory",
   "inventory-log": "Inventory history",
 };
@@ -8593,7 +8427,7 @@ export default function App() {
   stateRef.current = state;
 
   const navigate = useCallback(
-    (page: Page) => setState((s) => ({ ...s, page, unlockExamHorseId: page === "vet-health-form" ? s.unlockExamHorseId : undefined })),
+    (page: Page) => setState((s) => ({ ...s, page, postTrainingContext: page === "vet-health-form" ? s.postTrainingContext : undefined, unlockExamHorseId: page === "vet-health-form" ? s.unlockExamHorseId : undefined })),
     [],
   );
 
@@ -8714,7 +8548,7 @@ export default function App() {
         if (active) {
           const user = userFromApi(w);
           remoteSources.current.clear(); loadVersion.current++; setRemoteIssues([]);
-    setState((s) => ({ ...s, user, page: "dashboard", horses:[],healthRecords:[],enrollments:[],trainingPlans:[],trainingSessions:[] }));
+    setState((s) => ({ ...s, user, page: "dashboard", postTrainingContext:undefined, trainingAssessmentNotificationId:undefined, horses:[],healthRecords:[],enrollments:[],trainingPlans:[],trainingSessions:[] }));
         }
       },
     ).catch((e) => {
@@ -8739,13 +8573,13 @@ export default function App() {
 
   const handleLogin = useCallback((user: AppUser) => {
     remoteSources.current.clear(); loadVersion.current++; setRemoteIssues([]);
-    setState((s) => ({ ...s, user, page: "dashboard", horses:[],healthRecords:[],enrollments:[],trainingPlans:[],trainingSessions:[] }));
+    setState((s) => ({ ...s, user, page: "dashboard", postTrainingContext:undefined, trainingAssessmentNotificationId:undefined, horses:[],healthRecords:[],enrollments:[],trainingPlans:[],trainingSessions:[] }));
   }, []);
 
   const handleRegister = useCallback(
     (user: AppUser) => {
       remoteSources.current.clear(); loadVersion.current++; setRemoteIssues([]);
-    setState((s) => ({ ...s, user, page: "dashboard", horses:[],healthRecords:[],enrollments:[],trainingPlans:[],trainingSessions:[] }));
+    setState((s) => ({ ...s, user, page: "dashboard", postTrainingContext:undefined, trainingAssessmentNotificationId:undefined, horses:[],healthRecords:[],enrollments:[],trainingPlans:[],trainingSessions:[] }));
       showSuccess("Email verified and horse owner account signed in.");
     },
     [showSuccess],
@@ -8840,11 +8674,11 @@ export default function App() {
       (state.userPermissions[state.user!.id] || []).includes(pg);
     const examHub = (initialView: ExamView) => (
       <VetExamHubPage
-        key={initialView}
+        key={state.postTrainingContext?.sessionId || initialView}
         state={state}
         navigate={navigate}
         onSave={showSuccess}
-        onSaveRecord={remote.saveHealth}
+        onSaveRecord={(rec) => state.postTrainingContext ? remote.savePostTrainingHealth(state.postTrainingContext.sessionId, rec) : remote.saveHealth(rec)}
         onPostExam={remote.postExam}
         onUnlockExam={(id) =>
           setState((s) => ({
@@ -9074,6 +8908,8 @@ export default function App() {
             onRespond={remote.respondAssign}
             onStartSession={remote.startSession}
             onCompleteSession={remote.completeSession}
+            onRequestVetCheck={remote.requestVetCheck}
+            onAcceptResumption={remote.acceptResumption}
             onStopSession={remote.stopSession}
             onConfirmSchedule={() =>
               "Sessions are generated and confirmed through the roadmap API."
@@ -9152,14 +8988,6 @@ export default function App() {
         if (state.user!.role !== "veterinarian")
           return <NoAccess text="Only veterinarians may access this page" />;
         return examHub("locked");
-      case "rehab-center":
-        if (state.user!.role !== "manager")
-          return (
-            <NoAccess text="Only club managers may activate recovery packages" />
-          );
-        return (
-          <RehabCenterPage state={state} onActivate={remote.activateRecovery} />
-        );
       case "performance":
         return <PerformancePage state={state} />;
       case "race-results":
@@ -9186,6 +9014,7 @@ export default function App() {
         );
       case "notifications":
         return (
+          <>
           <NotificationsPage
             notifications={visibleNotifications(
               state.notifications,
@@ -9205,6 +9034,7 @@ export default function App() {
               )
             }
             onOpen={(n) => {
+              if (isAssessmentNotification(n.type)) { setState(s => ({ ...s, trainingAssessmentNotificationId: n.id })); return; }
               if (n.action)
                 setState((s) => ({
                   ...s,
@@ -9213,6 +9043,10 @@ export default function App() {
                 }));
             }}
           />
+          {state.trainingAssessmentNotificationId && <TrainingAssessmentNotification key={state.trainingAssessmentNotificationId} notificationId={state.trainingAssessmentNotificationId} canExamine={state.user?.role === "veterinarian"}
+            onClose={() => setState(s => ({ ...s, trainingAssessmentNotificationId: undefined }))}
+            onExamine={context => setState(s => ({ ...s, trainingAssessmentNotificationId: undefined, postTrainingContext: context, examHorseId: context.horseId, page: "vet-health-form" }))}/>}
+          </>
         );
       case "profile":
         return (

@@ -15,6 +15,11 @@ public class NotificationService {
     }
 
     public void notify(String userId, String type, String title, String message) {
+        notifyAndReturnId(userId, type, title, message);
+    }
+
+    /** Preserves the existing bell while Training stores its own session target linkage. */
+    public Integer notifyAndReturnId(String userId, String type, String title, String message) {
         Notification notification = new Notification();
         notification.setUserId(userId);
         notification.setNotificationType(type);
@@ -22,6 +27,6 @@ public class NotificationService {
         notification.setMessage(message);
         notification.setRead(false);
         notification.setCreatedAt(Instant.now());
-        notificationRepository.save(notification);
+        return notificationRepository.save(notification).getNotificationId();
     }
 }

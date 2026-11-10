@@ -51,7 +51,6 @@ export const FEATURES: { page: string; label: string; icon: string; group: strin
   { page: 'vet-health-form', label: 'Create medical record', icon: '📝', group: 'Veterinary' },
   { page: 'vet-assign', label: 'Veterinarian assignments', icon: '🧑‍⚕️', group: 'Veterinary' },
   { page: 'post-exam', label: 'Health examination: pending exams, locks & protocols', icon: '🩺', group: 'Veterinary' },
-  { page: 'rehab-center', label: 'Rehabilitation packages', icon: '🩹', group: 'Veterinary' },
   { page: 'training-register', label: 'Training package registration', icon: '🎯', group: 'Training' },
   { page: 'package-catalog', label: 'Training package catalogue', icon: '📦', group: 'Training' },
   { page: 'trainer-assign', label: 'Trainer assignments', icon: '🧑‍🏫', group: 'Training' },

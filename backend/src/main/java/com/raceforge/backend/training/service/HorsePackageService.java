@@ -70,8 +70,8 @@ public class HorsePackageService {
         TrainingPackage trainingPackage = trainingPackageRepository.findById(request.packageId())
                 .orElseThrow(() -> new ResourceNotFoundException("Training package not found: " + request.packageId()));
         eligibility.requireEligible(horse, trainingPackage, registrationToday);
-        if ("RECOVERY".equalsIgnoreCase(trainingPackage.getPackageType())) {
-            throw new BusinessRuleException("Recovery registration is retired");
+        if (!java.util.Set.of("BASIC", "RACING", "PERFORMANCE").contains(trainingPackage.getPackageType())) {
+            throw new BusinessRuleException("Unsupported training package type");
         }
 
         HorsePackage registration = new HorsePackage();
@@ -102,8 +102,8 @@ public class HorsePackageService {
         checkOwnership(horse, ownerId);
         requireApprovedAdmission(horse);
         expirationService.expireForLockedHorse(horse, LocalDate.now());
-        if ("RECOVERY".equalsIgnoreCase(registration.getTrainingPackage().getPackageType())) {
-            throw new BusinessRuleException("Recovery registration is no longer supported");
+        if (!java.util.Set.of("BASIC", "RACING", "PERFORMANCE").contains(registration.getTrainingPackage().getPackageType())) {
+            throw new BusinessRuleException("Unsupported training package type");
         }
 
         if (!"PENDING".equals(registration.getStatus()) || !"PENDING".equals(registration.getPaymentStatus())) {

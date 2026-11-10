@@ -50,6 +50,8 @@ export function sessionStartState(session:TrainingSession,sessions:TrainingSessi
   (session.actualEnd?'Exercise stopped; recovery results are pending.':'Exercise is in progress.'):'Only a scheduled session can be started.'};
  const pending=sessions.find(s=>s.id!==session.id&&s.status==='In Progress'&&(s.horseId===session.horseId||s.trainerId===trainerId));
  if(pending)return {allowed:false,reason:'Finish session '+pending.id+' first. '+(pending.actualEnd?'Save its recovery results.':'Stop it and save its recovery results.')};
+ if(session.pendingPostTrainingReview || session.startBlockedCode === 'PENDING_POST_TRAINING_REVIEW')
+  return {allowed:false,reason:'Training paused — a vet check is pending for this horse.'};
  // Preserve server blocks for permissions, medical locks, and package validity.
  if(session.canStart===false)
   return {allowed:false,reason:session.startBlockedReason||'Refresh the schedule to check whether this session can start.'};

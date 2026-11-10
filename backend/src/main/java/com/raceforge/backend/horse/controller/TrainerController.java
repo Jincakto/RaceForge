@@ -260,7 +260,6 @@ public class TrainerController {
         boolean hasValidOrdinaryPackage = horsePackages
                 .findByHorse_HorseIdAndStatus(horse.getHorseId(), "ACTIVE")
                 .stream().anyMatch(p -> p.getTrainingPackage() != null
-                        && !"RECOVERY".equalsIgnoreCase(p.getTrainingPackage().getPackageType())
                         && p.getEndDate() != null && !p.getEndDate().isBefore(today));
         if (!hasValidOrdinaryPackage) {
             throw new BusinessRuleException(

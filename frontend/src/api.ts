@@ -4,7 +4,15 @@ export class ApiError extends Error {
 }
 const base = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 let accessToken = '';
-let refreshFlight: Promise<void> | undefined;
+interface RefreshedSession { accessToken: string; user: any; }
+let refreshFlight: Promise<RefreshedSession> | undefined;
+// Share token rotation between mount restoration and concurrent 401 retries.
+function refreshSession(): Promise<RefreshedSession> {
+  refreshFlight ??= request<RefreshedSession>('/auth/refresh', 'POST', {}, false)
+    .then(data => { accessToken = data.accessToken; return data; })
+    .finally(() => { refreshFlight = undefined; });
+  return refreshFlight;
+}
 export function clearSession() { accessToken = ''; }
 export function setAccessToken(token: string) { accessToken = token; }
 export async function request<T = any>(path: string, method = 'GET', body?: unknown, retry = true): Promise<T> {
@@ -18,8 +26,7 @@ export async function request<T = any>(path: string, method = 'GET', body?: unkn
   } catch { throw new ApiError("Cannot connect to the server. Check the backend and API configuration.", 0); }
   if (response.status === 401 && retry && !path.startsWith('/auth/')) {
     try {
-      refreshFlight ??= request<any>('/auth/refresh', 'POST', {}, false).then(data => { accessToken = data.accessToken; }).finally(() => { refreshFlight = undefined; });
-      await refreshFlight;
+      await refreshSession();
     } catch (error) {
       clearSession(); window.dispatchEvent(new Event('raceforge:session-expired')); throw error;
     }
@@ -52,7 +59,7 @@ export async function request<T = any>(path: string, method = 'GET', body?: unkn
 }
 export const auth = {
   async login(email: string, password: string) { const data = await request('/auth/login', 'POST', { email, password }); setAccessToken(data.accessToken); return data.user; },
-  async restore() { const data = await request('/auth/refresh', 'POST', {}, false); setAccessToken(data.accessToken); return data.user; },
+  async restore() { return (await refreshSession()).user; },
   async logout() { try { await request('/auth/logout', 'POST', {}); } finally { clearSession(); } },
   register: (body: { fullName: string; email: string; password: string; phone?: string }) => request('/auth/register', 'POST', body),
   verify: (email: string, otp: string) => request('/auth/verify-email', 'POST', { email, otp }),

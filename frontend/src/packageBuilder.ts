@@ -1,7 +1,7 @@
 import { blankStage, validateRoadmap, type PackageRoadmap } from './packageRoadmap';
 import { DAY_KEYS, seconds, type RoadmapStage } from './trainingSchedule';
 export const PACKAGE_DURATIONS: Record<string, readonly number[]> = {
-  RACING: [90,180], BASIC: [30,60,90], PERFORMANCE: [30,60,90], RECOVERY: [30,60],
+  RACING: [90,180], BASIC: [30,60,90], PERFORMANCE: [30,60,90],
 };
 export type FieldErrors = Record<string,string>;
 export function copyStage(stage: RoadmapStage): RoadmapStage {

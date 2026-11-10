@@ -4,6 +4,16 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public class TrainingSessionResponse {
+  private TrainingAssessmentResponse assessment;
+  private Boolean pendingPostTrainingReview = false;
+  private String startBlockedCode;
+  public TrainingAssessmentResponse getAssessment() { return assessment; }
+  public void setAssessment(TrainingAssessmentResponse value) { assessment = value; }
+  public Boolean getPendingPostTrainingReview() { return pendingPostTrainingReview; }
+  public void setPendingPostTrainingReview(Boolean value) { pendingPostTrainingReview = value; }
+  public String getStartBlockedCode() { return startBlockedCode; }
+  public void setStartBlockedCode(String value) { startBlockedCode = value; }
+
   private String trainerUserId;
   private String trainerName;
   public String getTrainerUserId(){return trainerUserId;}

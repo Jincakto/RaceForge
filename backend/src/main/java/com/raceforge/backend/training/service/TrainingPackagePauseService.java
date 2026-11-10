@@ -36,11 +36,7 @@ public class TrainingPackagePauseService {
         // affected package rows so the preserved day count cannot race a payment.
         List<HorsePackage> packages = horsePackages
                 .findByHorseIdAndStatusForUpdate(horseId, "ACTIVE");
-        List<HorsePackage> ordinary = packages.stream()
-                .filter(p -> p.getTrainingPackage() != null
-                        && !"RECOVERY".equalsIgnoreCase(
-                                p.getTrainingPackage().getPackageType()))
-                .toList();
+        List<HorsePackage> ordinary = packages;
 
         if (ordinary.size() > 1) {
             throw new BusinessRuleException(

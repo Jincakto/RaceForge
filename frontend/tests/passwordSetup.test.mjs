@@ -156,3 +156,31 @@ test('password-link form requires two new password fields',()=>{
   assert.match(html,/Confirm new password/);
   assert.doesNotMatch(html,/Forgot password\?/);
 });
+
+test('concurrent mount restorations rotate the refresh cookie once', async () => {
+  let release; const gate=new Promise(resolve=>{release=resolve;}); let calls=0;
+  const account={userId:'HTR-001',role:{roleName:'HEAD_TRAINER'}};
+  globalThis.fetch=async url=>{assert.equal(url,'/api/auth/refresh');calls++;await gate;return ok({accessToken:'fresh',user:account});};
+  const first=api.auth.restore(), second=api.auth.restore();
+  assert.equal(calls,1); release();
+  assert.deepEqual(await Promise.all([first,second]),[account,account]);
+});
+
+test('restoration and an expired API request share the same token rotation', async () => {
+  let release; const gate=new Promise(resolve=>{release=resolve;});let refreshes=0,reads=0;
+  const account={userId:'HTR-001'};
+  globalThis.fetch=async(url,options)=>{
+    if(url==='/api/auth/refresh'){refreshes++;await gate;return ok({accessToken:'fresh',user:account});}
+    assert.equal(url,'/api/private');reads++;
+    return options.headers.Authorization==='Bearer fresh'?ok('saved'):new Response('{}',{status:401});
+  };
+  const restore=api.auth.restore();const read=api.request('/private');
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(refreshes,1);release();
+  assert.deepEqual(await restore,account);assert.equal(await read,'saved');assert.equal(reads,2);assert.equal(refreshes,1);
+});
+
+test('failed restoration releases its flight so a later attempt may succeed', async () => {
+  let calls=0;globalThis.fetch=async()=>{calls++;return calls===1?new Response('{}',{status:401}):ok({accessToken:'renewed',user:{userId:'HTR-001'}});};
+  await assert.rejects(api.auth.restore(),error=>error.status===401);
+  assert.deepEqual(await api.auth.restore(),{userId:'HTR-001'});assert.equal(calls,2);
+});

@@ -42,15 +42,16 @@ class TrainingPackagePauseServiceTest {
     }
 
     @Test
-    void recoveryPackageIsNotPaused() {
-        HorsePackage recovery = activePackage("RECOVERY", 5);
+    void performancePackageIsPausedOnMedicalLock() {
+        HorsePackage performance = activePackage("PERFORMANCE", 5);
         when(packages.findByHorseIdAndStatusForUpdate("HOR-001", "ACTIVE"))
-                .thenReturn(List.of(recovery));
+                .thenReturn(List.of(performance));
 
         service.pauseActiveNormalPackage("HOR-001", "MED-001");
 
-        assertEquals("ACTIVE", recovery.getStatus());
-        verify(packages, never()).save(any(HorsePackage.class));
+        assertEquals("PAUSED", performance.getStatus());
+        assertEquals(5, performance.getRemainingDays());
+        verify(packages).save(performance);
     }
 
     @Test

@@ -65,8 +65,8 @@ public class TrainingPackageEligibilityService {
                 && !("ACTIVE".equals(p.getStatus()) && p.getEndDate() != null && p.getEndDate().isBefore(today))))
             reasons.add(new Reason("EXISTING_PACKAGE", "Horse already has a pending or ongoing package"));
 
-        if ("RECOVERY".equalsIgnoreCase(pack.getPackageType())) {
-            reasons.add(new Reason("RECOVERY_RETIRED", "Recovery registration is no longer offered"));
+        if (!Set.of("BASIC", "RACING", "PERFORMANCE").contains(pack.getPackageType())) {
+            reasons.add(new Reason("UNSUPPORTED_PACKAGE_TYPE", "Select a supported training package type"));
         } else {
             check(reasons, "MEDICAL_NOT_AUTHORIZED", () -> guard.requireHealthy(horse));
             if ("RACING".equals(pack.getPackageType()))

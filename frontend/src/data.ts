@@ -75,16 +75,15 @@ export interface RaceHistoryEntry {
   prize: string;
 }
 
-export type Lifecycle = 'pending' | 'awaiting_vet' | 'ready' | 'training' | 'locked' | 'rehab';
+export type Lifecycle = 'pending' | 'awaiting_vet' | 'ready' | 'training' | 'locked';
 
-export const LIFECYCLE_ORDER: Lifecycle[] = ['pending', 'awaiting_vet', 'ready', 'training', 'locked', 'rehab'];
+export const LIFECYCLE_ORDER: Lifecycle[] = ['pending', 'awaiting_vet', 'ready', 'training', 'locked'];
 export const LIFECYCLE_LABEL: Record<Lifecycle, string> = {
   pending: "Pending",
   awaiting_vet: "Awaiting health examination",
   ready: "Ready for training",
   training: "In training",
   locked: "Training locked (Paused)",
-  rehab: "In rehabilitation",
 };
 
 export interface HorseLock {
@@ -100,14 +99,6 @@ export type InjurySeverity = 'mild' | 'moderate' | 'severe';
 export interface InjuryDetail {
   issue: string;
   severity: InjurySeverity;
-}
-
-export interface HorseRehab {
-  packageId: string;
-  name: string;
-  durationWeeks: number;
-  activatedAt: string;
-  activatedBy: string;
 }
 
 export interface TrainingPackage {
@@ -140,20 +131,6 @@ export function nextSeq(prefix: string, ids: string[]): string {
 
 export const fmtVND = (n: number): string =>
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n / 25000);
-
-export interface RehabPackage {
-  id: string;
-  name: string;
-  description: string;
-  weeks: number;
-  items: string[];
-}
-
-export const REHAB_PACKAGES: RehabPackage[] = [
-  { id: 'rb-light', name: "Light rehabilitation", description: "For muscle strain, excessive fatigue or unstable vital signs.", weeks: 2, items: ["Active rest", "Relaxed walking for 20 minutes/day", "Electrolyte supplementation"] },
-  { id: 'rb-hydro', name: "Hydrotherapy and physiotherapy", description: "For arthritis, swollen limbs or musculoskeletal pain.", weeks: 4, items: ["Hydrotherapy twice daily", "Cold therapy and support bandaging", "Weekly follow-up examination"] },
-  { id: 'rb-tendon', name: "Tendon and ligament recovery", description: "For tendon and ligament injuries requiring extended recovery.", weeks: 8, items: ["Follow-up ultrasound every two weeks", "Gradually increased controlled walking", "Collagen nutrition regimen"] },
-];
 
 export type TrainerAssignStatus = 'unassigned' | 'pending' | 'confirmed';
 export interface AssignEntry { time: string; kind: 'assign' | 'replace' | 'confirm' | 'decline'; from: string | null; to: string; by: string; reason: string }
@@ -208,7 +185,7 @@ export function isHeavySession(type: string): boolean {
 export function getLifecycle(h: Horse): Lifecycle {
   if (h.lifecycle) return h.lifecycle;
   if (h.approvalStatus !== 'approved' || !h.clubId) return 'pending';
-  if (h.lock) return h.rehab ? 'rehab' : 'locked';
+  if (h.lock) return 'locked';
   if (h.healthStatus === 'Pending Vet') return 'awaiting_vet';
   return h.trainingStatus === 'Active' ? 'training' : 'awaiting_vet';
 }
@@ -264,7 +241,6 @@ export interface Horse {
   changeLog?: { time: string; by: string; text: string }[];
   microchip?: string;
   lock?: HorseLock | null;
-  rehab?: HorseRehab | null;
   recoveryBadge?: { date: string; note: string } | null;
 }
 
@@ -309,6 +285,9 @@ export interface TrainingPlan {
 }
 
 export interface TrainingSession {
+  assessment?: import('./trainingAssessment').TrainingAssessmentResponse;
+  pendingPostTrainingReview?: boolean;
+  startBlockedCode?: string;
   horsePackageId?: string;
   endTime?: string;
   intensity?: string;
@@ -346,6 +325,7 @@ export interface TrainingSession {
 }
 
 export interface HealthRecord {
+  postTrainingSessionId?: string;
   profileId?: string;
   id: string;
   horseId: string;

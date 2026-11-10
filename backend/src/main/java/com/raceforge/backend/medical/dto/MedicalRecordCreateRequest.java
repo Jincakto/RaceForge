@@ -8,6 +8,7 @@ public class MedicalRecordCreateRequest {
     private String profileId;
     private String veterinarianId;
     private String correctionOfId;
+    private String postTrainingSessionId;
 
     private String examType;
     private LocalDateTime examinedAt;
@@ -52,6 +53,14 @@ public class MedicalRecordCreateRequest {
 
     public void setCorrectionOfId(String correctionOfId) {
         this.correctionOfId = correctionOfId;
+    }
+
+    public String getPostTrainingSessionId() {
+        return postTrainingSessionId;
+    }
+
+    public void setPostTrainingSessionId(String postTrainingSessionId) {
+        this.postTrainingSessionId = postTrainingSessionId;
     }
 
     public String getExamType() {

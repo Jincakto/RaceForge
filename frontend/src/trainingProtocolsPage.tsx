@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Btn, Card, Input, Select, Textarea } from './ui';
 import { changeProtocolStatus, createProtocol, listProtocols, protocolOverlap, WEEK_DAYS, type ProtocolRow, type ProtocolStage } from './trainingProtocols';
-const types = ['BASIC','RACING','PERFORMANCE','RECOVERY'].map(value=>({value,label:value}));
+const types = ['BASIC','RACING','PERFORMANCE'].map(value=>({value,label:value}));
 const days = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
 const emptyStage = (): ProtocolStage => ({startDay:1,endDay:1,activityName:'',intensity:'LOW',daysOfWeek:[],sessionTime:'',sessionEndTime:''});
 export function TrainingProtocolsPage() {

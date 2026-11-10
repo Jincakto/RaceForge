@@ -23,10 +23,7 @@ public class HorsePackageMapper {
                 // entity.getPaidAt(), // Removed with paid_at in V5.
                 entity.getStartDate(),
                 entity.getEndDate(),
-                displayedRemainingDays(entity),
-                entity.getReplacedHorsePackage() == null
-                        ? null
-                        : entity.getReplacedHorsePackage().getHorsePackageId());
+                displayedRemainingDays(entity));
     }
 
     /** ACTIVE counts down live; PAUSED shows frozen days; COMPLETED is zero. */

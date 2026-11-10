@@ -23,6 +23,6 @@ for(const type of ['BASIC','PERFORMANCE','RACING']) {
  test(type+' accepts FIT when otherwise eligible',()=>assert.equal(purchaseBlockReason({...horse,healthStatus:'Eligible'},[],[{...record,decision:'eligible',trainingEligibility:'eligible'}],false,type),null));
  test(type+' retains active package restriction',()=>assert.match(purchaseBlockReason({...horse,healthStatus:'Eligible'},[{horseId:horse.id,status:'active',paymentStatus:'PAID',expiresAt:addDays(TODAY,10)}],[{...record,decision:'eligible',trainingEligibility:'eligible'}],false,type),/active package/));
 }
-test('RECOVERY retains its separate rule',()=>assert.equal(purchaseBlockReason({...horse,lock:true},[],[{...record,decision:'not-eligible'}],false,'RECOVERY'),null));
+test('retired package types cannot bypass medical restrictions',()=>assert.equal(purchaseBlockReason({...horse,lock:true},[],[{...record,decision:'not-eligible'}],false,'RECOVERY'),'Select a supported training package type'));
 test('monitoring BASIC still rejects an existing package',()=>assert.match(purchaseBlockReason(horse,[{horseId:horse.id,status:'active',paymentStatus:'PAID',expiresAt:addDays(TODAY,10)}],[record],false,'BASIC'),/active package/));
 test('unknown package selection does not globally reject monitoring',()=>assert.equal(purchaseBlockReason(horse,[],[record]),null));

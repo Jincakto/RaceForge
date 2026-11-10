@@ -5,6 +5,13 @@ import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 public class CompleteSessionRequest {
+  @jakarta.validation.Valid
+  @jakarta.validation.constraints.NotNull(groups = CompletionRequired.class)
+  @io.swagger.v3.oas.annotations.media.Schema(description = "All ten post-training answers are required when completing a session; no individual concern note is required. Not required for MISSED attendance.")
+  private TrainingAssessmentRequest assessment;
+  public TrainingAssessmentRequest getAssessment() { return assessment; }
+  public void setAssessment(TrainingAssessmentRequest value) { assessment = value; }
+
 
   private java.math.BigDecimal distance;
   public java.math.BigDecimal getDistance(){return distance;}
@@ -23,6 +30,7 @@ public class CompleteSessionRequest {
   public void setRecoveryMeasuredAt(java.time.LocalDateTime value){recoveryMeasuredAt=value;}
 
   @Size(max = 1000)
+  @io.swagger.v3.oas.annotations.media.Schema(description = "Optional overall notes for the completed session, up to 1,000 characters.", requiredMode = io.swagger.v3.oas.annotations.media.Schema.RequiredMode.NOT_REQUIRED)
   private String performanceNotes;
   @Positive
   private Integer heartRate;

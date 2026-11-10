@@ -281,6 +281,7 @@ type FormState = {
   healthRecords: HealthRecord[];
   horseClubRequests: HorseClubRequest[];
   examHorseId: string | null;
+  postTrainingContext?: { sessionId: string; horseId: string };
 };
 
 type Level = "pass" | "watch" | "fail";
@@ -330,15 +331,17 @@ export function VetHealthFormPage({
   onConsumeExamHorse?: () => void;
 }) {
   const user = state.user!;
+  const postContext = state.postTrainingContext;
   const visible = useMemo(
     () =>
       state.horses.filter((h) =>
-        postSession ? h.id === postSession.horseId : vetVisible(h, user) && (!unlockHorseId || h.id === unlockHorseId),
+        postContext ? h.id === postContext.horseId : postSession ? h.id === postSession.horseId : vetVisible(h, user) && (!unlockHorseId || h.id === unlockHorseId),
       ),
-    [state.horses, user, postSession, unlockHorseId],
+    [state.horses, user, postSession, postContext, unlockHorseId],
   );
   const [horseId, setHorseId] = useState(() => {
     if (unlockHorseId && visible.some(h => h.id === unlockHorseId)) return unlockHorseId;
+    if (postContext) return postContext.horseId;
     if (postSession) return postSession.horseId;
     return state.examHorseId && visible.some((h) => h.id === state.examHorseId)
       ? state.examHorseId
@@ -398,7 +401,7 @@ export function VetHealthFormPage({
       )
     : undefined;
   const isIntake =
-    !postSession &&
+    !postSession && !postContext &&
     !!horse &&
     !!pendingReq &&
     horse.vetAssign?.status === "accepted" &&
@@ -471,7 +474,7 @@ export function VetHealthFormPage({
       const body = {
         examType: isIntake
           ? "INITIAL"
-          : postSession || unlockHorseId || /Tái khám/i.test(examType)
+          : postSession || postContext || unlockHorseId || /Tái khám/i.test(examType)
             ? "FOLLOW_UP"
             : "PERIODIC",
         vitalSign: {
@@ -642,7 +645,7 @@ export function VetHealthFormPage({
           ? "Monitor"
           : "Injured";
     const abnLines = findings.map((f) => `- ${f.label}: ${f.text}`);
-    const type = postSession
+    const type = postSession || postContext
       ? "Post-training examination"
       : isIntake
         ? "Intake examination"
@@ -673,7 +676,8 @@ export function VetHealthFormPage({
         : "All examination regions are normal.",
       result,
       medications: medications.trim() || "None",
-      isPostTraining: !!postSession,
+      isPostTraining: !!(postSession || postContext),
+      postTrainingSessionId: postContext?.sessionId,
       vetClearanceGranted: elig === "eligible",
       vitals: {
         heartRate: String(vs.heartRate.n),
@@ -846,7 +850,7 @@ export function VetHealthFormPage({
             {unlocked && <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><p className="font-semibold text-emerald-900">Training lock released</p><p className="mt-1 text-sm leading-6 text-emerald-800">The manager can now review resuming the training package.</p></div>}
           </div>
           <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/60 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-7">
-            {postSession ? <Btn variant="secondary" className="!rounded-xl" onClick={leave}>Back to examinations</Btn> : <><Btn variant="secondary" className="!rounded-xl" onClick={()=>navigate('health-records')}>View medical records</Btn><Btn variant="ghost" className="!rounded-xl" onClick={reset}>Examine another horse →</Btn></>}
+            {postSession || postContext ? <Btn variant="secondary" className="!rounded-xl" onClick={leave}>Back to examinations</Btn> : <><Btn variant="secondary" className="!rounded-xl" onClick={()=>navigate('health-records')}>View medical records</Btn><Btn variant="ghost" className="!rounded-xl" onClick={reset}>Examine another horse →</Btn></>}
           </div>
         </Card>
       </div>
@@ -883,13 +887,13 @@ export function VetHealthFormPage({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-serif text-xl font-bold text-[#0f1729]">
-            {unlockHorseId ? "Examination to release training lock" : postSession ? "Post-training examination" : "Health examination"}
+            {unlockHorseId ? "Examination to release training lock" : postSession || postContext ? "Post-training examination" : "Health examination"}
           </h2>
           <p className="text-sm text-gray-500">
             {user.name} · {today}
             {postSession
               ? ` · Session ${postSession.type} ${postSession.distance}`
-              : ""}
+              : postContext ? ` Session ${postContext.sessionId}` : ""}
           </p>
         </div>
         <Btn variant="secondary" onClick={leave}>
@@ -957,7 +961,7 @@ export function VetHealthFormPage({
           title="Choose horse"
           sub="Enter a horse name or ID (HRS-…) — only horses assigned to you are shown."
         />
-        {postSession && horse ? null : !horse ? (
+        {(postSession || postContext) && horse ? null : !horse ? (
           <div className="relative">
             <label className="mb-1 block text-sm font-medium text-gray-700">
               Search horses<span className="ml-0.5 text-red-500">*</span>
@@ -1079,7 +1083,7 @@ export function VetHealthFormPage({
                   ))}
                 </div>
               </div>
-              {!postSession && (
+              {!postSession && !postContext && (
                 <Btn
                   variant="secondary"
                   size="sm"
@@ -1127,7 +1131,7 @@ export function VetHealthFormPage({
                 )}
               </div>
             </div>
-            {!postSession && !isIntake && (
+            {!postSession && !postContext && !isIntake && (
               <div className="mt-4 max-w-xs">
                 <Select
                   label="Examination type"

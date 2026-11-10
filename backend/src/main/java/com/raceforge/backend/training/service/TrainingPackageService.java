@@ -37,7 +37,7 @@ public class TrainingPackageService {
     @Transactional(readOnly = true)
     public List<TrainingPackageResponse> getActivePackages() {
         return repository.findByStatusOrderByPackageNameAsc("ACTIVE")
-                .stream().filter(p -> !"RECOVERY".equalsIgnoreCase(p.getPackageType()))
+                .stream().filter(p -> ALLOWED_TYPES.contains(p.getPackageType()))
                 .map(mapper::toResponse).toList();
     }
 
@@ -83,9 +83,7 @@ public class TrainingPackageService {
             throw new BusinessRuleException("Invalid training package status: " + request.status());
         }
         TrainingPackage entity = findById(id);
-        if ("RECOVERY".equalsIgnoreCase(entity.getPackageType()) && "ACTIVE".equals(status)) {
-            throw new BusinessRuleException("Recovery packages are retired and cannot be reactivated");
-        }
+        validateType(entity.getPackageType());
         if("ACTIVE".equals(status))roadmaps.read(id);
         entity.setStatus(status);
         return mapper.toResponse(repository.saveAndFlush(entity));

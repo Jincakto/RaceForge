@@ -1,4 +1,14 @@
+import { TrainingResumptions } from './TrainingResumptions';
 import { SessionPreviewModal } from './SessionPreviewModal';
+import {
+  TrainingAssessmentBadge, TrainingAssessmentDetails, TrainingAssessmentForm,
+  TrainingPendingReviewBanner,
+} from './TrainingAssessmentView';
+import {
+  assessmentErrorMessage, assessmentPreview, canRequestVetCheck, fetchAssessmentTemplate,
+  toAssessmentRequest, type AssessmentAnswers, type CompleteSessionInput,
+  type TrainingAssessmentTemplateResponse, type TrainingVetNotificationResponse,
+} from './trainingAssessment';
 import { useTrainingNow } from './useTrainingNow';
 import { futureSchedule, scheduleWarning, trainingStart } from './trainingSchedule';
 import { PackageRoadmapPreview, RoadmapTable, StagesEditor, SavedRoadmapPreview } from './roadmapView';
@@ -8,7 +18,7 @@ import { trainingTimestamp } from './trainingTimestamp';
 import { RecoveryReview } from './RecoveryReview';
 import { packageRoadmapFor, recommendationView } from './recommendations';
 import { request } from './api';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   computeTrainingSuggestion, isHeavySession,
   type Horse, type HealthRecord, type TrainingPlan, type TrainingSession, type Res, type TrainingSuggestion, type Enrollment,
@@ -24,7 +34,6 @@ import {
 } from './trainingLogic';
 
 interface HubState extends TrainingSlice { healthRecords: HealthRecord[] }
-type ResultT = NonNullable<TrainingSession['result']>;
 
 interface HubProps {
   state: HubState;
@@ -35,7 +44,9 @@ interface HubProps {
   onRespond: (enrId: string, accept: boolean, reason: string) => Promise<Res<null>>;
   onStopSession: (id: string) => Promise<Res<null>>;
   onStartSession: (id: string) => string | null | Promise<string | null>;
-  onCompleteSession: (id: string, r: ResultT) => string | null | Promise<string | null>;
+  onCompleteSession: (id: string, r: CompleteSessionInput) => string | null | Promise<string | null>;
+  onAcceptResumption: (id: string) => Promise<Res<null>>;
+  onRequestVetCheck: (id: string, reason: string) => Promise<Res<TrainingVetNotificationResponse>>;
   onConfirmSchedule: (horseId: string, note: string, restoreIds: string[]) => string | null | Promise<string | null>;
 }
 
@@ -122,6 +133,7 @@ export function TrainingHubPage(props: HubProps) {
   const { state } = props;
   const { me, mine } = useTrainerHorses(state);
   const isTrainer = me.role === 'head_trainer';
+  const canReadAssessment = isTrainer || me.role === 'manager';
   const now=useTrainingNow();
   const today=isoToD(trainingTimestamp(now).slice(0,10));
   const [starting,setStarting]=useState<string|null>(null);
@@ -140,6 +152,7 @@ export function TrainingHubPage(props: HubProps) {
   const [absentFor, setAbsentFor] = useState<TrainingSession | null>(null);
   const [completing, setCompleting] = useState<string | null>(null);
   const [reviewing, setReviewing] = useState<string | null>(null);
+  const [assessmentOpen, setAssessmentOpen] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [weekAnchor, setWeekAnchor] = useState(TODAY);
 
@@ -196,6 +209,8 @@ export function TrainingHubPage(props: HubProps) {
           ))}
         </div>
       )}
+
+      {isTrainer && <TrainingResumptions revision={state.enrollments} onAccept={props.onAcceptResumption} />}
 
       <ErrorBox text={actionError} onClose={() => setActionError('')} />
 
@@ -289,7 +304,14 @@ export function TrainingHubPage(props: HubProps) {
                     {ownsSession && (s.canStop || s.canComplete) && completing !== s.id && <Btn size="sm" variant="primary" onClick={async () => { setActionError(''); if (s.canStop) { const stopped = await props.onStopSession(s.id); if (!stopped.ok) { setActionError(stopped.message); return; } } setCompleting(s.id); }}>{s.canStop ? 'Stop exercise & record recovery' : 'Record recovery results'}</Btn>}
                   </div>
                 </div>
-                {completing === s.id && <ResultForm onCancel={() => setCompleting(null)} onSubmit={async r => { const err = await props.onCompleteSession(s.id, r); setActionError(err || ''); if (!err) { setCompleting(null); setReviewing(s.id); } return err; }} />}
+                {canReadAssessment && s.pendingPostTrainingReview && s.status === 'Scheduled' && <div className="mt-4"><TrainingPendingReviewBanner /></div>}
+                {canReadAssessment && s.assessment && <div className="mt-3"><TrainingAssessmentBadge assessment={s.assessment} /></div>}
+                {completing === s.id && <ResultForm onCancel={() => setCompleting(null)} onSubmit={async r => { const err = await props.onCompleteSession(s.id, r); setActionError(err || ''); if (!err) { setCompleting(null); setReviewing(s.id); setAssessmentOpen(s.id); } return err; }} />}
+                {canReadAssessment && s.status === 'Completed' && <div className="mt-3">
+                  <button type="button" aria-expanded={assessmentOpen === s.id} onClick={() => setAssessmentOpen(current => current === s.id ? null : s.id)} className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-[#1a2844] hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b7026]">{assessmentOpen === s.id ? 'Close post-training check' : 'View post-training check'}</button>
+                  {assessmentOpen === s.id && <TrainingAssessmentDetails key={s.id} sessionId={s.id} overallNotes={s.result?.notes}
+                    canRequest={canRequestVetCheck(s, state.enrollments, me)} onRequestVetCheck={props.onRequestVetCheck} />}
+                </div>}
                 {isTrainer && s.status === 'Completed' && reviewing !== s.id && <Btn size="sm" variant="secondary" onClick={() => setReviewing(s.id)}>View recovery review</Btn>}
                 {isTrainer && reviewing === s.id && <RecoveryReview sessionId={s.id} onReview={() => { setTab('sessions'); setStatusFilter('Scheduled'); setReviewing(null); }} />}
                 {s.result && <div className="mt-3 grid grid-cols-4 gap-3 border-t border-gray-100 pt-3">{[["Time (seconds)", s.result.time], ["Speed", `${s.result.speed} km/h`], ["Heart rate", `${s.result.heartRate} bpm`], ["Two-minute recovery heart rate", `${s.result.performanceScore} bpm`]].map(([k, v]) => <div key={k} className="rounded-lg bg-gray-50 p-2 text-center"><div className="text-xs text-gray-500">{k}</div><div className="font-mono text-sm font-bold">{v}</div></div>)}</div>}
@@ -331,6 +353,12 @@ export function TrainingHubPage(props: HubProps) {
               <div className="mb-1 flex items-center gap-2"><IdChip kind="SES" id={s.id} /><span className="font-semibold">{s.type} · {s.distance} · {s.date} — {hn(s.horseId)}</span></div>
               <div className="mt-3 grid grid-cols-4 gap-3">{[["Time (seconds)", s.result!.time], ["Speed", `${s.result!.speed} km/h`], ["Heart rate", `${s.result!.heartRate} bpm`], ["Two-minute recovery heart rate", `${s.result!.performanceScore} bpm`]].map(([k, v]) => <div key={k} className="rounded-lg bg-gray-50 p-3 text-center"><div className="text-xs text-gray-500">{k}</div><div className="mt-0.5 font-mono text-sm font-bold">{v}</div></div>)}</div>
               {s.result!.notes && <p className="mt-3 text-sm italic text-gray-600">"{s.result!.notes}"</p>}
+              {canReadAssessment && <div className="mt-4 space-y-3">
+                {s.assessment && <TrainingAssessmentBadge assessment={s.assessment} />}
+                <div><button type="button" aria-expanded={assessmentOpen === s.id} onClick={() => setAssessmentOpen(current => current === s.id ? null : s.id)} className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-[#1a2844] hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b7026]">{assessmentOpen === s.id ? 'Close post-training check' : 'View post-training check'}</button></div>
+                {assessmentOpen === s.id && <TrainingAssessmentDetails key={s.id} sessionId={s.id} overallNotes={s.result?.notes}
+                  canRequest={canRequestVetCheck(s, state.enrollments, me)} onRequestVetCheck={props.onRequestVetCheck} />}
+              </div>}
             </Card>
           ))}
         </div>
@@ -355,46 +383,121 @@ export function TrainingHubPage(props: HubProps) {
 
 // ── Result form ──────────────────────────────────────────────────────────────
 
-function ResultForm({ onSubmit, onCancel }: { onSubmit: (r: ResultT) => string | null | Promise<string | null>; onCancel: () => void }) {
+export function ResultForm({ onSubmit, onCancel }: {
+  onSubmit: (input: CompleteSessionInput) => string | null | Promise<string | null>;
+  onCancel: () => void;
+}) {
+  const id = useId();
   const [f, setF] = useState({ time: '', speed: '', hr: '', score: '', notes: '' });
-  const [saving,setSaving]=useState(false);
-  const [measuredAt,setMeasuredAt]=useState('');
+  const [answers, setAnswers] = useState<AssessmentAnswers>({});
+  const [template, setTemplate] = useState<TrainingAssessmentTemplateResponse | null>(null);
+  const [templateLoading, setTemplateLoading] = useState(true);
+  const [templateError, setTemplateError] = useState('');
+  const [templateAttempt, setTemplateAttempt] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const fieldRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
+  const [measuredAt, setMeasuredAt] = useState('');
   const [e, setE] = useState<Record<string, string>>({});
   const [err, setErr] = useState('');
-  const set = (k: keyof typeof f) => (v: string) => { setF(p => ({ ...p, [k]: v })); setE(p => ({ ...p, [k]: '' })); };
-  const submit = async () => {
-    if (saving || !measuredAt) return;
-    const x: Record<string, string> = {};
-    if (!/^\d+(?:[.,]\d{1,2})?$/.test(f.time.trim())) x.time = "Enter the actual distance in km, with up to 2 decimal places.";
-    if (Number(f.time.replace(',', '.')) > 999999.99) x.time = "Actual distance cannot exceed 999999.99 km.";
-    const sp = Number(f.speed);
-    if (f.speed.trim() === '' || isNaN(sp) || sp < 0 || sp > 100) x.speed = "Speed must be between 0 and 100 km/h.";
-    const hr = Number(f.hr);
-    if (f.hr.trim() === '' || !Number.isInteger(hr) || hr < 20 || hr > 250) x.hr = "Heart rate must be an integer between 20 and 250 bpm.";
-    const sc = Number(f.score);
-    if (f.score.trim() === '' || !Number.isInteger(sc) || sc < 20 || sc > 250) x.score = "Recovery heart rate must be between 20 and 250 bpm.";
-    if (f.notes.length > 300) x.notes = "Comments cannot exceed 300 characters.";
-    setE(x);
-    if (Object.keys(x).length) return;
-    setErr(''); setSaving(true);try { const r = await onSubmit({ time: f.time.trim(), speed: String(sp), heartRate: hr, notes: f.notes.trim(), performanceScore: sc, recoveryMeasuredAt: measuredAt || undefined }); if (r) setErr(r); } catch (error) { setErr(error instanceof Error ? error.message : 'Unable to complete the session. Please try again.'); } finally { setSaving(false); }
+  useEffect(() => {
+    let active = true;
+    setTemplate(null); setTemplateLoading(true); setTemplateError('');
+    fetchAssessmentTemplate().then(value => { if (active) setTemplate(value); })
+      .catch(error => { if (active) setTemplateError(assessmentErrorMessage(error, 'The health check template could not be loaded. Retry before saving.')); })
+      .finally(() => { if (active) setTemplateLoading(false); });
+    return () => { active = false; };
+  }, [templateAttempt]);
+  const set = (key: keyof typeof f) => (value: string) => {
+    setF(previous => ({ ...previous, [key]: value }));
+    setE(previous => ({ ...previous, [key]: '' }));
+    setErr('');
   };
-  return (
-    <div className="mt-4 border-t border-gray-100 pt-4">
-      <h4 className="mb-3 text-sm font-semibold">Record session measurements</h4>
-      <div className="grid grid-cols-2 gap-4">
-        <Input label="Actual distance (km)" required value={f.time} onChange={set('time')} placeholder="VD: 1.2" hint="Completed distance, up to 2 decimal places" error={e.time} />
-        <Input label="Average speed (km/h)" required type="number" value={f.speed} onChange={set('speed')} placeholder="VD: 58.6" hint="0–100" error={e.speed} />
-        <Input label="End-of-exercise heart rate (bpm)" required type="number" value={f.hr} onChange={set('hr')} placeholder="VD: 188" hint="20–250" error={e.hr} />
-        <Input label="Heart rate after two-minute recovery (bpm)" required type="number" value={f.score} onChange={value => { set('score')(value); setMeasuredAt(trainingTimestamp()); }} placeholder="VD: 85" hint="Enter the two-minute recovery reading; 20–250 bpm" error={e.score} />
-        <div className="col-span-2"><Textarea label="Comments" value={f.notes} onChange={set('notes')} rows={2} placeholder="Condition, technique, progress..." hint={`${f.notes.length}/300`} />{e.notes && <p className="text-xs text-red-600">{e.notes}</p>}</div>
+  const validation = () => {
+    const errors: Record<string, string> = {};
+    if (!/^\d+(?:[.,]\d{1,2})?$/.test(f.time.trim())) errors.time = 'Enter the actual distance in km, with up to 2 decimal places.';
+    if (Number(f.time.replace(',', '.')) > 999999.99) errors.time = 'Actual distance cannot exceed 999999.99 km.';
+    const speed = Number(f.speed);
+    if (f.speed.trim() === '' || !Number.isFinite(speed) || speed < 0 || speed > 100) errors.speed = 'Speed must be between 0 and 100 km/h.';
+    const heartRate = Number(f.hr);
+    if (f.hr.trim() === '' || !Number.isInteger(heartRate) || heartRate < 20 || heartRate > 250) errors.hr = 'Heart rate must be an integer between 20 and 250 bpm.';
+    const recoveryHeartRate = Number(f.score);
+    if (f.score.trim() === '' || !Number.isInteger(recoveryHeartRate) || recoveryHeartRate < 20 || recoveryHeartRate > 250) errors.score = 'Recovery heart rate must be between 20 and 250 bpm.';
+    if (f.notes.trim().length > 1000) errors.notes = 'Keep overall notes within 1,000 characters.';
+    return errors;
+  };
+  const errorsNow = validation();
+  const complete = !!assessmentPreview(answers);
+  const canSave = !!template && !templateLoading && !templateError && complete && !!measuredAt
+    && Object.keys(errorsNow).length === 0;
+  const submit = async () => {
+    if (savingRef.current || !template || templateLoading || !measuredAt) return;
+    const errors = validation();
+    setE(errors);
+    if (Object.keys(errors).length) { fieldRefs.current[Object.keys(errors)[0]]?.focus(); return; }
+    if (!complete) { setErr('Complete all 10 checks before saving.'); return; }
+    setErr(''); savingRef.current = true; setSaving(true);
+    try {
+      const result = await onSubmit({
+        distance: Number(f.time.replace(',', '.')), avgSpeed: Number(f.speed),
+        endExerciseHeartRate: Number(f.hr), recoveryHeartRate2Min: Number(f.score),
+        recoveryMeasuredAt: measuredAt, performanceNotes: f.notes.trim() || undefined,
+        assessment: toAssessmentRequest(answers, template.version),
+      });
+      if (result) setErr(result);
+    } catch (error) {
+      setErr(assessmentErrorMessage(error, 'Unable to complete the session. Your entries have been kept. Please try again.'));
+    } finally { savingRef.current = false; setSaving(false); }
+  };
+  const fields = [
+    { key: 'time', label: 'Actual distance (km)', type: 'text', placeholder: 'e.g. 1.2', hint: 'Completed distance, up to 2 decimal places' },
+    { key: 'speed', label: 'Average speed (km/h)', type: 'number', placeholder: 'e.g. 58.6', hint: '0–100 km/h' },
+    { key: 'hr', label: 'End-of-exercise heart rate (bpm)', type: 'number', placeholder: 'e.g. 188', hint: '20–250 bpm' },
+    { key: 'score', label: 'Heart rate after two-minute recovery (bpm)', type: 'number', placeholder: 'e.g. 85', hint: 'Enter the two-minute recovery reading; 20–250 bpm' },
+  ] as const;
+  return <form noValidate onSubmit={event => { event.preventDefault(); void submit(); }} className="rf-session-result mt-5 space-y-6 border-t border-slate-200 pt-5 font-sans">
+    <div><h3 className="text-lg font-semibold text-[#1a2844]">Complete this session</h3><p className="mt-1 text-sm leading-6 text-slate-600">Record the measurements and review the horse's condition after exercise.</p></div>
+    <fieldset disabled={saving} className="space-y-4">
+      <legend className="text-base font-semibold text-[#1a2844]">Session measurements</legend>
+      <div className="grid gap-4 pt-2 sm:grid-cols-2">
+        {fields.map(field => <div key={field.key}>
+          <label htmlFor={id + '-' + field.key} className="mb-1.5 block text-sm font-medium text-slate-700">{field.label}<span aria-hidden="true" className="ml-1 text-red-600">*</span></label>
+          <input ref={node => { fieldRefs.current[field.key] = node; }} id={id + '-' + field.key} type={field.type}
+            inputMode={field.key === 'time' || field.key === 'speed' ? 'decimal' : 'numeric'} step={field.key === 'speed' ? 'any' : undefined}
+            required value={f[field.key]} placeholder={field.placeholder} disabled={saving}
+            aria-invalid={!!e[field.key]} aria-describedby={id + '-' + field.key + '-help'}
+            onChange={event => { set(field.key)(event.target.value); if (field.key === 'score') setMeasuredAt(trainingTimestamp()); }}
+            onBlur={() => setE(previous => ({ ...previous, [field.key]: validation()[field.key] || '' }))}
+            className={`h-12 w-full rounded-lg border bg-white px-3 text-base outline-none focus-visible:border-[#a4782c] focus-visible:ring-2 focus-visible:ring-[#a4782c]/30 disabled:bg-slate-50 ${e[field.key] ? 'border-red-400' : 'border-slate-300'}`} />
+          <p id={id + '-' + field.key + '-help'} className={e[field.key] ? 'mt-1 text-sm text-red-700' : 'mt-1 text-xs leading-5 text-slate-500'}>{e[field.key] || field.hint}</p>
+        </div>)}
       </div>
-      {err && <div className="mt-3"><ErrorBox text={err} /></div>}
-      <div className="mt-4 flex gap-2"><Btn variant="gold" disabled={saving || !measuredAt} onClick={submit}>{saving ? "Saving…" : "💾 Save and complete"}</Btn><Btn variant="secondary" onClick={onCancel}>Cancel</Btn></div>
+    </fieldset>
+    <TrainingAssessmentForm answers={answers} onChange={setAnswers} template={template}
+      loading={templateLoading} error={templateError} disabled={saving} onRetry={() => setTemplateAttempt(value => value + 1)} />
+    <div>
+      <label htmlFor={id + '-notes'} className="mb-1.5 block text-sm font-semibold text-[#1a2844]">Overall notes <span className="font-normal text-slate-500">(optional)</span></label>
+      <textarea ref={node => { fieldRefs.current.notes = node; }} id={id + '-notes'} value={f.notes} disabled={saving} rows={3}
+        onChange={event => set('notes')(event.target.value)}
+        onBlur={() => setE(previous => ({ ...previous, notes: validation().notes || '' }))}
+        aria-invalid={!!e.notes} aria-describedby={id + '-notes-help'}
+        placeholder="Add any other observations from this session."
+        className="min-h-24 w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-3 text-base outline-none focus-visible:border-[#a4782c] focus-visible:ring-2 focus-visible:ring-[#a4782c]/30" />
+      <p id={id + '-notes-help'} className={e.notes ? 'mt-1 text-sm text-red-700' : 'mt-1 text-xs leading-5 text-slate-500'}>{e.notes || `${f.notes.trim().length}/1,000 characters`}</p>
     </div>
-  );
+    {err && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{err}</p>}
+    <div className="space-y-2 border-t border-slate-200 pt-4">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button type="submit" disabled={saving || !canSave} className="min-h-11 rounded-lg border border-[#9b7026] bg-[#a4782c] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#8b6322] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b7026] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none">{saving ? 'Saving session...' : 'Save and complete'}</button>
+        <button type="button" disabled={saving} onClick={onCancel} className="min-h-11 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-[#1a2844] hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b7026] disabled:opacity-50">Cancel</button>
+      </div>
+      {!canSave && !saving && <p role="status" className="text-xs leading-5 text-slate-500">{templateError ? 'Retry the health check before saving. Your entries have been kept.' : !complete ? 'Complete all 10 checks and enter the session measurements before saving.' : 'Enter valid session measurements and keep overall notes within 1,000 characters.'}</p>}
+      {saving && <p role="status" className="text-sm text-slate-600">Saving the session and its health check...</p>}
+    </div>
+  </form>;
 }
 
-// ── Session generator ────────────────────────────────────────────────────────
+// Session generator
 
 interface GenProps {
   state: HubState; horseId: string; planId: string;

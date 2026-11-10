@@ -48,13 +48,10 @@ public class OwnerPayments {
             HorsePackage pack = db.find(HorsePackage.class, id, LockModeType.PESSIMISTIC_WRITE);
             if (pack == null || !owner.equals(pack.getHorse().getOwner().getUserId()))
                 throw new ResourceNotFoundException("Package registration not found");
-            if ("RECOVERY".equalsIgnoreCase(pack.getTrainingPackage().getPackageType())) {
-                throw new BusinessRuleException("Recovery checkout is retired; contact support for old orders");
-            }
             var existing = sql.query("SELECT * FROM dbo.PayOS_Order WHERE horse_package_id=?", this::map, id);
             if (!existing.isEmpty()) return existing.get(0);
             if (!create) throw new ResourceNotFoundException("Create the payOS checkout first");
-            if (pack.getReplacedHorsePackage() != null || !"PENDING".equals(pack.getPaymentStatus()) || !"PENDING".equals(pack.getStatus()))
+            if (!"PENDING".equals(pack.getPaymentStatus()) || !"PENDING".equals(pack.getStatus()))
                 throw new BusinessRuleException("This registration does not require an Owner payment.");
             long amount = pack.getTotalPrice().longValueExact();
             if (amount <= 0) throw new BusinessRuleException("Package price must be positive.");
@@ -122,10 +119,6 @@ public class OwnerPayments {
                 if (locked.payment().applied() || !state.equals(locked.payment().paymentState())) return;
                 var pack = db.find(HorsePackage.class, order.payment().registrationId());
                 String owner = pack.getHorse().getOwner().getUserId();
-                if ("RECOVERY".equalsIgnoreCase(pack.getTrainingPackage().getPackageType())) {
-                    // Verified historical receipts remain PAID / applied=false for manual reconciliation.
-                    throw new BusinessRuleException("Historical Recovery order requires manual reconciliation");
-                }
                 normal.applyPayment(pack.getHorsePackageId(), paid, owner);
                 sql.update("UPDATE dbo.PayOS_Order SET applied=1 WHERE order_code=?", code);
             });

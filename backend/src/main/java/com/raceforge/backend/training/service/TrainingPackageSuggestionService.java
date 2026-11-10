@@ -50,7 +50,7 @@ public class TrainingPackageSuggestionService {
         var history = readiness.read(horseId, now);
         List<Suggestion> result = new ArrayList<>();
         for (var pack : packages.findByStatusOrderByPackageNameAsc("ACTIVE")) {
-            if ("RECOVERY".equalsIgnoreCase(pack.getPackageType())) continue;
+            if (!Set.of("BASIC", "RACING", "PERFORMANCE").contains(pack.getPackageType())) continue;
             var eligible = eligibility.evaluate(horse, pack, now.toLocalDate());
             PackageDemandProfileService.Profile profile = null;
             String roadmapGoal = null;

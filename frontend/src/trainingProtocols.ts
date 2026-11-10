@@ -5,7 +5,7 @@ export interface ProtocolDraft { name: string; packageType: string; minWeight: n
 export interface ProtocolRow { protocol_id: string; protocol_name: string; package_type: string; min_weight: number; max_weight: number; status: string; stages_json: string; rationale: string; }
 export function validateProtocol(d: ProtocolDraft) {
   if (!d.name.trim() || d.name.length > 150) throw new Error("Protocol name is required and cannot exceed 150 characters.");
-  if (!['BASIC','RACING','PERFORMANCE','RECOVERY'].includes(d.packageType)) throw new Error("Select a valid package type.");
+  if (!['BASIC','RACING','PERFORMANCE'].includes(d.packageType)) throw new Error("Select a valid package type.");
   if (!Number.isFinite(d.minWeight) || !Number.isFinite(d.maxWeight) || d.minWeight < 0.01 || d.maxWeight <= d.minWeight) throw new Error("Weight limits must be positive, with the upper limit greater than the lower limit.");
   if (!d.rationale.trim() || d.rationale.length > 1000) throw new Error("Enter the rationale, up to 1000 characters.");
   if (!d.stages.length || d.stages.length > 100) throw new Error("Provide 1–100 stages.");

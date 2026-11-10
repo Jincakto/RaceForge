@@ -1,4 +1,5 @@
 import { packageSessions } from './trainingSchedule';
+import { assessmentFromApi } from './trainingAssessment';
 import { ApiError, allPages, idPath as enc, request, rows } from './api';
 import type { AppUser, Horse, HealthRecord, Enrollment, TrainingPackage, TrainingPlan, TrainingSession, HorseClubRequest, AppNotification, Role } from './data';
 
@@ -93,7 +94,7 @@ export function admittedClubHorses(horses: Horse[], clubId: string | null): Hors
 }
 export function medicalPayload(rec: HealthRecord, profileId: string) {
   const num = (s?: string) => s?.trim() ? Number(s.replace(',', '.')) : null;
-  return { profileId, examType: rec.intake ? 'INITIAL' : rec.isPostTraining || /Tái khám|Follow-up examination/i.test(rec.type) ? 'FOLLOW_UP' : 'PERIODIC', examinedAt: `${isoDate(rec.date)}T${new Date().toTimeString().slice(0, 8)}`,
+  return { profileId, postTrainingSessionId: rec.postTrainingSessionId, examType: rec.intake ? 'INITIAL' : rec.isPostTraining || /Tái khám|Follow-up examination/i.test(rec.type) ? 'FOLLOW_UP' : 'PERIODIC', examinedAt: `${isoDate(rec.date)}T${new Date().toTimeString().slice(0, 8)}`,
     finalConclusion: ({ eligible: 'FIT', conditional: 'FIT_WITH_MONITORING', 'not-eligible': 'NOT_FIT' } as Record<string, string>)[rec.decision || ''],
     overrideReason: rec.overrideReason || null, monitoringNote: rec.followUpNote || null, trainingLockReason: rec.decisionReason || null,
     diagnosis: rec.diagnosis || rec.conclusion || '', treatment: '', medication: rec.medications || '', careRecommendation: rec.recommendations || '', notes: rec.notes || '',
@@ -110,10 +111,14 @@ export function enrollmentFromApi(w: Wire, packages: TrainingPackage[], horse?: 
 export function planFromApi(w: Wire, en?: Enrollment): TrainingPlan {
   return { id: w.planId, horseId: w.horseId, phase: w.planName, startDate: dateText(w.startDate) || en?.startedAt || '', endDate: dateText(w.endDate) || en?.expiresAt || '', distance: '', workload: '', surface: '', goals: w.goal || '', status: w.status === 'COMPLETED' ? 'Completed' : 'Active', locked: w.status === 'LOCKED', createdBy: w.createdBy || '', progress: 0, algorithmRationale: w.notes || '', horsePackageId: w.horsePackageId, assignmentId: w.trainerAssignmentId };
 }
+export function planProgress(planId: string, sessions: ReadonlyArray<Pick<TrainingSession, 'planId' | 'status'>>): number {
+  const planned = sessions.filter(s => s.planId === planId && s.status !== 'Cancelled');
+  return planned.length ? Math.round(planned.filter(s => s.status === 'Completed').length / planned.length * 100) : 0;
+}
 export function sessionFromApi(w: Wire, user?: AppUser): TrainingSession {
   const statuses: Record<string, TrainingSession['status']> = { SCHEDULED: 'Scheduled', COMPLETED: 'Completed', CANCELLED: 'Cancelled', IN_PROGRESS: 'In Progress', STOPPED: 'In Progress', NOT_PERFORMED: 'Not Performed', MISSED: 'Not Performed' };
-  return { id: w.sessionId, horsePackageId: w.horsePackageId, endTime: w.scheduledEnd?.slice(11,16), intensity: w.intensity, horseId: w.horseId, planId: w.planId, date: dateText(w.scheduledStart), time: w.scheduledStart?.slice(11, 16) || '', type: w.activityName || w.stageTitle || w.intensity || '', trainerId: w.trainerUserId || w.recordedBy || '', trainerName: w.trainerName || '', assignedStaffIds: [], assignedStaffNames: [], status: w.status === 'SCHEDULED' && w.actualStart ? 'In Progress' : statuses[w.status] || 'Scheduled', distance: String(w.distance ?? ''), targetTime: '', notes: w.notes || '', conflictChecked: true, actualEnd: w.actualEnd, canStart: w.canStart, startBlockedReason: w.startBlockedReason, canStop: w.canStop, canComplete: w.canComplete,
-    ...(w.status === 'COMPLETED' ? { result: { time: String(w.actualDurationSeconds || ''), speed: String(w.avgSpeed || ''), heartRate: w.endExerciseHeartRate ?? w.heartRate ?? 0, notes: w.evaluation || w.notes || '', performanceScore: w.recoveryHeartRate2Min ?? 0 } } : {}),
+  return { id: w.sessionId, horsePackageId: w.horsePackageId, endTime: w.scheduledEnd?.slice(11,16), intensity: w.intensity, horseId: w.horseId, planId: w.planId, date: dateText(w.scheduledStart), time: w.scheduledStart?.slice(11, 16) || '', type: w.activityName || w.stageTitle || w.intensity || '', trainerId: w.trainerUserId || w.recordedBy || '', trainerName: w.trainerName || '', assignedStaffIds: [], assignedStaffNames: [], status: w.status === 'SCHEDULED' && w.actualStart ? 'In Progress' : statuses[w.status] || 'Scheduled', distance: String(w.distance ?? ''), targetTime: '', notes: w.notes || '', conflictChecked: true, actualEnd: w.actualEnd, canStart: w.canStart, startBlockedReason: w.startBlockedReason, canStop: w.canStop, canComplete: w.canComplete, assessment: assessmentFromApi(w.assessment), pendingPostTrainingReview: w.pendingPostTrainingReview === true, startBlockedCode: w.startBlockedCode,
+    ...(w.status === 'COMPLETED' ? { result: { time: String(w.actualDurationSeconds ?? ''), speed: String(w.avgSpeed ?? ''), heartRate: w.endExerciseHeartRate ?? w.heartRate ?? 0, notes: w.evaluation ?? '', performanceScore: w.recoveryHeartRate2Min ?? 0, recoveryMeasuredAt: w.recoveryMeasuredAt } } : {}),
   };
 }
 
@@ -305,13 +310,8 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
     e.assignHistory = [...assignments].reverse().map(a => ({ time: dateText(a.created_at), kind: currentTrainerAssignment(a) ? 'confirm' : a.status === 'DECLINED' ? 'decline' : 'assign', from: null, to: a.trainer_name, by: a.assigned_by_name, reason: a.reason || a.status }));
     const sessions = packageSessions(data.trainingSessions, data.trainingPlans, e.id); e.sessionsTotal = sessions.length; e.sessionsDone = sessions.filter(s => s.status === 'Completed').length;
     e.scheduleConfirmed = sessions.length > 0;
-    const packageType = data.packages.find(p => p.id === e.packageId)?.packageType;
-    if (packageType === 'RECOVERY' && e.status === 'active') {
-      const horse = data.horses.find(h => h.id === e.horseId);
-      if (horse) horse.rehab = { packageId: e.packageId, name: e.packageName, durationWeeks: Math.ceil((data.packages.find(p => p.id === e.packageId)?.durationDays || 0)/7), activatedAt: e.startedAt, activatedBy: '' };
-    }
   }
-  for (const p of data.trainingPlans) { const e = data.enrollments.find(e => e.id === p.horsePackageId) || data.enrollments.find(e => e.horseId === p.horseId && e.trainerStatus === 'confirmed' && e.status === 'active'); if (e) { p.startDate ||= e.startedAt; p.endDate ||= e.expiresAt; p.horsePackageId ||= e.id; p.assignmentId ||= e.assignmentId; } }
+  for (const p of data.trainingPlans) { p.progress = planProgress(p.id, data.trainingSessions); const e = data.enrollments.find(e => e.id === p.horsePackageId) || data.enrollments.find(e => e.horseId === p.horseId && e.trainerStatus === 'confirmed' && e.status === 'active'); if (e) { p.startDate ||= e.startedAt; p.endDate ||= e.expiresAt; p.horsePackageId ||= e.id; p.assignmentId ||= e.assignmentId; } }
   if (errors.size) report('Some data could not be refreshed. See the affected sources and retry.');
   data.trainingLoadIssues=store.issues(); return data;
 }

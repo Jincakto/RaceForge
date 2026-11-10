@@ -91,10 +91,8 @@ public class TrainingPackageExpirationService {
         registration.setRemainingDays(0);
         horsePackages.save(registration);
 
-        boolean recovery = registration.getTrainingPackage() != null
-                && "RECOVERY".equalsIgnoreCase(registration.getTrainingPackage().getPackageType());
-        String type = recovery ? "RECOVERY_PACKAGE_EXPIRED" : "TRAINING_PACKAGE_EXPIRED";
-        String label = recovery ? "Recovery" : "Training";
+        String type = "TRAINING_PACKAGE_EXPIRED";
+        String label = "Training";
         String horseId = horse.getHorseId();
         // Scheduled actions have no authenticated actor; do not fabricate a CM/Vet ID.
         events.record(null, horseId, registration.getHorsePackageId(), type,
@@ -102,17 +100,6 @@ public class TrainingPackageExpirationService {
         if (horse.getOwner() != null) {
             events.notifyOwner(horse.getOwner().getUserId(), horseId, type,
                     label + " package period has ended.");
-        }
-        if (recovery) {
-            if (Boolean.TRUE.equals(horse.getTrainingLocked())) {
-                events.notifyManagers(horseId, type,
-                        "Recovery has expired, but Training Lock remains active. "
-                        + "Arrange veterinary review; any preserved original package remains PAUSED.");
-            } else if (registration.getReplacedHorsePackage() != null) {
-                events.notifyManagers(horseId, type,
-                        "Center-funded Recovery ended. If the horse is READY and unlocked, "
-                        + "the assigned Trainer may accept resumption of preserved training days.");
-            }
         }
         return true;
     }

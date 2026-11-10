@@ -67,7 +67,7 @@ export function purchaseBlockReason(h: Horse, enrollments: Enrollment[], records
   const latest = latestHealthRecord(records, h.id);
   if (!latest) return "No examination record";
   if (latest.status === 'draft') return "Examination record is still a draft";
-  if (packageType === 'RECOVERY') return h.lock && latest.decision === 'not-eligible' ? null : "Recovery packages require a NOT_FIT conclusion and a training lock";
+  if (packageType && !['BASIC', 'RACING', 'PERFORMANCE'].includes(packageType)) return 'Select a supported training package type';
   if (latest.decision === 'not-eligible' || latest.trainingEligibility === 'not-eligible' || h.lock) return "Not fit for training; training is locked";
   if (packageType === 'RACING' && (h.healthStatus === 'Monitor' || latest.decision === 'conditional' || latest.trainingEligibility === 'conditional')) return "This horse needs monitoring; a veterinarian must confirm it as FIT before Racing registration.";
   if (!['Eligible', 'Monitor'].includes(h.healthStatus)) return "Health status is not ready for training";

@@ -14,6 +14,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 /** Database-scoped serialization and authoritative trainer identity for training calendars. */
 @Service
 public class TrainingScheduleCoordinator {
+    @org.springframework.beans.factory.annotation.Autowired private TrainingAssessmentService assessmentService;
     private final JdbcTemplate jdbc;
     private final Clock clock;
 
@@ -158,6 +159,7 @@ public class TrainingScheduleCoordinator {
     }
 
     public void requireStartAvailable(String packageId,String horseId,String excludeId) {
+        assessmentService.requireNoPendingReview(horseId);
         var trainer=requireTrainer(packageId);
         String reason=unfinishedReason(unfinishedWork(),horseId,trainer.userId(),excludeId);
         if(reason!=null)throw new BusinessRuleException(reason);
@@ -197,16 +199,26 @@ public class TrainingScheduleCoordinator {
                 recorded.put((String) row.get("user_id"), new Trainer((String) row.get("user_id"), (String) row.get("full_name")));
         }
         var work=unfinishedWork();
+        Set<String> horseIds = new HashSet<>();
+        for (var response : responses) if (response.getHorseId() != null) horseIds.add(response.getHorseId());
+        Set<String> pendingHorses = assessmentService.pendingHorseIds(horseIds);
         for (var response : responses) {
             boolean currentWork = "SCHEDULED".equals(response.getStatus());
             Trainer trainer = currentWork ? current.get(response.getHorsePackageId()) :
                 recorded.getOrDefault(response.getRecordedBy(), original.get(response.getPlanId()));
             response.setTrainerUserId(trainer == null ? null : trainer.userId());
             response.setTrainerName(trainer == null ? null : trainer.name());
+            boolean pendingReview = pendingHorses.contains(response.getHorseId());
+            response.setPendingPostTrainingReview(pendingReview);
+            response.setStartBlockedCode(null);
             String reason=null;
             if(!"SCHEDULED".equals(response.getStatus()))reason="Only a scheduled session can be started.";
             else if(response.getActualStart()!=null)reason=response.getActualEnd()==null?
                 "Exercise is in progress. Stop it and record recovery results.":"Exercise stopped; recovery results are pending.";
+            else if(pendingReview) {
+                reason="Training is paused until a vet review is completed for this horse.";
+                response.setStartBlockedCode("PENDING_POST_TRAINING_REVIEW");
+            }
             else if(Boolean.TRUE.equals(response.getTrainingLocked()))reason="Horse is training-locked.";
             else if(trainer==null)reason="An ACCEPTED trainer assignment is required.";
             else if(!Boolean.TRUE.equals(validPlans.get(response.getPlanId())))reason="The plan and paid package must be active and valid today.";

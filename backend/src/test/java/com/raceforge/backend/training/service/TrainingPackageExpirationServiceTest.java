@@ -89,23 +89,13 @@ class TrainingPackageExpirationServiceTest {
     }
 
     @Test
-    void recoveryExpiresButDoesNotClearMedicalLockOrPausedOriginal() {
-        TrainingPackage recoveryType = new TrainingPackage();
-        recoveryType.setPackageType("RECOVERY");
-        HorsePackage original = new HorsePackage();
-        original.setStatus("PAUSED");
-        original.setRemainingDays(12);
-        normal.setTrainingPackage(recoveryType);
-        normal.setReplacedHorsePackage(original);
+    void expiryDoesNotClearMedicalLock() {
         horse.setTrainingLocked(true);
-
         assertEquals(1, service.expireForLockedHorse(horse, today));
         assertEquals("COMPLETED", normal.getStatus());
         assertTrue(horse.getTrainingLocked());
-        assertEquals("PAUSED", original.getStatus());
-        assertEquals(12, original.getRemainingDays());
-        verify(events).notifyManagers(eq("HOR-001"),
-                eq("RECOVERY_PACKAGE_EXPIRED"), contains("Training Lock"));
+        verify(events).notifyOwner(eq("7"), eq("HOR-001"), eq("TRAINING_PACKAGE_EXPIRED"), anyString());
+        verify(events, never()).notifyManagers(anyString(), anyString(), anyString());
     }
 
     @Test

@@ -17,7 +17,6 @@ public record HorsePackageResponse(
         // LocalDateTime paidAt, // Removed from the API in V5.
         LocalDate startDate,
         LocalDate endDate,
-        Integer remainingDays,
-        String replacedHorsePackageId
+        Integer remainingDays
 ) {
 }

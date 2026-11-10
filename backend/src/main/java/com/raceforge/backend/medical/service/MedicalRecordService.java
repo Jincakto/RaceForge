@@ -10,6 +10,7 @@ import com.raceforge.backend.medical.dto.*;
 import com.raceforge.backend.medical.entity.*;
 import com.raceforge.backend.medical.mapper.MedicalRecordMapper;
 import com.raceforge.backend.medical.repository.*;
+import com.raceforge.backend.training.service.TrainingAssessmentMedicalBridge;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +48,7 @@ public class MedicalRecordService {
     // Used for private clinical evidence; injected without changing legacy test constructors.
     @org.springframework.beans.factory.annotation.Autowired(required = false)
     private StorageService storage;
+    private final TrainingAssessmentMedicalBridge assessmentBridge;
 
     public MedicalRecordService(
             HealthProfileRepository healthProfileRepository,
@@ -59,7 +61,7 @@ public class MedicalRecordService {
             TrainingLockService trainingLockService,
             AuditLogService auditLogService,
             MedicalAssignmentService medicalAssignments,
-            com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator) {
+            com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator, TrainingAssessmentMedicalBridge assessmentBridge) {
         this.idAllocator = idAllocator;
         this.healthProfileRepository = healthProfileRepository;
         this.medicalRecordRepository = medicalRecordRepository;
@@ -71,6 +73,7 @@ public class MedicalRecordService {
         this.trainingLockService = trainingLockService;
         this.auditLogService = auditLogService;
         this.medicalAssignments = medicalAssignments;
+        this.assessmentBridge = assessmentBridge;
     }
 
     /**
@@ -107,6 +110,8 @@ public class MedicalRecordService {
                 .orElseThrow(() -> new ResourceNotFoundException("Health profile not found"));
         User veterinarian = getVeterinarian(request.getVeterinarianId());
         medicalAssignments.requireAccepted(profile.getHorse().getHorseId(), veterinarian.getUserId());
+        assessmentBridge.prepareDraft(profile.getHorse().getHorseId(),
+                request.getPostTrainingSessionId(), request.getExaminedAt());
 
         MedicalRecord record = new MedicalRecord();
         record.setMedicalRecordId(nextMedicalRecordId());
@@ -143,6 +148,7 @@ public class MedicalRecordService {
         record = medicalRecordRepository.save(record);
         saveVitalSign(record, request.getVitalSign());
         saveClinicalExams(record, request.getClinicalExams());
+        assessmentBridge.bindDraft(record, request.getPostTrainingSessionId());
         auditLogService.record(veterinarian.getUserId(), profile.getHorse().getHorseId(),
                 "MEDICAL_RECORD", record.getMedicalRecordId(), "MEDICAL_RECORD_CREATED", "SUCCESS", null);
         return buildResponse(record);
@@ -206,6 +212,7 @@ public class MedicalRecordService {
     public MedicalRecordResponse confirmMedicalRecord(String medicalRecordId,
                                                       String veterinarianId) {
         MedicalRecord record = requireOwnedDraft(medicalRecordId, veterinarianId);
+        assessmentBridge.beforeConfirmation(record);
         MedicalVitalSign savedVital = medicalVitalSignRepository
                 .findByMedicalRecord_MedicalRecordId(medicalRecordId).orElse(null);
         List<MedicalClinicalExam> savedExams = medicalClinicalExamRepository
@@ -276,6 +283,7 @@ public class MedicalRecordService {
             trainingLockService.lockFromConfirmedExamination(horse, record, veterinarian,
                     record.getTrainingLockReason().trim());
         }
+        assessmentBridge.onConfirmed(record);
         // Deliberately do not auto-unlock on FIT / FIT_WITH_MONITORING.
         // Assignment remains accepted: a veterinarian may examine this horse
         // again without new approval from the Club Manager.

@@ -1,0 +1,163 @@
+{
+    "marker":  "session-front-end-up",
+    "baseline":  "session-back-end-up",
+    "hashEncoding":  "UTF-8 with LF-normalized line endings",
+    "files":  [
+                  {
+                      "path":  "backend/docs/TRAINING_ASSESSMENT_BACKEND_REPORT.md",
+                      "beforeTextSha256":  "99bce98388557f157e1f0701e7cf7e6076052dccb056e37beaa9ef1bbe75738c",
+                      "afterTextSha256":  "284a548cdb9ce361ed18a0ee15bbc3ac55bc9832b16b85dc68793f9ecf5bca21",
+                      "scope":  "backend compatibility / note rule"
+                  },
+                  {
+                      "path":  "backend/src/main/java/com/raceforge/backend/training/controller/TrainingSessionController.java",
+                      "beforeTextSha256":  "c19a896d095ebb3cd7369fa32f3f49be0cf8eb07f389845d75cc6228228ba609",
+                      "afterTextSha256":  "5536db402550e0823005dc718f257025cba75d2e271a66a0d8c370b8941ba8ef",
+                      "scope":  "backend compatibility / note rule"
+                  },
+                  {
+                      "path":  "backend/src/main/java/com/raceforge/backend/training/dto/CompleteSessionRequest.java",
+                      "beforeTextSha256":  "c341fa10cec11229e2b27d828eb6e11b1a715b10807d2c116afd6696b160ac23",
+                      "afterTextSha256":  "9d3b2b8dc648ab8b33288017aeaccf7d45ab0615af998c0ea76e4c746cef8c04",
+                      "scope":  "backend compatibility / note rule"
+                  },
+                  {
+                      "path":  "backend/src/main/java/com/raceforge/backend/training/dto/TrainingAssessmentRequest.java",
+                      "beforeTextSha256":  "1bea6ed8584fc63dfc976204775d6e07862ac81d495aa73e981bd29978b8133f",
+                      "afterTextSha256":  "f403071bf6961c5304054c0e31ecda177cd4def04975c0e57247cb9224aaf72b",
+                      "scope":  "backend compatibility / note rule"
+                  },
+                  {
+                      "path":  "backend/src/main/java/com/raceforge/backend/training/dto/TrainingAssessmentRequestDeserializer.java",
+                      "beforeTextSha256":  "32a4f92f38dcd1634abe34df2821b945633aaac25a9f2913dc8c7d64f6af9056",
+                      "afterTextSha256":  "82f54c078cfbf3bb16330c0ae9acfd188e70cdcfcbd84cf3a60dc7fcb6f7a32e",
+                      "scope":  "backend compatibility / note rule"
+                  },
+                  {
+                      "path":  "backend/src/main/java/com/raceforge/backend/training/service/TrainingAssessmentValidator.java",
+                      "beforeTextSha256":  "aa7dfc6b64faf6429498f850aa1d2d70bb47fafc06d0351dcd06dc4b0d45ca2d",
+                      "afterTextSha256":  "0b42aeda36363e5710d81ff18735513b48c0b4a51b81e541ef0caa688c55bcce",
+                      "scope":  "backend compatibility / note rule"
+                  },
+                  {
+                      "path":  "backend/src/test/java/com/raceforge/backend/training/dto/TrainingAssessmentRequestTest.java",
+                      "beforeTextSha256":  "81ffc8c1bf6a89966a2111159404e8faff560bd7b4e982e99719f9cf1b80d298",
+                      "afterTextSha256":  "863d84292c2d35aa41fc32c4cb3c3e071551f6326ff0a27d641ce9a2392e8c00",
+                      "scope":  "backend compatibility / note rule"
+                  },
+                  {
+                      "path":  "backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentRulesTest.java",
+                      "beforeTextSha256":  "3bc5c91e906177e46f03c8294cdbf106265f5cc461c63878b75e0100904eabf6",
+                      "afterTextSha256":  "af42a5dec50056710daa6f19a965874205e63c264852a0e8f36e3dbea4a767e6",
+                      "scope":  "backend compatibility / note rule"
+                  },
+                  {
+                      "path":  "backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentValidatorTest.java",
+                      "beforeTextSha256":  "d9e7feba3704570f9f634fd69d7d53a2109de18c27f25fb59d35d941e4dfc9e5",
+                      "afterTextSha256":  "52cd87a07e50d520251f011f09955aa1753de318e195fee4927f619df9c15fc3",
+                      "scope":  "backend compatibility / note rule"
+                  },
+                  {
+                      "path":  "backend/src/test/java/com/raceforge/backend/training/service/TrainingSessionAssessmentCompletionTest.java",
+                      "beforeTextSha256":  "0cf344fa338eff4c9ccc59390b28919bdd87283f2a6dda8daf1ad91d316168f3",
+                      "afterTextSha256":  "221b4f5f387bef1fcd66966e2b213f7135bd3298cbdf6be69c3d080bc537f04e",
+                      "scope":  "backend compatibility / note rule"
+                  },
+                  {
+                      "path":  "frontend/src/App.tsx",
+                      "beforeTextSha256":  "4b653e7aa28eb6fdcedbc1a9df83f016a417509ed0e670d0fc12c17077fe0018",
+                      "afterTextSha256":  "f46563fd494391c5917fda9dba593233f7bc982408c9c1ab947c6b91d53fc437",
+                      "scope":  "frontend"
+                  },
+                  {
+                      "path":  "frontend/src/data.ts",
+                      "beforeTextSha256":  "dbbc791e6ee97bb7568b23ce5f6e5f4f62434aeb14a4a43e8e5a6b8b2e2d39ed",
+                      "afterTextSha256":  "211ac29db63bb2c69d3843af6cd0b5e0cc1afa345311bf3bf3df1d649f3a0460",
+                      "scope":  "frontend"
+                  },
+                  {
+                      "path":  "frontend/src/remote.ts",
+                      "beforeTextSha256":  "535ad15a0504f136dcb5194d465bdb5cd2ccb594fdb179285e6c0a98930c27f6",
+                      "afterTextSha256":  "3da5b99bd5637379a13874c645241c1ca9922e17622e7cf02de2144a9db8f2c2",
+                      "scope":  "frontend"
+                  },
+                  {
+                      "path":  "frontend/src/remoteActions.ts",
+                      "beforeTextSha256":  "a2edc6327d9b4fad817ca05d76f24e114bcaf75cfe0e33440b7b76b2327880d0",
+                      "afterTextSha256":  "79a9bb4ad3d2553e9a53d27f5be0fe7afbab0f0074d0b9a735c9babe105bbbfc",
+                      "scope":  "frontend"
+                  },
+                  {
+                      "path":  "frontend/src/trainingAssessment.ts",
+                      "beforeTextSha256":  null,
+                      "afterTextSha256":  "0a47c38c6c97ac358235303aa025b03ac20f61372d200fb17bb48fe333ce20da",
+                      "scope":  "frontend"
+                  },
+                  {
+                      "path":  "frontend/src/TrainingAssessmentView.tsx",
+                      "beforeTextSha256":  null,
+                      "afterTextSha256":  "cf990db17c14e06768e96d70ebc6427eb68fb2b0ffc924f2b8f07fb5fe4d0214",
+                      "scope":  "frontend"
+                  },
+                  {
+                      "path":  "frontend/src/trainingPlans.tsx",
+                      "beforeTextSha256":  "3f9586f6d9ebf23b8f9773244449beb82f61996e775619ff927971e37a91121c",
+                      "afterTextSha256":  "bb46bedb594f7f037b9171d4c0f9d1679542712b6d3b3e24aa7d8f8915a63e94",
+                      "scope":  "frontend"
+                  },
+                  {
+                      "path":  "frontend/src/trainingSchedule.ts",
+                      "beforeTextSha256":  "6580c42d5453eb1020765ed29ea27e161eb4e2428e57e7e700435220c17cddae",
+                      "afterTextSha256":  "9e04719f3cfe17ee11d2bd849231145aa50da832d02a18c0f12bcde739b00734",
+                      "scope":  "frontend"
+                  },
+                  {
+                      "path":  "frontend/tests/apiIntegration.test.mjs",
+                      "beforeTextSha256":  "39df591a0d334712e81706161232f6463be9eb2039e4bfb27518ff07e35e5c6a",
+                      "afterTextSha256":  "4006b885784db127804509d90248c33c0055530312cc123f0e4031882b08a303",
+                      "scope":  "frontend"
+                  },
+                  {
+                      "path":  "frontend/tests/trainingAssessment.test.mjs",
+                      "beforeTextSha256":  null,
+                      "afterTextSha256":  "f027e67c5e74ddf86cf73cdc7ee42d51c38312b6d970b6fb591a8672ab11ebc9",
+                      "scope":  "frontend"
+                  },
+                  {
+                      "path":  "frontend/tests/trainingAssessmentUi.test.mjs",
+                      "beforeTextSha256":  null,
+                      "afterTextSha256":  "6a079a6167dc326f575a0de17123e5051ec748976f1255a337113b7637f9d0a6",
+                      "scope":  "frontend"
+                  },
+                  {
+                      "path":  "frontend/tests/trainingReadLoading.test.mjs",
+                      "beforeTextSha256":  "25b8489094918b06a2321720b4beaf72e5a6a0f6f5345501ff30476b4e290b15",
+                      "afterTextSha256":  "8170cbe2552d4d4c745daf3f24d6a36fda3975077a7f4456a7fc935ddd1eb017",
+                      "scope":  "frontend"
+                  },
+                  {
+                      "path":  "frontend/tests/trainingSchedule.test.mjs",
+                      "beforeTextSha256":  "30feae33c984e969e6aab627454cda780b4ed98b0779725227fddb66aa71e265",
+                      "afterTextSha256":  "15326a26be7b520323b18c1d039bacd1f4f8339c388f8832df4ba09e62b0771c",
+                      "scope":  "frontend"
+                  },
+                  {
+                      "path":  "frontend/tests/visual/entry.tsx",
+                      "beforeTextSha256":  null,
+                      "afterTextSha256":  "2895c73f1d1c4425836ace66ef1fed4d7311099a2815a0908dc911b2a0b797aa",
+                      "scope":  "frontend"
+                  },
+                  {
+                      "path":  "frontend/tests/visual/fixtureData.ts",
+                      "beforeTextSha256":  null,
+                      "afterTextSha256":  "f85a5f277712bd37ed2a8d33aafb75d14ac3114100fae13cf331f3b53220e9f1",
+                      "scope":  "frontend"
+                  },
+                  {
+                      "path":  "frontend/tests/visual/session-assessment.html",
+                      "beforeTextSha256":  null,
+                      "afterTextSha256":  "9988d92be3166b4ea003deb2f310abbf69d7a7fc1c729c67cbbc86aa1cdd31f1",
+                      "scope":  "frontend"
+                  }
+              ]
+}

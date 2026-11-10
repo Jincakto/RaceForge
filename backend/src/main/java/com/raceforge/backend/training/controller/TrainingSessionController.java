@@ -57,6 +57,7 @@ public class TrainingSessionController {
       return ResponseEntity.ok(ApiResponse.success("Exercise stopped; submit recovery measurements separately",trainingSessionService.stopSession(sessionId,request)));
   }
 
+  @io.swagger.v3.oas.annotations.Operation(summary = "Complete stopped exercise with measurements and a health check", description = "All 10 POST_TRAINING_V1 answers are required, including when attendance delegates to completion. Individual concern notes are optional; optional overall notes use performanceNotes. Existing measurement and current trainer checks remain in force.")
   @PatchMapping("/{sessionId}/complete")
   public ResponseEntity<ApiResponse<TrainingSessionResponse>> complete(
           @PathVariable String sessionId,

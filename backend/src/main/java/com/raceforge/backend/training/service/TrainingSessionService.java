@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TrainingSessionService {
+    @Autowired private TrainingAssessmentService assessmentService;
     @Autowired private TrainingScheduleCoordinator scheduleCoordinator;
     @Autowired @org.springframework.beans.factory.annotation.Qualifier("trainingClock") private java.time.Clock clock;
     @Autowired private com.raceforge.backend.audit.service.AuditLogService audit;
@@ -64,6 +65,8 @@ public class TrainingSessionService {
     @Transactional
     public TrainingSessionResponse startSession(String sessionId) {
         TrainingSession session = lockedSession(sessionId);
+        workflowGuard.authorizePlan(session.getPlan());
+        assessmentService.requireNoPendingReview(session.getHorse().getHorseId());
         workflowGuard.requirePlan(session.getPlan());
         rules.requireUnlocked(rules.lockHorse(session.getHorse().getHorseId()));
         rules.requireOpen(session);
@@ -84,6 +87,10 @@ public class TrainingSessionService {
         TrainingSession session = lockedSession(sessionId);
         workflowGuard.authorizePlan(session.getPlan());
         rules.requireUnlocked(rules.lockHorse(session.getHorse().getHorseId()));
+        if ("COMPLETED".equals(session.getStatus())) {
+            throw new com.raceforge.backend.common.exception.ApiException(org.springframework.http.HttpStatus.CONFLICT,
+                    "SESSION_ALREADY_COMPLETED", "This session has already been completed.");
+        }
         rules.requireOpen(session);
         if (session.getActualStart() == null) {
             throw new BusinessRuleException("Start the session before recording completion.");
@@ -100,6 +107,7 @@ public class TrainingSessionService {
         LocalDateTime measured=request.getRecoveryMeasuredAt();
         if(measured==null || measured.isBefore(session.getActualEnd()) || measured.isAfter(LocalDateTime.now(clock)))
             throw new BusinessRuleException("recoveryMeasuredAt must not precede exercise stop or be in the future.");
+        var checkedAssessment = assessmentService.validateCompletion(request);
         session.setStatus("COMPLETED");
         session.setEvaluation(request.getPerformanceNotes());
         session.setDistance(request.getDistance());
@@ -111,6 +119,7 @@ public class TrainingSessionService {
         session.setMaxSpeed(request.getMaxSpeed());
         session.setRecordedBy(actorId);
         var saved=trainingSessionRepository.save(session);
+        assessmentService.recordCompletion(saved, checkedAssessment, actorId);
         audit.record(workflowGuard.actor().userId(),saved.getHorse().getHorseId(),"TRAINING_SESSION",saved.getSessionId(),"TRAINING_SESSION_WRITTEN","SUCCESS",saved.getStatus());
         return trainingSessionMapper.toResponse(saved);
     }

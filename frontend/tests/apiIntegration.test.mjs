@@ -8,7 +8,7 @@ import ts from 'typescript';
 
 // Run the actual TS adapters without Vite or a database; HTTP is the test boundary.
 const dir = await mkdtemp(path.join(tmpdir(), 'raceforge-api-tests-'));
-for (const name of ['sessionPreview', 'packageBuilder', 'packageRoadmap', 'trainingSchedule', 'trainingTimestamp', 'api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
+for (const name of ['sessionPreview', 'packageBuilder', 'packageRoadmap', 'trainingSchedule', 'trainingTimestamp', 'api', 'trainingAssessment', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
   const source = await readFile(new URL(`../src/${name}.ts`, import.meta.url), 'utf8');
   const code = ts.transpileModule(source.replace('import.meta.env', '({})'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText
     .replace(/(['"])(\.\/[^'"]+)\1/g, (_, quote, specifier) => `${quote}${specifier}.mjs${quote}`);
@@ -275,12 +275,15 @@ test('admin staff creation maps groom to database role 5, and refuses public-own
   assert.equal(bodies.length,1);
 });
 
+const completionAssessment = () => ({checklistVersion:'POST_TRAINING_V1',checks:Object.fromEntries([
+ 'ALERTNESS','COORDINATION','BREATHING_EFFORT','GAIT','LIMB_CONDITION','MUSCLE_COMFORT','EXTERNAL_INJURY','SWEATING','MUCOUS_MEMBRANES','NASAL_BLEEDING'
+].map(code=>[code,true]))});
 test('completion sends actual exercise/recovery fields and does not invent a max speed', async () => {
   const snapshot = state(); const { remote } = actions(snapshot); let payload;
   globalThis.fetch = async (url, init) => { assert.equal(url,'/api/training-sessions/SES-001/complete'); assert.equal(init.method,'PATCH'); payload=JSON.parse(init.body); return ok({}); };
-  assert.equal(await remote.completeSession('SES-001',{ time:'1.25',speed:'18.2',heartRate:180,performanceScore:88,notes:'Measured recovery',recoveryMeasuredAt:'2026-10-21T07:32:00.123' }),null);
+  assert.equal(await remote.completeSession('SES-001',{ distance:1.25,avgSpeed:18.2,endExerciseHeartRate:180,recoveryHeartRate2Min:88,performanceNotes:'Measured recovery',recoveryMeasuredAt:'2026-10-21T07:32:00.123',assessment:completionAssessment() }),null);
   assert.equal(payload.distance,1.25); assert.equal(payload.endExerciseHeartRate,180); assert.equal(payload.recoveryHeartRate2Min,88); assert.equal(payload.avgSpeed,18.2);
-  assert.match(payload.recoveryMeasuredAt,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/); assert.ok(!('maxSpeed' in payload));
+  assert.match(payload.recoveryMeasuredAt,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/); assert.ok(!('maxSpeed' in payload)); assert.deepEqual(payload.assessment,completionAssessment()); assert.equal(payload.performanceNotes,'Measured recovery');
 });
 
 test('medical confirmation failure keeps its draft ID and retries using the draft update API', async () => {
@@ -398,7 +401,7 @@ test('published protocol weight intervals are half-open and package-specific',()
   const active={protocol_id:'PRO-1',package_type:'BASIC',min_weight:400,max_weight:500,status:'APPROVED'};
   assert.equal(protocols.protocolOverlap({...active,protocol_id:'PRO-2',min_weight:450,max_weight:550},[active]),true);
   assert.equal(protocols.protocolOverlap({...active,protocol_id:'PRO-2',min_weight:500,max_weight:550},[active]),false);
-  assert.equal(protocols.protocolOverlap({...active,protocol_id:'PRO-2',package_type:'RECOVERY'},[active]),false);
+  assert.equal(protocols.protocolOverlap({...active,protocol_id:'PRO-2',package_type:'PERFORMANCE'},[active]),false);
 });
 
 
@@ -471,7 +474,7 @@ test('stage with an invalid original duration cannot be moved into a valid-looki
 test('completion preserves the recorded recovery timestamp instead of replacing it at save',async()=>{
  const {remote}=actions(state());let captured;
  globalThis.fetch=async(url,init)=>{if(url.endsWith('/complete'))captured=JSON.parse(init.body);return ok({});};
- const result=await remote.completeSession('SES-001',{time:'2.00',speed:'10',heartRate:160,performanceScore:110,notes:'',recoveryMeasuredAt:'2026-10-21T07:32:00'});
+ const result=await remote.completeSession('SES-001',{distance:2,avgSpeed:10,endExerciseHeartRate:160,recoveryHeartRate2Min:110,performanceNotes:'',recoveryMeasuredAt:'2026-10-21T07:32:00',assessment:completionAssessment()});
  assert.equal(result,null);assert.equal(captured.recoveryMeasuredAt,'2026-10-21T07:32:00');
 });
 

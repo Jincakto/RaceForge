@@ -1,6 +1,7 @@
 import { rowProblem, persistedRow, type PreviewContext, type PreviewSession } from './sessionPreview';
 import { selectedStages, scheduleRows, normalizeStages } from './trainingSchedule';
 import { trainingTimestamp } from './trainingTimestamp';
+import { assessmentErrorMessage, completionPayload, fetchSessionAssessment, isDuplicateCompletionError, vetRequestReason, type CompleteSessionInput, type TrainingVetNotificationResponse } from './trainingAssessment';
 import { ApiError, idPath as enc, request } from './api';
 import { staffRoleId, ROLE_NAMES, isoDate, enrollmentFromApi, horsePayload, horseCreateForm, medicalPayload, packageFromApi, planFromApi, recordFromApi, sessionFromApi } from './remote';
 import type { RemoteSlice } from './remote';
@@ -32,10 +33,28 @@ export function makeRemoteActions(env: Env) {
     const body = medicalPayload(rec, profile);
     // Keep the server-created draft ID on the form if confirmation fails; retry updates it.
     const existing = rec.profileId && rec.id ? rec.id : undefined;
+    if (existing) body.postTrainingSessionId = undefined;
     const draft = await request(existing ? `/medical/records/${enc(existing)}/draft` : '/medical/records', existing ? 'PUT' : 'POST', body);
     rec.id = draft.medicalRecordId; rec.profileId = profile;
     const confirmed = rec.status === 'draft' ? draft : await request(`/medical/records/${enc(draft.medicalRecordId)}/confirm`, 'POST', body);
     return recordFromApi(confirmed, rec.horseId, state.users);
+  }
+  async function savePostTrainingRecord(sessionId: string, rec: HealthRecord): Promise<HealthRecord> {
+    let assessment;
+    try { assessment = await fetchSessionAssessment(sessionId); }
+    catch (failure) {
+      if (failure instanceof ApiError && failure.status === 404 && !rec.postTrainingSessionId) return saveRecord(rec);
+      throw failure;
+    }
+    if (rec.horseId !== assessment.horseId) throw new Error('This health check belongs to a different horse.');
+    if (assessment.reviewedMedicalRecordId) throw new Error('This post-training check has already been reviewed.');
+    rec.postTrainingSessionId = sessionId; rec.isPostTraining = true;
+    if (assessment.linkedMedicalRecordId && !rec.profileId) {
+      const linked = await request('/medical/records/' + enc(assessment.linkedMedicalRecordId));
+      if (linked.status === 'DRAFT') { rec.id = linked.medicalRecordId; rec.profileId = linked.profileId; }
+      else if (linked.status !== 'CANCELLED') throw new Error('The linked examination cannot be edited.');
+    }
+    return saveRecord(rec);
   }
   return {
     togglePermission: (role: Role, page: string, enabled: boolean, _reason: string) => fire(`permission-${role}-${page}`, async () => {
@@ -107,8 +126,9 @@ export function makeRemoteActions(env: Env) {
       return request(`/medical/assignments/${enc(id)}/${accepted ? 'accept' : 'decline'}`, 'POST', accepted ? undefined : { reason });
     }),
     saveHealth: (rec: HealthRecord) => run(`medical-${rec.horseId}`, () => saveRecord(rec), ''),
-    async postExam(_sessionId: string, rec: HealthRecord): Promise<string | null> {
-      try { await run(`medical-${rec.horseId}`, () => saveRecord(rec)); return null; } catch (e) { error((e as Error).message); return (e as Error).message; }
+    savePostTrainingHealth: (sessionId: string, rec: HealthRecord) => run(`medical-${rec.horseId}`, () => savePostTrainingRecord(sessionId, rec), ''),
+    async postExam(sessionId: string, rec: HealthRecord): Promise<string | null> {
+      try { await run(`medical-${rec.horseId}`, () => savePostTrainingRecord(sessionId, rec)); return null; } catch (e) { error((e as Error).message); return (e as Error).message; }
     },
     unlock: (id: string, reason: string) => result<null>(`unlock-${id}`, async () => { await request(`/medical/horses/${enc(id)}/training-lock/unlock`, 'POST', { reason }); return null; }),
     createAccount: (u: AppUser) => fire('create-account', async () => {
@@ -233,30 +253,46 @@ export function makeRemoteActions(env: Env) {
       if (data.warningTriggered) error(data.warningMessage); return null;
     }),
     async startSession(id: string): Promise<string | null> {
-      try { await run(`start-${id}`, () => request(`/training-sessions/${enc(id)}/start`, 'PATCH')); return null; } catch (e) { error((e as Error).message); return (e as Error).message; }
+      try { await run(`start-${id}`, () => request(`/training-sessions/${enc(id)}/start`, 'PATCH')); return null; } catch (e) { const message = assessmentErrorMessage(e, 'Unable to start the session. Refresh its status and try again.'); error(message); return message; }
     },
     stopSession: (id: string) => result<null>(`stop-${id}`, async () => { await request(`/training-sessions/${enc(id)}/stop`, 'PATCH', {}); return null; }),
-    async activateRecovery(horseId: string, recoveryPackageId: string): Promise<string | null> {
-      try { await run(`recovery-${horseId}`, () => request(`/horse-packages/horse/${enc(horseId)}/approve-recovery`, 'POST', { recoveryPackageId, reason: "Manager approved recovery based on the veterinary conclusion." })); return null; }
-      catch (e) { error((e as Error).message); return (e as Error).message; }
-    },
-    async completeSession(id: string, result: NonNullable<TrainingSession['result']>): Promise<string | null> {
+    acceptResumption: (id: string) => result<null>(`resume-${id}`, async () => {
+      await request(`/horse-packages/resumptions/${enc(id)}/accept`, 'POST', {}); return null;
+    }),
+    async completeSession(id: string, input: CompleteSessionInput): Promise<string | null> {
       try {
         await run(`complete-${id}`, async () => {
-          const distance = Number(result.time.replace(',', '.'));
-          if (!Number.isFinite(distance) || distance < 0) throw new Error("Actual distance must be a non-negative number of kilometers.");
-          const speed = Number(result.speed);
-          if (!Number.isFinite(speed) || speed < 0 || speed > 100) throw new Error('Speed must be between 0 and 100 km/h.');
-          if ([result.heartRate, result.performanceScore].some(v => !Number.isInteger(v) || v < 20 || v > 250)) throw new Error('Heart rate must be an integer between 20 and 250 bpm.');
-          if (!result.recoveryMeasuredAt) throw new Error('Record the two-minute recovery reading before completing the session.');
-          const recoveryMeasuredAt = result.recoveryMeasuredAt;
-          await request(`/training-sessions/${enc(id)}/complete`, 'PATCH', { distance, avgSpeed: Number(result.speed), endExerciseHeartRate: result.heartRate, recoveryHeartRate2Min: result.performanceScore, recoveryMeasuredAt, performanceNotes: result.notes });
-        }); return null;
-      } catch (e) {
-        const message = e instanceof ApiError && e.status === 409
-          ? `Could not complete session ${id}: ${e.message} The server rejected the save; check the backend log for the specific conflict.`
-          : e instanceof Error ? e.message : 'Unable to complete the session.';
-        return message;
+          const payload = completionPayload(input);
+          try {
+            await request(`/training-sessions/${enc(id)}/complete`, 'PATCH', payload);
+          } catch (failure) {
+            if (!isDuplicateCompletionError(failure)) throw failure;
+            // A lost response or double-click may follow a committed save. Verify persisted data.
+            await fetchSessionAssessment(id);
+          }
+        });
+        return null;
+      } catch (failure) {
+        return assessmentErrorMessage(failure, 'Unable to complete the session. Your entries have been kept. Please try again.');
+      }
+    },
+    async requestVetCheck(id: string, reason: string): Promise<Res<TrainingVetNotificationResponse>> {
+      try {
+        const trimmed = vetRequestReason(reason);
+        const data = await run(`vet-check-${id}`, async () => {
+          const response = await request<TrainingVetNotificationResponse>(
+            `/training-sessions/${enc(id)}/vet-notification`, 'POST', { reason: trimmed });
+          if (!response || response.sessionId !== id || typeof response.startBlocked !== 'boolean' || typeof response.message !== 'string'
+              || !['SENT', 'ALREADY_SENT', 'WAITING_FOR_VET_ASSIGNMENT', 'NOT_REQUESTED'].includes(response.requestStatus)) {
+            throw new Error('Invalid vet notification response');
+          }
+          return response;
+        }, 'Vet check request updated.');
+        return { ok: true, data };
+      } catch (failure) {
+        const message = assessmentErrorMessage(failure, 'Unable to request a vet check. Please try again.');
+        error(message);
+        return { ok: false, message };
       }
     },
   };

@@ -103,7 +103,7 @@ public class HorsePackageService {
         requireApprovedAdmission(horse);
         expirationService.expireForLockedHorse(horse, LocalDate.now());
         if ("RECOVERY".equalsIgnoreCase(registration.getTrainingPackage().getPackageType())) {
-            throw new BusinessRuleException("Recovery registrations use the Recovery payment workflow");
+            throw new BusinessRuleException("Recovery registration is no longer supported");
         }
 
         if (!"PENDING".equals(registration.getStatus()) || !"PENDING".equals(registration.getPaymentStatus())) {

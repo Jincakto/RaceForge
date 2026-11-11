@@ -65,17 +65,17 @@ class TrainingAssessmentRequestTest {
 
     @Test
     void falseAnswerIsPreservedAndNoteIsTrimmedBySharedValidator() {
-        String json = validAssessment().replace("\"GAIT\":true", "\"GAIT\":false")
-                .replace("\"failNotes\":{}", "\"failNotes\":{\"GAIT\":\"  Uneven steps after exercise.  \"}");
+        String json = validAssessment().replace("\"BALANCE\":true", "\"BALANCE\":false")
+                .replace("\"failNotes\":{}", "\"failNotes\":{\"BALANCE\":\"  Uneven steps after exercise.  \"}");
         TrainingAssessmentRequest request = validator.validate(mapper.readValue(json, TrainingAssessmentRequest.class));
-        assertFalse(request.checks().get("GAIT"));
-        assertEquals("Uneven steps after exercise.", request.failNotes().get("GAIT"));
+        assertFalse(request.checks().get("BALANCE"));
+        assertEquals("Uneven steps after exercise.", request.failNotes().get("BALANCE"));
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"null", "\"true\"", "\"false\"", "0", "1", "1.0", "{}", "[]"})
     void neverCoercesNullStringsNumbersOrContainersToBoolean(String answer) {
-        String json = validAssessment().replace("\"ALERTNESS\":true", "\"ALERTNESS\":" + answer);
+        String json = validAssessment().replace("\"TASK_COMPLETION\":true", "\"TASK_COMPLETION\":" + answer);
         assertApi("ASSESSMENT_INCOMPLETE", () -> mapper.readValue(json, TrainingAssessmentRequest.class));
     }
 
@@ -104,7 +104,7 @@ class TrainingAssessmentRequestTest {
     @ParameterizedTest
     @ValueSource(strings = {"null", "[]", "{}", "1", "false"})
     void noteValuesMustBeText(String note) {
-        String json = validAssessment().replace("\"failNotes\":{}", "\"failNotes\":{\"GAIT\":" + note + "}");
+        String json = validAssessment().replace("\"failNotes\":{}", "\"failNotes\":{\"BALANCE\":" + note + "}");
         assertApi("FAIL_NOTE_REQUIRED", () -> mapper.readValue(json, TrainingAssessmentRequest.class));
     }
 
@@ -130,9 +130,11 @@ class TrainingAssessmentRequestTest {
         assertTrue(assessment.failNotes().isEmpty());
     }
     @ParameterizedTest
-    @ValueSource(strings = {"GUM_MOISTURE", "UNKNOWN", "alertness", ""})
-    void rejectsUnknownCriterionIncludingTheObsoleteGumCode(String code) {
-        String json = validAssessment().replace("\"ALERTNESS\":true", "\"" + code + "\":true");
+    @ValueSource(strings = {"ALERTNESS", "COORDINATION", "BREATHING_EFFORT", "GAIT", "LIMB_CONDITION",
+            "MUSCLE_COMFORT", "EXTERNAL_INJURY", "SWEATING", "MUCOUS_MEMBRANES", "NASAL_BLEEDING",
+            "GUM_MOISTURE", "UNKNOWN", "task_completion", ""})
+    void rejectsOldAndUnknownCriterionCodes(String code) {
+        String json = validAssessment().replace("\"TASK_COMPLETION\":true", "\"" + code + "\":true");
         assertApi("INVALID_CRITERION_CODE", () -> mapper.readValue(json, TrainingAssessmentRequest.class));
     }
 
@@ -151,20 +153,20 @@ class TrainingAssessmentRequestTest {
 
     @Test
     void detectsDuplicateCheckBeforeTheMapCanOverwriteIt() {
-        String json = validAssessment().replace("\"ALERTNESS\":true", "\"ALERTNESS\":false,\"ALERTNESS\":true");
+        String json = validAssessment().replace("\"TASK_COMPLETION\":true", "\"TASK_COMPLETION\":false,\"TASK_COMPLETION\":true");
         assertApi("INVALID_CRITERION_CODE", () -> mapper.readValue(json, TrainingAssessmentRequest.class));
     }
 
     @Test
     void detectsEscapedDuplicateCriterionNames() {
-        String json = validAssessment().replace("\"ALERTNESS\":true", "\"ALERTNESS\":true,\"ALERTN\\u0045SS\":true");
+        String json = validAssessment().replace("\"TASK_COMPLETION\":true", "\"TASK_COMPLETION\":true,\"TASK_COMPL\\u0045TION\":true");
         assertApi("INVALID_CRITERION_CODE", () -> mapper.readValue(json, TrainingAssessmentRequest.class));
     }
 
     @Test
     void detectsDuplicateNoteBeforeTheMapCanOverwriteIt() {
         String json = validAssessment().replace("\"failNotes\":{}",
-                "\"failNotes\":{\"GAIT\":\"First\",\"GAIT\":\"Second\"}");
+                "\"failNotes\":{\"BALANCE\":\"First\",\"BALANCE\":\"Second\"}");
         assertApi("INVALID_CRITERION_CODE", () -> mapper.readValue(json, TrainingAssessmentRequest.class));
     }
 
@@ -183,7 +185,7 @@ class TrainingAssessmentRequestTest {
         assertApi("ASSESSMENT_INCOMPLETE", () -> validator.validate(mapper.readValue(
                 "{\"checklistVersion\":\"POST_TRAINING_V1\"}", TrainingAssessmentRequest.class)));
         assertApi("ASSESSMENT_INCOMPLETE", () -> validator.validate(mapper.readValue(
-                validAssessment().replace("\"ALERTNESS\":true,", ""), TrainingAssessmentRequest.class)));
+                validAssessment().replace("\"TASK_COMPLETION\":true,", ""), TrainingAssessmentRequest.class)));
     }
 
     @Test
@@ -196,7 +198,7 @@ class TrainingAssessmentRequestTest {
 
     @Test
     void httpTypeErrorsKeepTheirSpecificApiCodeThroughTheExistingGlobalHandler() throws Exception {
-        String body = "{\"assessment\":" + validAssessment().replace("\"GAIT\":true", "\"GAIT\":\"true\"") + "}";
+        String body = "{\"assessment\":" + validAssessment().replace("\"BALANCE\":true", "\"BALANCE\":\"true\"") + "}";
         mvc.perform(post("/assessment-parser/complete").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.data.code").value("ASSESSMENT_INCOMPLETE"));
     }

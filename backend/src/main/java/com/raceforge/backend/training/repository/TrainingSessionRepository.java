@@ -16,6 +16,10 @@ public interface TrainingSessionRepository extends JpaRepository<TrainingSession
   @Query("select s from TrainingSession s where s.sessionId = :id")
   Optional<TrainingSession> findByIdForUpdate(@Param("id") String id);
 
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select s from TrainingSession s join s.plan p where p.horsePackageId = :packageId order by s.sessionId")
+  List<TrainingSession> findForPackageForUpdate(@Param("packageId") String packageId);
+
   List<TrainingSession> findByHorse_HorseIdOrderByScheduledStartAsc(String horseId);
 
   List<TrainingSession> findByHorse_HorseIdAndStatusOrderByActualEndAsc(String horseId, String status);

@@ -38,10 +38,10 @@ export function fixtureAssessment(failed: readonly AssessmentCriterionCode[] = [
 
 export function scenarioAssessment(scenario: Scenario): TrainingAssessmentResponse {
   if (scenario === 'urgent') return fixtureAssessment([
-    'ALERTNESS', 'MUSCLE_COMFORT', 'EXTERNAL_INJURY', 'SWEATING', 'MUCOUS_MEMBRANES', 'GAIT', 'LIMB_CONDITION',
+    'TASK_COMPLETION', 'FOCUS', 'STAMINA', 'SPEED_TRANSITION', 'COOPERATION', 'BALANCE', 'COMMAND_RESPONSE',
   ]);
   if (scenario === 'recommended' || scenario === 'errors' || scenario === 'waiting') {
-    const assessment = fixtureAssessment(['ALERTNESS', 'MUSCLE_COMFORT', 'EXTERNAL_INJURY', 'SWEATING', 'MUCOUS_MEMBRANES']);
+    const assessment = fixtureAssessment(['TASK_COMPLETION', 'FOCUS', 'STAMINA', 'SPEED_TRANSITION', 'COOPERATION']);
     if (scenario === 'waiting') assessment.notificationStatus = 'WAITING_FOR_VET_ASSIGNMENT';
     return assessment;
   }

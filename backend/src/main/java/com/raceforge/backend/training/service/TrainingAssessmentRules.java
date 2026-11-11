@@ -14,12 +14,12 @@ import java.util.Set;
 @Component
 public class TrainingAssessmentRules {
     private static final Set<TrainingAssessmentCriterion> URGENT_CRITERIA = EnumSet.of(
-            TrainingAssessmentCriterion.COORDINATION,
-            TrainingAssessmentCriterion.BREATHING_EFFORT);
+            TrainingAssessmentCriterion.SPEED_CONTROL,
+            TrainingAssessmentCriterion.MOVEMENT_STABILITY);
     private static final Set<TrainingAssessmentCriterion> REVIEW_CRITERIA = EnumSet.of(
-            TrainingAssessmentCriterion.GAIT,
-            TrainingAssessmentCriterion.LIMB_CONDITION,
-            TrainingAssessmentCriterion.NASAL_BLEEDING);
+            TrainingAssessmentCriterion.BALANCE,
+            TrainingAssessmentCriterion.COMMAND_RESPONSE,
+            TrainingAssessmentCriterion.PERFORMANCE_CONSISTENCY);
 
     private final TrainingAssessmentValidator validator;
 

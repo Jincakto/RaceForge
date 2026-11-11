@@ -20,7 +20,12 @@ test('all application labels, templates, validation messages and defaults are En
       if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node) || ts.isJsxText(node)) {
         // Legacy Vietnamese gender aliases are accepted as INPUT keys, never UI labels.
         const isLegacyInputKey = ts.isPropertyAssignment(node.parent) && node.parent.name === node && compatibilityGenderKeys.has(node.text);
-        if (!isLegacyInputKey && vietnamese.test(node.text)) failures.push(`${name}:${ast.getLineAndCharacterOfPosition(node.getStart(ast)).line + 1}: ${node.text.trim()}`);
+        const isImportHeaderAlias = name === 'raceImport.ts' && ts.isStringLiteral(node)
+          && ts.isArrayLiteralExpression(node.parent) && ts.isPropertyAssignment(node.parent.parent)
+          && ts.isObjectLiteralExpression(node.parent.parent.parent)
+          && ts.isVariableDeclaration(node.parent.parent.parent.parent)
+          && node.parent.parent.parent.parent.name.getText(ast) === 'ALIASES';
+        if (!isLegacyInputKey && !isImportHeaderAlias && vietnamese.test(node.text)) failures.push(`${name}:${ast.getLineAndCharacterOfPosition(node.getStart(ast)).line + 1}: ${node.text.trim()}`);
         if (/^(Cao|TB-Cao|CN|T[1-9]|T1[0-2]|cho|theo|trong|xong)$/.test(node.text)) failures.push(`${name}: untranslated word ${node.text}`);
       }
       ts.forEachChild(node, visit);
@@ -53,8 +58,8 @@ const { TrainingProtocolsPage } = await import(pathToFileURL(path.join(dir, 'tra
 test('trainer profile and veterinary protocol screens render native English controls', () => {
   const trainer = renderToStaticMarkup(createElement(TrainerProfileForm, { user: { id: 'HTR-001', name: 'Nguyễn Văn An' } }));
   assert.match(trainer, /Trainer professional profile/);
-  assert.match(trainer, /Trainer profile ID/);
-  assert.match(trainer, /Load profile/);
+  assert.match(trainer, /Loading your professional profile/);
+  assert.doesNotMatch(trainer, /Load profile|Trainer profile ID|Create professional profile/);
   const protocols = renderToStaticMarkup(createElement(TrainingProtocolsPage));
   assert.match(protocols, /Training protocols/);
   assert.match(protocols, /Create protocol/);

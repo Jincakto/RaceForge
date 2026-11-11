@@ -20,8 +20,8 @@ class TrainingAssessmentRulesTest {
 
     // Non-priority concerns first isolate score boundaries from urgent overrides.
     private static final List<String> FAILURE_ORDER = List.of(
-            "ALERTNESS", "MUSCLE_COMFORT", "EXTERNAL_INJURY", "SWEATING", "MUCOUS_MEMBRANES",
-            "GAIT", "LIMB_CONDITION", "NASAL_BLEEDING", "COORDINATION", "BREATHING_EFFORT");
+            "TASK_COMPLETION", "FOCUS", "STAMINA", "SPEED_TRANSITION", "COOPERATION",
+            "BALANCE", "COMMAND_RESPONSE", "PERFORMANCE_CONSISTENCY", "SPEED_CONTROL", "MOVEMENT_STABILITY");
 
     @ParameterizedTest
     @CsvSource({
@@ -46,11 +46,11 @@ class TrainingAssessmentRulesTest {
 
     @ParameterizedTest
     @CsvSource({
-            "COORDINATION,URGENT_VET_REVIEW",
-            "BREATHING_EFFORT,URGENT_VET_REVIEW",
-            "GAIT,VET_REVIEW_REQUIRED",
-            "LIMB_CONDITION,VET_REVIEW_REQUIRED",
-            "NASAL_BLEEDING,VET_REVIEW_REQUIRED"
+            "SPEED_CONTROL,URGENT_VET_REVIEW",
+            "MOVEMENT_STABILITY,URGENT_VET_REVIEW",
+            "BALANCE,VET_REVIEW_REQUIRED",
+            "COMMAND_RESPONSE,VET_REVIEW_REQUIRED",
+            "PERFORMANCE_CONSISTENCY,VET_REVIEW_REQUIRED"
     })
     void t12ToT16SinglePriorityConcernOverridesNinePasses(String failedCode,
                                                          TrainingAssessmentAlertLevel expected) {
@@ -63,28 +63,28 @@ class TrainingAssessmentRulesTest {
 
     @Test
     void t17UrgentWinsOverReviewAndTriggersKeepTemplateOrder() {
-        TrainingAssessmentRules.Evaluation result = rules.evaluate(request("NASAL_BLEEDING", "GAIT", "COORDINATION"));
+        TrainingAssessmentRules.Evaluation result = rules.evaluate(request("PERFORMANCE_CONSISTENCY", "BALANCE", "SPEED_CONTROL"));
         assertEquals(7, result.passedCount());
         assertEquals(TrainingAssessmentAlertLevel.URGENT_VET_REVIEW, result.alertLevel());
-        assertEquals(List.of("COORDINATION", "GAIT", "NASAL_BLEEDING"), result.triggerCodes());
+        assertEquals(List.of("SPEED_CONTROL", "BALANCE", "PERFORMANCE_CONSISTENCY"), result.triggerCodes());
     }
 
     @Test
     void scoreUrgentIsNeverDowngradedByReviewCriterion() {
-        TrainingAssessmentRules.Evaluation result = rules.evaluate(request("ALERTNESS", "MUSCLE_COMFORT",
-                "EXTERNAL_INJURY", "SWEATING", "MUCOUS_MEMBRANES", "GAIT", "LIMB_CONDITION"));
+        TrainingAssessmentRules.Evaluation result = rules.evaluate(request("TASK_COMPLETION", "FOCUS",
+                "STAMINA", "SPEED_TRANSITION", "COOPERATION", "BALANCE", "COMMAND_RESPONSE"));
         assertEquals(3, result.passedCount());
         assertEquals(TrainingAssessmentAlertLevel.URGENT_VET_REVIEW, result.alertLevel());
-        assertEquals(List.of("SCORE_URGENT", "GAIT", "LIMB_CONDITION"), result.triggerCodes());
+        assertEquals(List.of("SCORE_URGENT", "BALANCE", "COMMAND_RESPONSE"), result.triggerCodes());
     }
 
     @Test
     void scoreReviewCanBeUpgradedByUrgentCriterion() {
-        TrainingAssessmentRules.Evaluation result = rules.evaluate(request("ALERTNESS", "MUSCLE_COMFORT",
-                "EXTERNAL_INJURY", "COORDINATION"));
+        TrainingAssessmentRules.Evaluation result = rules.evaluate(request("TASK_COMPLETION", "FOCUS",
+                "STAMINA", "SPEED_CONTROL"));
         assertEquals(6, result.passedCount());
         assertEquals(TrainingAssessmentAlertLevel.URGENT_VET_REVIEW, result.alertLevel());
-        assertEquals(List.of("SCORE_REVIEW", "COORDINATION"), result.triggerCodes());
+        assertEquals(List.of("SCORE_REVIEW", "SPEED_CONTROL"), result.triggerCodes());
     }
 
     @Test
@@ -92,25 +92,25 @@ class TrainingAssessmentRulesTest {
         TrainingAssessmentRules.Evaluation result = rules.evaluate(request());
         assertEquals(TrainingAssessmentAlertLevel.NO_ALERT_DETECTED, result.alertLevel());
         assertTrue(result.triggerCodes().isEmpty());
-        assertThrows(UnsupportedOperationException.class, () -> result.triggerCodes().add("GAIT"));
+        assertThrows(UnsupportedOperationException.class, () -> result.triggerCodes().add("BALANCE"));
     }
 
     @Test
     void evaluatorRejectsIncompleteInputRatherThanCountingIt() {
         TrainingAssessmentRequest request = request();
-        request.checks().remove("ALERTNESS");
+        request.checks().remove("TASK_COMPLETION");
         ApiException error = assertThrows(ApiException.class, () -> rules.evaluate(request));
         assertEquals("ASSESSMENT_INCOMPLETE", error.getCode());
     }
 
     @Test
     void evaluatorAcceptsConcernWithoutIndividualNotesAndStillAppliesOverride() {
-        TrainingAssessmentRequest request = request("GAIT");
+        TrainingAssessmentRequest request = request("BALANCE");
         request.failNotes().clear();
         TrainingAssessmentRules.Evaluation result = rules.evaluate(request);
         assertEquals(9, result.passedCount());
         assertEquals(TrainingAssessmentAlertLevel.VET_REVIEW_REQUIRED, result.alertLevel());
-        assertEquals(List.of("GAIT"), result.triggerCodes());
+        assertEquals(List.of("BALANCE"), result.triggerCodes());
     }
 
     @Test
@@ -125,11 +125,11 @@ class TrainingAssessmentRulesTest {
     }
     @Test
     void rulesDoNotMutateSubmittedObservations() {
-        TrainingAssessmentRequest request = request("GAIT");
-        request.failNotes().put("GAIT", "  Uneven movement observed.  ");
+        TrainingAssessmentRequest request = request("BALANCE");
+        request.failNotes().put("BALANCE", "  Uneven movement observed.  ");
         rules.evaluate(request);
-        assertEquals("  Uneven movement observed.  ", request.failNotes().get("GAIT"));
-        assertEquals(false, request.checks().get("GAIT"));
+        assertEquals("  Uneven movement observed.  ", request.failNotes().get("BALANCE"));
+        assertEquals(false, request.checks().get("BALANCE"));
     }
 
     private TrainingAssessmentRequest request(String... failedCodes) {

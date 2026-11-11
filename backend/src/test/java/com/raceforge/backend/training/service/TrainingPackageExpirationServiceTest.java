@@ -5,12 +5,10 @@ import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.repository.HorseRepository;
 import com.raceforge.backend.training.entity.HorsePackage;
 import com.raceforge.backend.training.entity.TrainingPackage;
-import com.raceforge.backend.training.entity.TrainingCertificate;
 import com.raceforge.backend.training.repository.HorsePackageRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -59,15 +57,10 @@ class TrainingPackageExpirationServiceTest {
     @Test
     void normalPackageExpiresAfterInclusiveEndDate() {
         assertEquals(1, service.expireForLockedHorse(horse, today));
-        assertEquals("COMPLETED", normal.getStatus());
+        assertEquals("EXPIRED", normal.getStatus());
         assertEquals(0, normal.getRemainingDays());
         verify(registrations).save(normal);
-        var certificate = ArgumentCaptor.forClass(TrainingCertificate.class);
-        verify(em).persist(certificate.capture());
-        horse.setHorseName("New name");
-        assertEquals("Ngựa Ánh Dương", certificate.getValue().getHorseNameAtIssue());
-        assertEquals("RF-HPG-010", certificate.getValue().getCertificateNumber());
-        assertEquals(today, certificate.getValue().getIssueDate());
+        verify(em, never()).persist(any());
         verify(events).notifyOwner(eq("7"), eq("HOR-001"),
                 eq("TRAINING_PACKAGE_EXPIRED"), anyString());
         verify(events, never()).notifyManagers(anyString(), anyString(), anyString());
@@ -102,7 +95,7 @@ class TrainingPackageExpirationServiceTest {
     void expiryDoesNotClearMedicalLock() {
         horse.setTrainingLocked(true);
         assertEquals(1, service.expireForLockedHorse(horse, today));
-        assertEquals("COMPLETED", normal.getStatus());
+        assertEquals("EXPIRED", normal.getStatus());
         assertTrue(horse.getTrainingLocked());
         verify(events).notifyOwner(eq("7"), eq("HOR-001"), eq("TRAINING_PACKAGE_EXPIRED"), anyString());
         verify(events, never()).notifyManagers(anyString(), anyString(), anyString());
@@ -113,7 +106,7 @@ class TrainingPackageExpirationServiceTest {
         assertTrue(service.expireRegistration("HPG-010", today));
         assertFalse(service.expireRegistration("HPG-010", today));
         verify(registrations, times(1)).save(normal);
-        verify(em, times(1)).persist(any(TrainingCertificate.class));
+        verify(em, never()).persist(any());
         verify(events, times(1)).notifyOwner(eq("7"), eq("HOR-001"), anyString(), anyString());
     }
 

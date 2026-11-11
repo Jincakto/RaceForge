@@ -166,7 +166,7 @@ class TrainingSessionAssessmentCompletionTest {
     void incompleteAssessmentFailsBeforeSessionIsMutatedOrSaved() {
         CompleteSessionRequest request = validRequest();
         Map<String, Boolean> checks = new LinkedHashMap<>(validAssessment().checks());
-        checks.remove("GAIT");
+        checks.remove("BALANCE");
         request.setAssessment(new TrainingAssessmentRequest("POST_TRAINING_V1", checks, Map.of()));
 
         ApiException error = assertThrows(ApiException.class,
@@ -182,7 +182,7 @@ class TrainingSessionAssessmentCompletionTest {
     void concernWithoutIndividualNoteCanCompleteAndKeepMeasurements() {
         CompleteSessionRequest request = validRequest();
         Map<String, Boolean> checks = new LinkedHashMap<>(validAssessment().checks());
-        checks.put("GAIT", false);
+        checks.put("BALANCE", false);
         request.setAssessment(new TrainingAssessmentRequest("POST_TRAINING_V1", checks, Map.of()));
 
         assertSame(response, service.completeSession(SESSION_ID, request, ACTOR_ID));

@@ -103,6 +103,6 @@ test('failed Start and completion return errors and never announce success',asyn
  const {actions,messages}=env(session);
  globalThis.fetch=async()=>new Response(JSON.stringify({success:false,message:'PENDING_POST_TRAINING_REVIEW backend diagnostic',data:{code:'PENDING_POST_TRAINING_REVIEW'}}),{status:409,headers:{'Content-Type':'application/json'}});
  assert.match(await actions.startSession('SES-2'),/vet check is pending/);
- const failure=await actions.completeSession('SES-1',{distance:1,avgSpeed:10,endExerciseHeartRate:90,recoveryHeartRate2Min:60,recoveryMeasuredAt:'2026-11-04T08:00:00',performanceNotes:'Keep form',assessment:{checklistVersion:'POST_TRAINING_V1',checks:Object.fromEntries(['ALERTNESS','COORDINATION','BREATHING_EFFORT','GAIT','LIMB_CONDITION','MUSCLE_COMFORT','EXTERNAL_INJURY','SWEATING','MUCOUS_MEMBRANES','NASAL_BLEEDING'].map(code=>[code,true]))}});
+ const failure=await actions.completeSession('SES-1',{distance:1,avgSpeed:10,endExerciseHeartRate:90,recoveryHeartRate2Min:60,recoveryMeasuredAt:'2026-11-04T08:00:00',performanceNotes:'Keep form',assessment:{checklistVersion:'POST_TRAINING_V1',checks:Object.fromEntries(['TASK_COMPLETION','SPEED_CONTROL','MOVEMENT_STABILITY','BALANCE','COMMAND_RESPONSE','FOCUS','STAMINA','SPEED_TRANSITION','COOPERATION','PERFORMANCE_CONSISTENCY'].map(code=>[code,true]))}});
  assert.match(failure,/vet check is pending/);assert.doesNotMatch(failure,/PENDING_POST_TRAINING_REVIEW|backend diagnostic/);assert.equal(messages.length,0);
 });

@@ -19,7 +19,7 @@ const api = await import(pathToFileURL(path.join(dir, 'api.mjs')).href);
 const mapping = await import(pathToFileURL(path.join(dir, 'remote.mjs')).href);
 const { makeRemoteActions } = await import(pathToFileURL(path.join(dir, 'remoteActions.mjs')).href);
 const protocols = await import(pathToFileURL(path.join(dir, 'trainingProtocols.mjs')).href);
-const { loadOwnTrainerProfile, saveOwnTrainerProfile } = await import(pathToFileURL(path.join(dir, 'trainerProfile.mjs')).href);
+const { loadOwnTrainerProfile, createOwnTrainerProfile, saveOwnTrainerProfile } = await import(pathToFileURL(path.join(dir, 'trainerProfile.mjs')).href);
 const { purchaseBlockReason } = await import(pathToFileURL(path.join(dir, 'trainingLogic.mjs')).href);
 const { apiProxyOrigin } = await import(pathToFileURL(path.join(dir, 'proxyOrigin.mjs')).href);
 const originalFetch = globalThis.fetch;
@@ -60,14 +60,17 @@ test('owner treats a missing health profile as no examination records, while pre
     assert.equal(data.horses.length, 1);
     assert.deepEqual(data.healthRecords, []);
     assert.equal(warnings.length, expectedWarnings, `${status}: ${message}`);
-    if (expectedWarnings) assert.match(warnings[0], /Examination records HOR-002/);
+    if (expectedWarnings) {
+      assert.match(warnings[0], /Some data could not be refreshed/);
+      assert.ok(data.trainingLoadIssues.some(issue => issue.key === 'Examination records HOR-002' && issue.status === status));
+    }
   }
 });
 test('admin login loads administration data without calling business APIs', async () => {
   const urls = [];
   globalThis.fetch = async url => {
     urls.push(url);
-    if (url.startsWith('/api/users')) return ok([]);
+    if (url.startsWith('/api/users') || url === '/api/trainer-profiles') return ok([]);
     if (url.startsWith('/api/admin/permissions/')) return ok([]);
     return denied();
   };
@@ -76,7 +79,7 @@ test('admin login loads administration data without calling business APIs', asyn
   assert.deepEqual(warnings, []);
   assert.ok(urls.some(url => url.startsWith('/api/users')));
   assert.equal(Object.keys(data.serverPermissions).length, 6);
-  assert.ok(urls.every(url => url.startsWith('/api/users') || url.startsWith('/api/admin/permissions/')));
+  assert.ok(urls.every(url => url.startsWith('/api/users') || url === '/api/trainer-profiles' || url.startsWith('/api/admin/permissions/')));
 });
 function actions(snapshot) {
   const events = [];
@@ -277,7 +280,7 @@ test('admin staff creation maps groom to database role 5, and refuses public-own
 });
 
 const completionAssessment = () => ({checklistVersion:'POST_TRAINING_V1',checks:Object.fromEntries([
- 'ALERTNESS','COORDINATION','BREATHING_EFFORT','GAIT','LIMB_CONDITION','MUSCLE_COMFORT','EXTERNAL_INJURY','SWEATING','MUCOUS_MEMBRANES','NASAL_BLEEDING'
+ 'TASK_COMPLETION','SPEED_CONTROL','MOVEMENT_STABILITY','BALANCE','COMMAND_RESPONSE','FOCUS','STAMINA','SPEED_TRANSITION','COOPERATION','PERFORMANCE_CONSISTENCY'
 ].map(code=>[code,true]))});
 test('completion sends actual exercise/recovery fields and does not invent a max speed', async () => {
   const snapshot = state(); const { remote } = actions(snapshot); let payload;
@@ -348,13 +351,16 @@ test('failed activation never reloads or reports success', async () => {
   assert.ok(!events.includes('reload')); assert.ok(events.every(e=>e.startsWith('error:')));
 });
 
-test('only admin can create a profile for an activated Trainer', async () => {
-  const target=user('head_trainer'); const snapshot={...state(),user:user('admin'),users:[target]}; const {remote,events}=actions(snapshot); let calls=0;
-  globalThis.fetch=async(url,init)=>{calls++; assert.equal(url,'/api/trainer-profiles'); assert.deepEqual(JSON.parse(init.body),{userId:target.id,bio:'',qualifications:''}); return ok({trainer_id:'HTR-099'});};
-  await remote.createTrainerProfile(target.id); assert.equal(calls,1); assert.ok(events.includes('reload'));
-  snapshot.user=user('manager'); await assert.rejects(remote.createTrainerProfile(target.id),/admin/); assert.equal(calls,1);
-  snapshot.user=user('admin'); target.status='invited'; await assert.rejects(remote.createTrainerProfile(target.id),/activate/); assert.equal(calls,1);
+test('activated trainer creates their own profile without supplying another account ID', async () => {
+  let calls=0;
+  globalThis.fetch=async(url,init)=>{calls++; assert.equal(url,'/api/trainer-profiles'); assert.equal(init.method,'POST'); assert.deepEqual(JSON.parse(init.body),{bio:'Experience',qualifications:'Certificate'}); return ok({trainer_id:'HTR-099',user_id:'HTR-001'});};
+  const profile=await createOwnTrainerProfile(' Experience ',' Certificate ');
+  assert.equal(profile.user_id,'HTR-001'); assert.equal(calls,1);
+  await assert.rejects(createOwnTrainerProfile('x'.repeat(1001),''),/1000/); assert.equal(calls,1);
+  globalThis.fetch=async()=>denied();
+  await assert.rejects(createOwnTrainerProfile('Experience','Certificate'),e=>e.status===403);
 });
+
 test('trainer assignment uses profile ID, not account ID', async () => {
   const target={...user('head_trainer'),trainerProfileId:'HTR-099'};
   const snapshot={...state(),user:user('manager'),users:[target],enrollments:[{id:'HPG-001',horseId:'HOR-007',apiStatus:'ACTIVE',paymentStatus:'PAID'}]}; const {remote}=actions(snapshot);
@@ -366,21 +372,20 @@ test('trainer loads and updates only the profile tied to their own account', asy
   const profile={trainer_id:'HTR-099',user_id:'HTR-001',bio:'Old',qualifications:'Certificate'};
   const calls=[];
   globalThis.fetch=async(url,init)=>{calls.push({url,init}); return ok(profile);};
-  const loaded=await loadOwnTrainerProfile(' HTR-099 ','HTR-001');
+  const loaded=await loadOwnTrainerProfile();
   await saveOwnTrainerProfile(loaded,'HTR-001',' New bio ',' New certificate ');
-  assert.equal(calls[0].url,'/api/trainer-profiles/HTR-099');
+  assert.equal(calls[0].url,'/api/trainer-profiles/me');
+  assert.equal(calls[1].url,'/api/trainer-profiles/HTR-099');
   assert.equal(calls[1].init.method,'PUT');
   assert.deepEqual(JSON.parse(calls[1].init.body),{bio:'New bio',qualifications:'New certificate'});
-  await assert.rejects(loadOwnTrainerProfile('HTR-099','other-user'),/does not belong/);
   const count=calls.length;
   await assert.rejects(saveOwnTrainerProfile(profile,'other-user','bio','cert'),/your own/);
   await assert.rejects(saveOwnTrainerProfile(profile,'HTR-001','x'.repeat(1001),''),/1000/);
-  await assert.rejects(loadOwnTrainerProfile('','HTR-001'),/profile ID/);
   assert.equal(calls.length,count);
 });
 test('trainer profile reports missing records and server errors without pretending to save', async () => {
   globalThis.fetch=async()=>denied(404);
-  await assert.rejects(loadOwnTrainerProfile('missing','HTR-001'),e=>e.status===404);
+  await assert.rejects(loadOwnTrainerProfile(),e=>e.status===404);
   globalThis.fetch=async()=>denied();
   await assert.rejects(saveOwnTrainerProfile({trainer_id:'HTR-099',user_id:'HTR-001'},'HTR-001','bio','cert'),e=>e.status===403);
 });
@@ -440,6 +445,7 @@ function scheduleFixture(key) {
   const suggestion={recommendationId:'REC-001',stages:[
     {startDay:1,endDay:15,activityName:'Foundation',intensity:'LOW',daysOfWeek:['MONDAY'],sessionTime:'07:00:00',sessionEndTime:'07:30:00'},
     {startDay:16,endDay:30,activityName:'Review',intensity:'LOW',daysOfWeek:['FRIDAY'],sessionTime:'08:00:00',sessionEndTime:'08:45:00'}]};
+  draft.suggestion=suggestion;
   return {enrollment,draft,suggestion,remote:actions({...state(),user:trainer,enrollments:[enrollment]}).remote};
 }
 
@@ -453,7 +459,8 @@ test('trainer-selected days and start time are sent with each stage duration pre
   assert.deepEqual(posted.stages.map(s=>s.daysOfWeek),[['TUESDAY','THURSDAY'],['TUESDAY','THURSDAY']]);
   assert.deepEqual(posted.stages.map(s=>[s.sessionTime,s.sessionEndTime]),[['09:15:00','09:45:00'],['09:15:00','10:00:00']]);
   assert.equal(suggestion.stages[0].sessionTime,'07:00:00');
-  assert.equal(posted.recommendationConfirmed,true);
+  assert.ok(!('recommendationConfirmed' in posted));
+  assert.ok(!('recommendationId' in posted));
 });
 
 test('invalid weekdays, invalid times, overnight stages and changed package dates block plan writes', async()=>{

@@ -49,19 +49,26 @@ function actions() {
 }
 
 test('checklist has exactly the ten official codes with English labels', () => {
+  assert.deepEqual(a.ASSESSMENT_CRITERIA.map(({ code, label }) => [code, label]), [
+    ['TASK_COMPLETION', 'Task Completion'], ['SPEED_CONTROL', 'Speed Control'],
+    ['MOVEMENT_STABILITY', 'Movement Stability'], ['BALANCE', 'Balance'],
+    ['COMMAND_RESPONSE', 'Command Response'], ['FOCUS', 'Focus'], ['STAMINA', 'Stamina'],
+    ['SPEED_TRANSITION', 'Speed Transition'], ['COOPERATION', 'Cooperation'],
+    ['PERFORMANCE_CONSISTENCY', 'Performance Consistency'],
+  ]);
   assert.equal(a.ASSESSMENT_CRITERIA.length, 10);
   assert.equal(new Set(a.ASSESSMENT_CRITERIA.map(item => item.code)).size, 10);
-  assert.ok(a.ASSESSMENT_CRITERIA.some(item => item.code === 'MUCOUS_MEMBRANES'));
+  assert.ok(a.ASSESSMENT_CRITERIA.some(item => item.code === 'COOPERATION'));
   assert.ok(!a.ASSESSMENT_CRITERIA.some(item => item.code === 'GUM_MOISTURE'));
 });
 test('unanswered, missing, null, coerced and unknown answers never produce a preview', () => {
   assert.equal(a.assessmentPreview({}), null);
-  const missing = answers(); delete missing.ALERTNESS;
-  for (const value of [missing, { ...answers(), ALERTNESS: null }, { ...answers(), ALERTNESS: 'true' },
-    { ...answers(), ALERTNESS: 1 }, { ...answers(), UNKNOWN: true }]) assert.equal(a.assessmentPreview(value), null);
+  const missing = answers(); delete missing.TASK_COMPLETION;
+  for (const value of [missing, { ...answers(), TASK_COMPLETION: null }, { ...answers(), TASK_COMPLETION: 'true' },
+    { ...answers(), TASK_COMPLETION: 1 }, { ...answers(), UNKNOWN: true }]) assert.equal(a.assessmentPreview(value), null);
 });
 test('base score boundaries use the exact backend demo bands', () => {
-  const neutral = ['ALERTNESS', 'MUSCLE_COMFORT', 'EXTERNAL_INJURY', 'SWEATING', 'MUCOUS_MEMBRANES', 'GAIT', 'LIMB_CONDITION', 'NASAL_BLEEDING'];
+  const neutral = ['TASK_COMPLETION', 'FOCUS', 'STAMINA', 'SPEED_TRANSITION', 'COOPERATION', 'BALANCE', 'COMMAND_RESPONSE', 'PERFORMANCE_CONSISTENCY'];
   for (const [passed, concerns, level] of [
     [10, [], 'NO_ALERT_DETECTED'], [7, neutral.slice(0, 3), 'NO_ALERT_DETECTED'],
     [6, neutral.slice(0, 4), 'VET_REVIEW_REQUIRED'], [4, neutral.slice(0, 6), 'VET_REVIEW_REQUIRED'],
@@ -71,17 +78,17 @@ test('base score boundaries use the exact backend demo bands', () => {
     assert.equal(preview.passedCount, passed); assert.equal(preview.failedCount, 10 - passed); assert.equal(preview.alertLevel, level);
   }
 });
-for (const code of ['COORDINATION', 'BREATHING_EFFORT']) test(code + ' concern overrides nine passes to urgent', () => {
+for (const code of ['SPEED_CONTROL', 'MOVEMENT_STABILITY']) test(code + ' concern overrides nine passes to urgent', () => {
   assert.equal(a.assessmentPreview(answers(code)).alertLevel, 'URGENT_VET_REVIEW');
   assert.deepEqual(a.assessmentPreview(answers(code)).triggerCodes, [code]);
 });
-for (const code of ['GAIT', 'LIMB_CONDITION', 'NASAL_BLEEDING']) test(code + ' concern overrides nine passes to recommended', () => {
+for (const code of ['BALANCE', 'COMMAND_RESPONSE', 'PERFORMANCE_CONSISTENCY']) test(code + ' concern overrides nine passes to recommended', () => {
   assert.equal(a.assessmentPreview(answers(code)).alertLevel, 'VET_REVIEW_REQUIRED');
 });
 test('combined urgent and recommended overrides retain urgent priority in template order', () => {
-  const preview = a.assessmentPreview(answers('COORDINATION', 'GAIT', 'NASAL_BLEEDING'));
+  const preview = a.assessmentPreview(answers('SPEED_CONTROL', 'BALANCE', 'PERFORMANCE_CONSISTENCY'));
   assert.equal(preview.alertLevel, 'URGENT_VET_REVIEW');
-  assert.deepEqual(preview.triggerCodes, ['COORDINATION', 'GAIT', 'NASAL_BLEEDING']);
+  assert.deepEqual(preview.triggerCodes, ['SPEED_CONTROL', 'BALANCE', 'PERFORMANCE_CONSISTENCY']);
 });
 test('all concerns can be submitted without any per-criterion notes', () => {
   const payload = a.completionPayload(input({ assessment: a.toAssessmentRequest(answers(...a.ASSESSMENT_CRITERIA.map(item => item.code))) }));
@@ -106,11 +113,11 @@ test('completion uses explicit backend measurement fields without inventing a ma
 });
 test('completion never forwards client-owned score, review or recipient fields', () => {
   const malicious = input({ passedCount: 10, reviewStatus: 'RESOLVED', recipientId: 'VET-OTHER',
-    assessment: { ...a.toAssessmentRequest(answers('GAIT')), severity: 'NO_ALERT_DETECTED', passedCount: 10,
-      canStart: true, failNotes: { GAIT: 'Legacy ignored observation' } } });
+    assessment: { ...a.toAssessmentRequest(answers('BALANCE')), severity: 'NO_ALERT_DETECTED', passedCount: 10,
+      canStart: true, failNotes: { BALANCE: 'Legacy ignored observation' } } });
   const payload = a.completionPayload(malicious);
   assert.deepEqual(Object.keys(payload.assessment).sort(), ['checklistVersion', 'checks']);
-  assert.equal(payload.assessment.checks.GAIT, false);
+  assert.equal(payload.assessment.checks.BALANCE, false);
   for (const key of ['passedCount', 'reviewStatus', 'recipientId']) assert.ok(!(key in payload));
 });
 test('invalid measurement values and missing assessment are rejected before HTTP', () => {
@@ -188,7 +195,7 @@ test('complete action sends the new assessment DTO and only reloads after succes
     payload = JSON.parse(init.body); return ok({ sessionId: 'SES-001', status: 'COMPLETED' });
   };
   assert.equal(await env.remote.completeSession('SES-001', input({ performanceNotes: '  Calm recovery.  ' })), null);
-  assert.equal(payload.performanceNotes, 'Calm recovery.'); assert.equal(payload.assessment.checks.ALERTNESS, true);
+  assert.equal(payload.performanceNotes, 'Calm recovery.'); assert.equal(payload.assessment.checks.TASK_COMPLETION, true);
   assert.equal(env.reloads(), 1); assert.equal(env.successes.length, 1);
 });
 for (const code of ['SESSION_ALREADY_COMPLETED', 'ASSESSMENT_ALREADY_EXISTS']) test(code + ' recovers only after checking persisted assessment', async () => {
@@ -221,7 +228,7 @@ test('other completion conflicts do not refetch assessment or expose diagnostics
 });
 test('missing answers or overlong overall notes never trigger an HTTP write', async () => {
   const env = actions(); let calls = 0; globalThis.fetch = async () => { calls++; return ok({}); };
-  const missing = input(); delete missing.assessment.checks.ALERTNESS;
+  const missing = input(); delete missing.assessment.checks.TASK_COMPLETION;
   assert.match(await env.remote.completeSession('SES-001', missing), /all 10/);
   assert.match(await env.remote.completeSession('SES-001', input({ performanceNotes: 'x'.repeat(1001) })), /1,000/);
   assert.equal(calls, 0); assert.equal(env.reloads(), 0);
@@ -332,4 +339,23 @@ test('cancelled linked draft permits a new linked examination instead of editing
  let created;const paths=[];const remote=makeRemoteActions({getState:()=>({users:[]}),reload:async()=>{},success:()=>{},error:()=>{},navigate:()=>{}});
  globalThis.fetch=async(url,options)=>{paths.push(url);if(url.endsWith('/assessment'))return ok(saved('SES-001',{linkedMedicalRecordId:'MED-OLD'}));if(url==='/api/medical/records/MED-OLD')return ok({medicalRecordId:'MED-OLD',status:'CANCELLED'});if(url.endsWith('/health-profile'))return ok('HLT-001');if(url==='/api/medical/records')created=JSON.parse(options.body);return ok({medicalRecordId:'MED-NEW',profileId:'HLT-001',status:url.endsWith('/confirm')?'CONFIRMED':'DRAFT',finalConclusion:'FIT'});};
  assert.equal(await remote.postExam('SES-001',{horseId:'HOR-001',date:'10/11/2026',status:'confirmed',decision:'eligible',regions:{},postTrainingSessionId:'SES-001'}),null);assert.equal(created.postTrainingSessionId,'SES-001');assert.equal(paths.some(p=>p.endsWith('/MED-OLD/draft')),false);
+});
+
+
+test('old criterion codes have no aliases in requests, saved items, failed criteria or templates', async () => {
+  const oldCodes = ['ALERTNESS', 'COORDINATION', 'BREATHING_EFFORT', 'GAIT', 'LIMB_CONDITION',
+    'MUSCLE_COMFORT', 'EXTERNAL_INJURY', 'SWEATING', 'MUCOUS_MEMBRANES', 'NASAL_BLEEDING'];
+  for (const [index, oldCode] of oldCodes.entries()) {
+    const legacy = answers(); delete legacy[a.ASSESSMENT_CRITERIA[index].code]; legacy[oldCode] = true;
+    assert.equal(a.assessmentPreview(legacy), null);
+    assert.throws(() => a.toAssessmentRequest(legacy), /all 10/);
+    const itemValue = saved(); itemValue.items[index].code = oldCode;
+    assert.equal(a.assessmentFromApi(itemValue), undefined);
+    assert.equal(a.assessmentFromApi(saved('SES-001', { failedCriteria: [oldCode] })), undefined);
+    const oldTemplate = { version: a.ASSESSMENT_VERSION,
+      criteria: a.ASSESSMENT_CRITERIA.map((item, i) => ({ ...item, code: i === index ? oldCode : item.code })),
+      labels: Object.fromEntries(Object.entries(a.assessmentLabels).map(([code, value]) => [code, value.label])) };
+    globalThis.fetch = async () => ok(oldTemplate);
+    await assert.rejects(a.fetchAssessmentTemplate(), /template is unavailable/);
+  }
 });

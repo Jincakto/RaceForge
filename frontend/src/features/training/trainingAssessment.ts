@@ -13,17 +13,18 @@ export async function fetchAssessmentNotification(notificationId: string) {
 }
 
 export const ASSESSMENT_VERSION = 'POST_TRAINING_V1';
+// Fallback metadata mirrors the backend performance template; the API owns displayed labels/help.
 export const ASSESSMENT_CRITERIA = [
-  { code: 'ALERTNESS', label: 'Alertness and responsiveness', helpText: 'Observe alertness and usual responses.' },
-  { code: 'COORDINATION', label: 'Balance and coordination', helpText: 'Check for newly observed instability or loss of balance.' },
-  { code: 'BREATHING_EFFORT', label: 'Breathing and recovery', helpText: 'Observe breathing effort and recovery after exercise.' },
-  { code: 'GAIT', label: 'Gait and movement', helpText: 'Observe any newly uneven movement or lameness.' },
-  { code: 'LIMB_CONDITION', label: 'Leg condition', helpText: 'Check for new swelling, unusual local heat or signs of discomfort.' },
-  { code: 'MUSCLE_COMFORT', label: 'Muscle comfort', helpText: 'Observe unusual stiffness, spasms or muscle discomfort.' },
-  { code: 'EXTERNAL_INJURY', label: 'Visible injuries', helpText: 'Check for new wounds, abrasions or equipment-related injuries.' },
-  { code: 'SWEATING', label: 'Sweating pattern', helpText: 'Consider sweating in the context of exercise and weather.' },
-  { code: 'MUCOUS_MEMBRANES', label: 'Gum color and moisture', helpText: 'If trained to do so safely, observe unusual gum color or dryness.' },
-  { code: 'NASAL_BLEEDING', label: 'Nasal bleeding', helpText: 'Check whether blood is visible at either nostril.' },
+  { code: 'TASK_COMPLETION', label: 'Task Completion', helpText: 'Complete the exercise assigned for this session.' },
+  { code: 'SPEED_CONTROL', label: 'Speed Control', helpText: 'Maintain the speed requested by the trainer.' },
+  { code: 'MOVEMENT_STABILITY', label: 'Movement Stability', helpText: 'Move steadily with minimal interruptions.' },
+  { code: 'BALANCE', label: 'Balance', helpText: 'Maintain balance while moving.' },
+  { code: 'COMMAND_RESPONSE', label: 'Command Response', helpText: "Respond to the trainer's commands." },
+  { code: 'FOCUS', label: 'Focus', helpText: 'Stay focused throughout the exercise.' },
+  { code: 'STAMINA', label: 'Stamina', helpText: 'Maintain effort until the end of the exercise.' },
+  { code: 'SPEED_TRANSITION', label: 'Speed Transition', helpText: 'Increase or decrease speed as requested.' },
+  { code: 'COOPERATION', label: 'Cooperation', helpText: 'Cooperate with the trainer during the exercise.' },
+  { code: 'PERFORMANCE_CONSISTENCY', label: 'Performance Consistency', helpText: 'Maintain consistent performance throughout the session.' },
 ] as const;
 export type AssessmentCriterionCode = typeof ASSESSMENT_CRITERIA[number]['code'];
 export type AssessmentAnswers = Partial<Record<AssessmentCriterionCode, boolean>>;
@@ -114,9 +115,9 @@ export function assessmentPreview(answers: AssessmentAnswers): AssessmentPreview
   const triggerCodes: string[] = passedCount <= 3 ? ['SCORE_URGENT'] : passedCount <= 6 ? ['SCORE_REVIEW'] : [];
   for (const item of ASSESSMENT_CRITERIA) {
     if (answers[item.code] !== false) continue;
-    if (item.code === 'COORDINATION' || item.code === 'BREATHING_EFFORT') {
+    if (item.code === 'SPEED_CONTROL' || item.code === 'MOVEMENT_STABILITY') {
       alertLevel = 'URGENT_VET_REVIEW'; triggerCodes.push(item.code);
-    } else if (item.code === 'GAIT' || item.code === 'LIMB_CONDITION' || item.code === 'NASAL_BLEEDING') {
+    } else if (item.code === 'BALANCE' || item.code === 'COMMAND_RESPONSE' || item.code === 'PERFORMANCE_CONSISTENCY') {
       if (alertLevel === 'NO_ALERT_DETECTED') alertLevel = 'VET_REVIEW_REQUIRED';
       triggerCodes.push(item.code);
     }

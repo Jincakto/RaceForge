@@ -15,7 +15,7 @@ export function TrainingAssessmentNotification({ notificationId, canExamine, onC
       .catch(e => { if (active) setError(e.message || 'Unable to open this post-training check.'); });
     return () => { active = false; };
   }, [notificationId, attempt]);
-  return <Modal title="Post-training health check" onClose={onClose} wide>
+  return <Modal title="Post-Training Performance Assessment" onClose={onClose} wide>
     {error ? <div role="alert" className="space-y-3 text-sm text-red-700"><p>{error}</p><Btn onClick={() => setAttempt(n => n + 1)}>Retry</Btn></div>
       : !value ? <p role="status">Loading the saved health check...</p> : <div className="space-y-4">
         <p className="text-sm text-slate-600">Horse {value.target.horseId} - Session {value.target.sessionId}</p>

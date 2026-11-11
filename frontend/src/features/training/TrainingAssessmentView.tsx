@@ -30,10 +30,14 @@ export function TrainingPendingReviewBanner() {
   </div>;
 }
 
-function TrainingAssessmentBanner({ result, preview = false }: { result: AssessmentPreview; preview?: boolean }) {
+type CriterionLabels = readonly { code: string; label: string }[];
+
+function TrainingAssessmentBanner({ result, preview = false, criteria = ASSESSMENT_CRITERIA }: {
+  result: AssessmentPreview; preview?: boolean; criteria?: CriterionLabels;
+}) {
   const definition = assessmentLabels[result.alertLevel];
   const priorityNames = result.triggerCodes.flatMap(code => {
-    const criterion = ASSESSMENT_CRITERIA.find(item => item.code === code);
+    const criterion = criteria.find(item => item.code === code);
     return criterion ? [criterion.label] : [];
   });
   return <div role="status" aria-live={preview ? 'polite' : undefined}
@@ -59,12 +63,12 @@ function TrainingAssessmentBanner({ result, preview = false }: { result: Assessm
   </div>;
 }
 
-export function TrainingAssessmentPreview({ answers }: { answers: AssessmentAnswers }) {
+export function TrainingAssessmentPreview({ answers, criteria }: { answers: AssessmentAnswers; criteria?: CriterionLabels }) {
   const preview = assessmentPreview(answers);
   if (!preview) return <div role="status" className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
     Assessment incomplete. Answer all 10 checks to see the preview.
   </div>;
-  return <TrainingAssessmentBanner result={preview} preview />;
+  return <TrainingAssessmentBanner result={preview} preview criteria={criteria} />;
 }
 
 /** Controlled checklist. A missing answer never means Pass or Concern observed. */
@@ -85,11 +89,11 @@ export function TrainingAssessmentForm({ answers, onChange, template, loading = 
   return <section aria-labelledby={id + '-heading'} className="rf-training-assessment space-y-4 font-sans text-slate-800">
     <div>
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <h4 id={id + '-heading'} className="text-base font-semibold text-[#1a2844]">Post-training health check</h4>
+        <h4 id={id + '-heading'} className="text-base font-semibold text-[#1a2844]">Post-Training Performance Assessment</h4>
         <p aria-live="polite" aria-atomic="true" className="text-sm font-medium tabular-nums text-slate-600">{completed} of 10 checks completed</p>
       </div>
-      <p className="mt-1 text-sm leading-6 text-slate-600">Review each observation after exercise. Choose Pass or Concern observed for every check.</p>
-      <div role="progressbar" aria-label="Health checks completed" aria-valuenow={completed} aria-valuemin={0} aria-valuemax={10}
+      <p className="mt-1 text-sm leading-6 text-slate-600">Evaluate the horse's performance during this session. Choose Pass or Concern observed for every check.</p>
+      <div role="progressbar" aria-label="Performance checks completed" aria-valuenow={completed} aria-valuemin={0} aria-valuemax={10}
         className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
         <div className="h-full rounded-full bg-[#a4782c] transition-[width] motion-reduce:transition-none" style={{ width: `${completed * 10}%` }} />
       </div>
@@ -126,7 +130,7 @@ export function TrainingAssessmentForm({ answers, onChange, template, loading = 
         </div>
       </fieldset>)}
     </div>
-    <TrainingAssessmentPreview answers={answers} />
+    <TrainingAssessmentPreview answers={answers} criteria={criteria} />
   </section>;
 }
 
@@ -188,20 +192,20 @@ export function TrainingAssessmentReadOnly({ assessment, overallNotes = '', canR
   return <section aria-labelledby={id + '-heading'} className="rf-training-assessment mt-4 space-y-4 border-t border-slate-200 pt-5 font-sans text-slate-800">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h3 id={id + '-heading'} className="text-base font-semibold text-[#1a2844]">Recorded post-training check</h3>
+        <h3 id={id + '-heading'} className="text-base font-semibold text-[#1a2844]">Recorded post-training performance assessment</h3>
         <p className="mt-1 text-xs leading-5 text-slate-500">Recorded by {assessment.assessorName} · {assessmentTime(assessment.assessedAt)} (Bangkok)</p>
       </div>
       <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">Saved assessment</span>
     </div>
-    <TrainingAssessmentBanner result={assessment} />
+    <TrainingAssessmentBanner result={assessment} criteria={assessment.items} />
     {assessment.pendingPostTrainingReview && <TrainingPendingReviewBanner />}
     <div className="grid gap-3 rounded-lg bg-slate-50 p-4 text-sm sm:grid-cols-2">
       <div><p className="text-xs text-slate-500">Veterinary review</p><p className="mt-1 font-medium text-[#1a2844]">{reviewStatusLabel(assessment.reviewStatus)}</p></div>
       <div><p className="text-xs text-slate-500">Care team notification</p><p className="mt-1 font-medium text-[#1a2844]">{requestMessage || (normal && requested && !waiting ? 'Vet check request sent' : notificationStatusLabel(assessment.notificationStatus))}</p></div>
     </div>
-    <ul aria-label="Recorded health checks" className="divide-y divide-slate-200 border-y border-slate-200">
+    <ul aria-label="Recorded performance checks" className="divide-y divide-slate-200 border-y border-slate-200">
       {assessment.items.map(item => <li key={item.code} className="flex items-start justify-between gap-3 py-3 text-sm">
-        <span className="min-w-0 break-words leading-6 text-slate-700">{item.label || ASSESSMENT_CRITERIA.find(criterion => criterion.code === item.code)?.label || 'Health observation'}</span>
+        <span className="min-w-0 break-words leading-6 text-slate-700">{item.label || ASSESSMENT_CRITERIA.find(criterion => criterion.code === item.code)?.label || 'Performance observation'}</span>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${item.passed ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'}`}>{item.passed ? 'Pass' : 'Concern observed'}</span>
       </li>)}
     </ul>

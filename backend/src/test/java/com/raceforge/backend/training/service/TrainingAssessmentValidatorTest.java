@@ -32,7 +32,7 @@ class TrainingAssessmentValidatorTest {
     @Test
     void t02NineAnswersAreIncomplete() {
         Map<String, Boolean> checks = allPassed();
-        checks.remove("ALERTNESS");
+        checks.remove("TASK_COMPLETION");
         assertInvalid("ASSESSMENT_INCOMPLETE", request(checks, Map.of()));
     }
 
@@ -49,7 +49,7 @@ class TrainingAssessmentValidatorTest {
     @Test
     void t03NullIsNotAConcernAnswer() {
         Map<String, Boolean> checks = allPassed();
-        checks.put("ALERTNESS", null);
+        checks.put("TASK_COMPLETION", null);
         assertInvalid("ASSESSMENT_INCOMPLETE", request(checks, Map.of()));
     }
 
@@ -63,15 +63,26 @@ class TrainingAssessmentValidatorTest {
     @Test
     void t03UnknownReplacementCriterionIsRejected() {
         Map<String, Boolean> checks = allPassed();
-        checks.remove("ALERTNESS");
+        checks.remove("TASK_COMPLETION");
         checks.put("GUM_MOISTURE", true);
         assertInvalid("INVALID_CRITERION_CODE", request(checks, Map.of()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ALERTNESS", "COORDINATION", "BREATHING_EFFORT", "GAIT", "LIMB_CONDITION",
+            "MUSCLE_COMFORT", "EXTERNAL_INJURY", "SWEATING", "MUCOUS_MEMBRANES", "NASAL_BLEEDING"})
+    void oldCriterionCodesCannotReplaceNewCodesOrAppearInNotes(String oldCode) {
+        Map<String, Boolean> checks = allPassed();
+        checks.remove("TASK_COMPLETION");
+        checks.put(oldCode, true);
+        assertInvalid("INVALID_CRITERION_CODE", request(checks, Map.of()));
+        assertInvalid("INVALID_CRITERION_CODE", request(allPassed(), Map.of(oldCode, "Old code.")));
     }
 
     @Test
     void t03NullCriterionKeyIsRejected() {
         Map<String, Boolean> checks = allPassed();
-        checks.remove("ALERTNESS");
+        checks.remove("TASK_COMPLETION");
         checks.put(null, true);
         assertInvalid("INVALID_CRITERION_CODE", request(checks, Map.of()));
     }
@@ -81,7 +92,7 @@ class TrainingAssessmentValidatorTest {
     @SuppressWarnings({"rawtypes", "unchecked"})
     void t03RawStringAnswerCannotBypassValidator(String answer) {
         Map checks = allPassed();
-        checks.put("ALERTNESS", answer);
+        checks.put("TASK_COMPLETION", answer);
         assertInvalid("ASSESSMENT_INCOMPLETE", request(checks, Map.of()));
     }
 
@@ -89,7 +100,7 @@ class TrainingAssessmentValidatorTest {
     @SuppressWarnings({"rawtypes", "unchecked"})
     void t03RawIntegerAnswerCannotBypassValidator() {
         Map checks = allPassed();
-        checks.put("ALERTNESS", 1);
+        checks.put("TASK_COMPLETION", 1);
         assertInvalid("ASSESSMENT_INCOMPLETE", request(checks, Map.of()));
     }
 
@@ -97,61 +108,61 @@ class TrainingAssessmentValidatorTest {
     @SuppressWarnings({"rawtypes", "unchecked"})
     void rawNonStringCriterionKeyIsRejected() {
         Map checks = allPassed();
-        checks.remove("ALERTNESS");
+        checks.remove("TASK_COMPLETION");
         checks.put(1, true);
         assertInvalid("INVALID_CRITERION_CODE", request(checks, Map.of()));
     }
 
     @Test
     void concernCanBeSavedWithoutIndividualNotes() {
-        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("ALERTNESS"), Map.of()));
-        assertFalse(cleaned.checks().get("ALERTNESS"));
+        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("TASK_COMPLETION"), Map.of()));
+        assertFalse(cleaned.checks().get("TASK_COMPLETION"));
         assertTrue(cleaned.failNotes().isEmpty());
     }
 
     @Test
     void concernAcceptsMissingLegacyNotesMap() {
-        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("ALERTNESS"), null));
-        assertFalse(cleaned.checks().get("ALERTNESS"));
+        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("TASK_COMPLETION"), null));
+        assertFalse(cleaned.checks().get("TASK_COMPLETION"));
         assertTrue(cleaned.failNotes().isEmpty());
     }
 
     @Test
     void directCallerNullLegacyNoteIsTreatedAsAbsent() {
         Map<String, String> notes = new LinkedHashMap<>();
-        notes.put("ALERTNESS", null);
-        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("ALERTNESS"), notes));
+        notes.put("TASK_COMPLETION", null);
+        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("TASK_COMPLETION"), notes));
         assertTrue(cleaned.failNotes().isEmpty());
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"", " ", "\t\r\n", "\u2003\u2003"})
     void optionalBlankLegacyConcernNotesAreTreatedAsAbsent(String note) {
-        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("ALERTNESS"), Map.of("ALERTNESS", note)));
+        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("TASK_COMPLETION"), Map.of("TASK_COMPLETION", note)));
         assertTrue(cleaned.failNotes().isEmpty());
     }
 
     @Test
     void t05OverlongConcernNoteIsRejectedAfterTrim() {
-        assertInvalid("FAIL_NOTE_TOO_LONG", request(withConcern("ALERTNESS"),
-                Map.of("ALERTNESS", " " + "x".repeat(1001) + " ")));
+        assertInvalid("FAIL_NOTE_TOO_LONG", request(withConcern("TASK_COMPLETION"),
+                Map.of("TASK_COMPLETION", " " + "x".repeat(1001) + " ")));
     }
 
     @Test
     void thousandCharacterConcernNoteIsAcceptedAfterTrim() {
-        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("ALERTNESS"),
-                Map.of("ALERTNESS", " \t" + "x".repeat(1000) + "\n ")));
-        assertEquals("x".repeat(1000), cleaned.failNotes().get("ALERTNESS"));
+        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("TASK_COMPLETION"),
+                Map.of("TASK_COMPLETION", " \t" + "x".repeat(1000) + "\n ")));
+        assertEquals("x".repeat(1000), cleaned.failNotes().get("TASK_COMPLETION"));
     }
 
     @Test
     void trimsNotesWithoutChangingInputMaps() {
-        Map<String, Boolean> checks = withConcern("ALERTNESS");
-        Map<String, String> notes = new LinkedHashMap<>(Map.of("ALERTNESS", "  Less responsive.  "));
+        Map<String, Boolean> checks = withConcern("TASK_COMPLETION");
+        Map<String, String> notes = new LinkedHashMap<>(Map.of("TASK_COMPLETION", "  Less responsive.  "));
         TrainingAssessmentRequest cleaned = validator.validate(request(checks, notes));
-        assertEquals("Less responsive.", cleaned.failNotes().get("ALERTNESS"));
-        assertEquals("  Less responsive.  ", notes.get("ALERTNESS"));
-        assertEquals(false, checks.get("ALERTNESS"));
+        assertEquals("Less responsive.", cleaned.failNotes().get("TASK_COMPLETION"));
+        assertEquals("  Less responsive.  ", notes.get("TASK_COMPLETION"));
+        assertEquals(false, checks.get("TASK_COMPLETION"));
         assertNotSame(checks, cleaned.checks());
         assertNotSame(notes, cleaned.failNotes());
     }
@@ -164,8 +175,8 @@ class TrainingAssessmentValidatorTest {
     @Test
     @SuppressWarnings({"rawtypes", "unchecked"})
     void rawNonTextNoteIsRejected() {
-        Map notes = Map.of("ALERTNESS", 42);
-        assertInvalid("FAIL_NOTE_REQUIRED", request(withConcern("ALERTNESS"), notes));
+        Map notes = Map.of("TASK_COMPLETION", 42);
+        assertInvalid("FAIL_NOTE_REQUIRED", request(withConcern("TASK_COMPLETION"), notes));
     }
 
     @Test
@@ -178,25 +189,25 @@ class TrainingAssessmentValidatorTest {
 
     @Test
     void optionalPassNoteIsPreservedAndTrimmed() {
-        TrainingAssessmentRequest cleaned = validator.validate(request(allPassed(), Map.of("ALERTNESS", "  Observed.  ")));
-        assertEquals("Observed.", cleaned.failNotes().get("ALERTNESS"));
+        TrainingAssessmentRequest cleaned = validator.validate(request(allPassed(), Map.of("TASK_COMPLETION", "  Observed.  ")));
+        assertEquals("Observed.", cleaned.failNotes().get("TASK_COMPLETION"));
     }
 
     @Test
     void optionalPassNoteStillHasLengthLimit() {
-        assertInvalid("FAIL_NOTE_TOO_LONG", request(allPassed(), Map.of("ALERTNESS", "x".repeat(1001))));
+        assertInvalid("FAIL_NOTE_TOO_LONG", request(allPassed(), Map.of("TASK_COMPLETION", "x".repeat(1001))));
     }
 
     @Test
     void cleanedMapsAreDefensiveAndOrderedByTemplate() {
         Map<String, Boolean> input = allPassed();
         TrainingAssessmentRequest cleaned = validator.validate(request(input, Map.of()));
-        input.put("ALERTNESS", false);
-        assertEquals(true, cleaned.checks().get("ALERTNESS"));
+        input.put("TASK_COMPLETION", false);
+        assertEquals(true, cleaned.checks().get("TASK_COMPLETION"));
         assertEquals(java.util.Arrays.stream(TrainingAssessmentCriterion.values()).map(Enum::name).toList(),
                 cleaned.checks().keySet().stream().toList());
-        assertThrows(UnsupportedOperationException.class, () -> cleaned.checks().put("ALERTNESS", false));
-        assertThrows(UnsupportedOperationException.class, () -> cleaned.failNotes().put("ALERTNESS", "Changed."));
+        assertThrows(UnsupportedOperationException.class, () -> cleaned.checks().put("TASK_COMPLETION", false));
+        assertThrows(UnsupportedOperationException.class, () -> cleaned.failNotes().put("TASK_COMPLETION", "Changed."));
     }
 
     @Test

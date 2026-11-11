@@ -77,14 +77,14 @@ class TrainingAssessmentServiceTest {
     }
 
     @Test void gaitConcernCreatesPendingWithoutChangingSessionOrPackage() {
-        var input = request(); var checks = new LinkedHashMap<>(input.checks()); checks.put("GAIT", false);
+        var input = request(); var checks = new LinkedHashMap<>(input.checks()); checks.put("BALANCE", false);
         var result = service.recordCompletion(session,
-                new TrainingAssessmentRequest(input.checklistVersion(), checks, Map.of("GAIT", " Uneven gait ")), "HTR-001");
+                new TrainingAssessmentRequest(input.checklistVersion(), checks, Map.of("BALANCE", " Uneven gait ")), "HTR-001");
         assertEquals(9, result.getPassedCount());
         assertEquals(TrainingAssessmentAlertLevel.NO_ALERT_DETECTED, result.getBaseAlertLevel());
         assertEquals(TrainingAssessmentAlertLevel.VET_REVIEW_REQUIRED, result.getAlertLevel());
         assertEquals(TrainingAssessmentReviewStatus.PENDING, result.getReviewStatus());
-        assertEquals(List.of("GAIT"), result.getTriggerCodes());
+        assertEquals(List.of("BALANCE"), result.getTriggerCodes());
         assertEquals("COMPLETED", session.getStatus());
         assertFalse(Boolean.TRUE.equals(session.getHorse().getTrainingLocked()));
     }
@@ -115,12 +115,12 @@ class TrainingAssessmentServiceTest {
         verifyNoInteractions(assessments, items, events);
     }
 
-    @Test void templateHasTenEnglishLabelsAndOfficialMucousCode() {
+    @Test void templateHasTenEnglishPerformanceLabelsAndOfficialCodes() {
         var template = service.template();
         assertEquals("POST_TRAINING_V1", template.version()); assertEquals(10, template.criteria().size());
         assertEquals("Normal", template.labels().get("NO_ALERT_DETECTED"));
-        assertTrue(template.criteria().stream().anyMatch(c -> c.code().equals("MUCOUS_MEMBRANES")
-                && c.label().equals("Gum color and moisture")));
+        assertTrue(template.criteria().stream().anyMatch(c -> c.code().equals("COOPERATION")
+                && c.label().equals("Cooperation")));
         assertTrue(template.criteria().stream().allMatch(c -> !c.label().equals(c.code())));
         verify(access).requireTemplate();
     }
@@ -153,7 +153,7 @@ class TrainingAssessmentServiceTest {
         when(access.readableSessionIds(any(), anyList())).thenReturn(Set.of("SES-001"));
         when(assessments.findAllBySessionIdIn(any())).thenReturn(List.of(saved));
         var answer = new TrainingSessionAssessmentItem(); answer.setAssessment(saved);
-        answer.setCriterionCode(TrainingAssessmentCriterion.ALERTNESS); answer.setPassed(true);
+        answer.setCriterionCode(TrainingAssessmentCriterion.TASK_COMPLETION); answer.setPassed(true);
         when(items.findByAssessment_SessionIdIn(any())).thenReturn(List.of(answer));
         var response = new TrainingSessionResponse(); response.setSessionId("SES-001");
         service.enrich(List.of(session), List.of(response));

@@ -78,7 +78,7 @@ class TrainingPackagePauseServiceTest {
 
         service.pauseActiveNormalPackage("HOR-001", "MED-001");
 
-        assertEquals("COMPLETED", old.getStatus());
+        assertEquals("EXPIRED", old.getStatus());
         assertEquals(0, old.getRemainingDays());
     }
 

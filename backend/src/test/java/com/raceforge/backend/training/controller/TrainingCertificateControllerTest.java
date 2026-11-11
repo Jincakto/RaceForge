@@ -37,6 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class TrainingCertificateControllerTest {
     @Autowired MockMvc mvc;
     @MockitoBean HorsePackageService horsePackages;
+    @MockitoBean com.raceforge.backend.training.service.HorsePackageLifecycleService lifecycle;
     @MockitoBean HorsePackageRepository packages;
     @MockitoBean TrainingCertificateRepository certificates;
     @MockitoBean HorsePackageMapper mapper;

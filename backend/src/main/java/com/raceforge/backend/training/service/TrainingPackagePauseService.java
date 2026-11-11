@@ -59,7 +59,7 @@ public class TrainingPackagePauseService {
         if (remaining <= 0) {
             // Already expired: it has no usable days to carry forward.
             original.setRemainingDays(0);
-            original.setStatus("COMPLETED");
+            original.setStatus("EXPIRED");
         } else {
             original.setRemainingDays(Math.toIntExact(remaining));
             original.setStatus("PAUSED");

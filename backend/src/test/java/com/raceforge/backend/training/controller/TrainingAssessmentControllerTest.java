@@ -149,7 +149,7 @@ class TrainingAssessmentControllerTest {
         authenticate("HEAD_TRAINER","ACTIVE");
         mvc.perform(patch("/api/training-sessions/SES-001/complete").header("Authorization","Bearer token")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"assessment\":{\"checklistVersion\":\"POST_TRAINING_V1\",\"checks\":{\"ALERTNESS\":\"true\"}}}"))
+                .content("{\"assessment\":{\"checklistVersion\":\"POST_TRAINING_V1\",\"checks\":{\"TASK_COMPLETION\":\"true\"}}}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.data.code").value("ASSESSMENT_INCOMPLETE"));
         verify(sessions,never()).completeSession(anyString(), any(), anyString());

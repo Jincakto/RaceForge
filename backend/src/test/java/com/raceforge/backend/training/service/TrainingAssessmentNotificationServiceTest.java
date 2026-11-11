@@ -101,9 +101,9 @@ class TrainingAssessmentNotificationServiceTest {
         lenient().when(notificationService.notifyAndReturnId(anyString(), anyString(), anyString(), anyString()))
                 .thenAnswer(invocation -> nextNotification.incrementAndGet());
         lenient().when(items.findByAssessment_SessionIdOrderByCriterionCodeAsc("SES-001"))
-                .thenAnswer(invocation -> List.of(answer(TrainingAssessmentCriterion.GAIT, false),
-                        answer(TrainingAssessmentCriterion.MUSCLE_COMFORT, false),
-                        answer(TrainingAssessmentCriterion.ALERTNESS, true)));
+                .thenAnswer(invocation -> List.of(answer(TrainingAssessmentCriterion.BALANCE, false),
+                        answer(TrainingAssessmentCriterion.FOCUS, false),
+                        answer(TrainingAssessmentCriterion.TASK_COMPLETION, true)));
     }
 
     @Test
@@ -138,9 +138,9 @@ class TrainingAssessmentNotificationServiceTest {
         verify(notificationService).notifyAndReturnId(eq(vet.getUserId()), anyString(),
                 eq("Urgent vet check for Comet"), message.capture());
         assertTrue(message.getValue().contains("5 of 10 checks passed"));
-        assertTrue(message.getValue().contains("Gait and movement"));
+        assertTrue(message.getValue().contains("Balance"));
         assertTrue(message.getValue().contains("Contact the assigned vet promptly"));
-        assertFalse(message.getValue().contains("GAIT"));
+        assertFalse(message.getValue().contains("BALANCE"));
         assertFalse(message.getValue().contains("URGENT_VET_REVIEW"));
         assertFalse(message.getValue().contains("PRIVATE OBSERVATION"));
     }

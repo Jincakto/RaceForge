@@ -55,7 +55,7 @@ test('blank checklist has exactly ten groups, twenty radios and no default answe
 
 test('nine answers remain incomplete and do not show a severity preview', () => {
   const answers = { ...allPass };
-  delete answers.GAIT;
+  delete answers.BALANCE;
   const html = render(h(TrainingAssessmentForm, { answers, onChange() {}, template }));
   assert.ok(html.includes('9 of 10 checks completed'));
   assert.ok(html.includes('Assessment incomplete'));
@@ -85,8 +85,8 @@ test('template loading keeps controls disabled and template failure exposes a re
 test('preview labels are friendly and priority observations override the count', () => {
   for (const [answers, label] of [
     [allPass, 'Normal'],
-    [{ ...allPass, GAIT: false }, 'Vet Check Recommended'],
-    [{ ...allPass, COORDINATION: false }, 'Urgent Vet Check'],
+    [{ ...allPass, BALANCE: false }, 'Vet Check Recommended'],
+    [{ ...allPass, SPEED_CONTROL: false }, 'Urgent Vet Check'],
   ]) {
     const text = visible(render(h(TrainingAssessmentPreview, { answers })));
     assert.ok(text.includes(label));
@@ -133,15 +133,15 @@ test('already sent and waiting manual requests never offer a duplicate request b
 test('alert view renders the persisted server level without recalculation or raw enums', () => {
   const html = render(h(TrainingAssessmentReadOnly, { assessment: assessment({
     alertLevel: 'URGENT_VET_REVIEW', reviewStatus: 'PENDING', notificationStatus: 'WAITING_FOR_VET_ASSIGNMENT',
-    pendingPostTrainingReview: true, triggerCodes: ['COORDINATION'],
+    pendingPostTrainingReview: true, triggerCodes: ['SPEED_CONTROL'],
   }), canRequest: true }));
   const text = visible(html);
   assert.ok(text.includes('Urgent Vet Check'));
   assert.ok(text.includes('Training is paused for this horse'));
   assert.ok(text.includes('Waiting for vet assignment'));
-  assert.ok(text.includes('Balance and coordination'));
+  assert.ok(text.includes('Speed Control'));
   assert.ok(!text.includes('Request a Vet Check'));
-  for (const code of ['URGENT_VET_REVIEW', 'PENDING', 'WAITING_FOR_VET_ASSIGNMENT', 'COORDINATION']) {
+  for (const code of ['URGENT_VET_REVIEW', 'PENDING', 'WAITING_FOR_VET_ASSIGNMENT', 'SPEED_CONTROL']) {
     assert.ok(!text.includes(code), code);
   }
 });
@@ -174,4 +174,23 @@ test('pending banner describes a review hold without claiming to open medical lo
   assert.ok(html.includes('Other requirements will still apply'));
   assert.ok(!html.includes('package paused'));
   assert.ok(!html.includes('Medical Lock'));
+});
+
+
+test('form and priority warning use backend template labels and help instead of replacing them locally', () => {
+  const serverTemplate = { ...template, criteria: template.criteria.map(item =>
+    item.code === 'SPEED_CONTROL' ? { ...item, label: 'Server speed observation', helpText: 'Server exercise guidance.' } : item) };
+  const html = render(h(TrainingAssessmentForm, { answers: { ...allPass, SPEED_CONTROL: false },
+    onChange() {}, template: serverTemplate }));
+  assert.ok(html.includes('Server exercise guidance.'));
+  assert.equal((html.match(/Server speed observation/g) || []).length, 2);
+  assert.ok(!html.includes('Speed Control'));
+});
+
+test('saved result and priority warning use the response labels', () => {
+  const value = assessment({ triggerCodes: ['SPEED_CONTROL'], alertLevel: 'URGENT_VET_REVIEW' });
+  value.items = value.items.map(item => item.code === 'SPEED_CONTROL' ? { ...item, label: 'Saved speed observation' } : item);
+  const html = render(h(TrainingAssessmentReadOnly, { assessment: value }));
+  assert.equal((html.match(/Saved speed observation/g) || []).length, 2);
+  assert.ok(!html.includes('Speed Control'));
 });

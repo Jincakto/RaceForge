@@ -30,12 +30,33 @@ public class HorsePackageController {
     private final HorsePackageService service;
     private final TrainingCertificateAccess certificates;
     private final TrainingCertificatePdf certificatePdf;
+    private final com.raceforge.backend.training.service.HorsePackageLifecycleService lifecycle;
 
     public HorsePackageController(HorsePackageService service, TrainingCertificateAccess certificates,
-                                  TrainingCertificatePdf certificatePdf) {
+                                  TrainingCertificatePdf certificatePdf,
+                                  com.raceforge.backend.training.service.HorsePackageLifecycleService lifecycle) {
         this.service = service;
         this.certificates = certificates;
         this.certificatePdf = certificatePdf;
+        this.lifecycle = lifecycle;
+    }
+
+    @io.swagger.v3.oas.annotations.Operation(summary = "Cancel a paid package registration",
+            description = "Owner only. Cancels ACTIVE/PAUSED registration, deletes unstarted scheduled sessions and retains payment/history. Started unfinished sessions block cancellation. No automatic refund. No request body.")
+    @PreAuthorize("hasAuthority('HORSE_OWNER') and principal.status() == 'ACTIVE'")
+    @PatchMapping("/{horsePackageId}/cancel")
+    public ApiResponse<com.raceforge.backend.training.dto.HorsePackageLifecycleResponse> cancel(
+            @PathVariable String horsePackageId) {
+        return ApiResponse.success("Training package cancelled", lifecycle.cancel(horsePackageId));
+    }
+
+    @io.swagger.v3.oas.annotations.Operation(summary = "Complete a paid training package and issue its certificate",
+            description = "Current accepted trainer with MANAGE_TRAINING only, while ACTIVE and in term. At least one non-cancelled session is required; all must be COMPLETED or MISSED. No request body.")
+    @PreAuthorize("hasAuthority('HEAD_TRAINER') and principal.status() == 'ACTIVE' and @permissionAccess.has(authentication, 'MANAGE_TRAINING')")
+    @PatchMapping("/{horsePackageId}/complete")
+    public ApiResponse<com.raceforge.backend.training.dto.HorsePackageLifecycleResponse> complete(
+            @PathVariable String horsePackageId) {
+        return ApiResponse.success("Training package completed", lifecycle.complete(horsePackageId));
     }
 
     @PreAuthorize("hasAuthority('HORSE_OWNER')")

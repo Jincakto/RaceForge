@@ -33,7 +33,7 @@ public class TrainingAssessmentController {
 
     @GetMapping("/api/training-assessments/template")
     @PreAuthorize("hasAnyAuthority('HEAD_TRAINER', 'VETERINARIAN', 'CLUB_MANAGER')")
-    @Operation(summary = "Get the versioned post-training health check",
+    @Operation(summary = "Get the versioned post-training performance assessment",
             description = "Returns all 10 checks with English labels and guidance. Trainers need an active profile and training permission.")
     public ApiResponse<TrainingAssessmentTemplateResponse> template() {
         return ApiResponse.success("Post-training health check template", assessments.template());

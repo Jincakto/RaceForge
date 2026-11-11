@@ -25,7 +25,7 @@ class TrainingCertificateDatabaseTest {
     private static final LocalDate END_DATE = LocalDate.of(2026, 1, 12);
 
     @Test
-    void expiryAndIssuanceCommitTogetherUnderConcurrentCalls() throws Exception {
+    void expiryCommitsOnceWithoutIssuingCertificatesUnderConcurrentCalls() throws Exception {
         String database = "RaceForgeCertificateTest_" + UUID.randomUUID().toString().replace("-", "");
         String host = System.getenv().getOrDefault("TRAINING_TEST_SQL_SERVER", "localhost:1433");
         String root = "jdbc:sqlserver://" + host + ";encrypt=true;trustServerCertificate=true;databaseName=";
@@ -41,13 +41,16 @@ class TrainingCertificateDatabaseTest {
                         .baselineVersion("12").locations("classpath:db/migration").load();
                 flyway.baseline();
                 flyway.migrate();
+                TrainingRoadmapDatabaseTest.script(connection, Files.readString(Path.of("scripts/training/06_horse_package_expired_status.sql")));
+                TrainingRoadmapDatabaseTest.script(connection, Files.readString(Path.of("src/test/resources/training/assessment_schema_TEST_ONLY.sql")));
+                TrainingRoadmapDatabaseTest.script(connection, Files.readString(Path.of("scripts/training/07_training_assessment_performance_codes.sql")));
                 seed(connection);
 
-                // The legacy fixture omits an unrelated assessment notification table.
+                // Validate the complete current schema in the isolated fixture.
                 try (var app = new SpringApplicationBuilder(BackendApplication.class).run(
                         "--server.port=0", "--spring.datasource.url=" + root + database,
                         "--spring.datasource.username=" + user, "--spring.datasource.password=" + password,
-                        "--spring.jpa.hibernate.ddl-auto=none", "--spring.flyway.enabled=false",
+                        "--spring.jpa.hibernate.ddl-auto=validate", "--spring.flyway.enabled=false",
                         "--raceforge.bootstrap-admin.enabled=false", "--raceforge.training.package-expiry-cron=-",
                         "--logging.level.root=WARN")) {
                     var expiry = app.getBean(TrainingPackageExpirationService.class);
@@ -60,19 +63,14 @@ class TrainingCertificateDatabaseTest {
                     assertRollback(connection, expiry);
                     expireConcurrently(expiry);
                     assertFalse(expiry.expireRegistration("HPG-901", END_DATE.plusDays(1)));
-                    assertEquals("COMPLETED", value(connection,
+                    assertEquals("EXPIRED", value(connection,
                             "SELECT status FROM dbo.HORSE_PACKAGE WHERE horse_package_id='HPG-901'"));
-                    assertEquals("1", value(connection, "SELECT COUNT(*) FROM dbo.Training_Certificate"));
+                    assertEquals("0", value(connection, "SELECT COUNT(*) FROM dbo.Training_Certificate"));
 
-                    execute(connection, "UPDATE dbo.Horse SET horse_name=N'New name' WHERE horse_id='HOR-901'");
-                    var access = app.getBean(TrainingCertificateAccess.class);
-                    var certificate = access.certificate("HPG-901", "OWN-901");
-                    assertEquals("Ánh Dương", certificate.getHorseNameAtIssue());
-                    assertEquals("RF-HPG-901", certificate.getCertificateNumber());
-                    assertEquals(END_DATE.plusDays(1), certificate.getIssueDate());
-                    assertThrows(ResourceNotFoundException.class, () -> access.certificate("HPG-901", "OWN-902"));
+
                 }
             } finally {
+                if (!database.matches("RaceForgeCertificateTest_[a-f0-9]{32}")) throw new IllegalStateException("Unsafe database name");
                 execute(admin, "ALTER DATABASE [" + database + "] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; "
                         + "DROP DATABASE [" + database + "]");
             }
@@ -100,15 +98,15 @@ class TrainingCertificateDatabaseTest {
     }
 
     private static void assertRollback(Connection connection, TrainingPackageExpirationService expiry) throws Exception {
-        execute(connection, "ALTER TABLE dbo.Training_Certificate ADD CONSTRAINT CK_Test_Reject_Certificate "
-                + "CHECK (horse_package_id <> 'HPG-901')");
+        execute(connection, "ALTER TABLE dbo.HORSE_PACKAGE ADD CONSTRAINT CK_Test_Reject_Expiry "
+                + "CHECK (horse_package_id <> 'HPG-901' OR status <> 'EXPIRED')");
         try {
             assertThrows(RuntimeException.class, () -> expiry.expireRegistration("HPG-901", END_DATE.plusDays(1)));
             assertEquals("ACTIVE", value(connection,
                     "SELECT status FROM dbo.HORSE_PACKAGE WHERE horse_package_id='HPG-901'"));
             assertEquals("0", value(connection, "SELECT COUNT(*) FROM dbo.Training_Certificate"));
         } finally {
-            execute(connection, "ALTER TABLE dbo.Training_Certificate DROP CONSTRAINT CK_Test_Reject_Certificate");
+            execute(connection, "ALTER TABLE dbo.HORSE_PACKAGE DROP CONSTRAINT CK_Test_Reject_Expiry");
         }
     }
 

@@ -187,7 +187,7 @@ export function makeRemoteActions(env: Env) {
       const state = getState(); const e = state.enrollments.find(e => e.id === enrollmentId); if (!e) throw new Error("Package not found.");
       if (e.directAssignmentId || e.apiStatus !== 'ACTIVE' || e.paymentStatus !== 'PAID') throw new Error("Select an active, paid horse package before assigning a trainer.");
       const trainerId = state.users.find(u => u.id === userId)?.trainerProfileId;
-      if (!trainerId) throw new Error("The trainer has no professional profile. Ask an administrator to open Account management and select Create trainer profile, then refresh the list.");
+      if (!trainerId) throw new Error("The trainer has no professional profile. Ask the trainer to complete their professional profile after activating their account, then refresh the list.");
       await request(e.assignmentId ? `/trainer-assignments/${enc(e.assignmentId)}/replace` : '/trainer-assignments', 'POST', e.assignmentId ? { trainerId, reason } : { trainerId, horsePackageId: enrollmentId });
       return { ...e, trainerId: userId, trainerStatus: 'pending' };
     }),
@@ -203,6 +203,7 @@ export function makeRemoteActions(env: Env) {
       if (!e?.assignmentId) throw new Error("A paid package and an accepted trainer assignment are required.");
       if (!draft.suggestion?.stages?.length) throw new Error('Provide roadmap stages before creating a plan.');
       const selectedIntensity = draft.workload ? ({Low:'LOW',Medium:'MODERATE',High:'HIGH'} as Record<string,string>)[draft.workload] : undefined;
+      if (draft.workload && !selectedIntensity) throw new Error('Select a valid training intensity.');
       const stages = selectedStages(draft.suggestion.stages, draft.weekdays, draft.time, selectedIntensity);
       if (isoDate(draft.startDate) !== isoDate(e.startedAt) || isoDate(draft.endDate) !== isoDate(e.expiresAt)) throw new Error("Roadmap dates must match the paid package term.");
       const plan = await request(`/horses/${enc(draft.horseId)}/training-plans`, 'POST', { planName: draft.phase, goal: draft.goals, startDate: isoDate(e.startedAt), endDate: isoDate(e.expiresAt), assignmentId: e.assignmentId, stages });

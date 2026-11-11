@@ -26,9 +26,9 @@ public class HorsePackageMapper {
                 displayedRemainingDays(entity));
     }
 
-    /** ACTIVE counts down live; PAUSED shows frozen days; COMPLETED is zero. */
+    /** ACTIVE counts down live; PAUSED shows frozen days; terminal registrations have no usable days. */
     private Integer displayedRemainingDays(HorsePackage entity) {
-        if ("COMPLETED".equalsIgnoreCase(entity.getStatus())) {
+        if (java.util.Set.of("COMPLETED", "CANCELLED", "EXPIRED").contains(entity.getStatus())) {
             return 0;
         }
         if ("ACTIVE".equalsIgnoreCase(entity.getStatus()) && entity.getEndDate() != null) {

@@ -53,6 +53,14 @@ public class PackageEventService {
         }
     }
 
+    /** Recipients are captured before closure; trainers on other packages are excluded. */
+    public void notifyPackageTrainers(String horseId, java.util.Collection<String> trainerIds,
+                                      String type, String message) {
+        for (String id : new HashSet<>(trainerIds)) {
+            notificationService.notify(id, type, "Horse " + horseId + " training update", message);
+        }
+    }
+
     public void notifyManagers(String horseId, String type, String message) {
         for (User manager : userRepository.findActiveManagers()) {
             notificationService.notify(manager.getUserId(), type,

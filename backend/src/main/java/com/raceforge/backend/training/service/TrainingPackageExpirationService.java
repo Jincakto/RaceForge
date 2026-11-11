@@ -4,7 +4,6 @@ import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.repository.HorseRepository;
 import com.raceforge.backend.training.entity.HorsePackage;
-import com.raceforge.backend.training.entity.TrainingCertificate;
 import com.raceforge.backend.training.repository.HorsePackageRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -90,10 +89,9 @@ public class TrainingPackageExpirationService {
                 || !registration.getEndDate().isBefore(today)) {
             return false;
         }
-        registration.setStatus("COMPLETED");
+        registration.setStatus("EXPIRED");
         registration.setRemainingDays(0);
         horsePackages.save(registration);
-        entityManager.persist(new TrainingCertificate(registration.getHorsePackageId(), horse.getHorseName(), today));
 
         String type = "TRAINING_PACKAGE_EXPIRED";
         String label = "Training";

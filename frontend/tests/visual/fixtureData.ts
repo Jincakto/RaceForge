@@ -4,7 +4,7 @@ import {
   type AssessmentAnswers, type AssessmentCriterionCode, type CompleteSessionInput,
   type TrainingAssessmentResponse, type TrainingAssessmentTemplateResponse,
   type TrainingVetNotificationResponse,
-} from '../../src/trainingAssessment';
+} from '../../src/features/training/trainingAssessment';
 
 export const FIXTURE_SESSION_ID = 'SES-DEMO-001';
 export const FIXTURE_HORSE_NAME = 'Northern Promise';

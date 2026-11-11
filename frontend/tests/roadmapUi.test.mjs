@@ -1,6 +1,7 @@
+import { sourceNames, sourceUrl, flattenModuleImports } from './sourceFiles.mjs';
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -9,11 +10,11 @@ import ts from 'typescript';
 const require = createRequire(new URL('../package.json', import.meta.url));
 const dir = await mkdtemp(path.join(tmpdir(), 'raceforge-roadmap-ui-'));
 after(()=>rm(dir,{recursive:true,force:true}));
-for(const name of await readdir(new URL('../src/',import.meta.url))) {
+for(const name of sourceNames()) {
  if(!/\.tsx?$/.test(name))continue;
- const source=await readFile(new URL('../src/'+name,import.meta.url),'utf8');
+ const source=await readFile(sourceUrl(name),'utf8');
  const output=ts.transpileModule(source.replace('import.meta.env','({})'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText
- .replace(/(['"])(\.\/[^'"]+)\1/g,(_,q,s)=>q+s+'.mjs'+q)
+ .replace(/[\s\S]*/, flattenModuleImports)
  .replace(/(['"])(react(?:\/jsx-runtime)?|react-dom(?:\/client)?|recharts|qrcode\.react)\1/g,(_,q,s)=>q+pathToFileURL(require.resolve(s)).href+q);
  await writeFile(path.join(dir,name.replace(/\.tsx?$/,'.mjs')),output);
 }

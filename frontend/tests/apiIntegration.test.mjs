@@ -1,3 +1,4 @@
+import { sourceUrl, flattenModuleImports } from './sourceFiles.mjs';
 import { after, beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
@@ -9,9 +10,9 @@ import ts from 'typescript';
 // Run the actual TS adapters without Vite or a database; HTTP is the test boundary.
 const dir = await mkdtemp(path.join(tmpdir(), 'raceforge-api-tests-'));
 for (const name of ['sessionPreview', 'packageBuilder', 'packageRoadmap', 'trainingSchedule', 'trainingTimestamp', 'api', 'trainingAssessment', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
-  const source = await readFile(new URL(`../src/${name}.ts`, import.meta.url), 'utf8');
+  const source = await readFile(sourceUrl(`${name}.ts`), 'utf8');
   const code = ts.transpileModule(source.replace('import.meta.env', '({})'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText
-    .replace(/(['"])(\.\/[^'"]+)\1/g, (_, quote, specifier) => `${quote}${specifier}.mjs${quote}`);
+    .replace(/[\s\S]*/, flattenModuleImports);
   await writeFile(path.join(dir, `${name}.mjs`), code);
 }
 const api = await import(pathToFileURL(path.join(dir, 'api.mjs')).href);
@@ -139,7 +140,7 @@ test('does not retry a forbidden action, and rejects non-API HTML', async () => 
 test('public registration payload never contains role or groom selection', async () => {
   globalThis.fetch = async (url, init) => { assert.equal(url, '/api/auth/register'); assert.deepEqual(Object.keys(JSON.parse(init.body)).sort(), ['email','fullName','password','phone']); return ok({ message:'OTP sent' }); };
   await api.auth.register({ fullName:'Owner', email:'test@example.invalid', password:'password123', phone:'' });
-  const app = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8');
+  const app = await readFile(sourceUrl('App.tsx'), 'utf8');
   const registration = app.slice(app.indexOf('function RegisterPage'), app.indexOf('// ── Onboarding'));
   assert.match(registration, /auth\.register/);
   assert.doesNotMatch(registration, /role:\s*['"]groom/);
@@ -607,4 +608,59 @@ test('retrying an unconfigured roadmap reloads the template instead of caching a
  await assert.rejects(recommendations.packageRoadmapFor('HPG-retry'),/No package roadmap stages/);
  const value=await recommendations.packageRoadmapFor('HPG-retry');assert.equal(value.stages.length,1);assert.equal(calls,2);
  recommendations.clearRecommendations();
+});
+
+test('critical clinical evidence is uploaded before confirmation and retry uses the existing draft', async () => {
+  const { remote } = actions(state());
+  const record = {
+    horseId: 'HOR-007', date: '10/11/2026', type: 'Routine examination',
+    decision: 'not-eligible', status: 'confirmed',
+    decisionReason: 'Severe clinical finding requires a training lock',
+    regions: { eyes: { ok: false, critical: true, note: 'Severe swelling', evidenceFile: new File(['photo'], 'eyes.png', { type: 'image/png' }) } },
+  };
+  const calls = [];
+  let failUpload = true;
+  globalThis.fetch = async (url, init) => {
+    calls.push([init.method, url]);
+    if (url.endsWith('/health-profile')) return ok('HP-007');
+    if (url.endsWith('/evidence')) {
+      assert.equal(init.body.get('file').name, 'eyes.png');
+      return failUpload ? denied() : ok({});
+    }
+    assert.equal(JSON.parse(init.body).clinicalExams[0].conditionStatus, 'CRITICAL');
+    return ok({
+      medicalRecordId: 'MED-007', status: url.endsWith('/confirm') ? 'CONFIRMED' : 'DRAFT',
+      clinicalExams: [{ examinationArea: 'EYES', conditionStatus: 'CRITICAL', evidenceImageUrl: 'https://example.invalid/eyes.png' }],
+    });
+  };
+  await assert.rejects(remote.saveHealth(record), /Could not upload evidence for eyes/);
+  assert.ok(!calls.some(([, url]) => url.endsWith('/confirm')));
+  failUpload = false;
+  calls.length = 0;
+  const saved = await remote.saveHealth(record);
+  assert.deepEqual(calls, [
+    ['PUT', '/api/medical/records/MED-007/draft'],
+    ['PUT', '/api/medical/records/MED-007/clinical-exams/EYES/evidence'],
+    ['POST', '/api/medical/records/MED-007/confirm'],
+  ]);
+  assert.equal(saved.regions.eyes.critical, true);
+  assert.equal(saved.regions.eyes.evidenceImageUrl, 'https://example.invalid/eyes.png');
+});
+
+test('trainer resumption notification opens the training hub and acceptance calls the resumption API', async () => {
+  const trainer = user('head_trainer');
+  globalThis.fetch = async url => url === '/api/notifications'
+    ? ok([{ notificationId: 'N-1', notificationType: 'TRAINER_RESUMPTION_AVAILABLE', message: 'Training lock released' }])
+    : ok([]);
+  const data = await mapping.loadRemote(trainer, () => {});
+  assert.equal(data.notifications[0].action, 'training-hub');
+
+  const { remote, events } = actions({ ...state(), user: trainer });
+  globalThis.fetch = async (url, init) => {
+    assert.equal(url, '/api/horse-packages/resumptions/HP-007/accept');
+    assert.equal(init.method, 'POST');
+    return ok(null);
+  };
+  assert.equal((await remote.acceptResumption('HP-007')).ok, true);
+  assert.ok(events.includes('reload'));
 });

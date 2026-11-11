@@ -1,3 +1,4 @@
+import { sourceUrl, flattenModuleImports } from './sourceFiles.mjs';
 import { test, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, mkdtemp, writeFile, rm } from 'node:fs/promises';
@@ -12,11 +13,11 @@ const localRequire = createRequire(new URL('../package.json', import.meta.url));
 function compile(source) {
   return ts.transpileModule(source.replace('import.meta.env', '({})'), {
     compilerOptions: { module:ts.ModuleKind.ES2022, target:ts.ScriptTarget.ES2022, jsx:ts.JsxEmit.ReactJSX },
-  }).outputText.replace(/(['"])(\.\/[^'"]+)\1/g, (_, quote, specifier) => `${quote}${specifier}.mjs${quote}`)
+  }).outputText.replace(/[\s\S]*/, flattenModuleImports)
     .replace(/(['"])(react(?:\/jsx-runtime)?)\1/g, (_, quote, specifier) => `${quote}${pathToFileURL(localRequire.resolve(specifier)).href}${quote}`);
 }
 for (const name of ['api', 'passwordSetup']) {
-  await writeFile(path.join(dir, `${name}.mjs`), compile(await readFile(new URL(`../src/${name}.ts`, import.meta.url), 'utf8')));
+  await writeFile(path.join(dir, `${name}.mjs`), compile(await readFile(sourceUrl(`${name}.ts`), 'utf8')));
 }
 const api = await import(pathToFileURL(path.join(dir, 'api.mjs')).href);
 const flow = await import(pathToFileURL(path.join(dir, 'passwordSetup.mjs')).href);
@@ -31,7 +32,7 @@ const ok = data => new Response(JSON.stringify({ success:true, data, message:'OK
 
 // Render the actual existing LoginPage, without loading the rest of App or
 // sending requests. This verifies the real password/login presentation.
-const appSource=await readFile(new URL('../src/App.tsx',import.meta.url),'utf8');
+const appSource=await readFile(sourceUrl('App.tsx'),'utf8');
 const ast=ts.createSourceFile('App.tsx',appSource,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 const login=ast.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='LoginPage');
 await writeFile(path.join(dir,'LoginPage.mjs'),compile(`

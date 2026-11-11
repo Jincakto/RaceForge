@@ -1,12 +1,13 @@
+import { sourceNames, sourceUrl, flattenModuleImports } from './sourceFiles.mjs';
 import {test,after,beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,readdir,readFile,writeFile,rm} from 'node:fs/promises';
+import {mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';import path from 'node:path';import {pathToFileURL} from 'node:url';import ts from 'typescript';
 const dir=await mkdtemp(path.join(tmpdir(),'raceforge-package-builder-'));
-for(const file of await readdir(new URL('../src/',import.meta.url))) {
+for(const file of sourceNames()) {
  if(!file.endsWith('.ts')||file.endsWith('.d.ts'))continue;
- const source=await readFile(new URL('../src/'+file,import.meta.url),'utf8');
- const output=ts.transpileModule(source.replaceAll('import.meta.env','({})'),{compilerOptions:{module:ts.ModuleKind.ES2022,target:ts.ScriptTarget.ES2022}}).outputText.replace(/(['"])(\.\/[^'"]+)\1/g,(_,q,s)=>q+s+'.mjs'+q);
+ const source=await readFile(sourceUrl(file),'utf8');
+ const output=ts.transpileModule(source.replaceAll('import.meta.env','({})'),{compilerOptions:{module:ts.ModuleKind.ES2022,target:ts.ScriptTarget.ES2022}}).outputText.replace(/[\s\S]*/, flattenModuleImports);
  await writeFile(path.join(dir,file.replace(/\.ts$/,'.mjs')),output);
 }
 const b=await import(pathToFileURL(path.join(dir,'packageBuilder.mjs')));

@@ -1,3 +1,4 @@
+import { sourceUrl, flattenModuleImports } from './sourceFiles.mjs';
 import {test,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
@@ -7,8 +8,8 @@ import {pathToFileURL} from 'node:url';
 import ts from 'typescript';
 const dir=await mkdtemp(path.join(tmpdir(),'training-read-'));
 for(const name of ['trainingAssessment', 'remote','api','trainingSchedule','trainingTimestamp','data','trainingLogic']){
- const source=await readFile(new URL('../src/'+name+'.ts',import.meta.url),'utf8');
- const output=ts.transpileModule(source.replace('import.meta.env','({})'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace(/(['"])(\.\/[^'"]+)\1/g,(_,q,s)=>q+s+'.mjs'+q);
+ const source=await readFile(sourceUrl(name+'.ts'),'utf8');
+ const output=ts.transpileModule(source.replace('import.meta.env','({})'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace(/[\s\S]*/, flattenModuleImports);
  await writeFile(path.join(dir,name+'.mjs'),output);
 }
 const {RemoteSourceStore,currentTrainerAssignment,uniqueSessions,loadRemote}=await import(pathToFileURL(path.join(dir,'remote.mjs')));

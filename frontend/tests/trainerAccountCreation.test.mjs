@@ -1,19 +1,19 @@
+import { sourceNames, sourceUrl, flattenModuleImports } from './sourceFiles.mjs';
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 
 const dir = await mkdtemp(path.join(tmpdir(), 'trainer-account-test-'));
-const src = new URL('../src/', import.meta.url);
-for (const name of await readdir(src)) {
+for (const name of sourceNames()) {
   if (!name.endsWith('.ts') || name.endsWith('.d.ts')) continue;
-  const source = await readFile(new URL(name, src), 'utf8');
+  const source = await readFile(sourceUrl(name), 'utf8');
   const code = ts.transpileModule(source.replaceAll('import.meta.env', '({})'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
-  }).outputText.replace(/(['"])(\.\/[^'"]+)\1/g, (_, quote, specifier) => `${quote}${specifier}.mjs${quote}`);
+  }).outputText.replace(/[\s\S]*/, flattenModuleImports);
   await writeFile(path.join(dir, name.replace(/\.ts$/, '.mjs')), code);
 }
 const { makeRemoteActions } = await import(pathToFileURL(path.join(dir, 'remoteActions.mjs')).href);

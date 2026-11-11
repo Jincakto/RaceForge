@@ -1,13 +1,13 @@
 /** Standalone Vite visual fixture. Production App and its authentication flow are not mounted. */
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import '../../src/index.css';
-import { ResultForm } from '../../src/trainingPlans';
+import '../../src/app/index.css';
+import { ResultForm } from '../../src/features/training/trainingPlans';
 import {
   TrainingAssessmentDetails, TrainingAssessmentEmpty, TrainingAssessmentReadOnly,
-} from '../../src/TrainingAssessmentView';
-import { request } from '../../src/api';
-import { assessmentErrorMessage, type CompleteSessionInput, type TrainingVetNotificationResponse } from '../../src/trainingAssessment';
+} from '../../src/features/training/TrainingAssessmentView';
+import { request } from '../../src/shared/api/api';
+import { assessmentErrorMessage, type CompleteSessionInput, type TrainingVetNotificationResponse } from '../../src/features/training/trainingAssessment';
 import {
   FIXTURE_HORSE_NAME, FIXTURE_SESSION_ID, SCENARIOS, installFixtureFetch, type Scenario,
 } from './fixtureData';

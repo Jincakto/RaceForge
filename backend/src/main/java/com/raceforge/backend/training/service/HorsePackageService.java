@@ -61,7 +61,7 @@ public class HorsePackageService {
 
       Horse horse = horseRepository.findById(request.horseId())
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found: " + request.horseId()));
-        entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);
+      entityManager.refresh(horse, LockModeType.PESSIMISTIC_WRITE);
         checkOwnership(horse, ownerId);
         requireApprovedAdmission(horse);
         LocalDate registrationToday = LocalDate.now(trainingClock);
@@ -97,11 +97,11 @@ public class HorsePackageService {
                 .orElseThrow(() -> new ResourceNotFoundException("Registration not found: " + registrationId));
         Horse horse = horseRepository.findById(registration.getHorse().getHorseId())
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found"));
-        entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);
+        entityManager.refresh(horse, LockModeType.PESSIMISTIC_WRITE);
         entityManager.lock(registration, LockModeType.PESSIMISTIC_WRITE);
         checkOwnership(horse, ownerId);
         requireApprovedAdmission(horse);
-        expirationService.expireForLockedHorse(horse, LocalDate.now());
+        expirationService.expireForLockedHorse(horse, LocalDate.now(trainingClock));
         if (!java.util.Set.of("BASIC", "RACING", "PERFORMANCE").contains(registration.getTrainingPackage().getPackageType())) {
             throw new BusinessRuleException("Unsupported training package type");
         }
@@ -135,7 +135,7 @@ public class HorsePackageService {
             throw new BusinessRuleException("Horse already has an active or paused package");
         }
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(trainingClock);
         int days = registration.getTrainingPackage().getDurationDays();
         registration.setPaymentStatus("PAID");
         // registration.setPaidAt(LocalDateTime.now()); // Retired in V5.
@@ -151,14 +151,14 @@ public class HorsePackageService {
         return mapper.toResponse(saved);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<HorsePackageResponse> history(String horseId, String ownerId) {
         requireOwnerId(ownerId);
         Horse horse = horseRepository.findById(horseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found: " + horseId));
         checkOwnership(horse, ownerId);
-        entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);
-        expirationService.expireForLockedHorse(horse, LocalDate.now());
+        entityManager.refresh(horse, LockModeType.PESSIMISTIC_WRITE);
+        expirationService.expireForLockedHorse(horse, LocalDate.now(trainingClock));
         return horsePackageRepository.findByHorse_HorseIdOrderByRegisteredAtDesc(horseId)
                 .stream().map(mapper::toResponse).toList();
     }
@@ -168,8 +168,8 @@ public class HorsePackageService {
     public List<HorsePackageResponse> historyForManager(String horseId) {
         Horse horse = horseRepository.findById(horseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found: " + horseId));
-        entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);
-        expirationService.expireForLockedHorse(horse, LocalDate.now());
+        entityManager.refresh(horse, LockModeType.PESSIMISTIC_WRITE);
+        expirationService.expireForLockedHorse(horse, LocalDate.now(trainingClock));
         return horsePackageRepository.findByHorse_HorseIdOrderByRegisteredAtDesc(horseId)
                 .stream().map(mapper::toResponse).toList();
     }

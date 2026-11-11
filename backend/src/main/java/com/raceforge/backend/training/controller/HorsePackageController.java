@@ -5,9 +5,16 @@ import com.raceforge.backend.common.response.ApiResponse;
 import com.raceforge.backend.training.dto.HorsePackageRegisterRequest;
 import com.raceforge.backend.training.dto.HorsePackageResponse;
 import com.raceforge.backend.training.service.HorsePackageService;
+import com.raceforge.backend.training.service.TrainingCertificateAccess;
+import com.raceforge.backend.training.service.TrainingCertificatePdf;
+import com.raceforge.backend.training.entity.TrainingCertificate;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,9 +28,38 @@ import java.util.List;
 public class HorsePackageController {
 
     private final HorsePackageService service;
+    private final TrainingCertificateAccess certificates;
+    private final TrainingCertificatePdf certificatePdf;
 
-    public HorsePackageController(HorsePackageService service) {
+    public HorsePackageController(HorsePackageService service, TrainingCertificateAccess certificates,
+                                  TrainingCertificatePdf certificatePdf) {
         this.service = service;
+        this.certificates = certificates;
+        this.certificatePdf = certificatePdf;
+    }
+
+    @PreAuthorize("hasAuthority('HORSE_OWNER')")
+    @GetMapping("/{horsePackageId}")
+    public ApiResponse<TrainingCertificateAccess.RegistrationDetail> detail(
+            @PathVariable String horsePackageId,
+            @AuthenticationPrincipal(expression = "userId") String ownerId) {
+        return ApiResponse.success("Horse package retrieved", certificates.detail(horsePackageId, ownerId));
+    }
+
+    @PreAuthorize("hasAuthority('HORSE_OWNER')")
+    @GetMapping("/{horsePackageId}/certificate")
+    public ResponseEntity<byte[]> downloadCertificate(
+            @PathVariable String horsePackageId,
+            @AuthenticationPrincipal(expression = "userId") String ownerId) {
+        TrainingCertificate certificate = certificates.certificate(horsePackageId, ownerId);
+        String disposition = ContentDisposition.attachment()
+                .filename(certificate.getCertificateNumber() + ".pdf")
+                .build().toString();
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .cacheControl(CacheControl.noStore())
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition)
+                .body(certificatePdf.render(certificate));
     }
 
     @PreAuthorize("hasAuthority('HORSE_OWNER')")

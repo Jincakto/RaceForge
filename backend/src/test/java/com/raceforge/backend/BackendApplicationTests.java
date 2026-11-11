@@ -27,6 +27,7 @@ import com.raceforge.backend.permission.repository.PermissionRepository;
 import com.raceforge.backend.permission.repository.RolePermissionRepository;
 import com.raceforge.backend.permission.config.PermissionDataSeeder;
 import com.raceforge.backend.training.repository.HorsePackageRepository;
+import com.raceforge.backend.training.repository.TrainingCertificateRepository;
 import com.raceforge.backend.training.repository.HorsePlanRepository;
 import com.raceforge.backend.training.repository.TrainingPackageRepository;
 import com.raceforge.backend.training.repository.TrainingPlanRepository;
@@ -93,6 +94,8 @@ class BackendApplicationTests {
 	private com.raceforge.backend.permission.repository.RoleRepository permissionRoleRepository;
 	@MockitoBean
 	private HorsePackageRepository horsePackageRepository;
+	@MockitoBean
+	private TrainingCertificateRepository trainingCertificateRepository;
 	@MockitoBean
 	private HorsePlanRepository horsePlanRepository;
 	@MockitoBean

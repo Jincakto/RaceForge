@@ -4,6 +4,7 @@ import com.raceforge.backend.common.exception.ResourceNotFoundException;
 import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.repository.HorseRepository;
 import com.raceforge.backend.training.entity.HorsePackage;
+import com.raceforge.backend.training.entity.TrainingCertificate;
 import com.raceforge.backend.training.repository.HorsePackageRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
@@ -49,6 +50,7 @@ public class TrainingPackageExpirationService {
                 horse.getHorseId(), "ACTIVE");
         int count = 0;
         for (HorsePackage registration : active) {
+            entityManager.refresh(registration, LockModeType.PESSIMISTIC_WRITE);
             if (expireIfDue(registration, horse, today)) {
                 count++;
             }
@@ -72,9 +74,10 @@ public class TrainingPackageExpirationService {
         String horseId = snapshot.getHorse().getHorseId();
         Horse horse = horses.findById(horseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found: " + horseId));
-        entityManager.lock(horse, LockModeType.PESSIMISTIC_WRITE);
+        entityManager.refresh(horse, LockModeType.PESSIMISTIC_WRITE);
         HorsePackage locked = horsePackages.findForUpdate(registrationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Package registration not found"));
+        entityManager.refresh(locked, LockModeType.PESSIMISTIC_WRITE);
         if (!horseId.equals(locked.getHorse().getHorseId())) {
             throw new IllegalStateException("Package registration horse changed unexpectedly");
         }
@@ -90,6 +93,7 @@ public class TrainingPackageExpirationService {
         registration.setStatus("COMPLETED");
         registration.setRemainingDays(0);
         horsePackages.save(registration);
+        entityManager.persist(new TrainingCertificate(registration.getHorsePackageId(), horse.getHorseName(), today));
 
         String type = "TRAINING_PACKAGE_EXPIRED";
         String label = "Training";

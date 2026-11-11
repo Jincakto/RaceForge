@@ -2,6 +2,7 @@ package com.raceforge.backend.training.service;
 
 import com.raceforge.backend.training.repository.HorsePackageRepository;
 import org.junit.jupiter.api.Test;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -12,7 +13,7 @@ class TrainingPackageExpirySchedulerTest {
     private final HorsePackageRepository registrations = mock(HorsePackageRepository.class);
     private final TrainingPackageExpirationService expiration = mock(TrainingPackageExpirationService.class);
     private final TrainingPackageExpiryScheduler scheduler =
-            new TrainingPackageExpiryScheduler(registrations, expiration);
+            new TrainingPackageExpiryScheduler(registrations, expiration, Clock.systemUTC());
 
     @Test
     void runsEachExpiredIdOnce() {

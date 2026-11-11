@@ -5,10 +5,12 @@ import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.repository.HorseRepository;
 import com.raceforge.backend.training.entity.HorsePackage;
 import com.raceforge.backend.training.entity.TrainingPackage;
+import com.raceforge.backend.training.entity.TrainingCertificate;
 import com.raceforge.backend.training.repository.HorsePackageRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -36,6 +38,7 @@ class TrainingPackageExpirationServiceTest {
         owner.setUserId("7");
         horse = new Horse();
         horse.setHorseId("HOR-001");
+        horse.setHorseName("Ngựa Ánh Dương");
         horse.setOwner(owner);
         TrainingPackage normalType = new TrainingPackage();
         normalType.setPackageType("RACING");
@@ -59,6 +62,12 @@ class TrainingPackageExpirationServiceTest {
         assertEquals("COMPLETED", normal.getStatus());
         assertEquals(0, normal.getRemainingDays());
         verify(registrations).save(normal);
+        var certificate = ArgumentCaptor.forClass(TrainingCertificate.class);
+        verify(em).persist(certificate.capture());
+        horse.setHorseName("New name");
+        assertEquals("Ngựa Ánh Dương", certificate.getValue().getHorseNameAtIssue());
+        assertEquals("RF-HPG-010", certificate.getValue().getCertificateNumber());
+        assertEquals(today, certificate.getValue().getIssueDate());
         verify(events).notifyOwner(eq("7"), eq("HOR-001"),
                 eq("TRAINING_PACKAGE_EXPIRED"), anyString());
         verify(events, never()).notifyManagers(anyString(), anyString(), anyString());
@@ -70,6 +79,7 @@ class TrainingPackageExpirationServiceTest {
         assertEquals(0, service.expireForLockedHorse(horse, today));
         assertEquals("ACTIVE", normal.getStatus());
         verify(registrations, never()).save(any());
+        verify(em, never()).persist(any());
     }
 
     @Test
@@ -103,6 +113,7 @@ class TrainingPackageExpirationServiceTest {
         assertTrue(service.expireRegistration("HPG-010", today));
         assertFalse(service.expireRegistration("HPG-010", today));
         verify(registrations, times(1)).save(normal);
+        verify(em, times(1)).persist(any(TrainingCertificate.class));
         verify(events, times(1)).notifyOwner(eq("7"), eq("HOR-001"), anyString(), anyString());
     }
 
@@ -111,7 +122,7 @@ class TrainingPackageExpirationServiceTest {
         assertTrue(service.expireRegistration("HPG-010", today));
         var inOrder = inOrder(horses, em, registrations);
         inOrder.verify(horses).findById("HOR-001");
-        inOrder.verify(em).lock(eq(horse), any());
+        inOrder.verify(em).refresh(eq(horse), any(jakarta.persistence.LockModeType.class));
         inOrder.verify(registrations).findForUpdate("HPG-010");
     }
 
@@ -120,5 +131,13 @@ class TrainingPackageExpirationServiceTest {
         normal.setStatus("COMPLETED");
         assertFalse(service.expireRegistration("HPG-010", today));
         verify(events, never()).record(any(), any(), any(), any(), any());
+        verify(em, never()).persist(any());
+    }
+
+    @Test
+    void cancelledRegistrationCannotBeCertified() {
+        normal.setStatus("CANCELLED");
+        assertFalse(service.expireRegistration("HPG-010", today));
+        verify(em, never()).persist(any());
     }
 }

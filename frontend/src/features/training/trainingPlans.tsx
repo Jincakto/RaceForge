@@ -154,6 +154,7 @@ export function TrainingHubPage(props: HubProps) {
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [assessmentOpen, setAssessmentOpen] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [horseFilter, setHorseFilter] = useState('');
   const [weekAnchor, setWeekAnchor] = useState(TODAY);
 
   const horseIds = new Set(mine.map(h => h.id));
@@ -179,7 +180,13 @@ export function TrainingHubPage(props: HubProps) {
   const weekEnd = fmtD(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6));
   const weekSessionCount = mySessions.filter(s => weekDays.some(d => d.key === s.date) && s.status !== 'Cancelled').length;
 
-  const listed = mySessions.filter(s => statusFilter === 'all' || s.status === statusFilter);
+  const sessionHorseIds = [...new Set(mySessions.map(session => session.horseId))]
+    .sort((a, b) => hn(a).localeCompare(hn(b)) || a.localeCompare(b));
+  const selectedHorse = sessionHorseIds.includes(horseFilter) ? horseFilter : '';
+  const listed = mySessions.filter(session =>
+    (!selectedHorse || session.horseId === selectedHorse) &&
+    (statusFilter === 'all' || session.status === statusFilter),
+  );
 
   return (
     <div className="space-y-5">
@@ -273,10 +280,19 @@ export function TrainingHubPage(props: HubProps) {
 
       {tab === 'sessions' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2 text-sm"><span className="text-gray-500">Filter:</span>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <label className="mr-2 flex items-center gap-2 text-gray-600">
+              Horse
+              <select value={selectedHorse} onChange={event => setHorseFilter(event.target.value)}
+                className="max-w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-800">
+                <option value="">All horses</option>
+                {sessionHorseIds.map(id => <option key={id} value={id}>{hn(id)} · {id}</option>)}
+              </select>
+            </label>
+            <span className="text-gray-500">Status</span>
             {[['all', "All"], ['Scheduled', "Scheduled"], ['In Progress', "In progress"], ['Completed', "Completed"], ['Not Performed', "Not performed"]].map(([k, l]) => <button key={k} onClick={() => setStatusFilter(k)} className={`rounded-full border px-3 py-1 text-xs font-medium ${statusFilter === k ? 'border-[#1a2844] bg-[#1a2844] text-white' : 'border-gray-300 bg-white text-gray-600'}`}>{l}</button>)}
           </div>
-          {listed.length === 0 && <Card className="p-8 text-center text-sm text-gray-500">No sessions yet{statusFilter !== 'all' ? " matching this filter" : ''}.</Card>}
+          {listed.length === 0 && <Card className="p-8 text-center text-sm text-gray-500">{selectedHorse || statusFilter !== 'all' ? 'No sessions match the selected filters.' : 'No sessions yet.'}</Card>}
           {listed.map(s => {
             const ownsSession=isTrainer && s.trainerId===me.id && state.enrollments.some(e=>e.id===s.horsePackageId&&e.trainerId===me.id&&e.trainerStatus==='confirmed'&&e.status==='active'&&e.paymentStatus==='PAID');
             const canCheckIn = ownsSession && s.status === 'Scheduled' && !s.attendance && s.date === today;

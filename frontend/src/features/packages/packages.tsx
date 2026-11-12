@@ -34,7 +34,7 @@ export function PackageCatalogPage({ packages, enrollments, onSave }: CatalogPro
   const usage = (id: string) => enrollments.filter(e => e.packageId === id).length;
 
   return (
-    <div className="max-w-5xl space-y-5">
+    <div className="w-full space-y-5">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="font-serif text-xl font-bold text-[#0f1729]">Training package catalogue</h2>
@@ -58,9 +58,9 @@ export function PackageCatalogPage({ packages, enrollments, onSave }: CatalogPro
           {packages.length === 0 && <div className="mt-3"><Btn variant="gold" onClick={() => setCreating(true)}>+ Create your first package</Btn></div>}
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid items-start gap-4 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
           {list.map(p => (
-            <Card key={p.id} className={`p-5 ${p.active ? '' : 'opacity-70'}`}>
+            <Card key={p.id} className={`min-w-0 p-5 md:has-[>details[open]]:col-span-2 ${p.active ? '' : 'opacity-70'}`}>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="mb-1 flex flex-wrap items-center gap-2">

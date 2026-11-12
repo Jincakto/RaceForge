@@ -58,7 +58,7 @@ export function PackageCatalogPage({ packages, enrollments, onSave }: CatalogPro
           {packages.length === 0 && <div className="mt-3"><Btn variant="gold" onClick={() => setCreating(true)}>+ Create your first package</Btn></div>}
         </Card>
       ) : (
-        <div className="grid items-start gap-4 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <div className="grid items-start gap-4 md:grid-cols-2">
           {list.map(p => (
             <Card key={p.id} className={`min-w-0 p-5 md:has-[>details[open]]:col-span-2 ${p.active ? '' : 'opacity-70'}`}>
               <div className="flex items-start justify-between gap-3">

@@ -1476,7 +1476,6 @@ const NAV_ITEMS: Partial<
     { icon: "⊞", label: "Dashboard", page: "dashboard" },
     { icon: "🐎", label: "Horses", page: "horse-list" },
     { icon: "📋", label: "Training & plans", page: "training-hub" },
-    { icon: "📈", label: "Performance", page: "performance" },
     { icon: "🔔", label: "Notifications", page: "notifications" },
   ],
   veterinarian: [
@@ -8900,7 +8899,9 @@ export default function App() {
           ? <OwnerCertificates key={state.user!.id} ownerId={state.user!.id} horses={state.horses} enrollments={state.enrollments} />
           : <NoPermission text="This page is available to horse owners." />;
       case "performance":
-        return <PerformancePage state={state} />;
+        return role === "head_trainer"
+          ? <NoPermission text="Training results are available under Training & plans." />
+          : <PerformancePage state={state} />;
       case "reports":
         return (
           <ReportsPage

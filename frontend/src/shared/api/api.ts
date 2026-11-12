@@ -15,12 +15,12 @@ function refreshSession(): Promise<RefreshedSession> {
 }
 export function clearSession() { accessToken = ''; }
 export function setAccessToken(token: string) { accessToken = token; }
-export async function request<T = any>(path: string, method = 'GET', body?: unknown, retry = true): Promise<T> {
+export async function request<T = any>(path: string, method = 'GET', body?: unknown, retry = true, format: 'json' | 'pdf' = 'json'): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${base}${path}`, {
       method, credentials: 'include',
-      headers: { Accept: 'application/json', ...(body === undefined || body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+      headers: { Accept: format === 'pdf' ? 'application/pdf, application/json' : 'application/json', ...(body === undefined || body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
       ...(body === undefined ? {} : { body: body instanceof FormData ? body : JSON.stringify(body) }),
     });
   } catch { throw new ApiError("Cannot connect to the server. Check the backend and API configuration.", 0); }
@@ -30,7 +30,13 @@ export async function request<T = any>(path: string, method = 'GET', body?: unkn
     } catch (error) {
       clearSession(); window.dispatchEvent(new Event('raceforge:session-expired')); throw error;
     }
-    return request<T>(path, method, body, false);
+    return request<T>(path, method, body, false, format);
+  }
+  if (format === 'pdf' && response.ok) {
+    if (response.headers.get('Content-Type')?.split(';')[0] !== 'application/pdf') {
+      throw new ApiError('The server did not return a PDF certificate.', response.status);
+    }
+    return await response.blob() as T;
   }
   if (response.status === 204) return undefined as T;
   const raw = await response.text();
@@ -57,6 +63,7 @@ export async function request<T = any>(path: string, method = 'GET', body?: unkn
   if (!payload || typeof payload.success !== 'boolean') throw new ApiError("The server returned an invalid API response.", response.status);
   return payload.data as T;
 }
+export const requestPdf = (path: string) => request<Blob>(path, 'GET', undefined, true, 'pdf');
 export const auth = {
   async login(email: string, password: string) { const data = await request('/auth/login', 'POST', { email, password }); setAccessToken(data.accessToken); return data.user; },
   async restore() { return (await refreshSession()).user; },

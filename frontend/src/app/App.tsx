@@ -1,3 +1,4 @@
+import { OwnerCertificates } from "../features/packages/OwnerCertificates";
 import { TrainingAssessmentNotification } from '../features/training/TrainingAssessmentNotification';
 import { isAssessmentNotification, type TrainingAssessmentContext } from '../features/training/trainingAssessment';
 import { PackageRoadmapPreview } from '../features/training/roadmapView';
@@ -144,6 +145,7 @@ type Page =
   | "permissions"
   | "audit-log"
   | "training-register"
+  | "certificates"
   | "vet-assign"
   | "post-exam"
   | "inventory"
@@ -1503,6 +1505,7 @@ const NAV_ITEMS: Partial<
     { icon: "➕", label: "Register a new horse", page: "horse-create" },
     { icon: "🎯", label: "Training registration", page: "training-register" },
     { icon: "📈", label: "Performance", page: "performance" },
+    { icon: "📜", label: "Certificates", page: "certificates" },
     { icon: "🔔", label: "Notifications", page: "notifications" },
   ],
 };
@@ -8224,6 +8227,7 @@ const PAGE_TITLES: Partial<Record<Page, string>> = {
   notifications: "Notifications",
   profile: "Profile",
   "training-register": "Training registration",
+  certificates: "Certificates",
   "vet-assign": "Assigned horses",
   "post-exam": "Health examination",
   inventory: "My inventory",
@@ -8891,6 +8895,10 @@ export default function App() {
         if (state.user!.role !== "veterinarian")
           return <NoAccess text="Only veterinarians may access this page" />;
         return examHub("locked");
+      case "certificates":
+        return role === "owner"
+          ? <OwnerCertificates key={state.user!.id} ownerId={state.user!.id} horses={state.horses} enrollments={state.enrollments} />
+          : <NoPermission text="This page is available to horse owners." />;
       case "performance":
         return <PerformancePage state={state} />;
       case "reports":

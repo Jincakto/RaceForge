@@ -56,7 +56,6 @@ export const FEATURES: { page: string; label: string; icon: string; group: strin
   { page: 'trainer-assign', label: 'Trainer assignments', icon: '🧑‍🏫', group: 'Training' },
   { page: 'training-hub', label: 'Training & plans', icon: '📋', group: 'Training' },
   { page: 'performance', label: 'Performance', icon: '📈', group: 'Training' },
-  { page: 'race-results', label: 'Race results', icon: '🏆', group: 'Training' },
   { page: 'care-hub', label: 'Care & stables', icon: '🌿', group: 'Care' },
   { page: 'inventory', label: 'Inventory', icon: '📦', group: 'Care' },
   { page: 'staff', label: 'Club staff', icon: '👥', group: 'Administration' },

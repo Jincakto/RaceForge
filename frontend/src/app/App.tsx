@@ -135,7 +135,6 @@ type Page =
   | "training-hub"
   | "care-hub"
   | "performance"
-  | "race-results"
   | "reports"
   | "staff"
   | "member-requests"
@@ -1468,7 +1467,6 @@ const NAV_ITEMS: Partial<
     { icon: "🏷", label: "Package catalogue", page: "package-catalog" },
     { icon: "🧑‍🏫", label: "Trainer assignments", page: "trainer-assign" },
     { icon: "👥", label: "Staff", page: "staff" },
-    { icon: "🏆", label: "Race results", page: "race-results" },
     { icon: "📊", label: "Reports", page: "reports" },
     { icon: "🔔", label: "Notifications", page: "notifications" },
   ],
@@ -1505,7 +1503,6 @@ const NAV_ITEMS: Partial<
     { icon: "➕", label: "Register a new horse", page: "horse-create" },
     { icon: "🎯", label: "Training registration", page: "training-register" },
     { icon: "📈", label: "Performance", page: "performance" },
-    { icon: "🏆", label: "Race results", page: "race-results" },
     { icon: "🔔", label: "Notifications", page: "notifications" },
   ],
 };
@@ -1531,7 +1528,6 @@ const GRANTABLE_PAGES: { page: Page; label: string; icon: string }[] = [
   { page: "training-hub", label: "Training & plans", icon: "🏇" },
   { page: "care-hub", label: "Care & feeding", icon: "🌿" },
   { page: "performance", label: "Performance", icon: "📈" },
-  { page: "race-results", label: "Race results", icon: "🏆" },
   { page: "reports", label: "Reports", icon: "📊" },
   { page: "center-requests", label: "Horse admission review", icon: "📋" },
   { page: "staff", label: "Staff", icon: "👥" },
@@ -7352,85 +7348,6 @@ function PerformancePage({ state }: { state: AppState }) {
   );
 }
 
-function RaceResultsPage({ horses }: { horses: Horse[] }) {
-  const allRaces = horses.flatMap((h) =>
-    h.raceHistory.map((r) => ({ ...r, horseName: h.name })),
-  );
-  allRaces.sort((a, b) => b.date.localeCompare(a.date));
-  return (
-    <div className="space-y-5">
-      <div>
-        <h2 className="text-xl font-serif font-bold">Race results</h2>
-      </div>
-      <div className="grid grid-cols-4 gap-4">
-        <StatCard label="Total races" value={allRaces.length} color="navy" />
-        <StatCard
-          label="Position 1"
-          value={allRaces.filter((r) => r.position === 1).length}
-          color="gold"
-        />
-        <StatCard
-          label="Top 3"
-          value={allRaces.filter((r) => r.position <= 3).length}
-          color="green"
-        />
-        <StatCard label="Prize" value="185M VND" color="navy" />
-      </div>
-      <Card className="overflow-hidden">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
-              {[
-                "Position",
-                "Event name",
-                "Horses",
-                "Date",
-                "Distance",
-                "Time",
-                "Prize",
-              ].map((h) => (
-                <th
-                  key={h}
-                  className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase"
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {allRaces.map((r, i) => (
-              <tr
-                key={r.id}
-                className={`border-b border-gray-50 hover:bg-gray-50 ${i % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}
-              >
-                <td className="px-4 py-3">
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${r.position === 1 ? "bg-[#c9973b] text-white" : r.position <= 3 ? "bg-gray-400 text-white" : "bg-gray-200 text-gray-600"}`}
-                  >
-                    #{r.position}
-                  </div>
-                </td>
-                <td className="px-4 py-3">
-                  <div className="font-medium">{r.raceName}</div>
-                  <div className="text-xs text-gray-500">{r.venue}</div>
-                </td>
-                <td className="px-4 py-3 text-gray-700">{r.horseName}</td>
-                <td className="px-4 py-3 text-gray-600">{r.date}</td>
-                <td className="px-4 py-3 text-gray-600">{r.distance}</td>
-                <td className="px-4 py-3 font-mono text-xs">{r.time}</td>
-                <td className="px-4 py-3 font-medium text-emerald-600">
-                  {r.prize !== "0 VND" ? r.prize : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Card>
-    </div>
-  );
-}
-
 function ReportsPage({ onUnavailable }: { onUnavailable: () => void }) {
   return (
     <div className="space-y-5">
@@ -8302,7 +8219,6 @@ const PAGE_TITLES: Partial<Record<Page, string>> = {
   "training-hub": "Training & plans",
   "care-hub": "Care & feeding",
   performance: "Performance",
-  "race-results": "Race results",
   reports: "Reports",
   staff: "Staff",
   notifications: "Notifications",
@@ -8977,12 +8893,6 @@ export default function App() {
         return examHub("locked");
       case "performance":
         return <PerformancePage state={state} />;
-      case "race-results":
-        return (
-          <RaceResultsPage
-            horses={state.horses.filter((h) => h.clubId === state.user!.clubId)}
-          />
-        );
       case "reports":
         return (
           <ReportsPage

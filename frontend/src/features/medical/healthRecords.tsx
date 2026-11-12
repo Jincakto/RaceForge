@@ -129,9 +129,13 @@ export function HealthRecordsPage({ state, navigate }: { state: RecState; naviga
           </div>
           <Select label="Decision" value={dec} onChange={v => { setDec(v); setPage(1); }} hint="Filter by the veterinarian's conclusion."
             options={[{ value: 'all', label: "All" }, { value: 'eligible', label: DECISION_LABEL.eligible }, { value: 'conditional', label: DECISION_LABEL.conditional }, { value: 'not-eligible', label: DECISION_LABEL['not-eligible'] }]} />
-          <div className="flex items-end"><Btn variant="secondary" onClick={reset} disabled={!hasFilter}>Clear filters</Btn></div>
-          <Input label="From date" type="date" value={from} onChange={v => { setFrom(v); setPage(1); }} hint="Earliest examination date." error={dateErr} />
+          <div className="md:col-start-1">
+            <Input label="From date" type="date" value={from} onChange={v => { setFrom(v); setPage(1); }} hint="Earliest examination date." error={dateErr} />
+          </div>
           <Input label="To date" type="date" value={to} onChange={v => { setTo(v); setPage(1); }} hint="Latest examination date." />
+          <div className="md:mt-6">
+            <Btn variant="secondary" onClick={reset} disabled={!hasFilter}>Clear filters</Btn>
+          </div>
         </div>
       </Card>
 

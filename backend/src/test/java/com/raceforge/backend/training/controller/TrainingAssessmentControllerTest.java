@@ -37,7 +37,6 @@ class TrainingAssessmentControllerTest {
     @MockitoBean TrainingAssessmentService assessments;
     @MockitoBean TrainingAssessmentNotificationService notifications;
     @MockitoBean TrainingSessionService sessions;
-    @MockitoBean TrainingSessionFeedbackService feedback;
     @MockitoBean TrainingScheduleService schedule;
     @MockitoBean(name = "permissionAccess") PermissionAccess permissionAccess;
 

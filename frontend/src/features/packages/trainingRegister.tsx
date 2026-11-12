@@ -1,3 +1,6 @@
+import { PackageLifecycleButton } from '../training/PackageLifecycleButton';
+import { canCancelRegistration, unfinishedPackageSession, registrationStatus, type PackageLifecycleResult } from '../training/packageLifecycle';
+import type { TrainingSession } from '../../shared/data/data';
 import { usePackageSuggestions, sortSuggestions, suggestionReason } from '../training/trainingSuggestions';
 import { PackageRoadmapPreview } from '../training/roadmapView';
 import { useEffect, useRef, useState } from 'react';
@@ -8,9 +11,10 @@ import { TrainerStatusPill } from './packages';
 import { money, enrollmentTerm, isCurrent, EXPIRY_WARN_DAYS, TODAY } from '../training/trainingLogic';
 
 interface Props {
-  state: { user: AppUser | null; horses: Horse[]; enrollments: Enrollment[]; packages: TrainingPackage[]; healthRecords: HealthRecord[] };
+  state: { user: AppUser | null; horses: Horse[]; enrollments: Enrollment[]; packages: TrainingPackage[]; healthRecords: HealthRecord[]; trainingSessions?: TrainingSession[] };
   navigate: (p: string) => void;
   onStartPayment: (horseId: string, packageId: string) => Promise<Res<{ enrollmentId: string; url: string; orderCode: number }>>;
+  onCancelRegistration?: (id: string) => Promise<PackageLifecycleResult>;
   onSyncPayment: (horseId: string, enrollmentId: string) => Promise<Res<Enrollment>>;
 }
 
@@ -69,7 +73,7 @@ function loadPayOsScript(): Promise<void> {
   return payOsScript;
 }
 
-export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPayment }: Props) {
+export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPayment, onCancelRegistration }: Props) {
   const user = state.user!;
   const myHorses = state.horses.filter(h => h.ownerId === user.id);
   const myEnr = state.enrollments.filter(e => myHorses.some(h => h.id === e.horseId)).slice().reverse();
@@ -202,7 +206,7 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
                 <IdChip kind="ENR" id={e.id} />
                 <span className="font-semibold text-[#0f1729]">Package {e.packageName}</span>
                 <span className="text-sm text-gray-500">· {horseName(e.horseId)}</span>
-                {unpaid ? <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Awaiting payment</span> : <Badge status={e.status === 'paused' ? 'Paused' : e.status === 'completed' ? 'Completed' : 'Active'} />}
+                {unpaid ? <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Awaiting payment</span> : <Badge status={registrationStatus(e)} />}
                 {live && <TrainerStatusPill status={e.trainerStatus} />}
               </div>
               <div className="mt-2 grid gap-1 text-sm text-gray-600 sm:grid-cols-2">
@@ -224,6 +228,7 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
                 </div>
               )}
               <PackageRoadmapPreview packageId={e.packageId} />
+              {onCancelRegistration && canCancelRegistration(e,user,myHorses.find(h=>h.id===e.horseId)?.ownerId) && <PackageLifecycleButton enrollment={e} action="cancel" onAction={onCancelRegistration} blockedReason={unfinishedPackageSession(e,state.trainingSessions || []) ? 'Finish the started session and its results before cancelling this registration.' : null} />}
               {unpaid && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">This registration has not been paid. Continue to get a new PayOS payment link.</div>}
               <div className="mt-3 flex gap-2">{unpaid ? <Btn size="sm" variant="gold" onClick={() => resume(e)}>Continue payment</Btn> : <Btn size="sm" variant="secondary" onClick={() => setViewReceipt(e)}>View receipt</Btn>}</div>
             </Card>

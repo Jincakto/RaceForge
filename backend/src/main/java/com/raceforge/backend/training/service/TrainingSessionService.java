@@ -96,24 +96,16 @@ public class TrainingSessionService {
             throw new BusinessRuleException("Start the session before recording completion.");
         }
         if(session.getActualEnd()==null)throw new BusinessRuleException("Stop the exercise before submitting recovery results.");
-        requireBpm(request.getEndExerciseHeartRate(),"endExerciseHeartRate");
-        requireBpm(request.getRecoveryHeartRate2Min(),"recoveryHeartRate2Min");
         if(request.getDistance()==null || request.getDistance().signum()<0 || request.getDistance().scale()>2 || request.getDistance().compareTo(new java.math.BigDecimal("999999.99"))>0)
             throw new BusinessRuleException("distance in kilometres is required, non-negative, at most two decimal places and within DECIMAL(8,2).");
         if(request.getAvgSpeed()==null || !Double.isFinite(request.getAvgSpeed()) || request.getAvgSpeed()<0)
             throw new BusinessRuleException("avgSpeed in km/h is required, finite and non-negative.");
         if(request.getMaxSpeed()!=null && (!Double.isFinite(request.getMaxSpeed()) || request.getMaxSpeed()<request.getAvgSpeed()))
             throw new BusinessRuleException("maxSpeed must be finite and at least avgSpeed.");
-        LocalDateTime measured=request.getRecoveryMeasuredAt();
-        if(measured==null || measured.isBefore(session.getActualEnd()) || measured.isAfter(LocalDateTime.now(clock)))
-            throw new BusinessRuleException("recoveryMeasuredAt must not precede exercise stop or be in the future.");
         var checkedAssessment = assessmentService.validateCompletion(request);
         session.setStatus("COMPLETED");
         session.setEvaluation(request.getPerformanceNotes());
         session.setDistance(request.getDistance());
-        session.setEndExerciseHeartRate(request.getEndExerciseHeartRate());
-        session.setRecoveryHeartRate2Min(request.getRecoveryHeartRate2Min());
-        session.setRecoveryMeasuredAt(measured);
         // Legacy heartRate remains untouched: its original measurement timing is unknown.
         session.setAvgSpeed(request.getAvgSpeed());
         session.setMaxSpeed(request.getMaxSpeed());
@@ -184,9 +176,6 @@ public class TrainingSessionService {
         session.setRestingMeasuredAt((LocalDateTime)medical.get("examined_at"));
     }
 
-    private static void requireBpm(Integer value,String field){
-        if(value==null || value<=0)throw new BusinessRuleException(field+" in bpm is required and must be positive; this is input validation, not clinical clearance.");
-    }
 
     private TrainingSession lockedSession(String sessionId) {
         scheduleCoordinator.lockSchedule();

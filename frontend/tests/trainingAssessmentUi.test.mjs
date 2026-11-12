@@ -102,9 +102,9 @@ test('full completion form starts unanswered, blocks saving and has exactly one 
   assert.ok(html.includes('Overall notes'));
   assert.ok(html.includes('(optional)'));
   assert.ok(!html.includes('Comments'));
+  assert.doesNotMatch(html, /End-of-exercise heart rate|Heart rate after two-minute recovery/);
   assert.match(html, /<button[^>]*type="submit"[^>]*disabled=""[^>]*>Save and complete/);
-  for (const label of ['Actual distance (km)', 'Average speed (km/h)',
-    'End-of-exercise heart rate (bpm)', 'Heart rate after two-minute recovery (bpm)']) {
+  for (const label of ['Actual distance (km)', 'Average speed (km/h)']) {
     assert.ok(html.includes(label), label);
   }
 });

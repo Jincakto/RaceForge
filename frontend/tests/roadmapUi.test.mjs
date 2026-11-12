@@ -77,3 +77,29 @@ test('Start control renders exactly one button and a nearby backend explanation'
  const busy=render(h(TrainingSessionStartButton,{allowed:true,reason:'',busy:true,onStart:()=>{}}));
  assert.ok(busy.includes('Starting...'));assert.ok(busy.includes('disabled'));
 });
+test('owner sees cancellation only for their active or paused paid registration and keeps terminal history labels',()=>{
+ const user={...state.user,status:'active'},paid={...enrollment,apiStatus:'ACTIVE',paymentStatus:'PAID'};
+ const view=(entry,userOverride=user,sessions=[])=>render(h(TrainingRegisterPage,{state:{...state,user:userOverride,enrollments:[entry],trainingSessions:sessions},navigate:()=>{},onStartPayment:async()=>{},onSyncPayment:async()=>{},onCancelRegistration:async()=>({ok:false,message:'Not sent'})}));
+ assert.ok(view(paid).includes('Cancel registration'));
+ assert.ok(view({...paid,apiStatus:'PAUSED',status:'paused'}).includes('Cancel registration'));
+ assert.ok(!view({...paid,apiStatus:'PENDING',paymentStatus:'PENDING'}).includes('Cancel registration'));
+ assert.ok(!view(paid,{...user,id:'OTHER'}).includes('Cancel registration'));
+ for(const [apiStatus,label] of Object.entries({CANCELLED:'Cancelled',COMPLETED:'Completed',EXPIRED:'Expired',FAILED:'Failed'})){
+  const html=view({...paid,apiStatus,status:'completed'});assert.ok(html.includes(label));assert.ok(html.includes(paid.packageName));assert.ok(!html.includes('Cancel registration'));
+ }
+ const pending=view(paid,user,[{id:'SES',horsePackageId:paid.id,status:'In Progress',actualStart:'2026-11-12T09:00',actualEnd:'2026-11-12T09:30'}]);
+ assert.ok(pending.includes('Finish the started session'));assert.match(pending,/<button[^>]*disabled=""[^>]*>Cancel registration/);
+});
+test('trainer completion is enabled only after successful context and schedule reads with all sessions finished',()=>{
+ const user={id:'HTR-001',role:'head_trainer',clubId:'club',status:'active'};
+ const assigned={...enrollment,apiStatus:'ACTIVE',paymentStatus:'PAID',trainerId:user.id,trainerStatus:'confirmed',startedAt:'01/01/2000',expiresAt:'31/12/2099'};
+ const horseForTrainer={...horse,headTrainerId:user.id,trainerIds:[user.id]};
+ const rows=[{id:'SES',horseId:horse.id,horsePackageId:assigned.id,date:'01/01/2099',time:'09:00',status:'Completed'}];
+ const view=(extra={})=>render(h(TrainingHubPage,{state:{...state,user,horses:[horseForTrainer],enrollments:[assigned],trainingSessions:rows,trainingLoadedSources:['Training schedule '+horse.id,'Assigned packages '+assigned.id],...extra},navigate:()=>{},onCompletePackage:async()=>({ok:false,message:'Not sent'})}));
+ assert.match(view(),/<button(?![^>]*disabled)[^>]*>Complete package/);
+ const blocked=view({trainingLoadedSources:[]});assert.ok(blocked.includes('Refresh the package context'));assert.match(blocked,/<button[^>]*disabled=""[^>]*>Complete package/);
+ assert.ok(view({trainingSessions:[]}).includes('At least one completed or missed'));
+ assert.ok(view({trainingSessions:[{...rows[0],status:'In Progress',actualEnd:'2026-11-12T09:30'}]}).includes('Stopped exercise still needs'));
+ assert.ok(!view({enrollments:[{...assigned,trainerId:'OTHER'}]}).includes('Complete package'));
+ assert.ok(!view({user:{...user,role:'manager'}}).includes('Complete package'));
+});

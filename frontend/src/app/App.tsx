@@ -3716,7 +3716,7 @@ function HorseDetailPage({
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-600">
                         {s.result
-                          ? `${s.result.time} · ${s.result.speed} km/h · ${s.result.heartRate} breaths/min · ${s.result.performanceScore} points`
+                          ? `${s.result.time} · ${s.result.speed} km/h · ${s.result.performanceScore} points`
                           : "—"}
                       </td>
                     </tr>
@@ -8469,6 +8469,7 @@ export default function App() {
   const remote = makeRemoteActions({
     getState: () => stateRef.current,
     reload: reloadRemote,
+    applyPackageLifecycle: outcome => setState(s => ({ ...s, enrollments: s.enrollments.some(e => e.id === outcome.registration.id) ? s.enrollments.map(e => e.id === outcome.registration.id ? { ...e, ...outcome.registration } : e) : [...s.enrollments, outcome.registration], trainingSessions: s.trainingSessions.filter(row => !(outcome.registration.apiStatus === "CANCELLED" && row.horsePackageId === outcome.registration.id && row.status === "Scheduled" && !row.actualStart)) })),
     success: showSuccess,
     error: showError,
     navigate: (p) => navigate(p as Page),
@@ -8814,6 +8815,7 @@ export default function App() {
             onRespond={remote.respondAssign}
             onStartSession={remote.startSession}
             onCompleteSession={remote.completeSession}
+            onCompletePackage={remote.completePackage}
             onRequestVetCheck={remote.requestVetCheck}
             onAcceptResumption={remote.acceptResumption}
             onStopSession={remote.stopSession}
@@ -8862,6 +8864,7 @@ export default function App() {
             navigate={navigate as (p: string) => void}
             onStartPayment={remote.startPayment}
             onSyncPayment={remote.syncPayment}
+            onCancelRegistration={remote.cancelRegistration}
           />
         );
       case "vet-assign":

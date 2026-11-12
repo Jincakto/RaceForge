@@ -129,8 +129,7 @@ class TrainingAssessmentWorkflowDatabaseTest {
     private static Map<String,Object> completion(Clock clock,String concern){
         Map<String,Boolean> checks=new LinkedHashMap<>();
         for(var criterion:com.raceforge.backend.training.entity.TrainingAssessmentCriterion.values())checks.put(criterion.name(),!criterion.name().equals(concern));
-        return Map.of("distance",0,"avgSpeed",0,"endExerciseHeartRate",90,"recoveryHeartRate2Min",60,
-                "recoveryMeasuredAt",LocalDateTime.now(clock).format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+        return Map.of("distance",0,"avgSpeed",0,
                 "assessment",Map.of("checklistVersion","POST_TRAINING_V1","checks",checks));
     }
     private static String createMedical(int port,String vet,String session,String conclusion)throws Exception{

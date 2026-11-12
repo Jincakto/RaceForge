@@ -20,7 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Assessment lifecycle. Medical locks, package validity and HR feedback remain independent. */
+/** Assessment lifecycle. Medical locks and package validity remain independent. */
 @Service
 public class TrainingAssessmentService {
     private final TrainingSessionAssessmentRepository assessments;

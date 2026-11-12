@@ -69,9 +69,6 @@ export interface TrainingVetNotificationResponse {
 export interface CompleteSessionInput {
   distance: number;
   avgSpeed: number;
-  endExerciseHeartRate: number;
-  recoveryHeartRate2Min: number;
-  recoveryMeasuredAt: string;
   performanceNotes?: string;
   maxSpeed?: number;
   assessment: TrainingAssessmentRequest;
@@ -133,7 +130,7 @@ export function toAssessmentRequest(answers: AssessmentAnswers, version = ASSESS
   return { checklistVersion: version, checks };
 }
 
-/** Explicit write DTO: never mix up legacy result.time/distance or performanceScore/recovery HR. */
+/** Explicit write DTO: keep actual distance and speed separate from legacy result display fields. */
 export function completionPayload(input: CompleteSessionInput): CompleteSessionInput {
   if (!input || !input.assessment) throw new AssessmentInputError('Complete all 10 checks before saving.');
   const assessment = toAssessmentRequest(input.assessment.checks, input.assessment.checklistVersion);
@@ -144,20 +141,13 @@ export function completionPayload(input: CompleteSessionInput): CompleteSessionI
   if (typeof input.avgSpeed !== 'number' || !Number.isFinite(input.avgSpeed) || input.avgSpeed < 0 || input.avgSpeed > 100) {
     throw new AssessmentInputError('Average speed must be between 0 and 100 km/h.');
   }
-  if ([input.endExerciseHeartRate, input.recoveryHeartRate2Min].some(value => !Number.isInteger(value) || value < 20 || value > 250)) {
-    throw new AssessmentInputError('Heart rate must be an integer between 20 and 250 bpm.');
-  }
-  if (typeof input.recoveryMeasuredAt !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?$/.test(input.recoveryMeasuredAt)) {
-    throw new AssessmentInputError('Record the two-minute recovery reading before completing the session.');
-  }
   if (input.performanceNotes !== undefined && typeof input.performanceNotes !== 'string') {
     throw new AssessmentInputError('Enter overall notes as text.');
   }
   const notes = input.performanceNotes?.trim() || '';
   if (notes.length > 1000) throw new AssessmentInputError('Keep overall notes within 1,000 characters.');
   const payload: CompleteSessionInput = { distance: input.distance, avgSpeed: input.avgSpeed,
-    endExerciseHeartRate: input.endExerciseHeartRate, recoveryHeartRate2Min: input.recoveryHeartRate2Min,
-    recoveryMeasuredAt: input.recoveryMeasuredAt, assessment, ...(notes ? { performanceNotes: notes } : {}) };
+    assessment, ...(notes ? { performanceNotes: notes } : {}) };
   if (input.maxSpeed !== undefined) {
     if (typeof input.maxSpeed !== 'number' || !Number.isFinite(input.maxSpeed) || input.maxSpeed < input.avgSpeed) {
       throw new AssessmentInputError('Maximum speed must be at least the average speed.');

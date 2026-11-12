@@ -25,17 +25,8 @@ public class TrainingSessionResponse {
   public Integer getRestingHeartRate(){return restingHeartRate;}
   public void setRestingHeartRate(Integer value){restingHeartRate=value;}
 
-  private Integer endExerciseHeartRate;
-  public Integer getEndExerciseHeartRate(){return endExerciseHeartRate;}
-  public void setEndExerciseHeartRate(Integer value){endExerciseHeartRate=value;}
 
-  private Integer recoveryHeartRate2Min;
-  public Integer getRecoveryHeartRate2Min(){return recoveryHeartRate2Min;}
-  public void setRecoveryHeartRate2Min(Integer value){recoveryHeartRate2Min=value;}
 
-  private LocalDateTime recoveryMeasuredAt;
-  public LocalDateTime getRecoveryMeasuredAt(){return recoveryMeasuredAt;}
-  public void setRecoveryMeasuredAt(LocalDateTime value){recoveryMeasuredAt=value;}
 
   private String restingMedicalRecordId;
   public String getRestingMedicalRecordId(){return restingMedicalRecordId;}
@@ -53,13 +44,7 @@ public class TrainingSessionResponse {
   public Long getActualDurationSeconds(){return actualDurationSeconds;}
   public void setActualDurationSeconds(Long value){actualDurationSeconds=value;}
 
-  private Long recoveryDelaySeconds;
-  public Long getRecoveryDelaySeconds(){return recoveryDelaySeconds;}
-  public void setRecoveryDelaySeconds(Long value){recoveryDelaySeconds=value;}
 
-  private Integer heartRateDrop2Min;
-  public Integer getHeartRateDrop2Min(){return heartRateDrop2Min;}
-  public void setHeartRateDrop2Min(Integer value){heartRateDrop2Min=value;}
 
   private Boolean trainingLocked;
   public Boolean getTrainingLocked(){return trainingLocked;}
@@ -114,13 +99,10 @@ public class TrainingSessionResponse {
   private LocalDateTime actualEnd;
   private String evaluation;
   private String notes;
-  private Integer heartRate;
   private Double avgSpeed;
   private Double maxSpeed;
   private String recordedBy;
 
-  public Integer getHeartRate() { return heartRate; }
-  public void setHeartRate(Integer value) { heartRate = value; }
   public Double getAvgSpeed() { return avgSpeed; }
   public void setAvgSpeed(Double value) { avgSpeed = value; }
   public Double getMaxSpeed() { return maxSpeed; }

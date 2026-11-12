@@ -67,8 +67,8 @@ class TrainingCalendarFixDatabaseTest {
     }
     static void finish(TrainingSessionService sessions,TrainingScheduleCoordinator coordinator,String id,String trainer,Clock clock) {
         actor(trainer,"HEAD_TRAINER");setClock(clock,sessions,coordinator);sessions.stopSession(id,null);
-        var result=new CompleteSessionRequest();result.setAssessment(completionAssessment());result.setEndExerciseHeartRate(90);result.setRecoveryHeartRate2Min(60);
-        result.setDistance(BigDecimal.ZERO);result.setAvgSpeed(0.0);result.setRecoveryMeasuredAt(LocalDateTime.now(clock));
+        var result=new CompleteSessionRequest();result.setAssessment(completionAssessment());
+        result.setDistance(BigDecimal.ZERO);result.setAvgSpeed(0.0);
         result.setPerformanceNotes("Synthetic runtime regression");sessions.completeSession(id,result,trainer);
     }
     static void verifyRuntimeRules(Connection c,org.springframework.context.ConfigurableApplicationContext app,LocalDate today,Clock initial)throws Exception{
@@ -122,7 +122,7 @@ class TrainingCalendarFixDatabaseTest {
         var blocked=schedule.getScheduleByHorseId(winner.equals(a.getSessionId())?"HOR-909":"HOR-908").stream().filter(s->s.getSessionId().equals(loser)).findFirst().orElseThrow();
         assertFalse(blocked.getCanStart());assertTrue(blocked.getStartBlockedReason().contains(winner));assertTrue(blocked.getStartBlockedReason().contains("Save"));
         assertThrows(BusinessRuleException.class,()->sessions.startSession(loser));
-        var result=new CompleteSessionRequest();result.setAssessment(completionAssessment());result.setEndExerciseHeartRate(90);result.setRecoveryHeartRate2Min(60);result.setDistance(BigDecimal.ZERO);result.setAvgSpeed(0.0);result.setRecoveryMeasuredAt(LocalDateTime.now(initial).plusMinutes(1));
+        var result=new CompleteSessionRequest();result.setAssessment(completionAssessment());result.setDistance(BigDecimal.ZERO);result.setAvgSpeed(0.0);
         sessions.completeSession(winner,result,"HTR-901");
         // Late start is allowed on the same day, without changing planned time.
         Clock late=Clock.fixed(today.atTime(23,0).atZone(ZONE).toInstant(),ZONE);setClock(late,sessions,coordinator);
@@ -166,7 +166,7 @@ class TrainingCalendarFixDatabaseTest {
         http(port,oldToken,"GET","/api/trainer-profiles/"+newProfile+"/sessions",null,403);
         var history=http(port,oldToken,"GET","/api/trainer-profiles/"+oldProfile+"/sessions",null,200);
         assertTrue(history.toString().contains(completed));
-        http(port,oldToken,"GET","/api/training-sessions/"+completed+"/feedback",null,200);
+        http(port,oldToken,"GET","/api/training-sessions/"+completed+"/feedback",null,404);
         http(port,oldToken,"PATCH","/api/training-sessions/"+completed+"/start",null,403);
         var old=http(port,oldToken,"GET","/api/training-sessions/horse/HOR-903",null,200);
         assertEquals(1,old.size());assertEquals(completed,old.get(0).path("sessionId").asText());
@@ -303,7 +303,7 @@ class TrainingCalendarFixDatabaseTest {
                     Clock stopped=Clock.offset(running,Duration.ofMinutes(1));ReflectionTestUtils.setField(AopTestUtils.<Object>getTargetObject(sessions),"clock",stopped);
                     actor("HTR-901","HEAD_TRAINER");sessions.stopSession(completed,null);
                     actor("CM-901","CLUB_MANAGER");assertThrows(BusinessRuleException.class,()->assignments.replace(asnA,new Replacement("HTR-902","Recovery results still pending")));
-                    actor("HTR-901","HEAD_TRAINER");var result=new CompleteSessionRequest();result.setAssessment(completionAssessment());result.setEndExerciseHeartRate(90);result.setRecoveryHeartRate2Min(60);result.setDistance(BigDecimal.ZERO);result.setAvgSpeed(0.0);result.setMaxSpeed(0.0);result.setRecoveryMeasuredAt(LocalDateTime.now(stopped));result.setPerformanceNotes("Synthetic SQL regression");
+                    actor("HTR-901","HEAD_TRAINER");var result=new CompleteSessionRequest();result.setAssessment(completionAssessment());result.setDistance(BigDecimal.ZERO);result.setAvgSpeed(0.0);result.setMaxSpeed(0.0);result.setPerformanceNotes("Synthetic SQL regression");
                     sessions.completeSession(completed,result,"HTR-901");
                     ReflectionTestUtils.setField(AopTestUtils.<Object>getTargetObject(coordinator),"clock",stopped);
 

@@ -1,3 +1,6 @@
+import { PackageLifecycleButton } from './PackageLifecycleButton';
+import { completionBlockReason, registrationStatus, type PackageLifecycleResult } from './packageLifecycle';
+import type { RemoteIssue } from '../../shared/api/remote';
 import { TrainingResumptions } from './TrainingResumptions';
 import { SessionPreviewModal } from './SessionPreviewModal';
 import {
@@ -15,7 +18,6 @@ import { PackageRoadmapPreview, RoadmapTable, StagesEditor, SavedRoadmapPreview 
 import { validateRoadmap } from '../packages/packageRoadmap';
 import { selectedStages, scheduleRows, normalizeStages, clock, seconds, validateSessionWindow, sessionStartState, isoDay, type RoadmapStage } from './trainingSchedule';
 import { trainingTimestamp } from './trainingTimestamp';
-import { RecoveryReview } from './RecoveryReview';
 import { packageRoadmapFor, recommendationView } from './recommendations';
 import { request } from '../../shared/api/api';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
@@ -33,7 +35,7 @@ import {
   type TrainingSlice, type PlanDraft, type SessionDraft, type SessionWriteOptions,
 } from './trainingLogic';
 
-interface HubState extends TrainingSlice { healthRecords: HealthRecord[] }
+interface HubState extends TrainingSlice { healthRecords: HealthRecord[]; trainingLoadedSources?: string[]; trainingLoadIssues?: RemoteIssue[] }
 
 interface HubProps {
   state: HubState;
@@ -44,6 +46,7 @@ interface HubProps {
   onRespond: (enrId: string, accept: boolean, reason: string) => Promise<Res<null>>;
   onStopSession: (id: string) => Promise<Res<null>>;
   onStartSession: (id: string) => string | null | Promise<string | null>;
+  onCompletePackage?: (id: string) => Promise<PackageLifecycleResult>;
   onCompleteSession: (id: string, r: CompleteSessionInput) => string | null | Promise<string | null>;
   onAcceptResumption: (id: string) => Promise<Res<null>>;
   onRequestVetCheck: (id: string, reason: string) => Promise<Res<TrainingVetNotificationResponse>>;
@@ -151,7 +154,6 @@ export function TrainingHubPage(props: HubProps) {
   const [acceptingBusy, setAcceptingBusy] = useState(false);
   const [absentFor, setAbsentFor] = useState<TrainingSession | null>(null);
   const [completing, setCompleting] = useState<string | null>(null);
-  const [reviewing, setReviewing] = useState<string | null>(null);
   const [assessmentOpen, setAssessmentOpen] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [horseFilter, setHorseFilter] = useState('');
@@ -166,7 +168,6 @@ export function TrainingHubPage(props: HubProps) {
   const hn = (id: string) => state.horses.find(h => h.id === id)?.name || "Horses";
 
   const done = mySessions.filter(s => s.result);
-  const avgScore = done.length ? Math.round(done.reduce((a, s) => a + s.result!.performanceScore, 0) / done.length) : 0;
   const speeds = done.map(s => parseFloat(s.result!.speed)).filter(n => !isNaN(n));
   const avgSpeed = speeds.length ? (speeds.reduce((a, n) => a + n, 0) / speeds.length).toFixed(1) : '—';
 
@@ -242,12 +243,13 @@ export function TrainingHubPage(props: HubProps) {
                     <div className="flex items-start gap-3">
                       {h.imageUrl ? <img src={h.imageUrl || undefined} alt="" className="h-11 w-11 rounded-lg bg-gray-200 object-cover" /> : <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-gray-100">🐎</div>}
                       <div className="flex-1">
-                        <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{h.name}</span><IdChip kind="ENR" id={e.id} /><span className="text-xs text-gray-500">Package {e.packageName}</span><Badge status={e.status === 'paused' ? 'Paused' : e.status === 'completed' ? 'Completed' : 'Active'} /><TrainerStatusPill status={e.trainerStatus} /></div>
+                        <div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{h.name}</span><IdChip kind="ENR" id={e.id} /><span className="text-xs text-gray-500">Package {e.packageName}</span><Badge status={registrationStatus(e)} /><TrainerStatusPill status={e.trainerStatus} /></div>
                         <div className="mt-1 text-xs text-gray-500">Validity {t.text} · {t.expired ? "expired" : `remaining ${t.left} days`}{e.trainerName && e.trainerId !== me.id && isTrainer ? ` · HLV: ${e.trainerName}` : ''}</div>
                         <div className="mt-2"><div className="mb-1 flex justify-between text-xs text-gray-500"><span>Created {e.sessionsTotal} sessions / Completed {e.sessionsDone}</span><span>{e.sessionsTotal ? Math.round(e.sessionsDone / e.sessionsTotal * 100) : 0}% completed</span></div><div className="h-2 w-full rounded-full bg-gray-200"><div className="h-2 rounded-full bg-[#c9973b]" style={{ width: `${Math.round(e.sessionsDone / Math.max(1, e.sessionsTotal) * 100)}%` }} /></div></div>
                         {e.roadmapConfigured===false
                           ? <p role="alert" className="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">{e.roadmapConfigurationReason}: Ask the manager to configure this package. Saved sessions remain available.</p>
                           : <PackageRoadmapPreview packageId={e.packageId} />}
+                        {isTrainer && props.onCompletePackage && e.apiStatus === 'ACTIVE' && e.trainerId === me.id && e.trainerStatus === 'confirmed' && <PackageLifecycleButton enrollment={e} action="complete" onAction={props.onCompletePackage} blockedReason={completionBlockReason(e,me,state.trainingSessions,state.trainingLoadedSources,state.trainingLoadIssues,now)} />}
                         {e.status === 'paused' && <div className="mt-2 text-xs text-red-600">⏸ Paused since {e.pausedAt}: {e.pauseReason}. Progress is retained while awaiting veterinary clearance.</div>}
 
                       </div>
@@ -305,7 +307,7 @@ export function TrainingHubPage(props: HubProps) {
                       {s.attendance && <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${s.attendance.status === 'present' ? 'border-emerald-200 bg-emerald-100 text-emerald-800' : 'border-red-200 bg-red-100 text-red-700'}`}>{s.attendance.status === 'present' ? "Present" : "Absent"}</span>}</div>
                     <div className="font-semibold">{s.type} — {hn(s.horseId)} · {s.distance}</div>
                     <div className="text-sm text-gray-500">{dateLabel(s.date)} · {s.time}  · Target: {s.targetTime}</div>
-                    { s.status==='In Progress' && <p className="mt-1 text-sm font-medium text-amber-800">{s.actualEnd?'Exercise stopped - recovery results pending':'Exercise in progress'}</p>}
+                    { s.status==='In Progress' && <p className="mt-1 text-sm font-medium text-amber-800">{s.actualEnd?'Exercise stopped - session results pending':'Exercise in progress'}</p>}
                     {s.notes && <div className="text-sm text-gray-600">{s.notes}</div>}
                     <div className="mt-1 text-xs text-gray-400">Groom: {s.assignedStaffNames.join(', ') || '—'}</div>
                     {s.attendance?.note && <div className="mt-1 text-xs text-red-600">Absence reason: {s.attendance.note}</div>}
@@ -317,20 +319,18 @@ export function TrainingHubPage(props: HubProps) {
                     {ownsSession && s.status==='Scheduled' && <TrainingSessionStartButton allowed={startState.allowed} reason={startState.reason} busy={starting!==null} onStart={async()=>{if(starting)return;setStarting(s.id);setActionError('');try{setActionError(await props.onStartSession(s.id)||'');}catch(e){setActionError((e as Error).message);}finally{setStarting(null);}}}/>}
                     {ownsSession && s.status === 'Scheduled' && trainingStart(s.date,s.time)>now && <Btn size="sm" variant="secondary" onClick={()=>setAdjusting(s)}>Adjust time</Btn>}
                     {ownsSession && s.status === 'Scheduled' && !s.attendance && s.date !== today && <span className="text-[11px] text-gray-400">Record attendance on the session date</span>}
-                    {ownsSession && (s.canStop || s.canComplete) && completing !== s.id && <Btn size="sm" variant="primary" onClick={async () => { setActionError(''); if (s.canStop) { const stopped = await props.onStopSession(s.id); if (!stopped.ok) { setActionError(stopped.message); return; } } setCompleting(s.id); }}>{s.canStop ? 'Stop exercise & record recovery' : 'Record recovery results'}</Btn>}
+                    {ownsSession && (s.canStop || s.canComplete) && completing !== s.id && <Btn size="sm" variant="primary" onClick={async () => { setActionError(''); if (s.canStop) { const stopped = await props.onStopSession(s.id); if (!stopped.ok) { setActionError(stopped.message); return; } } setCompleting(s.id); }}>{s.canStop ? 'Stop exercise & record results' : 'Record session results'}</Btn>}
                   </div>
                 </div>
                 {canReadAssessment && s.pendingPostTrainingReview && s.status === 'Scheduled' && <div className="mt-4"><TrainingPendingReviewBanner /></div>}
                 {canReadAssessment && s.assessment && <div className="mt-3"><TrainingAssessmentBadge assessment={s.assessment} /></div>}
-                {completing === s.id && <ResultForm onCancel={() => setCompleting(null)} onSubmit={async r => { const err = await props.onCompleteSession(s.id, r); setActionError(err || ''); if (!err) { setCompleting(null); setReviewing(s.id); setAssessmentOpen(s.id); } return err; }} />}
+                {completing === s.id && <ResultForm onCancel={() => setCompleting(null)} onSubmit={async r => { const err = await props.onCompleteSession(s.id, r); setActionError(err || ''); if (!err) { setCompleting(null); setAssessmentOpen(s.id); } return err; }} />}
                 {canReadAssessment && s.status === 'Completed' && <div className="mt-3">
                   <button type="button" aria-expanded={assessmentOpen === s.id} onClick={() => setAssessmentOpen(current => current === s.id ? null : s.id)} className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-[#1a2844] hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b7026]">{assessmentOpen === s.id ? 'Close post-training check' : 'View post-training check'}</button>
                   {assessmentOpen === s.id && <TrainingAssessmentDetails key={s.id} sessionId={s.id} overallNotes={s.result?.notes}
                     canRequest={canRequestVetCheck(s, state.enrollments, me)} onRequestVetCheck={props.onRequestVetCheck} />}
                 </div>}
-                {isTrainer && s.status === 'Completed' && reviewing !== s.id && <Btn size="sm" variant="secondary" onClick={() => setReviewing(s.id)}>View recovery review</Btn>}
-                {isTrainer && reviewing === s.id && <RecoveryReview sessionId={s.id} onReview={() => { setTab('sessions'); setStatusFilter('Scheduled'); setReviewing(null); }} />}
-                {s.result && <div className="mt-3 grid grid-cols-4 gap-3 border-t border-gray-100 pt-3">{[["Time (seconds)", s.result.time], ["Speed", `${s.result.speed} km/h`], ["Heart rate", `${s.result.heartRate} bpm`], ["Two-minute recovery heart rate", `${s.result.performanceScore} bpm`]].map(([k, v]) => <div key={k} className="rounded-lg bg-gray-50 p-2 text-center"><div className="text-xs text-gray-500">{k}</div><div className="font-mono text-sm font-bold">{v}</div></div>)}</div>}
+                {s.result && <div className="mt-3 grid grid-cols-2 gap-3 border-t border-gray-100 pt-3">{[["Time (seconds)", s.result.time], ["Speed", `${s.result.speed} km/h`]].map(([k, v]) => <div key={k} className="rounded-lg bg-gray-50 p-2 text-center"><div className="text-xs text-gray-500">{k}</div><div className="font-mono text-sm font-bold">{v}</div></div>)}</div>}
               </Card>
             );
           })}
@@ -362,12 +362,12 @@ export function TrainingHubPage(props: HubProps) {
 
       {tab === 'results' && (
         <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-4"><Stat label="Completed sessions" value={mySessions.filter(s => s.status === 'Completed').length} /><Stat label="Average speed" value={avgSpeed === '—' ? '—' : `${avgSpeed} km/h`} tone="gold" /><Stat label="Average recovery heart rate" value={done.length ? `${avgScore} bpm` : '—'} tone="green" /></div>
+          <div className="grid grid-cols-2 gap-4"><Stat label="Completed sessions" value={mySessions.filter(s => s.status === 'Completed').length} /><Stat label="Average speed" value={avgSpeed === '—' ? '—' : `${avgSpeed} km/h`} tone="gold" /></div>
           {done.length === 0 && <Card className="p-8 text-center text-sm text-gray-500">No results yet. Record attendance, start a session and enter measurements in the Sessions tab.</Card>}
           {done.map(s => (
             <Card key={s.id} className="p-5">
               <div className="mb-1 flex items-center gap-2"><IdChip kind="SES" id={s.id} /><span className="font-semibold">{s.type} · {s.distance} · {s.date} — {hn(s.horseId)}</span></div>
-              <div className="mt-3 grid grid-cols-4 gap-3">{[["Time (seconds)", s.result!.time], ["Speed", `${s.result!.speed} km/h`], ["Heart rate", `${s.result!.heartRate} bpm`], ["Two-minute recovery heart rate", `${s.result!.performanceScore} bpm`]].map(([k, v]) => <div key={k} className="rounded-lg bg-gray-50 p-3 text-center"><div className="text-xs text-gray-500">{k}</div><div className="mt-0.5 font-mono text-sm font-bold">{v}</div></div>)}</div>
+              <div className="mt-3 grid grid-cols-2 gap-3">{[["Time (seconds)", s.result!.time], ["Speed", `${s.result!.speed} km/h`]].map(([k, v]) => <div key={k} className="rounded-lg bg-gray-50 p-3 text-center"><div className="text-xs text-gray-500">{k}</div><div className="mt-0.5 font-mono text-sm font-bold">{v}</div></div>)}</div>
               {s.result!.notes && <p className="mt-3 text-sm italic text-gray-600">"{s.result!.notes}"</p>}
               {canReadAssessment && <div className="mt-4 space-y-3">
                 {s.assessment && <TrainingAssessmentBadge assessment={s.assessment} />}
@@ -404,7 +404,7 @@ export function ResultForm({ onSubmit, onCancel }: {
   onCancel: () => void;
 }) {
   const id = useId();
-  const [f, setF] = useState({ time: '', speed: '', hr: '', score: '', notes: '' });
+  const [f, setF] = useState({ time: '', speed: '', notes: '' });
   const [answers, setAnswers] = useState<AssessmentAnswers>({});
   const [template, setTemplate] = useState<TrainingAssessmentTemplateResponse | null>(null);
   const [templateLoading, setTemplateLoading] = useState(true);
@@ -413,7 +413,6 @@ export function ResultForm({ onSubmit, onCancel }: {
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const fieldRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
-  const [measuredAt, setMeasuredAt] = useState('');
   const [e, setE] = useState<Record<string, string>>({});
   const [err, setErr] = useState('');
   useEffect(() => {
@@ -435,19 +434,15 @@ export function ResultForm({ onSubmit, onCancel }: {
     if (Number(f.time.replace(',', '.')) > 999999.99) errors.time = 'Actual distance cannot exceed 999999.99 km.';
     const speed = Number(f.speed);
     if (f.speed.trim() === '' || !Number.isFinite(speed) || speed < 0 || speed > 100) errors.speed = 'Speed must be between 0 and 100 km/h.';
-    const heartRate = Number(f.hr);
-    if (f.hr.trim() === '' || !Number.isInteger(heartRate) || heartRate < 20 || heartRate > 250) errors.hr = 'Heart rate must be an integer between 20 and 250 bpm.';
-    const recoveryHeartRate = Number(f.score);
-    if (f.score.trim() === '' || !Number.isInteger(recoveryHeartRate) || recoveryHeartRate < 20 || recoveryHeartRate > 250) errors.score = 'Recovery heart rate must be between 20 and 250 bpm.';
     if (f.notes.trim().length > 1000) errors.notes = 'Keep overall notes within 1,000 characters.';
     return errors;
   };
   const errorsNow = validation();
   const complete = !!assessmentPreview(answers);
-  const canSave = !!template && !templateLoading && !templateError && complete && !!measuredAt
+  const canSave = !!template && !templateLoading && !templateError && complete
     && Object.keys(errorsNow).length === 0;
   const submit = async () => {
-    if (savingRef.current || !template || templateLoading || !measuredAt) return;
+    if (savingRef.current || !template || templateLoading) return;
     const errors = validation();
     setE(errors);
     if (Object.keys(errors).length) { fieldRefs.current[Object.keys(errors)[0]]?.focus(); return; }
@@ -456,8 +451,7 @@ export function ResultForm({ onSubmit, onCancel }: {
     try {
       const result = await onSubmit({
         distance: Number(f.time.replace(',', '.')), avgSpeed: Number(f.speed),
-        endExerciseHeartRate: Number(f.hr), recoveryHeartRate2Min: Number(f.score),
-        recoveryMeasuredAt: measuredAt, performanceNotes: f.notes.trim() || undefined,
+        performanceNotes: f.notes.trim() || undefined,
         assessment: toAssessmentRequest(answers, template.version),
       });
       if (result) setErr(result);
@@ -468,8 +462,6 @@ export function ResultForm({ onSubmit, onCancel }: {
   const fields = [
     { key: 'time', label: 'Actual distance (km)', type: 'text', placeholder: 'e.g. 1.2', hint: 'Completed distance, up to 2 decimal places' },
     { key: 'speed', label: 'Average speed (km/h)', type: 'number', placeholder: 'e.g. 58.6', hint: '0–100 km/h' },
-    { key: 'hr', label: 'End-of-exercise heart rate (bpm)', type: 'number', placeholder: 'e.g. 188', hint: '20–250 bpm' },
-    { key: 'score', label: 'Heart rate after two-minute recovery (bpm)', type: 'number', placeholder: 'e.g. 85', hint: 'Enter the two-minute recovery reading; 20–250 bpm' },
   ] as const;
   return <form noValidate onSubmit={event => { event.preventDefault(); void submit(); }} className="rf-session-result mt-5 space-y-6 border-t border-slate-200 pt-5 font-sans">
     <div><h3 className="text-lg font-semibold text-[#1a2844]">Complete this session</h3><p className="mt-1 text-sm leading-6 text-slate-600">Record the measurements and review the horse's condition after exercise.</p></div>
@@ -482,7 +474,7 @@ export function ResultForm({ onSubmit, onCancel }: {
             inputMode={field.key === 'time' || field.key === 'speed' ? 'decimal' : 'numeric'} step={field.key === 'speed' ? 'any' : undefined}
             required value={f[field.key]} placeholder={field.placeholder} disabled={saving}
             aria-invalid={!!e[field.key]} aria-describedby={id + '-' + field.key + '-help'}
-            onChange={event => { set(field.key)(event.target.value); if (field.key === 'score') setMeasuredAt(trainingTimestamp()); }}
+            onChange={event => { set(field.key)(event.target.value); }}
             onBlur={() => setE(previous => ({ ...previous, [field.key]: validation()[field.key] || '' }))}
             className={`h-12 w-full rounded-lg border bg-white px-3 text-base outline-none focus-visible:border-[#a4782c] focus-visible:ring-2 focus-visible:ring-[#a4782c]/30 disabled:bg-slate-50 ${e[field.key] ? 'border-red-400' : 'border-slate-300'}`} />
           <p id={id + '-' + field.key + '-help'} className={e[field.key] ? 'mt-1 text-sm text-red-700' : 'mt-1 text-xs leading-5 text-slate-500'}>{e[field.key] || field.hint}</p>

@@ -31,8 +31,8 @@ const failed = (status, code, message = 'Backend diagnostic SQL [HTTP detail]') 
   success: false, message, data: { code, errorId: 'internal-error' },
 }), { status, headers: { 'Content-Type': 'application/json' } });
 const answers = (...concerns) => Object.fromEntries(a.ASSESSMENT_CRITERIA.map(item => [item.code, !concerns.includes(item.code)]));
-const input = extra => ({ distance: 1.25, avgSpeed: 18.2, endExerciseHeartRate: 180, recoveryHeartRate2Min: 88,
-  recoveryMeasuredAt: '2026-11-10T07:32:00.123', assessment: a.toAssessmentRequest(answers()), ...extra });
+const input = extra => ({ distance: 1.25, avgSpeed: 18.2,
+  assessment: a.toAssessmentRequest(answers()), ...extra });
 function saved(sessionId = 'SES-001', extra = {}) {
   return { sessionId, horseId: 'HOR-001', assessorUserId: 'HTR-001', assessorName: 'Trainer One',
     assessedAt: '2026-11-10T07:35:00', checklistVersion: a.ASSESSMENT_VERSION,
@@ -106,8 +106,8 @@ test('one optional overall note is trimmed and limited after trimming', () => {
 test('completion uses explicit backend measurement fields without inventing a maximum speed', () => {
   const payload = a.completionPayload(input());
   assert.equal(payload.distance, 1.25); assert.equal(payload.avgSpeed, 18.2);
-  assert.equal(payload.endExerciseHeartRate, 180); assert.equal(payload.recoveryHeartRate2Min, 88);
-  assert.equal(payload.recoveryMeasuredAt, '2026-11-10T07:32:00.123');
+  assert.ok(!('endExerciseHeartRate' in payload)); assert.ok(!('recoveryHeartRate2Min' in payload));
+  assert.ok(!('recoveryMeasuredAt' in payload));
   for (const key of ['time', 'speed', 'heartRate', 'performanceScore', 'maxSpeed']) assert.ok(!(key in payload));
   assert.equal(a.completionPayload(input({ maxSpeed: 20 })).maxSpeed, 20);
 });
@@ -122,8 +122,8 @@ test('completion never forwards client-owned score, review or recipient fields',
 });
 test('invalid measurement values and missing assessment are rejected before HTTP', () => {
   for (const extra of [{ distance: -1 }, { distance: 1.234 }, { distance: Number.NaN }, { avgSpeed: Infinity },
-    { endExerciseHeartRate: 180.5 }, { recoveryHeartRate2Min: 0 }, { recoveryMeasuredAt: '' },
-    { recoveryMeasuredAt: '2026-11-10T07:32:00Z' }, { assessment: undefined }, { maxSpeed: 10 }]) {
+
+    { assessment: undefined }, { maxSpeed: 10 }]) {
     assert.throws(() => a.completionPayload(input(extra)));
   }
 });
@@ -171,7 +171,7 @@ test('saved assessment GET verifies identity and complete persisted data without
   globalThis.fetch = async () => ok({});
   await assert.rejects(a.fetchSessionAssessment('SES-001'), /could not be verified/);
 });
-test('session mapping keeps persisted assessment, pending flags, HR and an empty overall note separate from stage notes', () => {
+test('session mapping preserves assessment and notes without exposing retired heart-rate fields', () => {
   const assessment = saved();
   const session = sessionFromApi({ sessionId: 'SES-001', status: 'COMPLETED', assessment,
     pendingPostTrainingReview: true, startBlockedCode: 'PENDING_POST_TRAINING_REVIEW',
@@ -180,7 +180,7 @@ test('session mapping keeps persisted assessment, pending flags, HR and an empty
   assert.deepEqual(session.assessment, assessment); assert.equal(session.pendingPostTrainingReview, true);
   assert.equal(session.startBlockedCode, 'PENDING_POST_TRAINING_REVIEW');
   assert.equal(session.result.notes, ''); assert.equal(session.result.time, '0'); assert.equal(session.result.speed, '0');
-  assert.equal(session.result.performanceScore, 88); assert.equal(session.result.recoveryMeasuredAt, '2026-11-10T07:32:00');
+  assert.equal(session.result.performanceScore, assessment.passedCount); assert.ok(!('recoveryMeasuredAt' in session.result)); assert.ok(!('heartRate' in session.result));
   assert.equal(sessionFromApi({ sessionId: 'OLD', status: 'COMPLETED' }).assessment, undefined);
 });
 test('Start shows the friendly pending message even when the raw reason contains a technical code', () => {

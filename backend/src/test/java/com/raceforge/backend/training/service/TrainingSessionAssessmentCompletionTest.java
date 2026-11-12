@@ -124,9 +124,9 @@ class TrainingSessionAssessmentCompletionTest {
         assertEquals(new BigDecimal("2.50"), session.getDistance());
         assertEquals(12.5, session.getAvgSpeed());
         assertEquals(18.0, session.getMaxSpeed());
-        assertEquals(120, session.getEndExerciseHeartRate());
-        assertEquals(90, session.getRecoveryHeartRate2Min());
-        assertEquals(NOW.minusMinutes(1), session.getRecoveryMeasuredAt());
+        assertNull(session.getEndExerciseHeartRate());
+        assertNull(session.getRecoveryHeartRate2Min());
+        assertNull(session.getRecoveryMeasuredAt());
         assertEquals("Completed normally.", session.getEvaluation());
         assertEquals(ACTOR_ID, session.getRecordedBy());
         assertEquals(plannedStart, session.getScheduledStart());
@@ -189,8 +189,8 @@ class TrainingSessionAssessmentCompletionTest {
 
         assertEquals("COMPLETED", session.getStatus());
         assertEquals(new BigDecimal("2.50"), session.getDistance());
-        assertEquals(120, session.getEndExerciseHeartRate());
-        assertEquals(90, session.getRecoveryHeartRate2Min());
+        assertNull(session.getEndExerciseHeartRate());
+        assertNull(session.getRecoveryHeartRate2Min());
         verify(sessions).save(session);
         verify(assessments).recordCompletion(eq(session), eq(request.getAssessment()), eq(ACTOR_ID));
     }
@@ -212,9 +212,9 @@ class TrainingSessionAssessmentCompletionTest {
         assertEquals(new BigDecimal("2.50"), session.getDistance());
         assertEquals(12.5, session.getAvgSpeed());
         assertEquals(18.0, session.getMaxSpeed());
-        assertEquals(120, session.getEndExerciseHeartRate());
-        assertEquals(90, session.getRecoveryHeartRate2Min());
-        assertEquals(NOW.minusMinutes(1), session.getRecoveryMeasuredAt());
+        assertNull(session.getEndExerciseHeartRate());
+        assertNull(session.getRecoveryHeartRate2Min());
+        assertNull(session.getRecoveryMeasuredAt());
         verify(assessments).recordCompletion(eq(session), eq(request.getAssessment()), eq(ACTOR_ID));
     }
     @Test
@@ -270,7 +270,7 @@ class TrainingSessionAssessmentCompletionTest {
     @Test
     void invalidMeasurementsStillPreventCompletion() {
         CompleteSessionRequest request = validRequest();
-        request.setRecoveryMeasuredAt(session.getActualEnd().minusSeconds(1));
+        request.setDistance(new java.math.BigDecimal("-1"));
 
         assertThrows(BusinessRuleException.class,
                 () -> service.completeSession(SESSION_ID, request, ACTOR_ID));
@@ -437,9 +437,9 @@ class TrainingSessionAssessmentCompletionTest {
         request.setDistance(new BigDecimal("2.50"));
         request.setAvgSpeed(12.5);
         request.setMaxSpeed(18.0);
-        request.setEndExerciseHeartRate(120);
-        request.setRecoveryHeartRate2Min(90);
-        request.setRecoveryMeasuredAt(NOW.minusMinutes(1));
+
+
+
         request.setPerformanceNotes("Completed normally.");
         request.setAssessment(validAssessment());
     }

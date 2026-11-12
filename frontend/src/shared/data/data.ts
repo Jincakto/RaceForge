@@ -290,6 +290,7 @@ export interface TrainingSession {
   horsePackageId?: string;
   endTime?: string;
   intensity?: string;
+  actualStart?: string;
   actualEnd?: string;
   canStart?: boolean;
   startBlockedReason?: string;
@@ -314,10 +315,10 @@ export interface TrainingSession {
   postExamDone?: boolean;
   attendance?: { status: 'present' | 'absent'; at: string; note?: string };
   result?: {
-    recoveryMeasuredAt?: string;
+
     time: string;
     speed: string;
-    heartRate: number;
+    heartRate?: number;
     notes: string;
     performanceScore: number;
   };

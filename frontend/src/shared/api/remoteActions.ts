@@ -1,3 +1,4 @@
+import { canCancelRegistration, completionBlockReason, unfinishedPackageSession, type PackageLifecycleAction, type PackageLifecycleWire, type PackageLifecycleOutcome, type PackageLifecycleResult } from '../../features/training/packageLifecycle';
 import { rowProblem, persistedRow, type PreviewContext, type PreviewSession } from '../../features/training/sessionPreview';
 import { selectedStages, scheduleRows, normalizeStages } from '../../features/training/trainingSchedule';
 import { trainingTimestamp } from '../../features/training/trainingTimestamp';
@@ -11,8 +12,10 @@ import { changePermission, permissionForPage } from './permissionApi';
 
 
 interface State extends RemoteSlice { user: AppUser | null; }
-interface Env { getState: () => State; reload: () => Promise<void>; success: (message: string) => void; error: (message: string) => void; navigate: (page: string) => void; }
+interface Env { getState: () => State; reload: () => Promise<void>; success: (message: string) => void; error: (message: string) => void; navigate: (page: string) => void; applyPackageLifecycle?: (outcome: PackageLifecycleOutcome) => void; }
 const locks = new Set<string>();
+const packageLifecycleResults = new Map<string, PackageLifecycleOutcome>();
+const uncertainPackageOperations = new Set<string>();
 const createdRegistrations = new Map<string, { id: string; raceKeys: Set<string> }>();
 export function makeRemoteActions(env: Env) {
   const { getState, reload, success, error, navigate } = env;
@@ -27,6 +30,72 @@ export function makeRemoteActions(env: Env) {
   const result = async <T>(key: string, action: () => Promise<T>): Promise<Res<T>> => {
     try { return { ok: true, data: await run(key, action) }; } catch (e) { const message = (e as Error).message; error(message); return { ok: false, message }; }
   };
+  async function packageLifecycle(id: string, action: PackageLifecycleAction): Promise<PackageLifecycleResult> {
+    const state=getState(),actor=state.user;
+    if(!actor)return {ok:false,message:'Sign in before changing this registration.'};
+    const key='registration-'+actor.id+'-'+id+'-'+action;
+    if(locks.has(key))return {ok:false,message:'This registration is already being updated.'};
+    const saved=packageLifecycleResults.get(key);
+    if(saved)return {ok:true,data:saved};
+    const e=state.enrollments.find(row=>row.id===id);
+    if(!e)return {ok:false,message:'Refresh the registration before continuing.'};
+    const finish=async(wire: PackageLifecycleWire,reconciled=false):Promise<PackageLifecycleResult>=>{
+      if(getState().user?.id!==actor.id)return {ok:false,message:'The signed-in account changed. Refresh before continuing.'};
+      const registration={...e,...enrollmentFromApi(wire.registration,state.packages,state.horses.find(h=>h.id===e.horseId)),
+        trainerId:'',trainerName:'',trainerStatus:'unassigned' as const};
+      const outcome:PackageLifecycleOutcome={registration,deletedSessionCount:reconciled?undefined:wire.deletedSessionCount,certificate:wire.certificate,reconciled};
+      packageLifecycleResults.set(key,outcome);uncertainPackageOperations.delete(key);
+      env.applyPackageLifecycle?.(outcome);
+      try{await reload();
+        if(getState().trainingLoadIssues?.length)outcome.refreshWarning='The operation succeeded, but some data could not be refreshed. Refresh the affected sources; do not submit again.';
+      }catch{outcome.refreshWarning='The operation succeeded, but the latest data could not be loaded. Refresh the page; do not submit again.';}
+      if(getState().user?.id!==actor.id)return {ok:false,message:'The signed-in account changed. Reload this account before continuing.'};
+      env.applyPackageLifecycle?.(outcome);
+      success((action === 'complete' ? 'Package completed. Its certificate is available to the owner.' : 'Registration cancelled.'+(outcome.deletedSessionCount !== undefined ? ' '+outcome.deletedSessionCount+' unstarted sessions deleted.' : '')+' History and payment are retained; no automatic refund.')+(outcome.refreshWarning ? ' '+outcome.refreshWarning : ''));
+      return {ok:true,data:outcome};
+    };
+    const reconcile=async():Promise<PackageLifecycleResult>=>{
+      try{
+        await reload();
+        let wire:PackageLifecycleWire;
+        if(actor.role==='owner')wire=await request('/horse-packages/'+enc(id));
+        else {
+          const context=await request('/horse-packages/'+enc(id)+'/training-context');
+          wire={registration:{horsePackageId:id,horseId:e.horseId,status:context.packageStatus},certificate:null,deletedSessionCount:0};
+        }
+        const expected=action==='complete'?'COMPLETED':'CANCELLED';
+        if(wire.registration?.horsePackageId===id && wire.registration.status===expected)return finish(wire,true);
+        if(['ACTIVE','PAUSED'].includes(wire.registration?.status)){
+          uncertainPackageOperations.delete(key);
+          return {ok:false,message:'The registration status was checked and the operation is not confirmed. Review the latest data, then confirm again if still eligible.'};
+        }
+      }catch{/* A lost response cannot be treated as a failed mutation. */}
+      return {ok:false,uncertain:true,message:'The result is still unconfirmed. Check status before retrying; no second change has been sent.'};
+    };
+    locks.add(key);
+    try{
+      if(uncertainPackageOperations.has(key))return await reconcile();
+      if(action==='cancel'){
+        if(!canCancelRegistration(e,actor,state.horses.find(h=>h.id===e.horseId)?.ownerId))return {ok:false,message:'Only the owner may cancel an active or paused paid registration.'};
+        if(unfinishedPackageSession(e,state.trainingSessions))return {ok:false,message:'Finish the started session and its results before cancelling this registration.'};
+      }else{
+        const reason=completionBlockReason(e,actor,state.trainingSessions,state.trainingLoadedSources,state.trainingLoadIssues);
+        if(reason)return {ok:false,message:reason};
+      }
+      try{
+        const wire=await request<PackageLifecycleWire>('/horse-packages/'+enc(id)+'/'+action,'PATCH');
+        if(wire.registration?.horsePackageId!==id || wire.registration.status!==(action==='complete'?'COMPLETED':'CANCELLED')
+            || !Number.isInteger(wire.deletedSessionCount) || wire.deletedSessionCount<0)throw new Error('Unconfirmed registration response');
+        return await finish(wire);
+      }catch(err){
+        if(err instanceof ApiError && err.status>=400 && err.status<500){
+          if(err.status===403){try{await reload();}catch{/* keep the server denial */}}
+          return {ok:false,message:err.message};
+        }
+        uncertainPackageOperations.add(key);return await reconcile();
+      }
+    }finally{locks.delete(key);}
+  }
   async function saveRecord(rec: HealthRecord): Promise<HealthRecord> {
     const state = getState();
     const profile = rec.profileId || await request<string>(`/horses/${enc(rec.horseId)}/health-profile`);
@@ -68,6 +137,8 @@ export function makeRemoteActions(env: Env) {
     return saveRecord(rec);
   }
   return {
+    completePackage: (id: string) => packageLifecycle(id, 'complete'),
+    cancelRegistration: (id: string) => packageLifecycle(id, 'cancel'),
     togglePermission: (role: Role, page: string, enabled: boolean, _reason: string) => fire(`permission-${role}-${page}`, async () => {
       const code = permissionForPage(role, page);
       if (!code) unavailable("granting access to this feature: the server controls it directly by role");

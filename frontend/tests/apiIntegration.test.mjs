@@ -282,12 +282,12 @@ test('admin staff creation maps groom to database role 5, and refuses public-own
 const completionAssessment = () => ({checklistVersion:'POST_TRAINING_V1',checks:Object.fromEntries([
  'TASK_COMPLETION','SPEED_CONTROL','MOVEMENT_STABILITY','BALANCE','COMMAND_RESPONSE','FOCUS','STAMINA','SPEED_TRANSITION','COOPERATION','PERFORMANCE_CONSISTENCY'
 ].map(code=>[code,true]))});
-test('completion sends actual exercise/recovery fields and does not invent a max speed', async () => {
+test('completion sends exercise measurements and assessment without heart-rate fields', async () => {
   const snapshot = state(); const { remote } = actions(snapshot); let payload;
   globalThis.fetch = async (url, init) => { assert.equal(url,'/api/training-sessions/SES-001/complete'); assert.equal(init.method,'PATCH'); payload=JSON.parse(init.body); return ok({}); };
   assert.equal(await remote.completeSession('SES-001',{ distance:1.25,avgSpeed:18.2,endExerciseHeartRate:180,recoveryHeartRate2Min:88,performanceNotes:'Measured recovery',recoveryMeasuredAt:'2026-10-21T07:32:00.123',assessment:completionAssessment() }),null);
-  assert.equal(payload.distance,1.25); assert.equal(payload.endExerciseHeartRate,180); assert.equal(payload.recoveryHeartRate2Min,88); assert.equal(payload.avgSpeed,18.2);
-  assert.match(payload.recoveryMeasuredAt,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/); assert.ok(!('maxSpeed' in payload)); assert.deepEqual(payload.assessment,completionAssessment()); assert.equal(payload.performanceNotes,'Measured recovery');
+  assert.equal(payload.distance,1.25); assert.ok(!('endExerciseHeartRate' in payload)); assert.ok(!('recoveryHeartRate2Min' in payload)); assert.equal(payload.avgSpeed,18.2);
+  assert.ok(!('recoveryMeasuredAt' in payload)); assert.ok(!('maxSpeed' in payload)); assert.deepEqual(payload.assessment,completionAssessment()); assert.equal(payload.performanceNotes,'Measured recovery');
 });
 
 test('medical confirmation failure keeps its draft ID and retries using the draft update API', async () => {
@@ -479,11 +479,11 @@ test('stage with an invalid original duration cannot be moved into a valid-looki
 });
 
 
-test('completion preserves the recorded recovery timestamp instead of replacing it at save',async()=>{
+test('completion omits retired heart-rate and recovery timestamp fields from legacy input',async()=>{
  const {remote}=actions(state());let captured;
  globalThis.fetch=async(url,init)=>{if(url.endsWith('/complete'))captured=JSON.parse(init.body);return ok({});};
  const result=await remote.completeSession('SES-001',{distance:2,avgSpeed:10,endExerciseHeartRate:160,recoveryHeartRate2Min:110,performanceNotes:'',recoveryMeasuredAt:'2026-10-21T07:32:00',assessment:completionAssessment()});
- assert.equal(result,null);assert.equal(captured.recoveryMeasuredAt,'2026-10-21T07:32:00');
+ assert.equal(result,null);assert.ok(!('recoveryMeasuredAt' in captured));
 });
 
 

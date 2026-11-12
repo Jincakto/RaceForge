@@ -117,8 +117,8 @@ export function planProgress(planId: string, sessions: ReadonlyArray<Pick<Traini
 }
 export function sessionFromApi(w: Wire, user?: AppUser): TrainingSession {
   const statuses: Record<string, TrainingSession['status']> = { SCHEDULED: 'Scheduled', COMPLETED: 'Completed', CANCELLED: 'Cancelled', IN_PROGRESS: 'In Progress', STOPPED: 'In Progress', NOT_PERFORMED: 'Not Performed', MISSED: 'Not Performed' };
-  return { id: w.sessionId, horsePackageId: w.horsePackageId, endTime: w.scheduledEnd?.slice(11,16), intensity: w.intensity, horseId: w.horseId, planId: w.planId, date: dateText(w.scheduledStart), time: w.scheduledStart?.slice(11, 16) || '', type: w.activityName || w.stageTitle || w.intensity || '', trainerId: w.trainerUserId || w.recordedBy || '', trainerName: w.trainerName || '', assignedStaffIds: [], assignedStaffNames: [], status: w.status === 'SCHEDULED' && w.actualStart ? 'In Progress' : statuses[w.status] || 'Scheduled', distance: String(w.distance ?? ''), targetTime: '', notes: w.notes || '', conflictChecked: true, actualEnd: w.actualEnd, canStart: w.canStart, startBlockedReason: w.startBlockedReason, canStop: w.canStop, canComplete: w.canComplete, assessment: assessmentFromApi(w.assessment), pendingPostTrainingReview: w.pendingPostTrainingReview === true, startBlockedCode: w.startBlockedCode,
-    ...(w.status === 'COMPLETED' ? { result: { time: String(w.actualDurationSeconds ?? ''), speed: String(w.avgSpeed ?? ''), heartRate: w.endExerciseHeartRate ?? w.heartRate ?? 0, notes: w.evaluation ?? '', performanceScore: w.recoveryHeartRate2Min ?? 0, recoveryMeasuredAt: w.recoveryMeasuredAt } } : {}),
+  return { id: w.sessionId, horsePackageId: w.horsePackageId, endTime: w.scheduledEnd?.slice(11,16), intensity: w.intensity, horseId: w.horseId, planId: w.planId, date: dateText(w.scheduledStart), time: w.scheduledStart?.slice(11, 16) || '', type: w.activityName || w.stageTitle || w.intensity || '', trainerId: w.trainerUserId || w.recordedBy || '', trainerName: w.trainerName || '', assignedStaffIds: [], assignedStaffNames: [], status: w.status === 'SCHEDULED' && w.actualStart ? 'In Progress' : statuses[w.status] || 'Scheduled', distance: String(w.distance ?? ''), targetTime: '', notes: w.notes || '', conflictChecked: true, actualStart: w.actualStart, actualEnd: w.actualEnd, canStart: w.canStart, startBlockedReason: w.startBlockedReason, canStop: w.canStop, canComplete: w.canComplete, assessment: assessmentFromApi(w.assessment), pendingPostTrainingReview: w.pendingPostTrainingReview === true, startBlockedCode: w.startBlockedCode,
+    ...(w.status === 'COMPLETED' ? { result: { time: String(w.actualDurationSeconds ?? ''), speed: String(w.avgSpeed ?? ''), notes: w.evaluation ?? '', performanceScore: w.assessment?.passedCount ?? 0 } } : {}),
   };
 }
 
@@ -134,6 +134,7 @@ export class RemoteSourceStore {
     return ++this.generation;
   }
   issues() { return [...this.failures.values()]; }
+  loadedSources() { return [...this.values.keys()]; }
   async read<T>(generation: number, key: string, action: () => Promise<T>, fallback: T, onlySource?: string): Promise<T> {
     if (generation !== this.generation) throw new Error('Superseded data request');
     if (onlySource && key !== onlySource) return (this.values.has(key) ? this.values.get(key) : fallback) as T;
@@ -163,13 +164,13 @@ export function uniqueSessions(sessions: TrainingSession[]) {
   for(const session of sessions)if(!byId.has(session.id))byId.set(session.id,session);
   return [...byId.values()];
 }
-export interface RemoteSlice { trainingLoadIssues?: RemoteIssue[]; vetAssignmentsError?: string; users: AppUser[]; horses: Horse[]; healthRecords: HealthRecord[]; horseClubRequests: HorseClubRequest[]; packages: TrainingPackage[]; enrollments: Enrollment[]; trainingPlans: TrainingPlan[]; trainingSessions: TrainingSession[]; notifications: AppNotification[]; serverPermissions?: Record<string, string[]>; permissionAudit?: any[]; }
+export interface RemoteSlice { trainingLoadedSources?: string[]; trainingLoadIssues?: RemoteIssue[]; vetAssignmentsError?: string; users: AppUser[]; horses: Horse[]; healthRecords: HealthRecord[]; horseClubRequests: HorseClubRequest[]; packages: TrainingPackage[]; enrollments: Enrollment[]; trainingPlans: TrainingPlan[]; trainingSessions: TrainingSession[]; notifications: AppNotification[]; serverPermissions?: Record<string, string[]>; permissionAudit?: any[]; }
 export async function loadRemote(user: AppUser, report: (message: string) => void, store = new RemoteSourceStore(), onlySource?: string): Promise<RemoteSlice> {
   const generation=store.begin(user.id+":"+user.role);
   const data: RemoteSlice = { users: [user], horses: [], healthRecords: [], horseClubRequests: [], packages: [], enrollments: [], trainingPlans: [], trainingSessions: [], notifications: [], vetAssignmentsError: undefined };
   if (user.status !== 'active' || user.locked || !user.verified) {
     report("This account is not active and verified. The server has not granted access to operational features.");
-    data.trainingLoadIssues=store.issues(); return data;
+    data.trainingLoadedSources=store.loadedSources(); data.trainingLoadIssues=store.issues(); return data;
   }
   const errors = new Set<string>();
   async function read<T>(label: string, action: () => Promise<T>, fallback: T): Promise<T> {
@@ -293,7 +294,6 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
           trainerUserId:row.recorded_by,trainerName:user.name,intensity:row.intensity,actualEnd:row.actual_end,
           actualDurationSeconds:row.actual_start && row.actual_end ? (Date.parse(row.actual_end)-Date.parse(row.actual_start))/1000 : undefined,
           distance:row.distance,avgSpeed:row.avg_speed,notes:row.notes,evaluation:row.evaluation,
-          endExerciseHeartRate:row.end_exercise_heart_rate,recoveryHeartRate2Min:row.recovery_heart_rate_2_min,
           canStart:false,canStop:false,canComplete:false};
         data.trainingSessions.push(sessionFromApi(w));
         if(!data.horses.some(h=>h.id===row.horse_id))
@@ -313,5 +313,5 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
   }
   for (const p of data.trainingPlans) { p.progress = planProgress(p.id, data.trainingSessions); const e = data.enrollments.find(e => e.id === p.horsePackageId) || data.enrollments.find(e => e.horseId === p.horseId && e.trainerStatus === 'confirmed' && e.status === 'active'); if (e) { p.startDate ||= e.startedAt; p.endDate ||= e.expiresAt; p.horsePackageId ||= e.id; p.assignmentId ||= e.assignmentId; } }
   if (errors.size) report('Some data could not be refreshed. See the affected sources and retry.');
-  data.trainingLoadIssues=store.issues(); return data;
+  data.trainingLoadedSources=store.loadedSources(); data.trainingLoadIssues=store.issues(); return data;
 }

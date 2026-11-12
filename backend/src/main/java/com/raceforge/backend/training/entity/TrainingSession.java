@@ -19,6 +19,7 @@ public class TrainingSession extends com.raceforge.backend.training.entity.Train
   public Integer getRestingHeartRate(){return restingHeartRate;}
   public void setRestingHeartRate(Integer value){restingHeartRate=value;}
 
+  // Historical measurements only: retained for existing DB rows; completion no longer writes them.
   @Column(name = "end_exercise_heart_rate")
   private Integer endExerciseHeartRate;
   public Integer getEndExerciseHeartRate(){return endExerciseHeartRate;}

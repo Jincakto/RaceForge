@@ -73,6 +73,12 @@ export function HealthRecordsPage({ state, navigate }: { state: RecState; naviga
   const [to, setTo] = useState('');
   const [dec, setDec] = useState('all');
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<{ field: 'id' | 'date'; ascending: boolean }>({ field: 'date', ascending: false });
+
+  function changeSort(field: 'id' | 'date') {
+    setSort(current => ({ field, ascending: current.field === field ? !current.ascending : field === 'id' }));
+    setPage(1);
+  }
   const [openId, setOpenId] = useState<string | null>(null);
   const [picked, setPicked] = useState<string[]>([]);
   const [comparing, setComparing] = useState(false);
@@ -90,8 +96,13 @@ export function HealthRecordsPage({ state, navigate }: { state: RecState; naviga
       if (to && k > isoKey(to)) return false;
       if (dec !== 'all' && recordDecision(r) !== dec) return false;
       return true;
+    }).sort((a, b) => {
+      const order = sort.field === 'id'
+        ? a.id.localeCompare(b.id, undefined, { numeric: true })
+        : -sortDesc(a, b);
+      return sort.ascending ? order : -order;
     });
-  }, [all, horseMap, q, from, to, dec]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [all, horseMap, q, from, to, dec, sort]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const cur = Math.min(page, pages);
@@ -159,7 +170,15 @@ export function HealthRecordsPage({ state, navigate }: { state: RecState; naviga
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-                <tr><th className="w-10 px-3 py-3" title="Select to compare"></th><th className="px-3 py-3">Record ID</th><th className="px-3 py-3">Examination date</th><th className="px-3 py-3">Veterinarian</th><th className="px-3 py-3">Horses</th><th className="px-3 py-3">Decision</th><th className="px-3 py-3"></th></tr>
+                <tr><th className="w-10 px-3 py-3" title="Select to compare"></th>{([['id', 'Record ID'], ['date', 'Examination date']] as const).map(([field, label]) => (
+                  <th key={field} scope="col" className="px-3 py-3"
+                    aria-sort={sort.field === field ? (sort.ascending ? 'ascending' : 'descending') : undefined}>
+                    <button type="button" className="inline-flex items-center gap-1 uppercase hover:text-[#1a2844]"
+                      onClick={() => changeSort(field)}>
+                      {label}<span aria-hidden="true">{sort.field === field ? (sort.ascending ? '↑' : '↓') : '↕'}</span>
+                    </button>
+                  </th>
+                ))}<th className="px-3 py-3">Veterinarian</th><th className="px-3 py-3">Horses</th><th className="px-3 py-3">Decision</th><th className="px-3 py-3"></th></tr>
               </thead>
               <tbody>
                 {rows.map(r => {

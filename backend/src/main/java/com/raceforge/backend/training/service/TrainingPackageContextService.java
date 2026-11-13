@@ -20,7 +20,7 @@ public class TrainingPackageContextService {
  @Transactional(readOnly=true) public Map<String,Object> context(String packageId){
   var pack=guard.visiblePackage(packageId);var horse=pack.getHorse();Map<String,Object> result=new LinkedHashMap<>();
   result.put("horseId",horse.getHorseId());result.put("horseName",horse.getHorseName());result.put("weightKg",guard.weight(horse));result.put("height",horse.getHeight());result.put("dateOfBirth",horse.getDateOfBirth());result.put("breed",horse.getBreed());result.put("gender",horse.getGender());result.put("healthStatus",horse.getHealthStatus());result.put("trainingLocked",horse.getTrainingLocked());result.put("admissionStatus",horse.getAdmissionStatus());
-  result.put("horsePackageId",packageId);result.put("packageName",pack.getTrainingPackage().getPackageName());result.put("packageStatus",pack.getStatus());result.put("paymentStatus",pack.getPaymentStatus());result.put("startDate",pack.getStartDate());result.put("endDate",pack.getEndDate());
+  result.put("horsePackageId",packageId);result.put("packageName",pack.getTrainingPackage().getPackageName());result.put("packageStatus",pack.getStatus());result.put("paymentStatus",pack.getPaymentStatus());result.put("startDate",pack.getStartDate());result.put("endDate",pack.getEndDate());result.put("remainingDays",pack.getRemainingDays());
   List<String> reasons=new ArrayList<>();Map<String,Object> medical=null;
   try{medical=guard.medical(horse);}catch(BusinessRuleException ex){reasons.add(ex.getMessage());}
   Map<String,Object> fitness=new LinkedHashMap<>();

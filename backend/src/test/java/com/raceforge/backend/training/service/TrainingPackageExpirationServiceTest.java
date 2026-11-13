@@ -36,6 +36,7 @@ class TrainingPackageExpirationServiceTest {
         owner.setUserId("7");
         horse = new Horse();
         horse.setHorseId("HOR-001");
+        horse.setHorseName("Ngựa Ánh Dương");
         horse.setOwner(owner);
         TrainingPackage normalType = new TrainingPackage();
         normalType.setPackageType("RACING");
@@ -56,9 +57,10 @@ class TrainingPackageExpirationServiceTest {
     @Test
     void normalPackageExpiresAfterInclusiveEndDate() {
         assertEquals(1, service.expireForLockedHorse(horse, today));
-        assertEquals("COMPLETED", normal.getStatus());
+        assertEquals("EXPIRED", normal.getStatus());
         assertEquals(0, normal.getRemainingDays());
         verify(registrations).save(normal);
+        verify(em, never()).persist(any());
         verify(events).notifyOwner(eq("7"), eq("HOR-001"),
                 eq("TRAINING_PACKAGE_EXPIRED"), anyString());
         verify(events, never()).notifyManagers(anyString(), anyString(), anyString());
@@ -70,6 +72,7 @@ class TrainingPackageExpirationServiceTest {
         assertEquals(0, service.expireForLockedHorse(horse, today));
         assertEquals("ACTIVE", normal.getStatus());
         verify(registrations, never()).save(any());
+        verify(em, never()).persist(any());
     }
 
     @Test
@@ -89,23 +92,13 @@ class TrainingPackageExpirationServiceTest {
     }
 
     @Test
-    void recoveryExpiresButDoesNotClearMedicalLockOrPausedOriginal() {
-        TrainingPackage recoveryType = new TrainingPackage();
-        recoveryType.setPackageType("RECOVERY");
-        HorsePackage original = new HorsePackage();
-        original.setStatus("PAUSED");
-        original.setRemainingDays(12);
-        normal.setTrainingPackage(recoveryType);
-        normal.setReplacedHorsePackage(original);
+    void expiryDoesNotClearMedicalLock() {
         horse.setTrainingLocked(true);
-
         assertEquals(1, service.expireForLockedHorse(horse, today));
-        assertEquals("COMPLETED", normal.getStatus());
+        assertEquals("EXPIRED", normal.getStatus());
         assertTrue(horse.getTrainingLocked());
-        assertEquals("PAUSED", original.getStatus());
-        assertEquals(12, original.getRemainingDays());
-        verify(events).notifyManagers(eq("HOR-001"),
-                eq("RECOVERY_PACKAGE_EXPIRED"), contains("Training Lock"));
+        verify(events).notifyOwner(eq("7"), eq("HOR-001"), eq("TRAINING_PACKAGE_EXPIRED"), anyString());
+        verify(events, never()).notifyManagers(anyString(), anyString(), anyString());
     }
 
     @Test
@@ -113,6 +106,7 @@ class TrainingPackageExpirationServiceTest {
         assertTrue(service.expireRegistration("HPG-010", today));
         assertFalse(service.expireRegistration("HPG-010", today));
         verify(registrations, times(1)).save(normal);
+        verify(em, never()).persist(any());
         verify(events, times(1)).notifyOwner(eq("7"), eq("HOR-001"), anyString(), anyString());
     }
 
@@ -121,7 +115,7 @@ class TrainingPackageExpirationServiceTest {
         assertTrue(service.expireRegistration("HPG-010", today));
         var inOrder = inOrder(horses, em, registrations);
         inOrder.verify(horses).findById("HOR-001");
-        inOrder.verify(em).lock(eq(horse), any());
+        inOrder.verify(em).refresh(eq(horse), any(jakarta.persistence.LockModeType.class));
         inOrder.verify(registrations).findForUpdate("HPG-010");
     }
 
@@ -130,5 +124,13 @@ class TrainingPackageExpirationServiceTest {
         normal.setStatus("COMPLETED");
         assertFalse(service.expireRegistration("HPG-010", today));
         verify(events, never()).record(any(), any(), any(), any(), any());
+        verify(em, never()).persist(any());
+    }
+
+    @Test
+    void cancelledRegistrationCannotBeCertified() {
+        normal.setStatus("CANCELLED");
+        assertFalse(service.expireRegistration("HPG-010", today));
+        verify(em, never()).persist(any());
     }
 }

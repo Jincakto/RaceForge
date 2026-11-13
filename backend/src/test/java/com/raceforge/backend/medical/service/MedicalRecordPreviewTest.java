@@ -35,7 +35,7 @@ class MedicalRecordPreviewTest {
 
     private final MedicalRecordService service = new MedicalRecordService(
             profiles, records, vitals, exams, users, evaluation,
-            mapper, trainingLocks, audit, assignments, ids);
+            mapper, trainingLocks, audit, assignments, ids, mock(com.raceforge.backend.training.service.TrainingAssessmentMedicalBridge.class));
 
     private void activeVet(String id) {
         Role role = new Role();

@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class TrainingSessionService {
+    @Autowired private TrainingAssessmentService assessmentService;
     @Autowired private TrainingScheduleCoordinator scheduleCoordinator;
     @Autowired @org.springframework.beans.factory.annotation.Qualifier("trainingClock") private java.time.Clock clock;
     @Autowired private com.raceforge.backend.audit.service.AuditLogService audit;
@@ -64,14 +65,15 @@ public class TrainingSessionService {
     @Transactional
     public TrainingSessionResponse startSession(String sessionId) {
         TrainingSession session = lockedSession(sessionId);
+        workflowGuard.authorizePlan(session.getPlan());
+        assessmentService.requireNoPendingReview(session.getHorse().getHorseId());
         workflowGuard.requirePlan(session.getPlan());
         rules.requireUnlocked(rules.lockHorse(session.getHorse().getHorseId()));
         rules.requireOpen(session);
         if(session.getActualStart()!=null)throw new BusinessRuleException("Session has already started; it cannot be restarted.");
         LocalDateTime now=LocalDateTime.now(clock);
         workflowGuard.requirePackageDate(session.getPlan(),session.getHorse().getHorseId(),now.toLocalDate());
-        if(session.getScheduledStart()==null || !session.getScheduledStart().toLocalDate().equals(now.toLocalDate()))
-            throw new BusinessRuleException("Start this session on its scheduled date (Bangkok time).");
+        // Planned dates are retained; actual exercise may start on another valid package day.
         scheduleCoordinator.requireStartAvailable(session.getPlan().getHorsePackageId(),session.getHorse().getHorseId(),sessionId);
         captureRestingHeartRate(session);
         session.setActualStart(now);
@@ -85,33 +87,31 @@ public class TrainingSessionService {
         TrainingSession session = lockedSession(sessionId);
         workflowGuard.authorizePlan(session.getPlan());
         rules.requireUnlocked(rules.lockHorse(session.getHorse().getHorseId()));
+        if ("COMPLETED".equals(session.getStatus())) {
+            throw new com.raceforge.backend.common.exception.ApiException(org.springframework.http.HttpStatus.CONFLICT,
+                    "SESSION_ALREADY_COMPLETED", "This session has already been completed.");
+        }
         rules.requireOpen(session);
         if (session.getActualStart() == null) {
             throw new BusinessRuleException("Start the session before recording completion.");
         }
         if(session.getActualEnd()==null)throw new BusinessRuleException("Stop the exercise before submitting recovery results.");
-        requireBpm(request.getEndExerciseHeartRate(),"endExerciseHeartRate");
-        requireBpm(request.getRecoveryHeartRate2Min(),"recoveryHeartRate2Min");
         if(request.getDistance()==null || request.getDistance().signum()<0 || request.getDistance().scale()>2 || request.getDistance().compareTo(new java.math.BigDecimal("999999.99"))>0)
             throw new BusinessRuleException("distance in kilometres is required, non-negative, at most two decimal places and within DECIMAL(8,2).");
         if(request.getAvgSpeed()==null || !Double.isFinite(request.getAvgSpeed()) || request.getAvgSpeed()<0)
             throw new BusinessRuleException("avgSpeed in km/h is required, finite and non-negative.");
         if(request.getMaxSpeed()!=null && (!Double.isFinite(request.getMaxSpeed()) || request.getMaxSpeed()<request.getAvgSpeed()))
             throw new BusinessRuleException("maxSpeed must be finite and at least avgSpeed.");
-        LocalDateTime measured=request.getRecoveryMeasuredAt();
-        if(measured==null || measured.isBefore(session.getActualEnd()) || measured.isAfter(LocalDateTime.now(clock)))
-            throw new BusinessRuleException("recoveryMeasuredAt must not precede exercise stop or be in the future.");
+        var checkedAssessment = assessmentService.validateCompletion(request);
         session.setStatus("COMPLETED");
         session.setEvaluation(request.getPerformanceNotes());
         session.setDistance(request.getDistance());
-        session.setEndExerciseHeartRate(request.getEndExerciseHeartRate());
-        session.setRecoveryHeartRate2Min(request.getRecoveryHeartRate2Min());
-        session.setRecoveryMeasuredAt(measured);
         // Legacy heartRate remains untouched: its original measurement timing is unknown.
         session.setAvgSpeed(request.getAvgSpeed());
         session.setMaxSpeed(request.getMaxSpeed());
         session.setRecordedBy(actorId);
         var saved=trainingSessionRepository.save(session);
+        assessmentService.recordCompletion(saved, checkedAssessment, actorId);
         audit.record(workflowGuard.actor().userId(),saved.getHorse().getHorseId(),"TRAINING_SESSION",saved.getSessionId(),"TRAINING_SESSION_WRITTEN","SUCCESS",saved.getStatus());
         return trainingSessionMapper.toResponse(saved);
     }
@@ -176,9 +176,6 @@ public class TrainingSessionService {
         session.setRestingMeasuredAt((LocalDateTime)medical.get("examined_at"));
     }
 
-    private static void requireBpm(Integer value,String field){
-        if(value==null || value<=0)throw new BusinessRuleException(field+" in bpm is required and must be positive; this is input validation, not clinical clearance.");
-    }
 
     private TrainingSession lockedSession(String sessionId) {
         scheduleCoordinator.lockSchedule();

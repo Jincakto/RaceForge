@@ -1,3 +1,4 @@
+import { sourceUrl } from './sourceFiles.mjs';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -5,8 +6,8 @@ import vm from 'node:vm';
 import ts from 'typescript';
 
 // Compile the production module without adding a test runtime dependency.
-const source = readFileSync(new URL('../src/englishUi.ts', import.meta.url), 'utf8');
-const dictionary = JSON.parse(readFileSync(new URL('../src/translations.json', import.meta.url), 'utf8'));
+const source = readFileSync(sourceUrl('englishUi.ts'), 'utf8');
+const dictionary = JSON.parse(readFileSync(sourceUrl('translations.json'), 'utf8'));
 const compiled = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;

@@ -1,3 +1,4 @@
+import { sourceUrl } from './sourceFiles.mjs';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
@@ -15,7 +16,7 @@ test('Training clock refreshes on timer, focus and tab visibility across Bangkok
  try {
   globalThis.Date=FixedDate;globalThis.window=new FakeWindow();globalThis.document=new EventTarget();
   await writeFile(path.join(dir,'reactStub.mjs'),"export const updates=[];export let cleanup;export function useState(init){return [init(),value=>updates.push(value)];}export function useEffect(effect){cleanup=effect();}");
-  const source=await readFile(new URL('../src/useTrainingNow.ts',import.meta.url),'utf8');
+  const source=await readFile(sourceUrl('useTrainingNow.ts'),'utf8');
   const output=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace(/(['"])react\1/g,"'./reactStub.mjs'");
   await writeFile(path.join(dir,'clock.mjs'),output);
   const hook=await import(pathToFileURL(path.join(dir,'clock.mjs')));

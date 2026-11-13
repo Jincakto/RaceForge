@@ -1,0 +1,2054 @@
+diff --git a/frontend/src/App.tsx b/frontend/src/App.tsx
+index cf43f0e..5a6f186 100644
+--- a/frontend/src/App.tsx
++++ b/frontend/src/App.tsx
+@@ -9074,6 +9074,7 @@ export default function App() {
+             onRespond={remote.respondAssign}
+             onStartSession={remote.startSession}
+             onCompleteSession={remote.completeSession}
++            onRequestVetCheck={remote.requestVetCheck}
+             onStopSession={remote.stopSession}
+             onConfirmSchedule={() =>
+               "Sessions are generated and confirmed through the roadmap API."
+diff --git a/frontend/src/data.ts b/frontend/src/data.ts
+index d170233..f8b9ec1 100644
+--- a/frontend/src/data.ts
++++ b/frontend/src/data.ts
+@@ -309,6 +309,9 @@ export interface TrainingPlan {
+ }
+ 
+ export interface TrainingSession {
++  assessment?: import('./trainingAssessment').TrainingAssessmentResponse;
++  pendingPostTrainingReview?: boolean;
++  startBlockedCode?: string;
+   horsePackageId?: string;
+   endTime?: string;
+   intensity?: string;
+diff --git a/frontend/src/remote.ts b/frontend/src/remote.ts
+index 209af9c..149b8e5 100644
+--- a/frontend/src/remote.ts
++++ b/frontend/src/remote.ts
+@@ -1,4 +1,5 @@
+ import { packageSessions } from './trainingSchedule';
++import { assessmentFromApi } from './trainingAssessment';
+ import { ApiError, allPages, idPath as enc, request, rows } from './api';
+ import type { AppUser, Horse, HealthRecord, Enrollment, TrainingPackage, TrainingPlan, TrainingSession, HorseClubRequest, AppNotification, Role } from './data';
+ 
+@@ -112,8 +113,8 @@ export function planFromApi(w: Wire, en?: Enrollment): TrainingPlan {
+ }
+ export function sessionFromApi(w: Wire, user?: AppUser): TrainingSession {
+   const statuses: Record<string, TrainingSession['status']> = { SCHEDULED: 'Scheduled', COMPLETED: 'Completed', CANCELLED: 'Cancelled', IN_PROGRESS: 'In Progress', STOPPED: 'In Progress', NOT_PERFORMED: 'Not Performed', MISSED: 'Not Performed' };
+-  return { id: w.sessionId, horsePackageId: w.horsePackageId, endTime: w.scheduledEnd?.slice(11,16), intensity: w.intensity, horseId: w.horseId, planId: w.planId, date: dateText(w.scheduledStart), time: w.scheduledStart?.slice(11, 16) || '', type: w.activityName || w.stageTitle || w.intensity || '', trainerId: w.trainerUserId || w.recordedBy || '', trainerName: w.trainerName || '', assignedStaffIds: [], assignedStaffNames: [], status: w.status === 'SCHEDULED' && w.actualStart ? 'In Progress' : statuses[w.status] || 'Scheduled', distance: String(w.distance ?? ''), targetTime: '', notes: w.notes || '', conflictChecked: true, actualEnd: w.actualEnd, canStart: w.canStart, startBlockedReason: w.startBlockedReason, canStop: w.canStop, canComplete: w.canComplete,
+-    ...(w.status === 'COMPLETED' ? { result: { time: String(w.actualDurationSeconds || ''), speed: String(w.avgSpeed || ''), heartRate: w.endExerciseHeartRate ?? w.heartRate ?? 0, notes: w.evaluation || w.notes || '', performanceScore: w.recoveryHeartRate2Min ?? 0 } } : {}),
++  return { id: w.sessionId, horsePackageId: w.horsePackageId, endTime: w.scheduledEnd?.slice(11,16), intensity: w.intensity, horseId: w.horseId, planId: w.planId, date: dateText(w.scheduledStart), time: w.scheduledStart?.slice(11, 16) || '', type: w.activityName || w.stageTitle || w.intensity || '', trainerId: w.trainerUserId || w.recordedBy || '', trainerName: w.trainerName || '', assignedStaffIds: [], assignedStaffNames: [], status: w.status === 'SCHEDULED' && w.actualStart ? 'In Progress' : statuses[w.status] || 'Scheduled', distance: String(w.distance ?? ''), targetTime: '', notes: w.notes || '', conflictChecked: true, actualEnd: w.actualEnd, canStart: w.canStart, startBlockedReason: w.startBlockedReason, canStop: w.canStop, canComplete: w.canComplete, assessment: assessmentFromApi(w.assessment), pendingPostTrainingReview: w.pendingPostTrainingReview === true, startBlockedCode: w.startBlockedCode,
++    ...(w.status === 'COMPLETED' ? { result: { time: String(w.actualDurationSeconds ?? ''), speed: String(w.avgSpeed ?? ''), heartRate: w.endExerciseHeartRate ?? w.heartRate ?? 0, notes: w.evaluation ?? '', performanceScore: w.recoveryHeartRate2Min ?? 0, recoveryMeasuredAt: w.recoveryMeasuredAt } } : {}),
+   };
+ }
+ 
+diff --git a/frontend/src/remoteActions.ts b/frontend/src/remoteActions.ts
+index 57e7cea..d8e40d9 100644
+--- a/frontend/src/remoteActions.ts
++++ b/frontend/src/remoteActions.ts
+@@ -1,6 +1,7 @@
+ import { rowProblem, persistedRow, type PreviewContext, type PreviewSession } from './sessionPreview';
+ import { selectedStages, scheduleRows, normalizeStages } from './trainingSchedule';
+ import { trainingTimestamp } from './trainingTimestamp';
++import { assessmentErrorMessage, completionPayload, fetchSessionAssessment, isDuplicateCompletionError, vetRequestReason, type CompleteSessionInput, type TrainingVetNotificationResponse } from './trainingAssessment';
+ import { ApiError, idPath as enc, request } from './api';
+ import { staffRoleId, ROLE_NAMES, isoDate, enrollmentFromApi, horsePayload, horseCreateForm, medicalPayload, packageFromApi, planFromApi, recordFromApi, sessionFromApi } from './remote';
+ import type { RemoteSlice } from './remote';
+@@ -233,30 +234,47 @@ export function makeRemoteActions(env: Env) {
+       if (data.warningTriggered) error(data.warningMessage); return null;
+     }),
+     async startSession(id: string): Promise<string | null> {
+-      try { await run(`start-${id}`, () => request(`/training-sessions/${enc(id)}/start`, 'PATCH')); return null; } catch (e) { error((e as Error).message); return (e as Error).message; }
++      try { await run(`start-${id}`, () => request(`/training-sessions/${enc(id)}/start`, 'PATCH')); return null; } catch (e) { const message = assessmentErrorMessage(e, 'Unable to start the session. Refresh its status and try again.'); error(message); return message; }
+     },
+     stopSession: (id: string) => result<null>(`stop-${id}`, async () => { await request(`/training-sessions/${enc(id)}/stop`, 'PATCH', {}); return null; }),
+     async activateRecovery(horseId: string, recoveryPackageId: string): Promise<string | null> {
+       try { await run(`recovery-${horseId}`, () => request(`/horse-packages/horse/${enc(horseId)}/approve-recovery`, 'POST', { recoveryPackageId, reason: "Manager approved recovery based on the veterinary conclusion." })); return null; }
+       catch (e) { error((e as Error).message); return (e as Error).message; }
+     },
+-    async completeSession(id: string, result: NonNullable<TrainingSession['result']>): Promise<string | null> {
++    async completeSession(id: string, input: CompleteSessionInput): Promise<string | null> {
+       try {
+         await run(`complete-${id}`, async () => {
+-          const distance = Number(result.time.replace(',', '.'));
+-          if (!Number.isFinite(distance) || distance < 0) throw new Error("Actual distance must be a non-negative number of kilometers.");
+-          const speed = Number(result.speed);
+-          if (!Number.isFinite(speed) || speed < 0 || speed > 100) throw new Error('Speed must be between 0 and 100 km/h.');
+-          if ([result.heartRate, result.performanceScore].some(v => !Number.isInteger(v) || v < 20 || v > 250)) throw new Error('Heart rate must be an integer between 20 and 250 bpm.');
+-          if (!result.recoveryMeasuredAt) throw new Error('Record the two-minute recovery reading before completing the session.');
+-          const recoveryMeasuredAt = result.recoveryMeasuredAt;
+-          await request(`/training-sessions/${enc(id)}/complete`, 'PATCH', { distance, avgSpeed: Number(result.speed), endExerciseHeartRate: result.heartRate, recoveryHeartRate2Min: result.performanceScore, recoveryMeasuredAt, performanceNotes: result.notes });
+-        }); return null;
+-      } catch (e) {
+-        const message = e instanceof ApiError && e.status === 409
+-          ? `Could not complete session ${id}: ${e.message} The server rejected the save; check the backend log for the specific conflict.`
+-          : e instanceof Error ? e.message : 'Unable to complete the session.';
+-        return message;
++          const payload = completionPayload(input);
++          try {
++            await request(`/training-sessions/${enc(id)}/complete`, 'PATCH', payload);
++          } catch (failure) {
++            if (!isDuplicateCompletionError(failure)) throw failure;
++            // A lost response or double-click may follow a committed save. Verify persisted data.
++            await fetchSessionAssessment(id);
++          }
++        });
++        return null;
++      } catch (failure) {
++        return assessmentErrorMessage(failure, 'Unable to complete the session. Your entries have been kept. Please try again.');
++      }
++    },
++    async requestVetCheck(id: string, reason: string): Promise<Res<TrainingVetNotificationResponse>> {
++      try {
++        const trimmed = vetRequestReason(reason);
++        const data = await run(`vet-check-${id}`, async () => {
++          const response = await request<TrainingVetNotificationResponse>(
++            `/training-sessions/${enc(id)}/vet-notification`, 'POST', { reason: trimmed });
++          if (!response || response.sessionId !== id || typeof response.startBlocked !== 'boolean' || typeof response.message !== 'string'
++              || !['SENT', 'ALREADY_SENT', 'WAITING_FOR_VET_ASSIGNMENT', 'NOT_REQUESTED'].includes(response.requestStatus)) {
++            throw new Error('Invalid vet notification response');
++          }
++          return response;
++        }, 'Vet check request updated.');
++        return { ok: true, data };
++      } catch (failure) {
++        const message = assessmentErrorMessage(failure, 'Unable to request a vet check. Please try again.');
++        error(message);
++        return { ok: false, message };
+       }
+     },
+   };
+diff --git a/frontend/src/trainingPlans.tsx b/frontend/src/trainingPlans.tsx
+index 8786ea0..6dd3fca 100644
+--- a/frontend/src/trainingPlans.tsx
++++ b/frontend/src/trainingPlans.tsx
+@@ -1,4 +1,13 @@
+ import { SessionPreviewModal } from './SessionPreviewModal';
++import {
++  TrainingAssessmentBadge, TrainingAssessmentDetails, TrainingAssessmentForm,
++  TrainingPendingReviewBanner,
++} from './TrainingAssessmentView';
++import {
++  assessmentErrorMessage, assessmentPreview, canRequestVetCheck, fetchAssessmentTemplate,
++  toAssessmentRequest, type AssessmentAnswers, type CompleteSessionInput,
++  type TrainingAssessmentTemplateResponse, type TrainingVetNotificationResponse,
++} from './trainingAssessment';
+ import { useTrainingNow } from './useTrainingNow';
+ import { futureSchedule, scheduleWarning, trainingStart } from './trainingSchedule';
+ import { PackageRoadmapPreview, RoadmapTable, StagesEditor, SavedRoadmapPreview } from './roadmapView';
+@@ -8,7 +17,7 @@ import { trainingTimestamp } from './trainingTimestamp';
+ import { RecoveryReview } from './RecoveryReview';
+ import { packageRoadmapFor, recommendationView } from './recommendations';
+ import { request } from './api';
+-import { useEffect, useMemo, useState } from 'react';
++import { useEffect, useId, useMemo, useRef, useState } from 'react';
+ import {
+   computeTrainingSuggestion, isHeavySession,
+   type Horse, type HealthRecord, type TrainingPlan, type TrainingSession, type Res, type TrainingSuggestion, type Enrollment,
+@@ -24,7 +33,6 @@ import {
+ } from './trainingLogic';
+ 
+ interface HubState extends TrainingSlice { healthRecords: HealthRecord[] }
+-type ResultT = NonNullable<TrainingSession['result']>;
+ 
+ interface HubProps {
+   state: HubState;
+@@ -35,7 +43,8 @@ interface HubProps {
+   onRespond: (enrId: string, accept: boolean, reason: string) => Promise<Res<null>>;
+   onStopSession: (id: string) => Promise<Res<null>>;
+   onStartSession: (id: string) => string | null | Promise<string | null>;
+-  onCompleteSession: (id: string, r: ResultT) => string | null | Promise<string | null>;
++  onCompleteSession: (id: string, r: CompleteSessionInput) => string | null | Promise<string | null>;
++  onRequestVetCheck: (id: string, reason: string) => Promise<Res<TrainingVetNotificationResponse>>;
+   onConfirmSchedule: (horseId: string, note: string, restoreIds: string[]) => string | null | Promise<string | null>;
+ }
+ 
+@@ -122,6 +131,7 @@ export function TrainingHubPage(props: HubProps) {
+   const { state } = props;
+   const { me, mine } = useTrainerHorses(state);
+   const isTrainer = me.role === 'head_trainer';
++  const canReadAssessment = isTrainer || me.role === 'manager';
+   const now=useTrainingNow();
+   const today=isoToD(trainingTimestamp(now).slice(0,10));
+   const [starting,setStarting]=useState<string|null>(null);
+@@ -140,6 +150,7 @@ export function TrainingHubPage(props: HubProps) {
+   const [absentFor, setAbsentFor] = useState<TrainingSession | null>(null);
+   const [completing, setCompleting] = useState<string | null>(null);
+   const [reviewing, setReviewing] = useState<string | null>(null);
++  const [assessmentOpen, setAssessmentOpen] = useState<string | null>(null);
+   const [statusFilter, setStatusFilter] = useState('all');
+   const [weekAnchor, setWeekAnchor] = useState(TODAY);
+ 
+@@ -289,7 +300,14 @@ export function TrainingHubPage(props: HubProps) {
+                     {ownsSession && (s.canStop || s.canComplete) && completing !== s.id && <Btn size="sm" variant="primary" onClick={async () => { setActionError(''); if (s.canStop) { const stopped = await props.onStopSession(s.id); if (!stopped.ok) { setActionError(stopped.message); return; } } setCompleting(s.id); }}>{s.canStop ? 'Stop exercise & record recovery' : 'Record recovery results'}</Btn>}
+                   </div>
+                 </div>
+-                {completing === s.id && <ResultForm onCancel={() => setCompleting(null)} onSubmit={async r => { const err = await props.onCompleteSession(s.id, r); setActionError(err || ''); if (!err) { setCompleting(null); setReviewing(s.id); } return err; }} />}
++                {canReadAssessment && s.pendingPostTrainingReview && s.status === 'Scheduled' && <div className="mt-4"><TrainingPendingReviewBanner /></div>}
++                {canReadAssessment && s.assessment && <div className="mt-3"><TrainingAssessmentBadge assessment={s.assessment} /></div>}
++                {completing === s.id && <ResultForm onCancel={() => setCompleting(null)} onSubmit={async r => { const err = await props.onCompleteSession(s.id, r); setActionError(err || ''); if (!err) { setCompleting(null); setReviewing(s.id); setAssessmentOpen(s.id); } return err; }} />}
++                {canReadAssessment && s.status === 'Completed' && <div className="mt-3">
++                  <button type="button" aria-expanded={assessmentOpen === s.id} onClick={() => setAssessmentOpen(current => current === s.id ? null : s.id)} className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-[#1a2844] hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b7026]">{assessmentOpen === s.id ? 'Close post-training check' : 'View post-training check'}</button>
++                  {assessmentOpen === s.id && <TrainingAssessmentDetails key={s.id} sessionId={s.id} overallNotes={s.result?.notes}
++                    canRequest={canRequestVetCheck(s, state.enrollments, me)} onRequestVetCheck={props.onRequestVetCheck} />}
++                </div>}
+                 {isTrainer && s.status === 'Completed' && reviewing !== s.id && <Btn size="sm" variant="secondary" onClick={() => setReviewing(s.id)}>View recovery review</Btn>}
+                 {isTrainer && reviewing === s.id && <RecoveryReview sessionId={s.id} onReview={() => { setTab('sessions'); setStatusFilter('Scheduled'); setReviewing(null); }} />}
+                 {s.result && <div className="mt-3 grid grid-cols-4 gap-3 border-t border-gray-100 pt-3">{[["Time (seconds)", s.result.time], ["Speed", `${s.result.speed} km/h`], ["Heart rate", `${s.result.heartRate} bpm`], ["Two-minute recovery heart rate", `${s.result.performanceScore} bpm`]].map(([k, v]) => <div key={k} className="rounded-lg bg-gray-50 p-2 text-center"><div className="text-xs text-gray-500">{k}</div><div className="font-mono text-sm font-bold">{v}</div></div>)}</div>}
+@@ -331,6 +349,12 @@ export function TrainingHubPage(props: HubProps) {
+               <div className="mb-1 flex items-center gap-2"><IdChip kind="SES" id={s.id} /><span className="font-semibold">{s.type} · {s.distance} · {s.date} — {hn(s.horseId)}</span></div>
+               <div className="mt-3 grid grid-cols-4 gap-3">{[["Time (seconds)", s.result!.time], ["Speed", `${s.result!.speed} km/h`], ["Heart rate", `${s.result!.heartRate} bpm`], ["Two-minute recovery heart rate", `${s.result!.performanceScore} bpm`]].map(([k, v]) => <div key={k} className="rounded-lg bg-gray-50 p-3 text-center"><div className="text-xs text-gray-500">{k}</div><div className="mt-0.5 font-mono text-sm font-bold">{v}</div></div>)}</div>
+               {s.result!.notes && <p className="mt-3 text-sm italic text-gray-600">"{s.result!.notes}"</p>}
++              {canReadAssessment && <div className="mt-4 space-y-3">
++                {s.assessment && <TrainingAssessmentBadge assessment={s.assessment} />}
++                <div><button type="button" aria-expanded={assessmentOpen === s.id} onClick={() => setAssessmentOpen(current => current === s.id ? null : s.id)} className="min-h-11 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-[#1a2844] hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b7026]">{assessmentOpen === s.id ? 'Close post-training check' : 'View post-training check'}</button></div>
++                {assessmentOpen === s.id && <TrainingAssessmentDetails key={s.id} sessionId={s.id} overallNotes={s.result?.notes}
++                  canRequest={canRequestVetCheck(s, state.enrollments, me)} onRequestVetCheck={props.onRequestVetCheck} />}
++              </div>}
+             </Card>
+           ))}
+         </div>
+@@ -355,46 +379,121 @@ export function TrainingHubPage(props: HubProps) {
+ 
+ // ── Result form ──────────────────────────────────────────────────────────────
+ 
+-function ResultForm({ onSubmit, onCancel }: { onSubmit: (r: ResultT) => string | null | Promise<string | null>; onCancel: () => void }) {
++export function ResultForm({ onSubmit, onCancel }: {
++  onSubmit: (input: CompleteSessionInput) => string | null | Promise<string | null>;
++  onCancel: () => void;
++}) {
++  const id = useId();
+   const [f, setF] = useState({ time: '', speed: '', hr: '', score: '', notes: '' });
+-  const [saving,setSaving]=useState(false);
+-  const [measuredAt,setMeasuredAt]=useState('');
++  const [answers, setAnswers] = useState<AssessmentAnswers>({});
++  const [template, setTemplate] = useState<TrainingAssessmentTemplateResponse | null>(null);
++  const [templateLoading, setTemplateLoading] = useState(true);
++  const [templateError, setTemplateError] = useState('');
++  const [templateAttempt, setTemplateAttempt] = useState(0);
++  const [saving, setSaving] = useState(false);
++  const savingRef = useRef(false);
++  const fieldRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
++  const [measuredAt, setMeasuredAt] = useState('');
+   const [e, setE] = useState<Record<string, string>>({});
+   const [err, setErr] = useState('');
+-  const set = (k: keyof typeof f) => (v: string) => { setF(p => ({ ...p, [k]: v })); setE(p => ({ ...p, [k]: '' })); };
++  useEffect(() => {
++    let active = true;
++    setTemplate(null); setTemplateLoading(true); setTemplateError('');
++    fetchAssessmentTemplate().then(value => { if (active) setTemplate(value); })
++      .catch(error => { if (active) setTemplateError(assessmentErrorMessage(error, 'The health check template could not be loaded. Retry before saving.')); })
++      .finally(() => { if (active) setTemplateLoading(false); });
++    return () => { active = false; };
++  }, [templateAttempt]);
++  const set = (key: keyof typeof f) => (value: string) => {
++    setF(previous => ({ ...previous, [key]: value }));
++    setE(previous => ({ ...previous, [key]: '' }));
++    setErr('');
++  };
++  const validation = () => {
++    const errors: Record<string, string> = {};
++    if (!/^\d+(?:[.,]\d{1,2})?$/.test(f.time.trim())) errors.time = 'Enter the actual distance in km, with up to 2 decimal places.';
++    if (Number(f.time.replace(',', '.')) > 999999.99) errors.time = 'Actual distance cannot exceed 999999.99 km.';
++    const speed = Number(f.speed);
++    if (f.speed.trim() === '' || !Number.isFinite(speed) || speed < 0 || speed > 100) errors.speed = 'Speed must be between 0 and 100 km/h.';
++    const heartRate = Number(f.hr);
++    if (f.hr.trim() === '' || !Number.isInteger(heartRate) || heartRate < 20 || heartRate > 250) errors.hr = 'Heart rate must be an integer between 20 and 250 bpm.';
++    const recoveryHeartRate = Number(f.score);
++    if (f.score.trim() === '' || !Number.isInteger(recoveryHeartRate) || recoveryHeartRate < 20 || recoveryHeartRate > 250) errors.score = 'Recovery heart rate must be between 20 and 250 bpm.';
++    if (f.notes.trim().length > 1000) errors.notes = 'Keep overall notes within 1,000 characters.';
++    return errors;
++  };
++  const errorsNow = validation();
++  const complete = !!assessmentPreview(answers);
++  const canSave = !!template && !templateLoading && !templateError && complete && !!measuredAt
++    && Object.keys(errorsNow).length === 0;
+   const submit = async () => {
+-    if (saving || !measuredAt) return;
+-    const x: Record<string, string> = {};
+-    if (!/^\d+(?:[.,]\d{1,2})?$/.test(f.time.trim())) x.time = "Enter the actual distance in km, with up to 2 decimal places.";
+-    if (Number(f.time.replace(',', '.')) > 999999.99) x.time = "Actual distance cannot exceed 999999.99 km.";
+-    const sp = Number(f.speed);
+-    if (f.speed.trim() === '' || isNaN(sp) || sp < 0 || sp > 100) x.speed = "Speed must be between 0 and 100 km/h.";
+-    const hr = Number(f.hr);
+-    if (f.hr.trim() === '' || !Number.isInteger(hr) || hr < 20 || hr > 250) x.hr = "Heart rate must be an integer between 20 and 250 bpm.";
+-    const sc = Number(f.score);
+-    if (f.score.trim() === '' || !Number.isInteger(sc) || sc < 20 || sc > 250) x.score = "Recovery heart rate must be between 20 and 250 bpm.";
+-    if (f.notes.length > 300) x.notes = "Comments cannot exceed 300 characters.";
+-    setE(x);
+-    if (Object.keys(x).length) return;
+-    setErr(''); setSaving(true);try { const r = await onSubmit({ time: f.time.trim(), speed: String(sp), heartRate: hr, notes: f.notes.trim(), performanceScore: sc, recoveryMeasuredAt: measuredAt || undefined }); if (r) setErr(r); } catch (error) { setErr(error instanceof Error ? error.message : 'Unable to complete the session. Please try again.'); } finally { setSaving(false); }
++    if (savingRef.current || !template || templateLoading || !measuredAt) return;
++    const errors = validation();
++    setE(errors);
++    if (Object.keys(errors).length) { fieldRefs.current[Object.keys(errors)[0]]?.focus(); return; }
++    if (!complete) { setErr('Complete all 10 checks before saving.'); return; }
++    setErr(''); savingRef.current = true; setSaving(true);
++    try {
++      const result = await onSubmit({
++        distance: Number(f.time.replace(',', '.')), avgSpeed: Number(f.speed),
++        endExerciseHeartRate: Number(f.hr), recoveryHeartRate2Min: Number(f.score),
++        recoveryMeasuredAt: measuredAt, performanceNotes: f.notes.trim() || undefined,
++        assessment: toAssessmentRequest(answers, template.version),
++      });
++      if (result) setErr(result);
++    } catch (error) {
++      setErr(assessmentErrorMessage(error, 'Unable to complete the session. Your entries have been kept. Please try again.'));
++    } finally { savingRef.current = false; setSaving(false); }
+   };
+-  return (
+-    <div className="mt-4 border-t border-gray-100 pt-4">
+-      <h4 className="mb-3 text-sm font-semibold">Record session measurements</h4>
+-      <div className="grid grid-cols-2 gap-4">
+-        <Input label="Actual distance (km)" required value={f.time} onChange={set('time')} placeholder="VD: 1.2" hint="Completed distance, up to 2 decimal places" error={e.time} />
+-        <Input label="Average speed (km/h)" required type="number" value={f.speed} onChange={set('speed')} placeholder="VD: 58.6" hint="0–100" error={e.speed} />
+-        <Input label="End-of-exercise heart rate (bpm)" required type="number" value={f.hr} onChange={set('hr')} placeholder="VD: 188" hint="20–250" error={e.hr} />
+-        <Input label="Heart rate after two-minute recovery (bpm)" required type="number" value={f.score} onChange={value => { set('score')(value); setMeasuredAt(trainingTimestamp()); }} placeholder="VD: 85" hint="Enter the two-minute recovery reading; 20–250 bpm" error={e.score} />
+-        <div className="col-span-2"><Textarea label="Comments" value={f.notes} onChange={set('notes')} rows={2} placeholder="Condition, technique, progress..." hint={`${f.notes.length}/300`} />{e.notes && <p className="text-xs text-red-600">{e.notes}</p>}</div>
++  const fields = [
++    { key: 'time', label: 'Actual distance (km)', type: 'text', placeholder: 'e.g. 1.2', hint: 'Completed distance, up to 2 decimal places' },
++    { key: 'speed', label: 'Average speed (km/h)', type: 'number', placeholder: 'e.g. 58.6', hint: '0–100 km/h' },
++    { key: 'hr', label: 'End-of-exercise heart rate (bpm)', type: 'number', placeholder: 'e.g. 188', hint: '20–250 bpm' },
++    { key: 'score', label: 'Heart rate after two-minute recovery (bpm)', type: 'number', placeholder: 'e.g. 85', hint: 'Enter the two-minute recovery reading; 20–250 bpm' },
++  ] as const;
++  return <form noValidate onSubmit={event => { event.preventDefault(); void submit(); }} className="rf-session-result mt-5 space-y-6 border-t border-slate-200 pt-5 font-sans">
++    <div><h3 className="text-lg font-semibold text-[#1a2844]">Complete this session</h3><p className="mt-1 text-sm leading-6 text-slate-600">Record the measurements and review the horse's condition after exercise.</p></div>
++    <fieldset disabled={saving} className="space-y-4">
++      <legend className="text-base font-semibold text-[#1a2844]">Session measurements</legend>
++      <div className="grid gap-4 pt-2 sm:grid-cols-2">
++        {fields.map(field => <div key={field.key}>
++          <label htmlFor={id + '-' + field.key} className="mb-1.5 block text-sm font-medium text-slate-700">{field.label}<span aria-hidden="true" className="ml-1 text-red-600">*</span></label>
++          <input ref={node => { fieldRefs.current[field.key] = node; }} id={id + '-' + field.key} type={field.type}
++            inputMode={field.key === 'time' || field.key === 'speed' ? 'decimal' : 'numeric'} step={field.key === 'speed' ? 'any' : undefined}
++            required value={f[field.key]} placeholder={field.placeholder} disabled={saving}
++            aria-invalid={!!e[field.key]} aria-describedby={id + '-' + field.key + '-help'}
++            onChange={event => { set(field.key)(event.target.value); if (field.key === 'score') setMeasuredAt(trainingTimestamp()); }}
++            onBlur={() => setE(previous => ({ ...previous, [field.key]: validation()[field.key] || '' }))}
++            className={`h-12 w-full rounded-lg border bg-white px-3 text-base outline-none focus-visible:border-[#a4782c] focus-visible:ring-2 focus-visible:ring-[#a4782c]/30 disabled:bg-slate-50 ${e[field.key] ? 'border-red-400' : 'border-slate-300'}`} />
++          <p id={id + '-' + field.key + '-help'} className={e[field.key] ? 'mt-1 text-sm text-red-700' : 'mt-1 text-xs leading-5 text-slate-500'}>{e[field.key] || field.hint}</p>
++        </div>)}
++      </div>
++    </fieldset>
++    <TrainingAssessmentForm answers={answers} onChange={setAnswers} template={template}
++      loading={templateLoading} error={templateError} disabled={saving} onRetry={() => setTemplateAttempt(value => value + 1)} />
++    <div>
++      <label htmlFor={id + '-notes'} className="mb-1.5 block text-sm font-semibold text-[#1a2844]">Overall notes <span className="font-normal text-slate-500">(optional)</span></label>
++      <textarea ref={node => { fieldRefs.current.notes = node; }} id={id + '-notes'} value={f.notes} disabled={saving} rows={3}
++        onChange={event => set('notes')(event.target.value)}
++        onBlur={() => setE(previous => ({ ...previous, notes: validation().notes || '' }))}
++        aria-invalid={!!e.notes} aria-describedby={id + '-notes-help'}
++        placeholder="Add any other observations from this session."
++        className="min-h-24 w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-3 text-base outline-none focus-visible:border-[#a4782c] focus-visible:ring-2 focus-visible:ring-[#a4782c]/30" />
++      <p id={id + '-notes-help'} className={e.notes ? 'mt-1 text-sm text-red-700' : 'mt-1 text-xs leading-5 text-slate-500'}>{e.notes || `${f.notes.trim().length}/1,000 characters`}</p>
++    </div>
++    {err && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{err}</p>}
++    <div className="space-y-2 border-t border-slate-200 pt-4">
++      <div className="flex flex-col gap-2 sm:flex-row">
++        <button type="submit" disabled={saving || !canSave} className="min-h-11 rounded-lg border border-[#9b7026] bg-[#a4782c] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#8b6322] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b7026] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none">{saving ? 'Saving session...' : 'Save and complete'}</button>
++        <button type="button" disabled={saving} onClick={onCancel} className="min-h-11 rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-[#1a2844] hover:bg-slate-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b7026] disabled:opacity-50">Cancel</button>
+       </div>
+-      {err && <div className="mt-3"><ErrorBox text={err} /></div>}
+-      <div className="mt-4 flex gap-2"><Btn variant="gold" disabled={saving || !measuredAt} onClick={submit}>{saving ? "Saving…" : "💾 Save and complete"}</Btn><Btn variant="secondary" onClick={onCancel}>Cancel</Btn></div>
++      {!canSave && !saving && <p role="status" className="text-xs leading-5 text-slate-500">{templateError ? 'Retry the health check before saving. Your entries have been kept.' : !complete ? 'Complete all 10 checks and enter the session measurements before saving.' : 'Enter valid session measurements and keep overall notes within 1,000 characters.'}</p>}
++      {saving && <p role="status" className="text-sm text-slate-600">Saving the session and its health check...</p>}
+     </div>
+-  );
++  </form>;
+ }
+ 
+-// ── Session generator ────────────────────────────────────────────────────────
++// Session generator
+ 
+ interface GenProps {
+   state: HubState; horseId: string; planId: string;
+diff --git a/frontend/src/trainingSchedule.ts b/frontend/src/trainingSchedule.ts
+index 4033b39..12ad1e2 100644
+--- a/frontend/src/trainingSchedule.ts
++++ b/frontend/src/trainingSchedule.ts
+@@ -50,6 +50,8 @@ export function sessionStartState(session:TrainingSession,sessions:TrainingSessi
+   (session.actualEnd?'Exercise stopped; recovery results are pending.':'Exercise is in progress.'):'Only a scheduled session can be started.'};
+  const pending=sessions.find(s=>s.id!==session.id&&s.status==='In Progress'&&(s.horseId===session.horseId||s.trainerId===trainerId));
+  if(pending)return {allowed:false,reason:'Finish session '+pending.id+' first. '+(pending.actualEnd?'Save its recovery results.':'Stop it and save its recovery results.')};
++ if(session.pendingPostTrainingReview || session.startBlockedCode === 'PENDING_POST_TRAINING_REVIEW')
++  return {allowed:false,reason:'Training paused — a vet check is pending for this horse.'};
+  // Preserve server blocks for permissions, medical locks, and package validity.
+  if(session.canStart===false)
+   return {allowed:false,reason:session.startBlockedReason||'Refresh the schedule to check whether this session can start.'};
+diff --git a/frontend/tests/apiIntegration.test.mjs b/frontend/tests/apiIntegration.test.mjs
+index a1832ea..e8b3a25 100644
+--- a/frontend/tests/apiIntegration.test.mjs
++++ b/frontend/tests/apiIntegration.test.mjs
+@@ -8,7 +8,7 @@ import ts from 'typescript';
+ 
+ // Run the actual TS adapters without Vite or a database; HTTP is the test boundary.
+ const dir = await mkdtemp(path.join(tmpdir(), 'raceforge-api-tests-'));
+-for (const name of ['sessionPreview', 'packageBuilder', 'packageRoadmap', 'trainingSchedule', 'trainingTimestamp', 'api', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
++for (const name of ['sessionPreview', 'packageBuilder', 'packageRoadmap', 'trainingSchedule', 'trainingTimestamp', 'api', 'trainingAssessment', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
+   const source = await readFile(new URL(`../src/${name}.ts`, import.meta.url), 'utf8');
+   const code = ts.transpileModule(source.replace('import.meta.env', '({})'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText
+     .replace(/(['"])(\.\/[^'"]+)\1/g, (_, quote, specifier) => `${quote}${specifier}.mjs${quote}`);
+@@ -275,12 +275,15 @@ test('admin staff creation maps groom to database role 5, and refuses public-own
+   assert.equal(bodies.length,1);
+ });
+ 
++const completionAssessment = () => ({checklistVersion:'POST_TRAINING_V1',checks:Object.fromEntries([
++ 'ALERTNESS','COORDINATION','BREATHING_EFFORT','GAIT','LIMB_CONDITION','MUSCLE_COMFORT','EXTERNAL_INJURY','SWEATING','MUCOUS_MEMBRANES','NASAL_BLEEDING'
++].map(code=>[code,true]))});
+ test('completion sends actual exercise/recovery fields and does not invent a max speed', async () => {
+   const snapshot = state(); const { remote } = actions(snapshot); let payload;
+   globalThis.fetch = async (url, init) => { assert.equal(url,'/api/training-sessions/SES-001/complete'); assert.equal(init.method,'PATCH'); payload=JSON.parse(init.body); return ok({}); };
+-  assert.equal(await remote.completeSession('SES-001',{ time:'1.25',speed:'18.2',heartRate:180,performanceScore:88,notes:'Measured recovery',recoveryMeasuredAt:'2026-10-21T07:32:00.123' }),null);
++  assert.equal(await remote.completeSession('SES-001',{ distance:1.25,avgSpeed:18.2,endExerciseHeartRate:180,recoveryHeartRate2Min:88,performanceNotes:'Measured recovery',recoveryMeasuredAt:'2026-10-21T07:32:00.123',assessment:completionAssessment() }),null);
+   assert.equal(payload.distance,1.25); assert.equal(payload.endExerciseHeartRate,180); assert.equal(payload.recoveryHeartRate2Min,88); assert.equal(payload.avgSpeed,18.2);
+-  assert.match(payload.recoveryMeasuredAt,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/); assert.ok(!('maxSpeed' in payload));
++  assert.match(payload.recoveryMeasuredAt,/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?$/); assert.ok(!('maxSpeed' in payload)); assert.deepEqual(payload.assessment,completionAssessment()); assert.equal(payload.performanceNotes,'Measured recovery');
+ });
+ 
+ test('medical confirmation failure keeps its draft ID and retries using the draft update API', async () => {
+@@ -471,7 +474,7 @@ test('stage with an invalid original duration cannot be moved into a valid-looki
+ test('completion preserves the recorded recovery timestamp instead of replacing it at save',async()=>{
+  const {remote}=actions(state());let captured;
+  globalThis.fetch=async(url,init)=>{if(url.endsWith('/complete'))captured=JSON.parse(init.body);return ok({});};
+- const result=await remote.completeSession('SES-001',{time:'2.00',speed:'10',heartRate:160,performanceScore:110,notes:'',recoveryMeasuredAt:'2026-10-21T07:32:00'});
++ const result=await remote.completeSession('SES-001',{distance:2,avgSpeed:10,endExerciseHeartRate:160,recoveryHeartRate2Min:110,performanceNotes:'',recoveryMeasuredAt:'2026-10-21T07:32:00',assessment:completionAssessment()});
+  assert.equal(result,null);assert.equal(captured.recoveryMeasuredAt,'2026-10-21T07:32:00');
+ });
+ 
+diff --git a/frontend/tests/trainingReadLoading.test.mjs b/frontend/tests/trainingReadLoading.test.mjs
+index 6d19128..6beacdb 100644
+--- a/frontend/tests/trainingReadLoading.test.mjs
++++ b/frontend/tests/trainingReadLoading.test.mjs
+@@ -6,7 +6,7 @@ import path from 'node:path';
+ import {pathToFileURL} from 'node:url';
+ import ts from 'typescript';
+ const dir=await mkdtemp(path.join(tmpdir(),'training-read-'));
+-for(const name of ['remote','api','trainingSchedule','trainingTimestamp','data','trainingLogic']){
++for(const name of ['trainingAssessment', 'remote','api','trainingSchedule','trainingTimestamp','data','trainingLogic']){
+  const source=await readFile(new URL('../src/'+name+'.ts',import.meta.url),'utf8');
+  const output=ts.transpileModule(source.replace('import.meta.env','({})'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace(/(['"])(\.\/[^'"]+)\1/g,(_,q,s)=>q+s+'.mjs'+q);
+  await writeFile(path.join(dir,name+'.mjs'),output);
+diff --git a/frontend/tests/trainingSchedule.test.mjs b/frontend/tests/trainingSchedule.test.mjs
+index 88e0723..e0b7b3b 100644
+--- a/frontend/tests/trainingSchedule.test.mjs
++++ b/frontend/tests/trainingSchedule.test.mjs
+@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
+ import {mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
+ import {tmpdir} from 'node:os';import path from 'node:path';import {pathToFileURL} from 'node:url';import ts from 'typescript';
+ const dir=await mkdtemp(path.join(tmpdir(),'training-schedule-'));
+-for(const name of ['sessionPreview', 'packageBuilder', 'packageRoadmap','trainingSchedule','trainingTimestamp','api','remote','remoteActions','permissionApi','recommendations','proxyOrigin','data','trainingLogic']){
++for(const name of ['sessionPreview', 'packageBuilder', 'packageRoadmap','trainingSchedule','trainingTimestamp','api','trainingAssessment', 'remote','remoteActions','permissionApi','recommendations','proxyOrigin','data','trainingLogic']){
+  const source=await readFile(new URL('../src/'+name+'.ts',import.meta.url),'utf8');
+  const code=ts.transpileModule(source.replace('import.meta.env','({})'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace(/(['"])(\.\/[^'"]+)\1/g,(_,q,s)=>q+s+'.mjs'+q);await writeFile(path.join(dir,name+'.mjs'),code);
+ }
+@@ -68,12 +68,11 @@ test('editing persisted stages preserves the backend phase code and time metadat
+  assert.equal(stage.phaseCode,'RACING_BASELINE');assert.equal(stage.sessionEndTime,'07:40:00');assert.deepEqual(stage.daysOfWeek,['MONDAY']);assert.equal(stage.objective,'Review');
+ });
+ 
+-test('Start allows early and late exercise on exactly the Bangkok scheduled day',()=>{
+- const session=slot('start','10:00','10:30',{date:'04/11/2026',canStart:true});
+- for(const now of ['2026-11-04T00:01:00+07:00','2026-11-04T23:59:00+07:00'])
+-  assert.equal(sessionStartState(session,[],'HTR-001',new Date(now)).allowed,true);
+- for(const now of ['2026-11-03T23:59:59+07:00','2026-11-05T00:00:00+07:00'])
+-  assert.match(sessionStartState(session,[],'HTR-001',new Date(now)).reason,/scheduled date/);
++test('Start permits sessions planned before, on or after today when the backend allows it',()=>{
++ for(const date of ['03/11/2026','04/11/2026','05/11/2026']) {
++  const session=slot('start','10:00','10:30',{date,canStart:true});
++  assert.deepEqual(sessionStartState(session,[],'HTR-001'),{allowed:true,reason:''});
++ }
+ });
+ test('Start blocks running and stopped sessions until results are completed, across horses',()=>{
+  const target=slot('target','10:00','10:30',{date:'04/11/2026',canStart:true});
+@@ -88,12 +87,12 @@ test('Start blocks running and stopped sessions until results are completed, acr
+  assert.equal(sessionStartState(target,[{...target,id:'same-horse',trainerId:'OTHER',status:'In Progress'}],'HTR-001',now).allowed,false);
+  assert.equal(sessionStartState(target,[],'OTHER',now).allowed,false);
+ });
+-test('Start refreshes a date-only hint across Bangkok midnight and preserves server blocks',()=>{
+- const target=slot('target','10:00','10:30',{date:'05/11/2026',canStart:false,startBlockedReason:'Start this session on its scheduled date (Bangkok time).'});
+- assert.equal(sessionStartState(target,[],'HTR-001',new Date('2026-11-04T16:59:59Z')).allowed,false);
+- assert.equal(sessionStartState(target,[],'HTR-001',new Date('2026-11-04T17:00:00Z')).allowed,true);
++test('Start preserves backend blocks and only unlocks when fresh server data allows it',()=>{
++ const target=slot('target','10:00','10:30',{date:'05/11/2026',canStart:false,startBlockedReason:'The paid package is not active.'});
++ assert.equal(sessionStartState(target,[],'HTR-001').reason,target.startBlockedReason);
++ assert.equal(sessionStartState({...target,canStart:true,startBlockedReason:undefined},[],'HTR-001').allowed,true);
+  const locked={...target,startBlockedReason:'Horse is training-locked.'};
+- assert.equal(sessionStartState(locked,[],'HTR-001',new Date('2026-11-04T17:00:01Z')).reason,locked.startBlockedReason);
++ assert.equal(sessionStartState(locked,[],'HTR-001').reason,locked.startBlockedReason);
+ });
+ test('session adapter preserves the backend Start explanation',()=>{
+  assert.equal(sessionFromApi({sessionId:'x',status:'SCHEDULED',canStart:false,startBlockedReason:'Finish SES-1 first'}).startBlockedReason,'Finish SES-1 first');
+@@ -101,8 +100,8 @@ test('session adapter preserves the backend Start explanation',()=>{
+ test('failed Start and completion return errors and never announce success',async()=>{
+  const session={user:{id:'HTR-001'},trainingPlans:[],trainingSessions:[],horses:[],enrollments:[]};
+  const {actions,messages}=env(session);
+- globalThis.fetch=async()=>new Response(JSON.stringify({success:false,message:'Finish SES-1 first'}),{status:409,headers:{'Content-Type':'application/json'}});
+- assert.match(await actions.startSession('SES-2'),/Finish SES-1/);
+- const failure=await actions.completeSession('SES-1',{time:'1',speed:'10',heartRate:90,performanceScore:60,recoveryMeasuredAt:'2026-11-04T08:00:00',notes:'Keep form'});
+- assert.match(failure,/Finish SES-1/);assert.equal(messages.length,0);
++ globalThis.fetch=async()=>new Response(JSON.stringify({success:false,message:'PENDING_POST_TRAINING_REVIEW backend diagnostic',data:{code:'PENDING_POST_TRAINING_REVIEW'}}),{status:409,headers:{'Content-Type':'application/json'}});
++ assert.match(await actions.startSession('SES-2'),/vet check is pending/);
++ const failure=await actions.completeSession('SES-1',{distance:1,avgSpeed:10,endExerciseHeartRate:90,recoveryHeartRate2Min:60,recoveryMeasuredAt:'2026-11-04T08:00:00',performanceNotes:'Keep form',assessment:{checklistVersion:'POST_TRAINING_V1',checks:Object.fromEntries(['ALERTNESS','COORDINATION','BREATHING_EFFORT','GAIT','LIMB_CONDITION','MUSCLE_COMFORT','EXTERNAL_INJURY','SWEATING','MUCOUS_MEMBRANES','NASAL_BLEEDING'].map(code=>[code,true]))}});
++ assert.match(failure,/vet check is pending/);assert.doesNotMatch(failure,/PENDING_POST_TRAINING_REVIEW|backend diagnostic/);assert.equal(messages.length,0);
+ });
+\ No newline at end of file
+diff --git a/frontend/src/TrainingAssessmentView.tsx b/frontend/src/TrainingAssessmentView.tsx
+new file mode 100644
+index 0000000..fdb5722
+--- /dev/null
++++ b/frontend/src/TrainingAssessmentView.tsx
+@@ -0,0 +1,262 @@
++import { useEffect, useId, useRef, useState } from 'react';
++import { ApiError } from './api';
++import type { Res } from './data';
++import {
++  ASSESSMENT_CRITERIA, assessmentErrorMessage, assessmentLabel, assessmentLabels,
++  assessmentPreview, fetchSessionAssessment, notificationStatusLabel, reviewStatusLabel,
++  type AssessmentAlertLevel, type AssessmentAnswers, type AssessmentPreview,
++  type TrainingAssessmentResponse, type TrainingAssessmentTemplateResponse,
++  type TrainingVetNotificationResponse,
++} from './trainingAssessment';
++
++type RequestVetCheck = (sessionId: string, reason: string) => Promise<Res<TrainingVetNotificationResponse>>;
++const actionClass = 'inline-flex min-h-11 items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#9b7026] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none';
++const toneClass: Record<AssessmentAlertLevel, string> = {
++  NO_ALERT_DETECTED: 'border-emerald-200 bg-emerald-50 text-emerald-950',
++  VET_REVIEW_REQUIRED: 'border-amber-300 bg-amber-50 text-amber-950',
++  URGENT_VET_REVIEW: 'border-red-300 bg-red-50 text-red-950',
++};
++
++export function TrainingAssessmentBadge({ assessment }: { assessment: Pick<TrainingAssessmentResponse, 'alertLevel' | 'passedCount'> }) {
++  return <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${toneClass[assessment.alertLevel] || 'border-slate-200 bg-slate-50 text-slate-700'}`}>
++    {assessmentLabel(assessment.alertLevel)}<span className="font-normal">{assessment.passedCount}/10 passed</span>
++  </span>;
++}
++
++export function TrainingPendingReviewBanner() {
++  return <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950">
++    <p className="font-semibold">Training is paused for this horse</p>
++    <p>A veterinary review is pending. Other requirements will still apply after the review.</p>
++  </div>;
++}
++
++function TrainingAssessmentBanner({ result, preview = false }: { result: AssessmentPreview; preview?: boolean }) {
++  const definition = assessmentLabels[result.alertLevel];
++  const priorityNames = result.triggerCodes.flatMap(code => {
++    const criterion = ASSESSMENT_CRITERIA.find(item => item.code === code);
++    return criterion ? [criterion.label] : [];
++  });
++  return <div role="status" aria-live={preview ? 'polite' : undefined}
++    className={`rounded-xl border px-4 py-4 sm:px-5 ${toneClass[result.alertLevel]}`}>
++    <div className="flex flex-wrap items-center justify-between gap-2">
++      <div className="flex flex-wrap items-center gap-2">
++        <span className="text-base font-semibold">{definition.label}</span>
++        {preview && <span className="rounded border border-current/20 px-2 py-0.5 text-[11px] font-medium">Preview</span>}
++      </div>
++      <span className="text-sm font-semibold tabular-nums">{result.passedCount} of 10 passed</span>
++    </div>
++    <p className="mt-2 text-sm leading-6">
++      {preview
++        ? result.alertLevel === 'NO_ALERT_DETECTED'
++          ? 'No automatic vet notification is expected. The final result is confirmed when you save.'
++          : 'Saving this check will notify the care team and pause new training starts for this horse.'
++        : result.alertLevel === 'NO_ALERT_DETECTED'
++          ? 'No alert was detected in the recorded observations. This is not a veterinary clearance.'
++          : 'This recorded check identified observations that require veterinary attention.'}
++    </p>
++    {priorityNames.length > 0 && <p className="mt-2 text-sm leading-6"><span className="font-semibold">Priority observations:</span> {priorityNames.join('; ')}.</p>}
++    {result.alertLevel === 'URGENT_VET_REVIEW' && <p className="mt-2 text-sm font-semibold leading-6">Contact the assigned vet promptly. Do not rely only on the notification.</p>}
++  </div>;
++}
++
++export function TrainingAssessmentPreview({ answers }: { answers: AssessmentAnswers }) {
++  const preview = assessmentPreview(answers);
++  if (!preview) return <div role="status" className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-600">
++    Assessment incomplete. Answer all 10 checks to see the preview.
++  </div>;
++  return <TrainingAssessmentBanner result={preview} preview />;
++}
++
++/** Controlled checklist. A missing answer never means Pass or Concern observed. */
++export function TrainingAssessmentForm({ answers, onChange, template, loading = false, error = '',
++  onRetry, disabled = false }: {
++  answers: AssessmentAnswers;
++  onChange: (answers: AssessmentAnswers) => void;
++  template: TrainingAssessmentTemplateResponse | null;
++  loading?: boolean;
++  error?: string;
++  onRetry?: () => void;
++  disabled?: boolean;
++}) {
++  const id = useId();
++  const criteria = template?.criteria || ASSESSMENT_CRITERIA;
++  const completed = ASSESSMENT_CRITERIA.filter(item => typeof answers[item.code] === 'boolean').length;
++  const locked = disabled || loading || !template;
++  return <section aria-labelledby={id + '-heading'} className="rf-training-assessment space-y-4 font-sans text-slate-800">
++    <div>
++      <div className="flex flex-wrap items-start justify-between gap-2">
++        <h4 id={id + '-heading'} className="text-base font-semibold text-[#1a2844]">Post-training health check</h4>
++        <p aria-live="polite" aria-atomic="true" className="text-sm font-medium tabular-nums text-slate-600">{completed} of 10 checks completed</p>
++      </div>
++      <p className="mt-1 text-sm leading-6 text-slate-600">Review each observation after exercise. Choose Pass or Concern observed for every check.</p>
++      <div role="progressbar" aria-label="Health checks completed" aria-valuenow={completed} aria-valuemin={0} aria-valuemax={10}
++        className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
++        <div className="h-full rounded-full bg-[#a4782c] transition-[width] motion-reduce:transition-none" style={{ width: `${completed * 10}%` }} />
++      </div>
++    </div>
++    {loading && <p role="status" className="text-sm text-slate-600">Loading the health check template...</p>}
++    {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
++      <p>{error}</p>
++      {onRetry && <button type="button" onClick={onRetry} disabled={disabled} className={actionClass + ' mt-3 border-red-200 bg-white text-red-900 hover:bg-red-100'}>Retry health check</button>}
++    </div>}
++    <div className="divide-y divide-slate-200 border-y border-slate-200">
++      {criteria.map((criterion, index) => <fieldset key={criterion.code} disabled={locked}
++        aria-describedby={id + '-' + criterion.code + '-help'} className="min-w-0 py-4 first:pt-3">
++        <legend className="float-left w-full text-sm font-semibold leading-6 text-[#1a2844]">
++          <span aria-hidden="true" className="mr-2 inline-block w-5 text-xs font-medium tabular-nums text-slate-400">{String(index + 1).padStart(2, '0')}</span>
++          {criterion.label}
++        </legend>
++        <div className="clear-both flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
++          <p id={id + '-' + criterion.code + '-help'} className="max-w-xl text-sm leading-6 text-slate-600">{criterion.helpText}</p>
++          <div className="grid shrink-0 grid-cols-2 gap-2 sm:w-80">
++            {([{ value: true, label: 'Pass' }, { value: false, label: 'Concern observed' }] as const).map(option => {
++              const selected = answers[criterion.code] === option.value;
++              return <label key={String(option.value)} htmlFor={id + '-' + criterion.code + '-' + option.value}
++                className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#9b7026] motion-reduce:transition-none ${selected
++                  ? option.value ? 'border-emerald-600 bg-emerald-50 text-emerald-900' : 'border-amber-600 bg-amber-50 text-amber-950'
++                  : 'border-slate-300 bg-white text-slate-700 hover:border-slate-500'} ${locked ? 'cursor-not-allowed opacity-60' : ''}`}>
++                <input id={id + '-' + criterion.code + '-' + option.value} name={id + '-' + criterion.code}
++                  type="radio" value={String(option.value)} required checked={selected} disabled={locked}
++                  onChange={() => onChange({ ...answers, [criterion.code]: option.value })}
++                  className="h-4 w-4 shrink-0 accent-[#1a2844]" />
++                {option.label}
++              </label>;
++            })}
++          </div>
++        </div>
++      </fieldset>)}
++    </div>
++    <TrainingAssessmentPreview answers={answers} />
++  </section>;
++}
++
++function assessmentTime(value: string) {
++  const instant = new Date(/[zZ]$|[+-]\d{2}:\d{2}$/.test(value) ? value : value + '+07:00');
++  return Number.isFinite(instant.getTime())
++    ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }).format(instant)
++    : 'Time unavailable';
++}
++
++export function TrainingAssessmentEmpty({ message = 'No post-training assessment recorded' }: { message?: string }) {
++  return <div role="status" className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">{message}</div>;
++}
++
++/** The recorded result is rendered without recalculating its level in the browser. */
++export function TrainingAssessmentReadOnly({ assessment, overallNotes = '', canRequest = false,
++  onRequestVetCheck, onRefresh }: {
++  assessment: TrainingAssessmentResponse;
++  overallNotes?: string;
++  canRequest?: boolean;
++  onRequestVetCheck?: RequestVetCheck;
++  onRefresh?: () => void;
++}) {
++  const id = useId();
++  const [requestOpen, setRequestOpen] = useState(false);
++  const [reason, setReason] = useState('');
++  const [reasonError, setReasonError] = useState('');
++  const [requestError, setRequestError] = useState('');
++  const [requestMessage, setRequestMessage] = useState('');
++  const [requestSent, setRequestSent] = useState(false);
++  const [busy, setBusy] = useState(false);
++  const busyRef = useRef(false);
++  const normal = assessment.alertLevel === 'NO_ALERT_DETECTED';
++  const waiting = assessment.notificationStatus === 'WAITING_FOR_VET_ASSIGNMENT';
++  const requested = requestSent || assessment.notificationStatus !== 'NOT_REQUESTED';
++  const sendRequest = async () => {
++    if (busyRef.current || !onRequestVetCheck) return;
++    const trimmed = reason.trim();
++    if (!trimmed || trimmed.length > 1000) {
++      setReasonError(!trimmed ? 'Add a reason for requesting a vet check.' : 'Keep the reason within 1,000 characters.');
++      return;
++    }
++    busyRef.current = true; setBusy(true); setReasonError(''); setRequestError('');
++    try {
++      const result = await onRequestVetCheck(assessment.sessionId, trimmed);
++      if (!result.ok) {
++        setRequestError(result.message || 'The vet check request could not be sent. Your reason has been kept. Please try again.');
++        return;
++      }
++      setRequestSent(true); setRequestOpen(false);
++      setRequestMessage(result.data.requestStatus === 'WAITING_FOR_VET_ASSIGNMENT'
++        ? 'Waiting for vet assignment. Please contact the club manager.'
++        : 'Vet check request sent.');
++      onRefresh?.();
++    } catch (error) {
++      setRequestError(assessmentErrorMessage(error, 'The vet check request could not be sent. Your reason has been kept. Please try again.'));
++    } finally { busyRef.current = false; setBusy(false); }
++  };
++  return <section aria-labelledby={id + '-heading'} className="rf-training-assessment mt-4 space-y-4 border-t border-slate-200 pt-5 font-sans text-slate-800">
++    <div className="flex flex-wrap items-start justify-between gap-3">
++      <div>
++        <h3 id={id + '-heading'} className="text-base font-semibold text-[#1a2844]">Recorded post-training check</h3>
++        <p className="mt-1 text-xs leading-5 text-slate-500">Recorded by {assessment.assessorName} · {assessmentTime(assessment.assessedAt)} (Bangkok)</p>
++      </div>
++      <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">Saved assessment</span>
++    </div>
++    <TrainingAssessmentBanner result={assessment} />
++    {assessment.pendingPostTrainingReview && <TrainingPendingReviewBanner />}
++    <div className="grid gap-3 rounded-lg bg-slate-50 p-4 text-sm sm:grid-cols-2">
++      <div><p className="text-xs text-slate-500">Veterinary review</p><p className="mt-1 font-medium text-[#1a2844]">{reviewStatusLabel(assessment.reviewStatus)}</p></div>
++      <div><p className="text-xs text-slate-500">Care team notification</p><p className="mt-1 font-medium text-[#1a2844]">{requestMessage || (normal && requested && !waiting ? 'Vet check request sent' : notificationStatusLabel(assessment.notificationStatus))}</p></div>
++    </div>
++    <ul aria-label="Recorded health checks" className="divide-y divide-slate-200 border-y border-slate-200">
++      {assessment.items.map(item => <li key={item.code} className="flex items-start justify-between gap-3 py-3 text-sm">
++        <span className="min-w-0 break-words leading-6 text-slate-700">{item.label || ASSESSMENT_CRITERIA.find(criterion => criterion.code === item.code)?.label || 'Health observation'}</span>
++        <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${item.passed ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'}`}>{item.passed ? 'Pass' : 'Concern observed'}</span>
++      </li>)}
++    </ul>
++    {overallNotes.trim() && <div><h4 className="text-sm font-semibold text-[#1a2844]">Overall notes</h4><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">{overallNotes.trim()}</p></div>}
++    {normal && !requested && canRequest && onRequestVetCheck && !requestOpen && <div className="flex flex-col gap-2 sm:items-start">
++      <button type="button" onClick={() => setRequestOpen(true)} className={actionClass + ' border-slate-300 bg-white text-[#1a2844] hover:bg-slate-50'}>Request a Vet Check</button>
++      <p className="text-xs leading-5 text-slate-500">A manual request does not create a training pause.</p>
++    </div>}
++    {normal && !requested && !canRequest && <p className="text-xs leading-5 text-slate-500">This assessment is read only for your account.</p>}
++    {!normal && assessment.notificationStatus === 'NOT_REQUESTED' && <p role="status" className="text-sm text-amber-900">The care team notification has not been confirmed. Refresh this assessment to check its status.</p>}
++    {requestOpen && <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
++      <label htmlFor={id + '-request-reason'} className="block text-sm font-semibold text-[#1a2844]">Reason for the vet check</label>
++      <textarea id={id + '-request-reason'} value={reason} disabled={busy} rows={3}
++        onChange={event => { setReason(event.target.value); setReasonError(''); }}
++        aria-required="true" aria-invalid={!!reasonError} aria-describedby={id + '-request-help'}
++        className="min-h-24 w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-3 text-base outline-none focus-visible:border-[#a4782c] focus-visible:ring-2 focus-visible:ring-[#a4782c]/30" />
++      <p id={id + '-request-help'} className={reasonError ? 'text-sm text-red-700' : 'text-xs text-slate-500'}>{reasonError || `${reason.trim().length}/1,000 characters. Explain why you would like the vet to check this horse.`}</p>
++      <div className="flex flex-col gap-2 sm:flex-row">
++        <button type="button" disabled={busy} onClick={sendRequest} className={actionClass + ' border-[#1a2844] bg-[#1a2844] text-white hover:bg-[#243558]'}>{busy ? 'Sending request...' : 'Send vet check request'}</button>
++        <button type="button" disabled={busy} onClick={() => setRequestOpen(false)} className={actionClass + ' border-slate-300 bg-white text-slate-700 hover:bg-slate-100'}>Cancel request</button>
++      </div>
++    </div>}
++    {requestError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{requestError}</p>}
++    {requestMessage && <p role="status" className={requestMessage.startsWith('Waiting') ? 'text-sm font-medium text-amber-900' : 'text-sm font-medium text-emerald-800'}>{requestMessage}</p>}
++  </section>;
++}
++
++/** Mount only after the user opens a session; list rows use the server's batch summary. */
++export function TrainingAssessmentDetails({ sessionId, overallNotes, canRequest = false, onRequestVetCheck }: {
++  sessionId: string;
++  overallNotes?: string;
++  canRequest?: boolean;
++  onRequestVetCheck?: RequestVetCheck;
++}) {
++  const [assessment, setAssessment] = useState<TrainingAssessmentResponse | null>(null);
++  const [state, setState] = useState<'loading' | 'ready' | 'missing' | 'denied' | 'error'>('loading');
++  const [error, setError] = useState('');
++  const [attempt, setAttempt] = useState(0);
++  useEffect(() => {
++    let active = true;
++    setAssessment(null); setError(''); setState('loading');
++    fetchSessionAssessment(sessionId).then(value => {
++      if (active) { setAssessment(value); setState('ready'); }
++    }).catch(failure => {
++      if (!active) return;
++      if (failure instanceof ApiError && failure.status === 404) setState('missing');
++      else if (failure instanceof ApiError && failure.status === 403) setState('denied');
++      else { setState('error'); setError(assessmentErrorMessage(failure, 'The saved health check could not be loaded. Please try again.')); }
++    });
++    return () => { active = false; };
++  }, [sessionId, attempt]);
++  if (state === 'loading') return <p role="status" className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">Loading the saved post-training check...</p>;
++  if (state === 'missing') return <div className="mt-4"><TrainingAssessmentEmpty /></div>;
++  if (state === 'denied') return <p role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">You do not have permission to view this health check. Your access may have changed.</p>;
++  if (state === 'error') return <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900"><p>{error}</p><button type="button" onClick={() => setAttempt(value => value + 1)} className={actionClass + ' mt-3 border-red-200 bg-white hover:bg-red-100'}>Retry saved check</button></div>;
++  return assessment && <TrainingAssessmentReadOnly key={sessionId} assessment={assessment} overallNotes={overallNotes}
++    canRequest={canRequest} onRequestVetCheck={onRequestVetCheck} onRefresh={() => setAttempt(value => value + 1)} />;
++}
+diff --git a/frontend/src/trainingAssessment.ts b/frontend/src/trainingAssessment.ts
+new file mode 100644
+index 0000000..a6f5057
+--- /dev/null
++++ b/frontend/src/trainingAssessment.ts
+@@ -0,0 +1,239 @@
++import { ApiError, idPath, request } from './api';
++import type { AppUser, Enrollment, TrainingSession } from './data';
++
++export const ASSESSMENT_VERSION = 'POST_TRAINING_V1';
++export const ASSESSMENT_CRITERIA = [
++  { code: 'ALERTNESS', label: 'Alertness and responsiveness', helpText: 'Observe alertness and usual responses.' },
++  { code: 'COORDINATION', label: 'Balance and coordination', helpText: 'Check for newly observed instability or loss of balance.' },
++  { code: 'BREATHING_EFFORT', label: 'Breathing and recovery', helpText: 'Observe breathing effort and recovery after exercise.' },
++  { code: 'GAIT', label: 'Gait and movement', helpText: 'Observe any newly uneven movement or lameness.' },
++  { code: 'LIMB_CONDITION', label: 'Leg condition', helpText: 'Check for new swelling, unusual local heat or signs of discomfort.' },
++  { code: 'MUSCLE_COMFORT', label: 'Muscle comfort', helpText: 'Observe unusual stiffness, spasms or muscle discomfort.' },
++  { code: 'EXTERNAL_INJURY', label: 'Visible injuries', helpText: 'Check for new wounds, abrasions or equipment-related injuries.' },
++  { code: 'SWEATING', label: 'Sweating pattern', helpText: 'Consider sweating in the context of exercise and weather.' },
++  { code: 'MUCOUS_MEMBRANES', label: 'Gum color and moisture', helpText: 'If trained to do so safely, observe unusual gum color or dryness.' },
++  { code: 'NASAL_BLEEDING', label: 'Nasal bleeding', helpText: 'Check whether blood is visible at either nostril.' },
++] as const;
++export type AssessmentCriterionCode = typeof ASSESSMENT_CRITERIA[number]['code'];
++export type AssessmentAnswers = Partial<Record<AssessmentCriterionCode, boolean>>;
++export type AssessmentAlertLevel = 'NO_ALERT_DETECTED' | 'VET_REVIEW_REQUIRED' | 'URGENT_VET_REVIEW';
++export type AssessmentReviewStatus = 'NOT_REQUIRED' | 'PENDING' | 'RESOLVED';
++export type AssessmentNotificationStatus = 'NOT_REQUESTED' | 'SENT' | 'WAITING_FOR_VET_ASSIGNMENT';
++export interface TrainingAssessmentRequest {
++  checklistVersion: string;
++  checks: Record<AssessmentCriterionCode, boolean>;
++  failNotes?: Record<string, string>;
++}
++export interface TrainingAssessmentTemplateResponse {
++  version: string;
++  criteria: { code: AssessmentCriterionCode; label: string; helpText: string }[];
++  labels: Record<AssessmentAlertLevel, string>;
++}
++export interface TrainingAssessmentResponse {
++  sessionId: string;
++  horseId: string;
++  assessorUserId: string;
++  assessorName: string;
++  assessedAt: string;
++  checklistVersion: string;
++  items: { code: AssessmentCriterionCode; label: string; passed: boolean; failNote: string | null }[];
++  passedCount: number;
++  failedCount: number;
++  alertLevel: AssessmentAlertLevel;
++  triggerCodes: string[];
++  failedCriteria: AssessmentCriterionCode[];
++  reviewStatus: AssessmentReviewStatus;
++  notificationStatus: AssessmentNotificationStatus;
++  linkedMedicalRecordId: string | null;
++  reviewedMedicalRecordId: string | null;
++  pendingPostTrainingReview: boolean;
++}
++export interface TrainingVetNotificationResponse {
++  sessionId: string;
++  requestStatus: 'SENT' | 'ALREADY_SENT' | 'WAITING_FOR_VET_ASSIGNMENT' | 'NOT_REQUESTED';
++  startBlocked: boolean;
++  message: string;
++}
++export interface CompleteSessionInput {
++  distance: number;
++  avgSpeed: number;
++  endExerciseHeartRate: number;
++  recoveryHeartRate2Min: number;
++  recoveryMeasuredAt: string;
++  performanceNotes?: string;
++  maxSpeed?: number;
++  assessment: TrainingAssessmentRequest;
++}
++export interface AssessmentPreview {
++  passedCount: number;
++  failedCount: number;
++  alertLevel: AssessmentAlertLevel;
++  triggerCodes: string[];
++}
++
++export const assessmentLabels = {
++  NO_ALERT_DETECTED: { label: 'Normal', tone: 'normal', description: 'No concerns were observed in this post-training check. This is not a veterinary clearance.' },
++  VET_REVIEW_REQUIRED: { label: 'Vet Check Recommended', tone: 'warning', description: 'Some post-training observations need veterinary review. New training starts are paused until reviewed.' },
++  URGENT_VET_REVIEW: { label: 'Urgent Vet Check', tone: 'urgent', description: 'Priority veterinary attention is needed. Contact the assigned vet promptly. New training starts are paused.' },
++} as const;
++export const PENDING_REVIEW_MESSAGE = 'Training paused — a vet check is pending for this horse.';
++const criterionCodes = new Set<string>(ASSESSMENT_CRITERIA.map(item => item.code));
++const reviewStatuses = new Set(['NOT_REQUIRED', 'PENDING', 'RESOLVED']);
++const notificationStatuses = new Set(['NOT_REQUESTED', 'SENT', 'WAITING_FOR_VET_ASSIGNMENT']);
++
++export function assessmentLabel(level: unknown): string {
++  return typeof level === 'string' && Object.prototype.hasOwnProperty.call(assessmentLabels, level)
++    ? assessmentLabels[level as AssessmentAlertLevel].label : 'Health check unavailable';
++}
++export function reviewStatusLabel(status: unknown): string {
++  const labels: Record<string, string> = { NOT_REQUIRED: 'No vet review required', PENDING: 'Awaiting vet review', RESOLVED: 'Vet review completed' };
++  return typeof status === 'string' && Object.prototype.hasOwnProperty.call(labels, status) ? labels[status] : 'Review status unavailable';
++}
++export function notificationStatusLabel(status: unknown): string {
++  const labels: Record<string, string> = { NOT_REQUESTED: 'No vet check requested', SENT: 'Vet notified', WAITING_FOR_VET_ASSIGNMENT: 'Waiting for vet assignment' };
++  return typeof status === 'string' && Object.prototype.hasOwnProperty.call(labels, status) ? labels[status] : 'Notification status unavailable';
++}
++
++export function assessmentPreview(answers: AssessmentAnswers): AssessmentPreview | null {
++  if (!answers || typeof answers !== 'object' || Object.keys(answers).length !== ASSESSMENT_CRITERIA.length
++      || Object.keys(answers).some(code => !criterionCodes.has(code))
++      || ASSESSMENT_CRITERIA.some(item => !Object.prototype.hasOwnProperty.call(answers, item.code) || typeof answers[item.code] !== 'boolean')) return null;
++  const passedCount = ASSESSMENT_CRITERIA.filter(item => answers[item.code] === true).length;
++  let alertLevel: AssessmentAlertLevel = passedCount <= 3 ? 'URGENT_VET_REVIEW' : passedCount <= 6 ? 'VET_REVIEW_REQUIRED' : 'NO_ALERT_DETECTED';
++  const triggerCodes: string[] = passedCount <= 3 ? ['SCORE_URGENT'] : passedCount <= 6 ? ['SCORE_REVIEW'] : [];
++  for (const item of ASSESSMENT_CRITERIA) {
++    if (answers[item.code] !== false) continue;
++    if (item.code === 'COORDINATION' || item.code === 'BREATHING_EFFORT') {
++      alertLevel = 'URGENT_VET_REVIEW'; triggerCodes.push(item.code);
++    } else if (item.code === 'GAIT' || item.code === 'LIMB_CONDITION' || item.code === 'NASAL_BLEEDING') {
++      if (alertLevel === 'NO_ALERT_DETECTED') alertLevel = 'VET_REVIEW_REQUIRED';
++      triggerCodes.push(item.code);
++    }
++  }
++  return { passedCount, failedCount: 10 - passedCount, alertLevel, triggerCodes };
++}
++
++class AssessmentInputError extends Error { }
++export function toAssessmentRequest(answers: AssessmentAnswers, version = ASSESSMENT_VERSION): TrainingAssessmentRequest {
++  if (version !== ASSESSMENT_VERSION) throw new AssessmentInputError('Refresh the health check template before saving.');
++  if (!assessmentPreview(answers)) throw new AssessmentInputError('Complete all 10 checks before saving.');
++  const checks = Object.fromEntries(ASSESSMENT_CRITERIA.map(item => [item.code, answers[item.code]])) as Record<AssessmentCriterionCode, boolean>;
++  return { checklistVersion: version, checks };
++}
++
++/** Explicit write DTO: never mix up legacy result.time/distance or performanceScore/recovery HR. */
++export function completionPayload(input: CompleteSessionInput): CompleteSessionInput {
++  if (!input || !input.assessment) throw new AssessmentInputError('Complete all 10 checks before saving.');
++  const assessment = toAssessmentRequest(input.assessment.checks, input.assessment.checklistVersion);
++  if (typeof input.distance !== 'number' || !Number.isFinite(input.distance) || input.distance < 0 || input.distance > 999999.99
++      || Math.abs(input.distance * 100 - Math.round(input.distance * 100)) > 0.000001) {
++    throw new AssessmentInputError('Enter the actual distance in km, with up to 2 decimal places.');
++  }
++  if (typeof input.avgSpeed !== 'number' || !Number.isFinite(input.avgSpeed) || input.avgSpeed < 0 || input.avgSpeed > 100) {
++    throw new AssessmentInputError('Average speed must be between 0 and 100 km/h.');
++  }
++  if ([input.endExerciseHeartRate, input.recoveryHeartRate2Min].some(value => !Number.isInteger(value) || value < 20 || value > 250)) {
++    throw new AssessmentInputError('Heart rate must be an integer between 20 and 250 bpm.');
++  }
++  if (typeof input.recoveryMeasuredAt !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T([01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,9})?$/.test(input.recoveryMeasuredAt)) {
++    throw new AssessmentInputError('Record the two-minute recovery reading before completing the session.');
++  }
++  if (input.performanceNotes !== undefined && typeof input.performanceNotes !== 'string') {
++    throw new AssessmentInputError('Enter overall notes as text.');
++  }
++  const notes = input.performanceNotes?.trim() || '';
++  if (notes.length > 1000) throw new AssessmentInputError('Keep overall notes within 1,000 characters.');
++  const payload: CompleteSessionInput = { distance: input.distance, avgSpeed: input.avgSpeed,
++    endExerciseHeartRate: input.endExerciseHeartRate, recoveryHeartRate2Min: input.recoveryHeartRate2Min,
++    recoveryMeasuredAt: input.recoveryMeasuredAt, assessment, ...(notes ? { performanceNotes: notes } : {}) };
++  if (input.maxSpeed !== undefined) {
++    if (typeof input.maxSpeed !== 'number' || !Number.isFinite(input.maxSpeed) || input.maxSpeed < input.avgSpeed) {
++      throw new AssessmentInputError('Maximum speed must be at least the average speed.');
++    }
++    payload.maxSpeed = input.maxSpeed;
++  }
++  return payload;
++}
++
++export function vetRequestReason(reason: string): string {
++  if (typeof reason !== 'string' || !reason.trim()) throw new AssessmentInputError('Add a reason for requesting a vet check.');
++  const trimmed = reason.trim();
++  if (trimmed.length > 1000) throw new AssessmentInputError('Keep the vet check reason within 1,000 characters.');
++  return trimmed;
++}
++
++export function canRequestVetCheck(session: Pick<TrainingSession, 'status' | 'horsePackageId'>,
++    enrollments: readonly Pick<Enrollment, 'id' | 'trainerId' | 'trainerStatus'>[],
++    user: Pick<AppUser, 'id' | 'role'> | null | undefined): boolean {
++  return user?.role === 'head_trainer' && session.status === 'Completed' && !!session.horsePackageId
++    && enrollments.some(entry => entry.id === session.horsePackageId && entry.trainerId === user.id && entry.trainerStatus === 'confirmed');
++}
++
++function record(value: unknown): value is Record<string, any> { return !!value && typeof value === 'object' && !Array.isArray(value); }
++export function assessmentFromApi(value: unknown): TrainingAssessmentResponse | undefined {
++  if (!record(value) || typeof value.sessionId !== 'string' || !value.sessionId || typeof value.horseId !== 'string'
++      || typeof value.assessorUserId !== 'string' || typeof value.assessorName !== 'string' || typeof value.assessedAt !== 'string'
++      || value.checklistVersion !== ASSESSMENT_VERSION || !Array.isArray(value.items) || value.items.length !== 10
++      || !Object.prototype.hasOwnProperty.call(assessmentLabels, value.alertLevel)
++      || !reviewStatuses.has(value.reviewStatus) || !notificationStatuses.has(value.notificationStatus)
++      || typeof value.pendingPostTrainingReview !== 'boolean' || !Array.isArray(value.triggerCodes)
++      || value.triggerCodes.some((code: unknown) => typeof code !== 'string') || !Array.isArray(value.failedCriteria)
++      || value.failedCriteria.some((code: string) => !criterionCodes.has(code))) return undefined;
++  const seen = new Set<string>();
++  for (const item of value.items) {
++    if (!record(item) || !criterionCodes.has(item.code) || seen.has(item.code) || typeof item.label !== 'string'
++        || typeof item.passed !== 'boolean' || (item.failNote != null && typeof item.failNote !== 'string')) return undefined;
++    seen.add(item.code);
++  }
++  const passed = value.items.filter((item: { passed: boolean }) => item.passed).length;
++  if (value.passedCount !== passed || value.failedCount !== 10 - passed) return undefined;
++  if ((value.linkedMedicalRecordId != null && typeof value.linkedMedicalRecordId !== 'string')
++      || (value.reviewedMedicalRecordId != null && typeof value.reviewedMedicalRecordId !== 'string')) return undefined;
++  return { ...value, linkedMedicalRecordId: value.linkedMedicalRecordId ?? null,
++    reviewedMedicalRecordId: value.reviewedMedicalRecordId ?? null } as TrainingAssessmentResponse;
++}
++
++export async function fetchAssessmentTemplate(): Promise<TrainingAssessmentTemplateResponse> {
++  const value = await request<TrainingAssessmentTemplateResponse>('/training-assessments/template');
++  if (!record(value) || value.version !== ASSESSMENT_VERSION || !Array.isArray(value.criteria) || value.criteria.length !== 10
++      || new Set(value.criteria.map(item => item.code)).size !== 10
++      || value.criteria.some(item => !criterionCodes.has(item.code) || typeof item.label !== 'string' || typeof item.helpText !== 'string')
++      || !record(value.labels) || Object.keys(assessmentLabels).some(level => typeof value.labels[level as AssessmentAlertLevel] !== 'string')) {
++    throw new AssessmentInputError('The health check template is unavailable. Please retry.');
++  }
++  return value;
++}
++export async function fetchSessionAssessment(sessionId: string): Promise<TrainingAssessmentResponse> {
++  const value = assessmentFromApi(await request<unknown>('/training-sessions/' + idPath(sessionId) + '/assessment'));
++  if (!value || value.sessionId !== sessionId) throw new AssessmentInputError('The saved health check could not be verified. Refresh the session and try again.');
++  return value;
++}
++export function isDuplicateCompletionError(error: unknown): boolean {
++  return error instanceof ApiError && error.status === 409 && record(error.details)
++    && ['SESSION_ALREADY_COMPLETED', 'ASSESSMENT_ALREADY_EXISTS'].includes(error.details.code);
++}
++
++export function assessmentErrorMessage(error: unknown, fallback = 'Unable to save the health check. Please try again.'): string {
++  if (error instanceof AssessmentInputError) return error.message;
++  if (!(error instanceof ApiError)) return fallback;
++  const messages: Record<string, string> = {
++    ASSESSMENT_REQUIRED: 'Complete all 10 checks before saving.',
++    ASSESSMENT_INCOMPLETE: 'Complete all 10 checks before saving.',
++    INVALID_CRITERION_CODE: 'Refresh the health check template before saving.',
++    PENDING_POST_TRAINING_REVIEW: PENDING_REVIEW_MESSAGE,
++    SESSION_ALREADY_COMPLETED: 'This session was already completed. Refresh to view the saved health check.',
++    ASSESSMENT_ALREADY_EXISTS: 'This session already has a saved health check. Refresh to view it.',
++    INVALID_SESSION_STATE: 'The session is not ready to complete. Refresh its status and stop the exercise first.',
++    VET_REQUEST_REASON_REQUIRED: 'Add a reason for requesting a vet check.',
++    VET_REQUEST_REASON_TOO_LONG: 'Keep the vet check reason within 1,000 characters.',
++    FAIL_NOTE_TOO_LONG: 'Keep overall notes within 1,000 characters.',
++  };
++  const code = record(error.details) ? error.details.code : undefined;
++  if (typeof code === 'string' && Object.prototype.hasOwnProperty.call(messages, code)) return messages[code];
++  if (error.status === 0) return 'Cannot connect to the server. Your entries have been kept. Please try again.';
++  if (error.status === 401) return 'Your session has expired. Please sign in again.';
++  if (error.status === 403) return 'You do not have permission to perform this action for this horse.';
++  if (error.status === 404) return 'The requested health check is unavailable. Refresh the session and try again.';
++  if (error.status === 409) return 'This session has changed. Refresh its status and try again.';
++  return fallback;
++}
+\ No newline at end of file
+diff --git a/frontend/tests/trainingAssessment.test.mjs b/frontend/tests/trainingAssessment.test.mjs
+new file mode 100644
+index 0000000..dce04f0
+--- /dev/null
++++ b/frontend/tests/trainingAssessment.test.mjs
+@@ -0,0 +1,272 @@
++import { after, beforeEach, test } from 'node:test';
++import assert from 'node:assert/strict';
++import { mkdtemp, readdir, readFile, writeFile, rm } from 'node:fs/promises';
++import { tmpdir } from 'node:os';
++import path from 'node:path';
++import { pathToFileURL } from 'node:url';
++import ts from 'typescript';
++
++// Actual production adapters with HTTP mocked; no Vite, backend, SQL or browser required.
++const dir = await mkdtemp(path.join(tmpdir(), 'raceforge-assessment-api-'));
++for (const file of await readdir(new URL('../src/', import.meta.url))) {
++  if (!file.endsWith('.ts') || file.endsWith('.d.ts')) continue;
++  const source = await readFile(new URL('../src/' + file, import.meta.url), 'utf8');
++  const code = ts.transpileModule(source.replaceAll('import.meta.env', '({})'), {
++    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
++  }).outputText.replace(/(['"])(\.\/[^'"]+)\1/g, (_, quote, spec) => quote + spec + '.mjs' + quote);
++  await writeFile(path.join(dir, file.replace(/\.ts$/, '.mjs')), code);
++}
++const a = await import(pathToFileURL(path.join(dir, 'trainingAssessment.mjs')));
++const api = await import(pathToFileURL(path.join(dir, 'api.mjs')));
++const { makeRemoteActions } = await import(pathToFileURL(path.join(dir, 'remoteActions.mjs')));
++const { sessionFromApi } = await import(pathToFileURL(path.join(dir, 'remote.mjs')));
++const { sessionStartState } = await import(pathToFileURL(path.join(dir, 'trainingSchedule.mjs')));
++const originalFetch = globalThis.fetch, originalWindow = globalThis.window;
++globalThis.window = new EventTarget();
++after(async () => { globalThis.fetch = originalFetch; globalThis.window = originalWindow; await rm(dir, { recursive: true, force: true }); });
++beforeEach(() => api.clearSession());
++const ok = data => new Response(JSON.stringify({ success: true, data, message: 'OK' }), { headers: { 'Content-Type': 'application/json' } });
++const failed = (status, code, message = 'Backend diagnostic SQL [HTTP detail]') => new Response(JSON.stringify({
++  success: false, message, data: { code, errorId: 'internal-error' },
++}), { status, headers: { 'Content-Type': 'application/json' } });
++const answers = (...concerns) => Object.fromEntries(a.ASSESSMENT_CRITERIA.map(item => [item.code, !concerns.includes(item.code)]));
++const input = extra => ({ distance: 1.25, avgSpeed: 18.2, endExerciseHeartRate: 180, recoveryHeartRate2Min: 88,
++  recoveryMeasuredAt: '2026-11-10T07:32:00.123', assessment: a.toAssessmentRequest(answers()), ...extra });
++function saved(sessionId = 'SES-001', extra = {}) {
++  return { sessionId, horseId: 'HOR-001', assessorUserId: 'HTR-001', assessorName: 'Trainer One',
++    assessedAt: '2026-11-10T07:35:00', checklistVersion: a.ASSESSMENT_VERSION,
++    items: a.ASSESSMENT_CRITERIA.map(item => ({ code: item.code, label: item.label, passed: true, failNote: null })),
++    passedCount: 10, failedCount: 0, alertLevel: 'NO_ALERT_DETECTED', triggerCodes: [], failedCriteria: [],
++    reviewStatus: 'NOT_REQUIRED', notificationStatus: 'NOT_REQUESTED', linkedMedicalRecordId: null,
++    reviewedMedicalRecordId: null, pendingPostTrainingReview: false, ...extra };
++}
++function actions() {
++  const successes = [], errors = []; let reloads = 0;
++  const remote = makeRemoteActions({ getState: () => ({ user: { id: 'HTR-001', role: 'head_trainer' }, trainingSessions: [] }),
++    reload: async () => { reloads++; }, success: value => successes.push(value), error: value => errors.push(value), navigate: () => {} });
++  return { remote, successes, errors, reloads: () => reloads };
++}
++
++test('checklist has exactly the ten official codes with English labels', () => {
++  assert.equal(a.ASSESSMENT_CRITERIA.length, 10);
++  assert.equal(new Set(a.ASSESSMENT_CRITERIA.map(item => item.code)).size, 10);
++  assert.ok(a.ASSESSMENT_CRITERIA.some(item => item.code === 'MUCOUS_MEMBRANES'));
++  assert.ok(!a.ASSESSMENT_CRITERIA.some(item => item.code === 'GUM_MOISTURE'));
++});
++test('unanswered, missing, null, coerced and unknown answers never produce a preview', () => {
++  assert.equal(a.assessmentPreview({}), null);
++  const missing = answers(); delete missing.ALERTNESS;
++  for (const value of [missing, { ...answers(), ALERTNESS: null }, { ...answers(), ALERTNESS: 'true' },
++    { ...answers(), ALERTNESS: 1 }, { ...answers(), UNKNOWN: true }]) assert.equal(a.assessmentPreview(value), null);
++});
++test('base score boundaries use the exact backend demo bands', () => {
++  const neutral = ['ALERTNESS', 'MUSCLE_COMFORT', 'EXTERNAL_INJURY', 'SWEATING', 'MUCOUS_MEMBRANES', 'GAIT', 'LIMB_CONDITION', 'NASAL_BLEEDING'];
++  for (const [passed, concerns, level] of [
++    [10, [], 'NO_ALERT_DETECTED'], [7, neutral.slice(0, 3), 'NO_ALERT_DETECTED'],
++    [6, neutral.slice(0, 4), 'VET_REVIEW_REQUIRED'], [4, neutral.slice(0, 6), 'VET_REVIEW_REQUIRED'],
++    [3, neutral.slice(0, 7), 'URGENT_VET_REVIEW'], [0, a.ASSESSMENT_CRITERIA.map(item => item.code), 'URGENT_VET_REVIEW'],
++  ]) {
++    const preview = a.assessmentPreview(answers(...concerns));
++    assert.equal(preview.passedCount, passed); assert.equal(preview.failedCount, 10 - passed); assert.equal(preview.alertLevel, level);
++  }
++});
++for (const code of ['COORDINATION', 'BREATHING_EFFORT']) test(code + ' concern overrides nine passes to urgent', () => {
++  assert.equal(a.assessmentPreview(answers(code)).alertLevel, 'URGENT_VET_REVIEW');
++  assert.deepEqual(a.assessmentPreview(answers(code)).triggerCodes, [code]);
++});
++for (const code of ['GAIT', 'LIMB_CONDITION', 'NASAL_BLEEDING']) test(code + ' concern overrides nine passes to recommended', () => {
++  assert.equal(a.assessmentPreview(answers(code)).alertLevel, 'VET_REVIEW_REQUIRED');
++});
++test('combined urgent and recommended overrides retain urgent priority in template order', () => {
++  const preview = a.assessmentPreview(answers('COORDINATION', 'GAIT', 'NASAL_BLEEDING'));
++  assert.equal(preview.alertLevel, 'URGENT_VET_REVIEW');
++  assert.deepEqual(preview.triggerCodes, ['COORDINATION', 'GAIT', 'NASAL_BLEEDING']);
++});
++test('all concerns can be submitted without any per-criterion notes', () => {
++  const payload = a.completionPayload(input({ assessment: a.toAssessmentRequest(answers(...a.ASSESSMENT_CRITERIA.map(item => item.code))) }));
++  assert.equal(Object.values(payload.assessment.checks).filter(value => value === false).length, 10);
++  assert.ok(!('failNotes' in payload.assessment)); assert.ok(!('performanceNotes' in payload));
++});
++test('one optional overall note is trimmed and limited after trimming', () => {
++  const original = input({ performanceNotes: '  Recovered calmly.  ' });
++  assert.equal(a.completionPayload(original).performanceNotes, 'Recovered calmly.');
++  assert.equal(original.performanceNotes, '  Recovered calmly.  ');
++  assert.ok(!('performanceNotes' in a.completionPayload(input({ performanceNotes: ' \n\t ' }))));
++  assert.equal(a.completionPayload(input({ performanceNotes: '  ' + 'x'.repeat(1000) + '  ' })).performanceNotes.length, 1000);
++  assert.throws(() => a.completionPayload(input({ performanceNotes: 'x'.repeat(1001) })), /1,000/);
++});
++test('completion uses explicit backend measurement fields without inventing a maximum speed', () => {
++  const payload = a.completionPayload(input());
++  assert.equal(payload.distance, 1.25); assert.equal(payload.avgSpeed, 18.2);
++  assert.equal(payload.endExerciseHeartRate, 180); assert.equal(payload.recoveryHeartRate2Min, 88);
++  assert.equal(payload.recoveryMeasuredAt, '2026-11-10T07:32:00.123');
++  for (const key of ['time', 'speed', 'heartRate', 'performanceScore', 'maxSpeed']) assert.ok(!(key in payload));
++  assert.equal(a.completionPayload(input({ maxSpeed: 20 })).maxSpeed, 20);
++});
++test('completion never forwards client-owned score, review or recipient fields', () => {
++  const malicious = input({ passedCount: 10, reviewStatus: 'RESOLVED', recipientId: 'VET-OTHER',
++    assessment: { ...a.toAssessmentRequest(answers('GAIT')), severity: 'NO_ALERT_DETECTED', passedCount: 10,
++      canStart: true, failNotes: { GAIT: 'Legacy ignored observation' } } });
++  const payload = a.completionPayload(malicious);
++  assert.deepEqual(Object.keys(payload.assessment).sort(), ['checklistVersion', 'checks']);
++  assert.equal(payload.assessment.checks.GAIT, false);
++  for (const key of ['passedCount', 'reviewStatus', 'recipientId']) assert.ok(!(key in payload));
++});
++test('invalid measurement values and missing assessment are rejected before HTTP', () => {
++  for (const extra of [{ distance: -1 }, { distance: 1.234 }, { distance: Number.NaN }, { avgSpeed: Infinity },
++    { endExerciseHeartRate: 180.5 }, { recoveryHeartRate2Min: 0 }, { recoveryMeasuredAt: '' },
++    { recoveryMeasuredAt: '2026-11-10T07:32:00Z' }, { assessment: undefined }, { maxSpeed: 10 }]) {
++    assert.throws(() => a.completionPayload(input(extra)));
++  }
++});
++test('labels never echo unknown server enums or inherited object property names', () => {
++  assert.equal(a.assessmentLabel('NO_ALERT_DETECTED'), 'Normal');
++  assert.equal(a.reviewStatusLabel('PENDING'), 'Awaiting vet review');
++  assert.equal(a.notificationStatusLabel('WAITING_FOR_VET_ASSIGNMENT'), 'Waiting for vet assignment');
++  for (const unknown of ['__proto__', 'constructor', 'UNKNOWN_LEVEL', null]) {
++    assert.equal(typeof a.assessmentLabel(unknown), 'string');
++    assert.equal(typeof a.reviewStatusLabel(unknown), 'string');
++    assert.equal(typeof a.notificationStatusLabel(unknown), 'string');
++    assert.ok(!a.assessmentLabel(unknown).includes(String(unknown)));
++  }
++});
++test('friendly errors omit backend enums, SQL, error identifiers and HTTP diagnostics', () => {
++  const failure = new api.ApiError('SQL error [HTTP 409; errorId: secret]', 409, { code: 'PENDING_POST_TRAINING_REVIEW' });
++  const message = a.assessmentErrorMessage(failure);
++  assert.match(message, /vet check is pending/); assert.doesNotMatch(message, /SQL|HTTP|secret|PENDING_POST_TRAINING_REVIEW/);
++  assert.equal(a.assessmentErrorMessage(new Error('PRIVATE_STACK_TRACE'), 'Try again.'), 'Try again.');
++  assert.match(a.assessmentErrorMessage(new api.ApiError('Denied', 403)), /permission/);
++});
++test('manual request scope follows the accepted current package assignment and allows expired history', () => {
++  const user = { id: 'HTR-NEW', role: 'head_trainer' }, session = { status: 'Completed', horsePackageId: 'HPG-1', trainerId: 'HTR-OLD' };
++  const entries = [{ id: 'HPG-1', trainerId: user.id, trainerStatus: 'confirmed', status: 'completed', paymentStatus: 'PAID' }];
++  assert.equal(a.canRequestVetCheck(session, entries, user), true);
++  assert.equal(a.canRequestVetCheck(session, entries, { ...user, id: 'HTR-OLD' }), false);
++  assert.equal(a.canRequestVetCheck(session, [{ ...entries[0], trainerStatus: 'pending' }], user), false);
++  assert.equal(a.canRequestVetCheck(session, entries, { ...user, role: 'owner' }), false);
++  assert.equal(a.canRequestVetCheck({ ...session, status: 'In Progress' }, entries, user), false);
++});
++test('template API validates all ten criteria and prefers the returned labels and help text', async () => {
++  const template = { version: a.ASSESSMENT_VERSION, criteria: a.ASSESSMENT_CRITERIA.map(item => ({ ...item, helpText: 'Server guidance: ' + item.helpText })),
++    labels: Object.fromEntries(Object.entries(a.assessmentLabels).map(([code, details]) => [code, details.label])) };
++  globalThis.fetch = async (url, init) => { assert.equal(url, '/api/training-assessments/template'); assert.equal(init.method, 'GET'); return ok(template); };
++  assert.deepEqual(await a.fetchAssessmentTemplate(), template);
++  globalThis.fetch = async () => ok({ ...template, criteria: template.criteria.slice(0, 9) });
++  await assert.rejects(a.fetchAssessmentTemplate(), /template is unavailable/);
++});
++test('saved assessment GET verifies identity and complete persisted data without recomputing the server level', async () => {
++  const persisted = saved('SES-001', { alertLevel: 'VET_REVIEW_REQUIRED', triggerCodes: ['SERVER_REVIEW'] });
++  globalThis.fetch = async () => ok(persisted);
++  assert.equal((await a.fetchSessionAssessment('SES-001')).alertLevel, 'VET_REVIEW_REQUIRED');
++  globalThis.fetch = async () => ok(saved('SES-OTHER'));
++  await assert.rejects(a.fetchSessionAssessment('SES-001'), /could not be verified/);
++  globalThis.fetch = async () => ok({});
++  await assert.rejects(a.fetchSessionAssessment('SES-001'), /could not be verified/);
++});
++test('session mapping keeps persisted assessment, pending flags, HR and an empty overall note separate from stage notes', () => {
++  const assessment = saved();
++  const session = sessionFromApi({ sessionId: 'SES-001', status: 'COMPLETED', assessment,
++    pendingPostTrainingReview: true, startBlockedCode: 'PENDING_POST_TRAINING_REVIEW',
++    evaluation: '', notes: 'Scheduled stage objective', actualDurationSeconds: 0, avgSpeed: 0,
++    endExerciseHeartRate: 180, recoveryHeartRate2Min: 88, recoveryMeasuredAt: '2026-11-10T07:32:00' });
++  assert.deepEqual(session.assessment, assessment); assert.equal(session.pendingPostTrainingReview, true);
++  assert.equal(session.startBlockedCode, 'PENDING_POST_TRAINING_REVIEW');
++  assert.equal(session.result.notes, ''); assert.equal(session.result.time, '0'); assert.equal(session.result.speed, '0');
++  assert.equal(session.result.performanceScore, 88); assert.equal(session.result.recoveryMeasuredAt, '2026-11-10T07:32:00');
++  assert.equal(sessionFromApi({ sessionId: 'OLD', status: 'COMPLETED' }).assessment, undefined);
++});
++test('Start shows the friendly pending message even when the raw reason contains a technical code', () => {
++  const session = { id: 'S', trainerId: 'HTR-001', status: 'Scheduled', canStart: false,
++    startBlockedCode: 'PENDING_POST_TRAINING_REVIEW', startBlockedReason: 'PENDING_POST_TRAINING_REVIEW' };
++  assert.deepEqual(sessionStartState(session, [], 'HTR-001'), { allowed: false, reason: a.PENDING_REVIEW_MESSAGE });
++});
++test('complete action sends the new assessment DTO and only reloads after success', async () => {
++  const env = actions(); let payload;
++  globalThis.fetch = async (url, init) => {
++    assert.equal(url, '/api/training-sessions/SES-001/complete'); assert.equal(init.method, 'PATCH');
++    payload = JSON.parse(init.body); return ok({ sessionId: 'SES-001', status: 'COMPLETED' });
++  };
++  assert.equal(await env.remote.completeSession('SES-001', input({ performanceNotes: '  Calm recovery.  ' })), null);
++  assert.equal(payload.performanceNotes, 'Calm recovery.'); assert.equal(payload.assessment.checks.ALERTNESS, true);
++  assert.equal(env.reloads(), 1); assert.equal(env.successes.length, 1);
++});
++for (const code of ['SESSION_ALREADY_COMPLETED', 'ASSESSMENT_ALREADY_EXISTS']) test(code + ' recovers only after checking persisted assessment', async () => {
++  const env = actions(), calls = [];
++  globalThis.fetch = async (url, init) => { calls.push([url, init.method]); return url.endsWith('/complete') ? failed(409, code) : ok(saved()); };
++  assert.equal(await env.remote.completeSession('SES-001', input()), null);
++  assert.deepEqual(calls, [['/api/training-sessions/SES-001/complete', 'PATCH'], ['/api/training-sessions/SES-001/assessment', 'GET']]);
++  assert.equal(env.reloads(), 1); assert.equal(env.successes.length, 1);
++});
++test('duplicate completion with unavailable detail never reports success or reloads as saved', async () => {
++  const env = actions();
++  globalThis.fetch = async url => url.endsWith('/complete') ? failed(409, 'SESSION_ALREADY_COMPLETED') : failed(404, 'RESOURCE_NOT_FOUND');
++  const result = await env.remote.completeSession('SES-001', input());
++  assert.equal(typeof result, 'string'); assert.equal(env.reloads(), 0); assert.equal(env.successes.length, 0);
++});
++test('duplicate completion with wrong-session or malformed detail is not treated as a successful save', async () => {
++  for (const response of [saved('SES-OTHER'), {}]) {
++    const env = actions();
++    globalThis.fetch = async url => url.endsWith('/complete') ? failed(409, 'ASSESSMENT_ALREADY_EXISTS') : ok(response);
++    assert.match(await env.remote.completeSession('SES-001', input()), /could not be verified/);
++    assert.equal(env.reloads(), 0); assert.equal(env.successes.length, 0);
++  }
++});
++test('other completion conflicts do not refetch assessment or expose diagnostics', async () => {
++  const env = actions(), calls = [];
++  globalThis.fetch = async url => { calls.push(url); return failed(409, 'INVALID_SESSION_STATE'); };
++  const result = await env.remote.completeSession('SES-001', input());
++  assert.match(result, /not ready to complete/); assert.doesNotMatch(result, /SQL|HTTP|internal-error/);
++  assert.equal(calls.length, 1); assert.equal(env.reloads(), 0); assert.equal(env.successes.length, 0);
++});
++test('missing answers or overlong overall notes never trigger an HTTP write', async () => {
++  const env = actions(); let calls = 0; globalThis.fetch = async () => { calls++; return ok({}); };
++  const missing = input(); delete missing.assessment.checks.ALERTNESS;
++  assert.match(await env.remote.completeSession('SES-001', missing), /all 10/);
++  assert.match(await env.remote.completeSession('SES-001', input({ performanceNotes: 'x'.repeat(1001) })), /1,000/);
++  assert.equal(calls, 0); assert.equal(env.reloads(), 0);
++});
++test('simultaneous complete actions use one HTTP write and release their request lock', async () => {
++  const env = actions(); let resolve, writes = 0;
++  globalThis.fetch = () => { writes++; return new Promise(done => { resolve = done; }); };
++  const first = env.remote.completeSession('SES-001', input());
++  const second = await env.remote.completeSession('SES-001', input());
++  assert.equal(typeof second, 'string'); assert.equal(writes, 1);
++  resolve(ok({ sessionId: 'SES-001', status: 'COMPLETED' })); assert.equal(await first, null);
++  globalThis.fetch = async () => ok({ sessionId: 'SES-001', status: 'COMPLETED' });
++  assert.equal(await env.remote.completeSession('SES-001', input()), null);
++});
++test('manual vet request sends the trimmed reason without a client-supplied recipient', async () => {
++  const env = actions(); let body;
++  globalThis.fetch = async (url, init) => {
++    assert.equal(url, '/api/training-sessions/SES-001/vet-notification'); assert.equal(init.method, 'POST');
++    body = JSON.parse(init.body); return ok({ sessionId: 'SES-001', requestStatus: 'SENT', startBlocked: false, message: 'Vet notification sent.' });
++  };
++  const result = await env.remote.requestVetCheck('SES-001', '  Please check recovery.  ');
++  assert.equal(result.ok, true); assert.equal(result.data.startBlocked, false);
++  assert.deepEqual(body, { reason: 'Please check recovery.' }); assert.equal(env.reloads(), 1);
++});
++test('waiting vet response stays truthful and does not invent a Normal start hold', async () => {
++  const env = actions(); globalThis.fetch = async () => ok({ sessionId: 'SES-001', requestStatus: 'WAITING_FOR_VET_ASSIGNMENT', startBlocked: false, message: 'Waiting for a vet assignment.' });
++  const result = await env.remote.requestVetCheck('SES-001', 'Please check.');
++  assert.equal(result.ok, true); assert.equal(result.data.requestStatus, 'WAITING_FOR_VET_ASSIGNMENT'); assert.equal(result.data.startBlocked, false);
++});
++test('manual vet request requires a nonblank reason and enforces its length', async () => {
++  const env = actions(); let calls = 0; globalThis.fetch = async () => { calls++; return ok({}); };
++  assert.equal((await env.remote.requestVetCheck('SES-001', '   ')).ok, false);
++  assert.equal((await env.remote.requestVetCheck('SES-001', 'x'.repeat(1001))).ok, false);
++  assert.equal(calls, 0); assert.equal(env.successes.length, 0);
++});
++test('malformed successful vet responses never trigger reload or a success announcement', async () => {
++  for (const value of [{}, { sessionId: 'SES-001', requestStatus: 'SENT', startBlocked: false }, { sessionId: 'OTHER', requestStatus: 'SENT', startBlocked: false },
++    { sessionId: 'SES-001', requestStatus: 'UNRECOGNIZED', startBlocked: false }]) {
++    const env = actions(); globalThis.fetch = async () => ok(value);
++    assert.equal((await env.remote.requestVetCheck('SES-001', 'Please check.')).ok, false);
++    assert.equal(env.reloads(), 0); assert.equal(env.successes.length, 0);
++  }
++});
++test('manual request permission errors remain friendly and do not announce success', async () => {
++  const env = actions(); globalThis.fetch = async () => failed(403, 'ACCESS_DENIED');
++  const result = await env.remote.requestVetCheck('SES-001', 'Please check.');
++  assert.equal(result.ok, false); assert.match(result.message, /permission/);
++  assert.doesNotMatch(result.message, /SQL|HTTP|ACCESS_DENIED/); assert.equal(env.successes.length, 0);
++});
+\ No newline at end of file
+diff --git a/frontend/tests/trainingAssessmentUi.test.mjs b/frontend/tests/trainingAssessmentUi.test.mjs
+new file mode 100644
+index 0000000..7868376
+--- /dev/null
++++ b/frontend/tests/trainingAssessmentUi.test.mjs
+@@ -0,0 +1,176 @@
++import { test, after } from 'node:test';
++import assert from 'node:assert/strict';
++import { mkdtemp, readdir, readFile, writeFile, rm } from 'node:fs/promises';
++import { tmpdir } from 'node:os';
++import path from 'node:path';
++import { pathToFileURL } from 'node:url';
++import { createRequire } from 'node:module';
++import ts from 'typescript';
++
++const require = createRequire(new URL('../package.json', import.meta.url));
++const dir = await mkdtemp(path.join(tmpdir(), 'raceforge-assessment-ui-'));
++after(() => rm(dir, { recursive: true, force: true }));
++for (const name of await readdir(new URL('../src/', import.meta.url))) {
++  if (!/\.tsx?$/.test(name)) continue;
++  const source = await readFile(new URL('../src/' + name, import.meta.url), 'utf8');
++  const output = ts.transpileModule(source.replace('import.meta.env', '({})'), {
++    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022, jsx: ts.JsxEmit.ReactJSX },
++  }).outputText
++    .replace(/(['"])(\.\/[^'"]+)\1/g, (_, quote, module) => quote + module + '.mjs' + quote)
++    .replace(/(['"])(react(?:\/jsx-runtime)?|react-dom(?:\/client)?|recharts|qrcode\.react)\1/g,
++      (_, quote, module) => quote + pathToFileURL(require.resolve(module)).href + quote);
++  await writeFile(path.join(dir, name.replace(/\.tsx?$/, '.mjs')), output);
++}
++const { createElement: h } = require('react');
++const { renderToStaticMarkup: render } = require('react-dom/server');
++const pure = await import(pathToFileURL(path.join(dir, 'trainingAssessment.mjs')));
++const { TrainingAssessmentForm, TrainingAssessmentPreview, TrainingAssessmentReadOnly,
++  TrainingAssessmentDetails, TrainingAssessmentEmpty, TrainingPendingReviewBanner } =
++  await import(pathToFileURL(path.join(dir, 'TrainingAssessmentView.mjs')));
++const { ResultForm } = await import(pathToFileURL(path.join(dir, 'trainingPlans.mjs')));
++const template = { version: pure.ASSESSMENT_VERSION, criteria: [...pure.ASSESSMENT_CRITERIA],
++  labels: Object.fromEntries(Object.entries(pure.assessmentLabels).map(([level, value]) => [level, value.label])) };
++const allPass = Object.fromEntries(template.criteria.map(item => [item.code, true]));
++const assessment = (changes = {}) => ({
++  sessionId: 'SES-001', horseId: 'HOR-001', assessorUserId: 'HTR-001', assessorName: 'Assigned trainer',
++  assessedAt: '2026-11-10T10:00:00', checklistVersion: pure.ASSESSMENT_VERSION,
++  items: template.criteria.map(item => ({ code: item.code, label: item.label, passed: true, failNote: null })),
++  passedCount: 10, failedCount: 0, alertLevel: 'NO_ALERT_DETECTED', triggerCodes: [], failedCriteria: [],
++  reviewStatus: 'NOT_REQUIRED', notificationStatus: 'NOT_REQUESTED', linkedMedicalRecordId: null,
++  reviewedMedicalRecordId: null, pendingPostTrainingReview: false, ...changes,
++});
++const visible = html => html.replace(/<[^>]+>/g, ' ');
++
++test('blank checklist has exactly ten groups, twenty radios and no default answers or item notes', () => {
++  const html = render(h(TrainingAssessmentForm, { answers: {}, onChange() {}, template }));
++  assert.equal((html.match(/<fieldset/g) || []).length, 10);
++  assert.equal((html.match(/type="radio"/g) || []).length, 20);
++  assert.equal((html.match(/ checked(?:=|\s|>)/g) || []).length, 0);
++  assert.equal((html.match(/<textarea/g) || []).length, 0);
++  assert.ok(html.includes('0 of 10 checks completed'));
++  assert.ok(html.includes('Assessment incomplete'));
++  assert.ok(!html.includes('Pass all'));
++});
++
++test('nine answers remain incomplete and do not show a severity preview', () => {
++  const answers = { ...allPass };
++  delete answers.GAIT;
++  const html = render(h(TrainingAssessmentForm, { answers, onChange() {}, template }));
++  assert.ok(html.includes('9 of 10 checks completed'));
++  assert.ok(html.includes('Assessment incomplete'));
++  assert.ok(!html.includes('Vet Check Recommended'));
++  assert.ok(!html.includes('Urgent Vet Check'));
++});
++
++test('radio groups provide native names, labels, required markers and descriptions', () => {
++  const html = render(h(TrainingAssessmentForm, { answers: {}, onChange() {}, template }));
++  assert.equal((html.match(/<legend/g) || []).length, 10);
++  assert.equal((html.match(/ required=""/g) || []).length, 20);
++  assert.equal((html.match(/<label for=/g) || []).length, 20);
++  assert.equal((html.match(/aria-describedby=/g) || []).length, 10);
++  assert.ok(html.includes('min-h-11'));
++});
++
++test('template loading keeps controls disabled and template failure exposes a retry', () => {
++  const loading = render(h(TrainingAssessmentForm, { answers: {}, onChange() {}, template: null, loading: true }));
++  assert.ok(loading.includes('Loading the health check template'));
++  assert.equal((loading.match(/type="radio"[^>]*disabled=""/g) || []).length, 20);
++  const failed = render(h(TrainingAssessmentForm, { answers: {}, onChange() {}, template: null,
++    error: 'The template could not be loaded.', onRetry() {} }));
++  assert.ok(failed.includes('role="alert"'));
++  assert.ok(failed.includes('Retry health check'));
++});
++
++test('preview labels are friendly and priority observations override the count', () => {
++  for (const [answers, label] of [
++    [allPass, 'Normal'],
++    [{ ...allPass, GAIT: false }, 'Vet Check Recommended'],
++    [{ ...allPass, COORDINATION: false }, 'Urgent Vet Check'],
++  ]) {
++    const text = visible(render(h(TrainingAssessmentPreview, { answers })));
++    assert.ok(text.includes(label));
++    assert.ok(text.includes('Preview'));
++    for (const level of Object.keys(pure.assessmentLabels)) assert.ok(!text.includes(level));
++  }
++});
++
++test('full completion form starts unanswered, blocks saving and has exactly one optional overall note', () => {
++  const html = render(h(ResultForm, { onSubmit: async () => null, onCancel() {} }));
++  assert.ok(html.includes('0 of 10 checks completed'));
++  assert.equal((html.match(/<textarea/g) || []).length, 1);
++  assert.ok(html.includes('Overall notes'));
++  assert.ok(html.includes('(optional)'));
++  assert.ok(!html.includes('Comments'));
++  assert.match(html, /<button[^>]*type="submit"[^>]*disabled=""[^>]*>Save and complete/);
++  for (const label of ['Actual distance (km)', 'Average speed (km/h)',
++    'End-of-exercise heart rate (bpm)', 'Heart rate after two-minute recovery (bpm)']) {
++    assert.ok(html.includes(label), label);
++  }
++});
++
++test('recorded Normal offers a manual request only to the current trainer', () => {
++  const allowed = render(h(TrainingAssessmentReadOnly, { assessment: assessment(), canRequest: true,
++    onRequestVetCheck: async () => ({ ok: false, message: 'Not sent' }) }));
++  assert.ok(allowed.includes('Request a Vet Check'));
++  assert.ok(allowed.includes('A manual request does not create a training pause.'));
++  assert.ok(!allowed.includes('Training is paused for this horse'));
++  const historical = render(h(TrainingAssessmentReadOnly, { assessment: assessment(), canRequest: false }));
++  assert.ok(!historical.includes('Request a Vet Check'));
++  assert.ok(historical.includes('read only for your account'));
++});
++
++test('already sent and waiting manual requests never offer a duplicate request button', () => {
++  for (const status of ['SENT', 'WAITING_FOR_VET_ASSIGNMENT']) {
++    const html = render(h(TrainingAssessmentReadOnly, { assessment: assessment({ notificationStatus: status }),
++      canRequest: true, onRequestVetCheck: async () => ({ ok: false, message: 'Not sent' }) }));
++    assert.ok(!html.includes('Request a Vet Check'));
++    assert.ok(!html.includes('Training is paused for this horse'));
++    assert.ok(html.includes(status === 'SENT' ? 'Vet check request sent' : 'Waiting for vet assignment'));
++  }
++});
++
++test('alert view renders the persisted server level without recalculation or raw enums', () => {
++  const html = render(h(TrainingAssessmentReadOnly, { assessment: assessment({
++    alertLevel: 'URGENT_VET_REVIEW', reviewStatus: 'PENDING', notificationStatus: 'WAITING_FOR_VET_ASSIGNMENT',
++    pendingPostTrainingReview: true, triggerCodes: ['COORDINATION'],
++  }), canRequest: true }));
++  const text = visible(html);
++  assert.ok(text.includes('Urgent Vet Check'));
++  assert.ok(text.includes('Training is paused for this horse'));
++  assert.ok(text.includes('Waiting for vet assignment'));
++  assert.ok(text.includes('Balance and coordination'));
++  assert.ok(!text.includes('Request a Vet Check'));
++  for (const code of ['URGENT_VET_REVIEW', 'PENDING', 'WAITING_FOR_VET_ASSIGNMENT', 'COORDINATION']) {
++    assert.ok(!text.includes(code), code);
++  }
++});
++
++test('saved checks render exactly ten observations, escape overall notes and ignore legacy item notes', () => {
++  const value = assessment();
++  value.items[0].failNote = 'A legacy note that should not create an individual notes field';
++  const html = render(h(TrainingAssessmentReadOnly, { assessment: value, overallNotes: '<script>unsafe</script>' }));
++  assert.equal((html.match(/<li /g) || []).length, 10);
++  assert.ok(html.includes('&lt;script&gt;unsafe&lt;/script&gt;'));
++  assert.ok(!html.includes('<script>unsafe'));
++  assert.ok(!html.includes('A legacy note'));
++  assert.ok(html.includes('Assigned trainer'));
++  assert.ok(html.includes('(Bangkok)'));
++  assert.ok(!html.includes('<textarea'));
++});
++
++test('history absence is stated honestly and an unopened detail does not pretend loading succeeded', () => {
++  const empty = render(h(TrainingAssessmentEmpty));
++  assert.ok(empty.includes('No post-training assessment recorded'));
++  assert.ok(!empty.includes('10/10'));
++  const loading = render(h(TrainingAssessmentDetails, { sessionId: 'SES-OLD' }));
++  assert.ok(loading.includes('Loading the saved post-training check'));
++  assert.ok(!loading.includes('No post-training assessment recorded'));
++});
++
++test('pending banner describes a review hold without claiming to open medical locks or change packages', () => {
++  const html = render(h(TrainingPendingReviewBanner));
++  assert.ok(html.includes('Training is paused for this horse'));
++  assert.ok(html.includes('Other requirements will still apply'));
++  assert.ok(!html.includes('package paused'));
++  assert.ok(!html.includes('Medical Lock'));
++});
+diff --git a/frontend/tests/visual/entry.tsx b/frontend/tests/visual/entry.tsx
+new file mode 100644
+index 0000000..ed0bda6
+--- /dev/null
++++ b/frontend/tests/visual/entry.tsx
+@@ -0,0 +1,111 @@
++/** Standalone Vite visual fixture. Production App and its authentication flow are not mounted. */
++import { useState } from 'react';
++import { createRoot } from 'react-dom/client';
++import '../../src/index.css';
++import { ResultForm } from '../../src/trainingPlans';
++import {
++  TrainingAssessmentDetails, TrainingAssessmentEmpty, TrainingAssessmentReadOnly,
++} from '../../src/TrainingAssessmentView';
++import { request } from '../../src/api';
++import { assessmentErrorMessage, type CompleteSessionInput, type TrainingVetNotificationResponse } from '../../src/trainingAssessment';
++import {
++  FIXTURE_HORSE_NAME, FIXTURE_SESSION_ID, SCENARIOS, installFixtureFetch, type Scenario,
++} from './fixtureData';
++
++const selected = new URLSearchParams(window.location.search).get('scenario');
++const scenario: Scenario = SCENARIOS.includes(selected as Scenario) ? selected as Scenario : 'blank';
++const fixture = installFixtureFetch(scenario);
++const labels: Record<Scenario, string> = {
++  blank: 'Complete session', normal: 'Normal', recommended: 'Vet recommended', urgent: 'Urgent vet check',
++  waiting: 'Waiting for vet', history: 'Historical session', errors: 'Detail retry',
++  'template-error': 'Template retry', 'submit-error': 'Save retry',
++};
++
++function VisualHarness() {
++  const [assessment, setAssessment] = useState(fixture.readAssessment());
++  const [saved, setSaved] = useState(false);
++  const [cancelled, setCancelled] = useState(false);
++  const refresh = () => setAssessment({ ...fixture.readAssessment() });
++  const sendVetRequest = async (sessionId: string, reason: string) => {
++    try {
++      const data = await request<TrainingVetNotificationResponse>(
++        '/training-sessions/' + encodeURIComponent(sessionId) + '/vet-notification', 'POST', { reason });
++      refresh();
++      return { ok: true as const, data };
++    } catch (error) {
++      return { ok: false as const, message: assessmentErrorMessage(error, 'Unable to request a vet check. Please retry.') };
++    }
++  };
++  const complete = async (payload: CompleteSessionInput): Promise<string | null> => {
++    try {
++      await request('/training-sessions/' + FIXTURE_SESSION_ID + '/complete', 'PATCH', payload);
++      refresh();
++      setSaved(true);
++      return null;
++    } catch (error) {
++      return assessmentErrorMessage(error, 'Unable to save the health check. Your entries have been kept. Please retry.');
++    }
++  };
++  const isForm = scenario === 'blank' || scenario === 'template-error' || scenario === 'submit-error';
++  const showSavedSummary = !isForm || saved;
++
++  return (
++    <div className="visual-fixture" data-visual-scenario={scenario}>
++      <style>{`
++        .visual-fixture { min-height: 100vh; background: var(--background); }
++        .fixture-toolbar { padding: 12px 24px; background: #101d31; color: #edf1f7; }
++        .fixture-toolbar-inner { max-width: 1100px; margin: auto; display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; }
++        .fixture-tag { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: #e6bd73; font-weight: 700; }
++        .fixture-nav { display: flex; flex-wrap: wrap; gap: 6px; }
++        .fixture-nav a { color: #d8e0ec; border: 1px solid #334157; border-radius: 5px; padding: 5px 9px; font-size: 11px; text-decoration: none; }
++        .fixture-nav a[aria-current=page] { color: #17233a; background: #e6bd73; border-color: #e6bd73; }
++        .fixture-nav a:focus-visible { outline: 3px solid white; outline-offset: 2px; }
++        .fixture-main { max-width: 1030px; margin: 0 auto; padding: 32px 24px 64px; }
++        .fixture-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #6b7a99; margin: 0 0 12px; }
++        .fixture-heading { font-family: var(--font-serif); font-size: clamp(25px, 4vw, 34px); line-height: 1.2; margin: 0; color: #15253e; font-weight: 600; }
++        .fixture-subtitle { margin: 10px 0 25px; color: #6b7a99; font-size: 13px; line-height: 1.6; }
++        .fixture-panel { padding: 24px; background: white; border: 1px solid #dde2eb; border-radius: 12px; box-shadow: 0 4px 16px #172b4510; }
++        .fixture-session { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: #6b7a99; margin: 0 0 12px; }
++        .fixture-session strong { color: #1a2844; font-weight: 600; }
++        .fixture-footnote { color: #78859a; font-size: 11px; margin: 18px 0 0; line-height: 1.6; }
++        @media (max-width: 600px) {
++          .fixture-main { padding: 22px 14px 40px; }
++          .fixture-toolbar { padding: 12px 14px; }
++          .fixture-panel { padding: 16px; border-radius: 9px; }
++          .fixture-nav a { font-size: 10px; padding: 5px 7px; }
++        }
++      `}</style>
++      <header className="fixture-toolbar">
++        <div className="fixture-toolbar-inner">
++          <span className="fixture-tag">RaceForge · visual test fixture</span>
++          <nav className="fixture-nav" aria-label="Visual test scenario">
++            {SCENARIOS.map(value => <a key={value} href={'?scenario=' + value}
++              aria-current={scenario === value ? 'page' : undefined}>{labels[value]}</a>)}
++          </nav>
++        </div>
++      </header>
++      <main className="fixture-main">
++        <p className="fixture-eyebrow">Training / Session details</p>
++        <h1 className="fixture-heading">{isForm && !saved ? 'Complete training session' : 'Post-training health check'}</h1>
++        <p className="fixture-subtitle">Record observations after exercise and keep the next training decision clear.</p>
++        <section className="fixture-panel" aria-label="Session assessment fixture">
++          <p className="fixture-session"><span><strong>{FIXTURE_HORSE_NAME}</strong> · {FIXTURE_SESSION_ID}</span>
++            <span>Foundation conditioning</span><span>10 November 2026 · 09:00–09:30</span></p>
++          {isForm && !saved && !cancelled && <ResultForm onSubmit={complete} onCancel={() => setCancelled(true)} />}
++          {cancelled && <p role="status">Form dismissed. Choose a scenario above to reset the fixture.</p>}
++          {showSavedSummary && scenario === 'history' && <TrainingAssessmentEmpty />}
++          {showSavedSummary && scenario === 'errors' && <TrainingAssessmentDetails sessionId={FIXTURE_SESSION_ID}
++            overallNotes="Observed recovery after exercise. The original measurements remain in the session record."
++            canRequest={false} onRequestVetCheck={sendVetRequest} />}
++          {showSavedSummary && scenario !== 'history' && scenario !== 'errors' && <TrainingAssessmentReadOnly
++            assessment={assessment} overallNotes={saved ? fixture.diagnostics.lastCompletion?.performanceNotes
++              : 'Session completed. Observations were recorded during the post-training check.'}
++            canRequest={assessment.alertLevel === 'NO_ALERT_DETECTED'} onRequestVetCheck={sendVetRequest} onRefresh={refresh} />}
++        </section>
++        <p className="fixture-footnote">Isolated component preview. Data and API responses are local fixtures; no account or database is accessed.</p>
++      </main>
++    </div>
++  );
++}
++
++createRoot(document.getElementById('root')!).render(<VisualHarness />);
+\ No newline at end of file
+diff --git a/frontend/tests/visual/fixtureData.ts b/frontend/tests/visual/fixtureData.ts
+new file mode 100644
+index 0000000..87c4037
+--- /dev/null
++++ b/frontend/tests/visual/fixtureData.ts
+@@ -0,0 +1,123 @@
++/** Isolated visual-test data. This module is never imported by the production App. */
++import {
++  ASSESSMENT_CRITERIA, ASSESSMENT_VERSION, assessmentPreview,
++  type AssessmentAnswers, type AssessmentCriterionCode, type CompleteSessionInput,
++  type TrainingAssessmentResponse, type TrainingAssessmentTemplateResponse,
++  type TrainingVetNotificationResponse,
++} from '../../src/trainingAssessment';
++
++export const FIXTURE_SESSION_ID = 'SES-DEMO-001';
++export const FIXTURE_HORSE_NAME = 'Northern Promise';
++export const SCENARIOS = ['blank', 'normal', 'recommended', 'urgent', 'waiting', 'history', 'errors', 'template-error', 'submit-error'] as const;
++export type Scenario = typeof SCENARIOS[number];
++
++export const fixtureTemplate: TrainingAssessmentTemplateResponse = {
++  version: ASSESSMENT_VERSION,
++  criteria: ASSESSMENT_CRITERIA.map(item => ({ ...item })),
++  labels: {
++    NO_ALERT_DETECTED: 'Normal',
++    VET_REVIEW_REQUIRED: 'Vet Check Recommended',
++    URGENT_VET_REVIEW: 'Urgent Vet Check',
++  },
++};
++
++export function fixtureAssessment(failed: readonly AssessmentCriterionCode[] = []): TrainingAssessmentResponse {
++  const answers: AssessmentAnswers = Object.fromEntries(ASSESSMENT_CRITERIA.map(item => [item.code, !failed.includes(item.code)]));
++  const evaluation = assessmentPreview(answers)!;
++  const pending = evaluation.alertLevel !== 'NO_ALERT_DETECTED';
++  return {
++    sessionId: FIXTURE_SESSION_ID, horseId: 'HOR-DEMO-001', assessorUserId: 'HTR-DEMO-001',
++    assessorName: 'Alex Morgan', assessedAt: '2026-11-10T09:32:00', checklistVersion: ASSESSMENT_VERSION,
++    items: ASSESSMENT_CRITERIA.map(item => ({ code: item.code, label: item.label,
++      passed: answers[item.code] === true, failNote: null })),
++    ...evaluation, failedCriteria: [...failed], reviewStatus: pending ? 'PENDING' : 'NOT_REQUIRED',
++    notificationStatus: pending ? 'SENT' : 'NOT_REQUESTED', linkedMedicalRecordId: null,
++    reviewedMedicalRecordId: null, pendingPostTrainingReview: pending,
++  };
++}
++
++export function scenarioAssessment(scenario: Scenario): TrainingAssessmentResponse {
++  if (scenario === 'urgent') return fixtureAssessment([
++    'ALERTNESS', 'MUSCLE_COMFORT', 'EXTERNAL_INJURY', 'SWEATING', 'MUCOUS_MEMBRANES', 'GAIT', 'LIMB_CONDITION',
++  ]);
++  if (scenario === 'recommended' || scenario === 'errors' || scenario === 'waiting') {
++    const assessment = fixtureAssessment(['ALERTNESS', 'MUSCLE_COMFORT', 'EXTERNAL_INJURY', 'SWEATING', 'MUCOUS_MEMBRANES']);
++    if (scenario === 'waiting') assessment.notificationStatus = 'WAITING_FOR_VET_ASSIGNMENT';
++    return assessment;
++  }
++  return fixtureAssessment();
++}
++
++export interface FixtureDiagnostics {
++  requests: { method: string; path: string; body?: unknown }[];
++  rejectedRequests: string[];
++  lastCompletion?: CompleteSessionInput;
++}
++
++declare global {
++  interface Window { __RACEFORGE_ASSESSMENT_HARNESS__: FixtureDiagnostics }
++}
++
++/** Every fetch is intercepted. Unknown requests are rejected and never reach a server. */
++export function installFixtureFetch(scenario: Scenario) {
++  const diagnostics: FixtureDiagnostics = { requests: [], rejectedRequests: [] };
++  window.__RACEFORGE_ASSESSMENT_HARNESS__ = diagnostics;
++  let assessment = scenarioAssessment(scenario);
++  let templateReads = 0;
++  let detailReads = 0;
++  let completionWrites = 0;
++  const response = (data: unknown, status = 200, code?: string) => new Response(JSON.stringify({
++    success: status < 400, message: status < 400 ? 'Visual fixture response.' : 'The service is temporarily unavailable. Please retry.',
++    data: code ? { code } : data, timestamp: '2026-11-10T09:32:00',
++  }), { status, headers: { 'Content-Type': 'application/json' } });
++
++  window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
++    const address = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
++    const url = new URL(address, window.location.href);
++    const method = (init?.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
++    const path = url.pathname;
++    let body: unknown;
++    if (typeof init?.body === 'string') {
++      try { body = JSON.parse(init.body); } catch { throw new Error('The fixture received malformed JSON.'); }
++    }
++    diagnostics.requests.push({ method, path, ...(body === undefined ? {} : { body }) });
++    if (method === 'GET' && path.endsWith('/training-assessments/template')) {
++      templateReads++;
++      if (scenario === 'template-error' && templateReads === 1) return response(null, 503, 'SIMULATED_UNAVAILABLE');
++      return response(fixtureTemplate);
++    }
++    if (method === 'GET' && path.endsWith('/training-sessions/' + FIXTURE_SESSION_ID + '/assessment')) {
++      detailReads++;
++      if (scenario === 'history') return response(null, 404, 'ASSESSMENT_NOT_FOUND');
++      if (scenario === 'errors' && detailReads === 1) return response(null, 503, 'SIMULATED_UNAVAILABLE');
++      return response(assessment);
++    }
++    if (method === 'PATCH' && path.endsWith('/training-sessions/' + FIXTURE_SESSION_ID + '/complete')) {
++      completionWrites++;
++      diagnostics.lastCompletion = body as CompleteSessionInput;
++      if (scenario === 'submit-error' && completionWrites === 1) return response(null, 503, 'SIMULATED_UNAVAILABLE');
++      const complete = body as CompleteSessionInput;
++      assessment = fixtureAssessment(ASSESSMENT_CRITERIA.filter(item => complete.assessment.checks[item.code] === false).map(item => item.code));
++      return response({ sessionId: FIXTURE_SESSION_ID, status: 'COMPLETED', assessment,
++        pendingPostTrainingReview: assessment.pendingPostTrainingReview });
++    }
++    if (method === 'POST' && path.endsWith('/training-sessions/' + FIXTURE_SESSION_ID + '/vet-notification')) {
++      const reason = body && typeof body === 'object' && 'reason' in body ? String(body.reason).trim() : '';
++      if (!reason) return response(null, 400, 'VET_REQUEST_REASON_REQUIRED');
++      const alreadySent = assessment.notificationStatus === 'SENT';
++      if (assessment.notificationStatus !== 'WAITING_FOR_VET_ASSIGNMENT') assessment = { ...assessment, notificationStatus: 'SENT' };
++      const data: TrainingVetNotificationResponse = {
++        sessionId: FIXTURE_SESSION_ID,
++        requestStatus: assessment.notificationStatus === 'WAITING_FOR_VET_ASSIGNMENT'
++          ? 'WAITING_FOR_VET_ASSIGNMENT' : alreadySent ? 'ALREADY_SENT' : 'SENT',
++        startBlocked: assessment.pendingPostTrainingReview,
++        message: assessment.notificationStatus === 'WAITING_FOR_VET_ASSIGNMENT' ? 'Waiting for vet assignment.' : 'Vet notification sent.',
++      };
++      return response(data);
++    }
++    const rejected = method + ' ' + path;
++    diagnostics.rejectedRequests.push(rejected);
++    throw new Error('Blocked unexpected visual fixture request: ' + rejected);
++  };
++  return { readAssessment: () => assessment, diagnostics };
++}
+\ No newline at end of file
+diff --git a/frontend/tests/visual/session-assessment.html b/frontend/tests/visual/session-assessment.html
+new file mode 100644
+index 0000000..9b560c7
+--- /dev/null
++++ b/frontend/tests/visual/session-assessment.html
+@@ -0,0 +1,13 @@
++<!doctype html>
++<html lang="en">
++  <head>
++    <meta charset="UTF-8" />
++    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++    <meta name="robots" content="noindex,nofollow" />
++    <title>RaceForge | Session assessment visual fixture</title>
++  </head>
++  <body>
++    <div id="root"></div>
++    <script type="module" src="./entry.tsx"></script>
++  </body>
++</html>
+\ No newline at end of file
+diff --git a/backend/docs/TRAINING_ASSESSMENT_BACKEND_REPORT.md b/backend/docs/TRAINING_ASSESSMENT_BACKEND_REPORT.md
+index 37999c5..3de4150 100644
+--- a/backend/docs/TRAINING_ASSESSMENT_BACKEND_REPORT.md
++++ b/backend/docs/TRAINING_ASSESSMENT_BACKEND_REPORT.md
+@@ -1,3 +1,5 @@
++> Báo cáo này ghi lại mốc lịch sử **session-back-end-up**. Quy tắc ghi chú từng Concern bên dưới đã được người dùng thay thế ngày 10/11/2026: không bắt ghi chú riêng; chỉ có Overall notes tùy chọn dùng performanceNotes. Xem [mốc session-front-end-up](../../docs/session-up/README.md) để biết contract và kết quả mới nhất. Các số test bên dưới là kết quả của mốc trước.
++
+ # RaceForge Post-Training Assessment — bàn giao backend
+ 
+ Ngày: 10/11/2026. Nhánh: `premain4`.
+diff --git a/backend/src/main/java/com/raceforge/backend/training/controller/TrainingSessionController.java b/backend/src/main/java/com/raceforge/backend/training/controller/TrainingSessionController.java
+index 0120660..3398c1e 100644
+--- a/backend/src/main/java/com/raceforge/backend/training/controller/TrainingSessionController.java
++++ b/backend/src/main/java/com/raceforge/backend/training/controller/TrainingSessionController.java
+@@ -57,7 +57,7 @@ public class TrainingSessionController {
+       return ResponseEntity.ok(ApiResponse.success("Exercise stopped; submit recovery measurements separately",trainingSessionService.stopSession(sessionId,request)));
+   }
+ 
+-  @io.swagger.v3.oas.annotations.Operation(summary = "Complete stopped exercise with measurements and a health check", description = "All 10 POST_TRAINING_V1 answers are required, including when attendance delegates to completion. Each concern requires a note. Existing measurement and current trainer checks remain in force.")
++  @io.swagger.v3.oas.annotations.Operation(summary = "Complete stopped exercise with measurements and a health check", description = "All 10 POST_TRAINING_V1 answers are required, including when attendance delegates to completion. Individual concern notes are optional; optional overall notes use performanceNotes. Existing measurement and current trainer checks remain in force.")
+   @PatchMapping("/{sessionId}/complete")
+   public ResponseEntity<ApiResponse<TrainingSessionResponse>> complete(
+           @PathVariable String sessionId,
+diff --git a/backend/src/main/java/com/raceforge/backend/training/dto/CompleteSessionRequest.java b/backend/src/main/java/com/raceforge/backend/training/dto/CompleteSessionRequest.java
+index 2c48413..47ade60 100644
+--- a/backend/src/main/java/com/raceforge/backend/training/dto/CompleteSessionRequest.java
++++ b/backend/src/main/java/com/raceforge/backend/training/dto/CompleteSessionRequest.java
+@@ -7,7 +7,7 @@ import jakarta.validation.constraints.Size;
+ public class CompleteSessionRequest {
+   @jakarta.validation.Valid
+   @jakarta.validation.constraints.NotNull(groups = CompletionRequired.class)
+-  @io.swagger.v3.oas.annotations.media.Schema(description = "Required post-training health check when completing a session; not required for MISSED attendance.")
++  @io.swagger.v3.oas.annotations.media.Schema(description = "All ten post-training answers are required when completing a session; no individual concern note is required. Not required for MISSED attendance.")
+   private TrainingAssessmentRequest assessment;
+   public TrainingAssessmentRequest getAssessment() { return assessment; }
+   public void setAssessment(TrainingAssessmentRequest value) { assessment = value; }
+@@ -30,6 +30,7 @@ public class CompleteSessionRequest {
+   public void setRecoveryMeasuredAt(java.time.LocalDateTime value){recoveryMeasuredAt=value;}
+ 
+   @Size(max = 1000)
++  @io.swagger.v3.oas.annotations.media.Schema(description = "Optional overall notes for the completed session, up to 1,000 characters.", requiredMode = io.swagger.v3.oas.annotations.media.Schema.RequiredMode.NOT_REQUIRED)
+   private String performanceNotes;
+   @Positive
+   private Integer heartRate;
+diff --git a/backend/src/main/java/com/raceforge/backend/training/dto/TrainingAssessmentRequest.java b/backend/src/main/java/com/raceforge/backend/training/dto/TrainingAssessmentRequest.java
+index fa160af..d6fd590 100644
+--- a/backend/src/main/java/com/raceforge/backend/training/dto/TrainingAssessmentRequest.java
++++ b/backend/src/main/java/com/raceforge/backend/training/dto/TrainingAssessmentRequest.java
+@@ -6,6 +6,8 @@ import tools.jackson.databind.annotation.JsonDeserialize;
+ @JsonDeserialize(using = TrainingAssessmentRequestDeserializer.class)
+ public record TrainingAssessmentRequest(
+         String checklistVersion,
++        @io.swagger.v3.oas.annotations.media.Schema(description = "All ten POST_TRAINING_V1 answers: true means Pass; false means Concern observed. Neither answer requires an individual note.")
+         Map<String, Boolean> checks,
++        @io.swagger.v3.oas.annotations.media.Schema(description = "Optional legacy per-check observation notes retained for backward compatibility. New clients can omit this map and use the session performanceNotes for optional overall notes.", requiredMode = io.swagger.v3.oas.annotations.media.Schema.RequiredMode.NOT_REQUIRED)
+         Map<String, String> failNotes) {
+ }
+diff --git a/backend/src/main/java/com/raceforge/backend/training/dto/TrainingAssessmentRequestDeserializer.java b/backend/src/main/java/com/raceforge/backend/training/dto/TrainingAssessmentRequestDeserializer.java
+index cec1d76..623ebb5 100644
+--- a/backend/src/main/java/com/raceforge/backend/training/dto/TrainingAssessmentRequestDeserializer.java
++++ b/backend/src/main/java/com/raceforge/backend/training/dto/TrainingAssessmentRequestDeserializer.java
+@@ -47,10 +47,10 @@ public class TrainingAssessmentRequestDeserializer extends ValueDeserializer<Tra
+                 case "checks" -> checks = readChecks(parser);
+                 case "failNotes" -> notes = readNotes(parser);
+                 default -> throw badRequest("INVALID_CRITERION_CODE",
+-                        "Only the checklist version, checks and concern notes may be submitted in the health check.");
++                        "Only the checklist version, checks and optional legacy observation notes may be submitted in the health check.");
+             }
+         }
+-        // Required keys, version, all ten answers and note content are validated by the shared validator.
++        // Required keys, version, all ten answers and any provided legacy note content are validated by the shared validator.
+         return new TrainingAssessmentRequest(version, checks, notes);
+     }
+ 
+@@ -84,7 +84,7 @@ public class TrainingAssessmentRequestDeserializer extends ValueDeserializer<Tra
+         Map<String, String> notes = new LinkedHashMap<>();
+         while (parser.nextToken() != JsonToken.END_OBJECT) {
+             if (parser.currentToken() != JsonToken.PROPERTY_NAME) {
+-                throw badRequest("FAIL_NOTE_REQUIRED", "Enter a text note for each concern.");
++                throw badRequest("FAIL_NOTE_REQUIRED", "Observation notes, when provided, must contain text.");
+             }
+             String code = parser.currentName();
+             requireKnownCriterion(code);
+@@ -92,7 +92,7 @@ public class TrainingAssessmentRequestDeserializer extends ValueDeserializer<Tra
+                 throw duplicate();
+             }
+             if (parser.nextToken() != JsonToken.VALUE_STRING) {
+-                throw badRequest("FAIL_NOTE_REQUIRED", "Enter a text note for each concern.");
++                throw badRequest("FAIL_NOTE_REQUIRED", "Observation notes, when provided, must contain text.");
+             }
+             notes.put(code, parser.getString());
+         }
+diff --git a/backend/src/main/java/com/raceforge/backend/training/service/TrainingAssessmentValidator.java b/backend/src/main/java/com/raceforge/backend/training/service/TrainingAssessmentValidator.java
+index 075f0d8..c8a66b9 100644
+--- a/backend/src/main/java/com/raceforge/backend/training/service/TrainingAssessmentValidator.java
++++ b/backend/src/main/java/com/raceforge/backend/training/service/TrainingAssessmentValidator.java
+@@ -23,7 +23,7 @@ public class TrainingAssessmentValidator {
+             .map(Enum::name)
+             .collect(Collectors.toUnmodifiableSet());
+ 
+-    /** Returns a defensive, ordered copy with notes trimmed; never modifies caller data. */
++    /** All ten answers are required; legacy per-check notes are optional and trimmed when supplied. */
+     public TrainingAssessmentRequest validate(TrainingAssessmentRequest request) {
+         if (request == null) {
+             throw badRequest("ASSESSMENT_REQUIRED", "Complete the post-training health check before saving.");
+@@ -61,12 +61,9 @@ public class TrainingAssessmentValidator {
+             String code = criterion.name();
+             Object rawNote = submittedNotes.get(code);
+             if (rawNote != null && !(rawNote instanceof String)) {
+-                throw badRequest("FAIL_NOTE_REQUIRED", "Enter a text note for each concern.");
++                throw badRequest("FAIL_NOTE_REQUIRED", "Observation notes, when provided, must contain text.");
+             }
+             String note = rawNote == null ? null : ((String) rawNote).strip();
+-            if (Boolean.FALSE.equals(checks.get(code)) && (note == null || note.isEmpty())) {
+-                throw badRequest("FAIL_NOTE_REQUIRED", "Add a note for each concern.");
+-            }
+             if (note != null && note.length() > MAX_NOTE_LENGTH) {
+                 throw badRequest("FAIL_NOTE_TOO_LONG", "Keep each observation note within 1,000 characters.");
+             }
+diff --git a/backend/src/test/java/com/raceforge/backend/training/dto/TrainingAssessmentRequestTest.java b/backend/src/test/java/com/raceforge/backend/training/dto/TrainingAssessmentRequestTest.java
+index 80800c1..21aa4aa 100644
+--- a/backend/src/test/java/com/raceforge/backend/training/dto/TrainingAssessmentRequestTest.java
++++ b/backend/src/test/java/com/raceforge/backend/training/dto/TrainingAssessmentRequestTest.java
+@@ -22,6 +22,7 @@ import org.junit.jupiter.api.Test;
+ import org.junit.jupiter.api.function.Executable;
+ import org.junit.jupiter.params.ParameterizedTest;
+ import org.junit.jupiter.params.provider.ValueSource;
++import org.junit.jupiter.params.provider.NullAndEmptySource;
+ import org.springframework.core.MethodParameter;
+ import org.springframework.http.HttpInputMessage;
+ import org.springframework.http.HttpStatus;
+@@ -108,11 +109,26 @@ class TrainingAssessmentRequestTest {
+     }
+ 
+     @Test
+-    void notesCanBeOmittedWhenThereAreNoConcerns() {
++    void legacyNotesCanBeOmittedWhenThereAreNoConcerns() {
+         String json = validAssessment().replace(",\"failNotes\":{}", "");
+         assertTrue(validator.validate(mapper.readValue(json, TrainingAssessmentRequest.class)).failNotes().isEmpty());
+     }
+ 
++    @ParameterizedTest
++    @NullAndEmptySource
++    @ValueSource(strings = {"Observed an unusual gait after exercise."})
++    void allConcernAnswersNeedNoIndividualNotesAndPreserveMeasurementsAndOptionalOverallNotes(String overallNotes) {
++        String allConcerns = validAssessment().replace(":true", ":false").replace(",\"failNotes\":{}", "");
++        FixtureRequest request = mapper.readValue("{\"distance\":1.25,\"avgSpeed\":8.5,\"performanceNotes\":"
++                + mapper.writeValueAsString(overallNotes) + ",\"assessment\":" + allConcerns + "}", FixtureRequest.class);
++        TrainingAssessmentRequest assessment = validator.validate(request.getAssessment());
++        assertEquals(new BigDecimal("1.25"), request.getDistance());
++        assertEquals(8.5, request.getAvgSpeed());
++        assertEquals(overallNotes, request.getPerformanceNotes());
++        assertEquals(10, assessment.checks().size());
++        assertTrue(assessment.checks().values().stream().noneMatch(Boolean::booleanValue));
++        assertTrue(assessment.failNotes().isEmpty());
++    }
+     @ParameterizedTest
+     @ValueSource(strings = {"GUM_MOISTURE", "UNKNOWN", "alertness", ""})
+     void rejectsUnknownCriterionIncludingTheObsoleteGumCode(String code) {
+diff --git a/backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentRulesTest.java b/backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentRulesTest.java
+index 42b0a72..f00b1f2 100644
+--- a/backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentRulesTest.java
++++ b/backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentRulesTest.java
+@@ -104,13 +104,25 @@ class TrainingAssessmentRulesTest {
+     }
+ 
+     @Test
+-    void evaluatorRejectsMissingNotesBeforeCalculatingAnyResult() {
++    void evaluatorAcceptsConcernWithoutIndividualNotesAndStillAppliesOverride() {
+         TrainingAssessmentRequest request = request("GAIT");
+         request.failNotes().clear();
+-        ApiException error = assertThrows(ApiException.class, () -> rules.evaluate(request));
+-        assertEquals("FAIL_NOTE_REQUIRED", error.getCode());
++        TrainingAssessmentRules.Evaluation result = rules.evaluate(request);
++        assertEquals(9, result.passedCount());
++        assertEquals(TrainingAssessmentAlertLevel.VET_REVIEW_REQUIRED, result.alertLevel());
++        assertEquals(List.of("GAIT"), result.triggerCodes());
+     }
+ 
++    @Test
++    void allConcernsWithoutNotesStillRequireUrgentVeterinaryReview() {
++        TrainingAssessmentRequest request = request(FAILURE_ORDER.toArray(String[]::new));
++        request.failNotes().clear();
++        TrainingAssessmentRules.Evaluation result = rules.evaluate(request);
++        assertEquals(0, result.passedCount());
++        assertEquals(10, result.failedCount());
++        assertEquals(TrainingAssessmentAlertLevel.URGENT_VET_REVIEW, result.alertLevel());
++        assertEquals("SCORE_URGENT", result.triggerCodes().get(0));
++    }
+     @Test
+     void rulesDoNotMutateSubmittedObservations() {
+         TrainingAssessmentRequest request = request("GAIT");
+diff --git a/backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentValidatorTest.java b/backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentValidatorTest.java
+index 15be482..c8cd905 100644
+--- a/backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentValidatorTest.java
++++ b/backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentValidatorTest.java
+@@ -103,26 +103,32 @@ class TrainingAssessmentValidatorTest {
+     }
+ 
+     @Test
+-    void t04ConcernRequiresNote() {
+-        assertInvalid("FAIL_NOTE_REQUIRED", request(withConcern("ALERTNESS"), Map.of()));
++    void concernCanBeSavedWithoutIndividualNotes() {
++        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("ALERTNESS"), Map.of()));
++        assertFalse(cleaned.checks().get("ALERTNESS"));
++        assertTrue(cleaned.failNotes().isEmpty());
+     }
+ 
+     @Test
+-    void t04ConcernRejectsNullNotesMap() {
+-        assertInvalid("FAIL_NOTE_REQUIRED", request(withConcern("ALERTNESS"), null));
++    void concernAcceptsMissingLegacyNotesMap() {
++        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("ALERTNESS"), null));
++        assertFalse(cleaned.checks().get("ALERTNESS"));
++        assertTrue(cleaned.failNotes().isEmpty());
+     }
+ 
+     @Test
+-    void t04ConcernRejectsNullNote() {
++    void directCallerNullLegacyNoteIsTreatedAsAbsent() {
+         Map<String, String> notes = new LinkedHashMap<>();
+         notes.put("ALERTNESS", null);
+-        assertInvalid("FAIL_NOTE_REQUIRED", request(withConcern("ALERTNESS"), notes));
++        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("ALERTNESS"), notes));
++        assertTrue(cleaned.failNotes().isEmpty());
+     }
+ 
+     @ParameterizedTest
+     @ValueSource(strings = {"", " ", "\t\r\n", "\u2003\u2003"})
+-    void t05BlankConcernNotesAreRejected(String note) {
+-        assertInvalid("FAIL_NOTE_REQUIRED", request(withConcern("ALERTNESS"), Map.of("ALERTNESS", note)));
++    void optionalBlankLegacyConcernNotesAreTreatedAsAbsent(String note) {
++        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("ALERTNESS"), Map.of("ALERTNESS", note)));
++        assertTrue(cleaned.failNotes().isEmpty());
+     }
+ 
+     @Test
+@@ -193,6 +199,15 @@ class TrainingAssessmentValidatorTest {
+         assertThrows(UnsupportedOperationException.class, () -> cleaned.failNotes().put("ALERTNESS", "Changed."));
+     }
+ 
++    @Test
++    void allTenConcernsAreAcceptedWithNoIndividualNotes() {
++        Map<String, Boolean> checks = allPassed();
++        checks.replaceAll((code, value) -> false);
++        TrainingAssessmentRequest cleaned = validator.validate(request(checks, null));
++        assertEquals(10, cleaned.checks().size());
++        assertTrue(cleaned.checks().values().stream().noneMatch(Boolean::booleanValue));
++        assertTrue(cleaned.failNotes().isEmpty());
++    }
+     private void assertInvalid(String code, TrainingAssessmentRequest request) {
+         ApiException error = assertThrows(ApiException.class, () -> validator.validate(request));
+         assertEquals(HttpStatus.BAD_REQUEST, error.getStatus());
+diff --git a/backend/src/test/java/com/raceforge/backend/training/service/TrainingSessionAssessmentCompletionTest.java b/backend/src/test/java/com/raceforge/backend/training/service/TrainingSessionAssessmentCompletionTest.java
+index b985773..eb87036 100644
+--- a/backend/src/test/java/com/raceforge/backend/training/service/TrainingSessionAssessmentCompletionTest.java
++++ b/backend/src/test/java/com/raceforge/backend/training/service/TrainingSessionAssessmentCompletionTest.java
+@@ -26,6 +26,7 @@ import org.junit.jupiter.api.BeforeEach;
+ import org.junit.jupiter.api.Test;
+ import org.junit.jupiter.params.ParameterizedTest;
+ import org.junit.jupiter.params.provider.ValueSource;
++import org.junit.jupiter.params.provider.NullAndEmptySource;
+ import org.springframework.http.HttpStatus;
+ import org.springframework.test.util.ReflectionTestUtils;
+ 
+@@ -178,20 +179,44 @@ class TrainingSessionAssessmentCompletionTest {
+     }
+ 
+     @Test
+-    void concernWithoutNoteFailsBeforeSave() {
++    void concernWithoutIndividualNoteCanCompleteAndKeepMeasurements() {
+         CompleteSessionRequest request = validRequest();
+         Map<String, Boolean> checks = new LinkedHashMap<>(validAssessment().checks());
+         checks.put("GAIT", false);
+         request.setAssessment(new TrainingAssessmentRequest("POST_TRAINING_V1", checks, Map.of()));
+ 
+-        ApiException error = assertThrows(ApiException.class,
+-                () -> service.completeSession(SESSION_ID, request, ACTOR_ID));
++        assertSame(response, service.completeSession(SESSION_ID, request, ACTOR_ID));
+ 
+-        assertEquals("FAIL_NOTE_REQUIRED", error.getCode());
+-        assertEquals("SCHEDULED", session.getStatus());
+-        verify(sessions, never()).save(any());
++        assertEquals("COMPLETED", session.getStatus());
++        assertEquals(new BigDecimal("2.50"), session.getDistance());
++        assertEquals(120, session.getEndExerciseHeartRate());
++        assertEquals(90, session.getRecoveryHeartRate2Min());
++        verify(sessions).save(session);
++        verify(assessments).recordCompletion(eq(session), eq(request.getAssessment()), eq(ACTOR_ID));
+     }
+ 
++    @ParameterizedTest
++    @NullAndEmptySource
++    @ValueSource(strings = {"Observed stiffness after exercise; please review the completed checks."})
++    void allConcernsCanCompleteWithOptionalOverallNotes(String overallNotes) {
++        CompleteSessionRequest request = validRequest();
++        Map<String, Boolean> checks = new LinkedHashMap<>(validAssessment().checks());
++        checks.replaceAll((code, passed) -> false);
++        request.setAssessment(new TrainingAssessmentRequest("POST_TRAINING_V1", checks, Map.of()));
++        request.setPerformanceNotes(overallNotes);
++
++        assertSame(response, service.completeSession(SESSION_ID, request, ACTOR_ID));
++
++        assertEquals("COMPLETED", session.getStatus());
++        assertEquals(overallNotes, session.getEvaluation());
++        assertEquals(new BigDecimal("2.50"), session.getDistance());
++        assertEquals(12.5, session.getAvgSpeed());
++        assertEquals(18.0, session.getMaxSpeed());
++        assertEquals(120, session.getEndExerciseHeartRate());
++        assertEquals(90, session.getRecoveryHeartRate2Min());
++        assertEquals(NOW.minusMinutes(1), session.getRecoveryMeasuredAt());
++        verify(assessments).recordCompletion(eq(session), eq(request.getAssessment()), eq(ACTOR_ID));
++    }
+     @Test
+     void recordingFailurePropagatesRatherThanReturningSuccess() {
+         CompleteSessionRequest request = validRequest();

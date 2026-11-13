@@ -14,11 +14,9 @@ npm test           # kiểm tra dịch thuật và cập nhật giao diện đ�
 Yêu cầu Node.js >= 20.
 
 ## Cấu trúc
-- `src/App.tsx` – ứng dụng chính, điều hướng theo vai trò
-- `src/admin.tsx`, `intake.tsx`, `vetForm.tsx`, `healthRecords.tsx` – tài khoản, tiếp nhận, khám thú y, hồ sơ sức khỏe
-- `src/trainingPlans.tsx`, `trainingRegister.tsx`, `trainingLogic.ts`, `packages.tsx` – huấn luyện và gói dịch vụ
-- `src/data.ts` – dữ liệu mẫu; `src/ui.tsx` – component dùng chung
-- `src/englishUi.ts` + `translations.json` – lớp chuyển giao diện sang tiếng Anh
+- `src/app/` chứa điểm khởi chạy, điều hướng theo vai trò và CSS toàn ứng dụng.
+- `src/features/` nhóm chức năng theo nghiệp vụ: quản trị, ngựa, khám thú y, Trainer, huấn luyện và gói tập.
+- `src/shared/` chứa API, mô hình dữ liệu, component dùng chung và bản dịch.
 - `src/imports/` – tài liệu yêu cầu và ảnh tham chiếu
 
 Lớp dịch dùng các cụm từ trong `translations.json`, ưu tiên cụm dài và nhận diện

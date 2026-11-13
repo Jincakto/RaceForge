@@ -43,9 +43,6 @@ public class HorsePackage extends com.raceforge.backend.training.entity.Training
     @Column(name = "pause_reason", length = 255)
     private String pauseReason;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "replaced_horse_package_id")
-    private HorsePackage replacedHorsePackage;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -160,13 +157,6 @@ public class HorsePackage extends com.raceforge.backend.training.entity.Training
         this.pauseReason = pauseReason;
     }
 
-    public HorsePackage getReplacedHorsePackage() {
-        return replacedHorsePackage;
-    }
-
-    public void setReplacedHorsePackage(HorsePackage replacedHorsePackage) {
-        this.replacedHorsePackage = replacedHorsePackage;
-    }
 
     public LocalDateTime getCreatedAt() {
         return createdAt;

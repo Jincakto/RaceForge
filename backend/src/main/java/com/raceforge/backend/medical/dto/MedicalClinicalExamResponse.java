@@ -6,6 +6,10 @@ public class MedicalClinicalExamResponse {
     private String examinationArea;
     private String conditionStatus;
     private String notes;
+    private String evidenceImageUrl;
+
+    public String getEvidenceImageUrl() { return evidenceImageUrl; }
+    public void setEvidenceImageUrl(String evidenceImageUrl) { this.evidenceImageUrl = evidenceImageUrl; }
 
     public String getClinicalExamId() {
         return clinicalExamId;

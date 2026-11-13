@@ -1,3 +1,4 @@
+import { sourceUrl } from './sourceFiles.mjs';
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
@@ -6,7 +7,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 const dir = await mkdtemp(path.join(tmpdir(), 'member-horses-'));
-const source = await readFile(new URL('../src/memberHorses.ts', import.meta.url), 'utf8');
+const source = await readFile(sourceUrl('memberHorses.ts'), 'utf8');
 await writeFile(path.join(dir, 'memberHorses.mjs'), ts.transpileModule(source, {compilerOptions:{module:ts.ModuleKind.ES2022}}).outputText);
 const { memberHorses } = await import(pathToFileURL(path.join(dir, 'memberHorses.mjs')));
 after(() => rm(dir, {recursive:true, force:true}));

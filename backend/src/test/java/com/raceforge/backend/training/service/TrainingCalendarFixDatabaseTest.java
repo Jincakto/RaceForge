@@ -62,10 +62,13 @@ class TrainingCalendarFixDatabaseTest {
     static void setClock(Clock clock,Object... services) {
         for(Object service:services)ReflectionTestUtils.setField(AopTestUtils.<Object>getTargetObject(service),"clock",clock);
     }
+    static TrainingAssessmentRequest completionAssessment() {
+        return new TrainingAssessmentRequest("POST_TRAINING_V1",java.util.Arrays.stream(com.raceforge.backend.training.entity.TrainingAssessmentCriterion.values()).collect(java.util.stream.Collectors.toMap(Enum::name,ignored->true)),Map.of());
+    }
     static void finish(TrainingSessionService sessions,TrainingScheduleCoordinator coordinator,String id,String trainer,Clock clock) {
         actor(trainer,"HEAD_TRAINER");setClock(clock,sessions,coordinator);sessions.stopSession(id,null);
-        var result=new CompleteSessionRequest();result.setEndExerciseHeartRate(90);result.setRecoveryHeartRate2Min(60);
-        result.setDistance(BigDecimal.ZERO);result.setAvgSpeed(0.0);result.setRecoveryMeasuredAt(LocalDateTime.now(clock));
+        var result=new CompleteSessionRequest();result.setAssessment(completionAssessment());
+        result.setDistance(BigDecimal.ZERO);result.setAvgSpeed(0.0);
         result.setPerformanceNotes("Synthetic runtime regression");sessions.completeSession(id,result,trainer);
     }
     static void verifyRuntimeRules(Connection c,org.springframework.context.ConfigurableApplicationContext app,LocalDate today,Clock initial)throws Exception{
@@ -86,11 +89,16 @@ class TrainingCalendarFixDatabaseTest {
         var b=sessions.scheduleSession(slot(ids.get(909),"HOR-909",today,12,0));
         var sameHorse=sessions.scheduleSession(slot(ids.get(908),"HOR-908",today,13,0));
         var tomorrow=sessions.scheduleSession(slot(ids.get(908),"HOR-908",today.plusDays(1),10,0));
-        assertFalse(tomorrow.getCanStart());assertTrue(tomorrow.getStartBlockedReason().contains("scheduled date"));
-        assertTrue(assertThrows(BusinessRuleException.class,()->sessions.startSession(tomorrow.getSessionId())).getMessage().contains("scheduled date"));
-        sql(c,"UPDATE dbo.Training_Session SET scheduled_start=DATEADD(day,-2,scheduled_start),scheduled_end=DATEADD(day,-2,scheduled_end) WHERE session_id='"+tomorrow.getSessionId()+"'");
-        assertThrows(BusinessRuleException.class,()->sessions.startSession(tomorrow.getSessionId()));
-        sql(c,"UPDATE dbo.Training_Session SET scheduled_start=DATEADD(day,2,scheduled_start),scheduled_end=DATEADD(day,2,scheduled_end) WHERE session_id='"+tomorrow.getSessionId()+"'");
+        assertTrue(tomorrow.getCanStart());
+        sessions.startSession(tomorrow.getSessionId());
+        finish(sessions,coordinator,tomorrow.getSessionId(),"HTR-901",Clock.offset(initial,Duration.ofMinutes(1)));
+        setClock(initial,sessions,coordinator,schedule);
+        var yesterday=sessions.scheduleSession(slot(ids.get(908),"HOR-908",today.plusDays(1),16,0));
+        sql(c,"UPDATE dbo.Training_Session SET scheduled_start=DATEADD(day,-2,scheduled_start),scheduled_end=DATEADD(day,-2,scheduled_end) WHERE session_id=\'"+yesterday.getSessionId()+"\'");
+        assertTrue(schedule.getScheduleByHorseId("HOR-908").stream().filter(s->s.getSessionId().equals(yesterday.getSessionId())).findFirst().orElseThrow().getCanStart());
+        sessions.startSession(yesterday.getSessionId());
+        finish(sessions,coordinator,yesterday.getSessionId(),"HTR-901",Clock.offset(initial,Duration.ofMinutes(2)));
+        setClock(initial,sessions,coordinator,schedule);
         // Two simultaneous Start requests on different horses assigned to the same trainer.
         var pool=Executors.newFixedThreadPool(2);String winner,loser;
         try{
@@ -100,7 +108,7 @@ class TrainingCalendarFixDatabaseTest {
             var results=pool.invokeAll(work);var wins=new ArrayList<String>();for(var result:results){String id=result.get();if(id!=null)wins.add(id);}
             assertEquals(1,wins.size());winner=wins.get(0);loser=winner.equals(a.getSessionId())?b.getSessionId():a.getSessionId();
         }finally{pool.shutdownNow();}
-        assertEquals(1,count(c,"SELECT COUNT(*) FROM dbo.Training_Session WHERE horse_id IN ('HOR-908','HOR-909') AND actual_start IS NOT NULL"));
+        assertEquals(1,count(c,"SELECT COUNT(*) FROM dbo.Training_Session WHERE horse_id IN ('HOR-908','HOR-909') AND status='SCHEDULED' AND actual_start IS NOT NULL"));
         actor("HTR-901","HEAD_TRAINER");
         assertTrue(assertThrows(BusinessRuleException.class,()->sessions.startSession(sameHorse.getSessionId())).getMessage().contains("unfinished session"));
         // Different trainer and horse can run independently.
@@ -114,7 +122,7 @@ class TrainingCalendarFixDatabaseTest {
         var blocked=schedule.getScheduleByHorseId(winner.equals(a.getSessionId())?"HOR-909":"HOR-908").stream().filter(s->s.getSessionId().equals(loser)).findFirst().orElseThrow();
         assertFalse(blocked.getCanStart());assertTrue(blocked.getStartBlockedReason().contains(winner));assertTrue(blocked.getStartBlockedReason().contains("Save"));
         assertThrows(BusinessRuleException.class,()->sessions.startSession(loser));
-        var result=new CompleteSessionRequest();result.setEndExerciseHeartRate(90);result.setRecoveryHeartRate2Min(60);result.setDistance(BigDecimal.ZERO);result.setAvgSpeed(0.0);result.setRecoveryMeasuredAt(LocalDateTime.now(initial).plusMinutes(1));
+        var result=new CompleteSessionRequest();result.setAssessment(completionAssessment());result.setDistance(BigDecimal.ZERO);result.setAvgSpeed(0.0);
         sessions.completeSession(winner,result,"HTR-901");
         // Late start is allowed on the same day, without changing planned time.
         Clock late=Clock.fixed(today.atTime(23,0).atZone(ZONE).toInstant(),ZONE);setClock(late,sessions,coordinator);
@@ -158,7 +166,7 @@ class TrainingCalendarFixDatabaseTest {
         http(port,oldToken,"GET","/api/trainer-profiles/"+newProfile+"/sessions",null,403);
         var history=http(port,oldToken,"GET","/api/trainer-profiles/"+oldProfile+"/sessions",null,200);
         assertTrue(history.toString().contains(completed));
-        http(port,oldToken,"GET","/api/training-sessions/"+completed+"/feedback",null,200);
+        http(port,oldToken,"GET","/api/training-sessions/"+completed+"/feedback",null,404);
         http(port,oldToken,"PATCH","/api/training-sessions/"+completed+"/start",null,403);
         var old=http(port,oldToken,"GET","/api/training-sessions/horse/HOR-903",null,200);
         assertEquals(1,old.size());assertEquals(completed,old.get(0).path("sessionId").asText());
@@ -216,7 +224,12 @@ class TrainingCalendarFixDatabaseTest {
                 }
                 Flyway.configure().dataSource(root+name,user,password).baselineVersion("12").load().baseline();
                 Flyway.configure().dataSource(root+name,user,password).locations("classpath:db/migration").load().migrate();
-                try(var c=DriverManager.getConnection(root+name,user,password)){sql(c,Files.readString(Path.of("scripts/training/03_seed_demo.sql")));}
+                try(var c=DriverManager.getConnection(root+name,user,password)){
+                    sql(c,Files.readString(Path.of("src/test/resources/training/assessment_schema_TEST_ONLY.sql")));
+                    sql(c,Files.readString(Path.of("scripts/training/06_horse_package_expired_status.sql")));
+                    sql(c,Files.readString(Path.of("scripts/training/07_training_assessment_performance_codes.sql")));
+                    sql(c,Files.readString(Path.of("scripts/training/03_seed_demo.sql")));
+                }
                 try(var app=new SpringApplicationBuilder(BackendApplication.class).run("--server.port=0","--spring.datasource.url="+root+name,
                         "--spring.datasource.username="+user,"--spring.datasource.password="+password,"--spring.flyway.enabled=false",
                         "--raceforge.bootstrap-admin.enabled=false","--raceforge.training.package-expiry-cron=-","--logging.level.root=WARN",
@@ -290,7 +303,7 @@ class TrainingCalendarFixDatabaseTest {
                     Clock stopped=Clock.offset(running,Duration.ofMinutes(1));ReflectionTestUtils.setField(AopTestUtils.<Object>getTargetObject(sessions),"clock",stopped);
                     actor("HTR-901","HEAD_TRAINER");sessions.stopSession(completed,null);
                     actor("CM-901","CLUB_MANAGER");assertThrows(BusinessRuleException.class,()->assignments.replace(asnA,new Replacement("HTR-902","Recovery results still pending")));
-                    actor("HTR-901","HEAD_TRAINER");var result=new CompleteSessionRequest();result.setEndExerciseHeartRate(90);result.setRecoveryHeartRate2Min(60);result.setDistance(BigDecimal.ZERO);result.setAvgSpeed(0.0);result.setMaxSpeed(0.0);result.setRecoveryMeasuredAt(LocalDateTime.now(stopped));result.setPerformanceNotes("Synthetic SQL regression");
+                    actor("HTR-901","HEAD_TRAINER");var result=new CompleteSessionRequest();result.setAssessment(completionAssessment());result.setDistance(BigDecimal.ZERO);result.setAvgSpeed(0.0);result.setMaxSpeed(0.0);result.setPerformanceNotes("Synthetic SQL regression");
                     sessions.completeSession(completed,result,"HTR-901");
                     ReflectionTestUtils.setField(AopTestUtils.<Object>getTargetObject(coordinator),"clock",stopped);
 

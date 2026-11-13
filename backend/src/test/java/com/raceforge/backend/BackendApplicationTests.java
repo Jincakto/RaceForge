@@ -27,6 +27,7 @@ import com.raceforge.backend.permission.repository.PermissionRepository;
 import com.raceforge.backend.permission.repository.RolePermissionRepository;
 import com.raceforge.backend.permission.config.PermissionDataSeeder;
 import com.raceforge.backend.training.repository.HorsePackageRepository;
+import com.raceforge.backend.training.repository.TrainingCertificateRepository;
 import com.raceforge.backend.training.repository.HorsePlanRepository;
 import com.raceforge.backend.training.repository.TrainingPackageRepository;
 import com.raceforge.backend.training.repository.TrainingPlanRepository;
@@ -94,6 +95,8 @@ class BackendApplicationTests {
 	@MockitoBean
 	private HorsePackageRepository horsePackageRepository;
 	@MockitoBean
+	private TrainingCertificateRepository trainingCertificateRepository;
+	@MockitoBean
 	private HorsePlanRepository horsePlanRepository;
 	@MockitoBean
 	private TrainingPackageRepository trainingPackageRepository;
@@ -107,6 +110,34 @@ class BackendApplicationTests {
 	private PermissionDataSeeder permissionDataSeeder;
 	@MockitoBean
 	private TrainingSessionRules trainingSessionRules;
+
+    @MockitoBean
+    private jakarta.persistence.EntityManagerFactory entityManagerFactory;
+    @MockitoBean
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    @MockitoBean
+    private org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+    @MockitoBean
+    private org.springframework.transaction.PlatformTransactionManager transactionManager;
+
+    @MockitoBean
+    private com.raceforge.backend.training.repository.TrainingStageRepository trainingStageRepository;
+    @MockitoBean
+    private com.raceforge.backend.training.repository.TrainingSessionAssessmentRepository trainingSessionAssessmentRepository;
+    @MockitoBean
+    private com.raceforge.backend.training.repository.TrainingSessionAssessmentItemRepository trainingSessionAssessmentItemRepository;
+    @MockitoBean
+    private com.raceforge.backend.training.repository.TrainingAssessmentScopeRepository trainingAssessmentScopeRepository;
+    @MockitoBean
+    private com.raceforge.backend.training.repository.TrainingAssessmentNotificationLinkRepository trainingAssessmentNotificationLinkRepository;
+    @MockitoBean
+    private com.raceforge.backend.training.repository.PackageStageTemplateRepository packageStageTemplateRepository;
+    @MockitoBean
+    private com.raceforge.backend.training.repository.PackageRoadmapTemplateRepository packageRoadmapTemplateRepository;
+    @MockitoBean
+    private com.raceforge.backend.horse.repository.TrainerRepository trainerRepository;
+    @MockitoBean
+    private com.raceforge.backend.horse.repository.HorseAssignmentRepository horseAssignmentRepository;
 
 	@Test
 	void contextLoads() {
@@ -223,10 +254,11 @@ class BackendApplicationTests {
 
     @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.CsvSource({
-            "/api/horses/14, 400", "/api/horses/hor-000, 400", "/api/horses/HOR-1000, 400",
-            "/api/horses/HOR-999, 404", "/api/training-packages/14, 400", "/api/training-packages/PKG-999, 404"
+            "/api/horses/14, 403", "/api/horses/hor-000, 403", "/api/horses/HOR-1000, 403",
+            "/api/horses/HOR-999, 403", "/api/training-packages/14, 400", "/api/training-packages/PKG-999, 404"
     })
-    void businessIdPathsValidateFormatBeforeLookingUpRecords(String path, int expected) throws Exception {
+    // Horse access is checked first: unknown or unowned IDs do not reveal existence.
+    void horseReadsProtectScopeAndPackagePathsValidateFormat(String path, int expected) throws Exception {
         var principal=new com.raceforge.backend.security.AuthenticatedUser("OWN-000","owner@example.com","ACTIVE",5,"HORSE_OWNER");
         var auth=new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal,null,
                 java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("HORSE_OWNER")));

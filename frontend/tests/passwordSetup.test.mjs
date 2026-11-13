@@ -1,3 +1,4 @@
+import { sourceUrl, flattenModuleImports } from './sourceFiles.mjs';
 import { test, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, mkdtemp, writeFile, rm } from 'node:fs/promises';
@@ -12,13 +13,14 @@ const localRequire = createRequire(new URL('../package.json', import.meta.url));
 function compile(source) {
   return ts.transpileModule(source.replace('import.meta.env', '({})'), {
     compilerOptions: { module:ts.ModuleKind.ES2022, target:ts.ScriptTarget.ES2022, jsx:ts.JsxEmit.ReactJSX },
-  }).outputText.replace(/(['"])(\.\/[^'"]+)\1/g, (_, quote, specifier) => `${quote}${specifier}.mjs${quote}`)
+  }).outputText.replace(/[\s\S]*/, flattenModuleImports)
     .replace(/(['"])(react(?:\/jsx-runtime)?)\1/g, (_, quote, specifier) => `${quote}${pathToFileURL(localRequire.resolve(specifier)).href}${quote}`);
 }
-for (const name of ['api', 'passwordSetup']) {
-  await writeFile(path.join(dir, `${name}.mjs`), compile(await readFile(new URL(`../src/${name}.ts`, import.meta.url), 'utf8')));
+for (const name of ['api', 'authApi', 'passwordSetup']) {
+  await writeFile(path.join(dir, `${name}.mjs`), compile(await readFile(sourceUrl(`${name}.ts`), 'utf8')));
 }
 const api = await import(pathToFileURL(path.join(dir, 'api.mjs')).href);
+const { auth } = await import(pathToFileURL(path.join(dir, 'authApi.mjs')).href);
 const flow = await import(pathToFileURL(path.join(dir, 'passwordSetup.mjs')).href);
 const originalFetch = globalThis.fetch;
 const originalWindow = globalThis.window;
@@ -31,12 +33,12 @@ const ok = data => new Response(JSON.stringify({ success:true, data, message:'OK
 
 // Render the actual existing LoginPage, without loading the rest of App or
 // sending requests. This verifies the real password/login presentation.
-const appSource=await readFile(new URL('../src/App.tsx',import.meta.url),'utf8');
+const appSource=await readFile(sourceUrl('AuthPages.tsx'),'utf8');
 const ast=ts.createSourceFile('App.tsx',appSource,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 const login=ast.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='LoginPage');
 await writeFile(path.join(dir,'LoginPage.mjs'),compile(`
 import { useState, useMemo, useRef } from 'react';
-import { auth } from './api';
+import { auth } from './authApi';
 import { passwordSetupLink, createPasswordSetupSubmitter, passwordSetupError, requestPasswordReset } from './passwordSetup';
 ${login.getText(ast)}
 export { LoginPage };
@@ -155,4 +157,32 @@ test('password-link form requires two new password fields',()=>{
   assert.equal((html.match(/autoComplete="new-password"/g)||[]).length,2);
   assert.match(html,/Confirm new password/);
   assert.doesNotMatch(html,/Forgot password\?/);
+});
+
+test('concurrent mount restorations rotate the refresh cookie once', async () => {
+  let release; const gate=new Promise(resolve=>{release=resolve;}); let calls=0;
+  const account={userId:'HTR-001',role:{roleName:'HEAD_TRAINER'}};
+  globalThis.fetch=async url=>{assert.equal(url,'/api/auth/refresh');calls++;await gate;return ok({accessToken:'fresh',user:account});};
+  const first=auth.restore(), second=auth.restore();
+  assert.equal(calls,1); release();
+  assert.deepEqual(await Promise.all([first,second]),[account,account]);
+});
+
+test('restoration and an expired API request share the same token rotation', async () => {
+  let release; const gate=new Promise(resolve=>{release=resolve;});let refreshes=0,reads=0;
+  const account={userId:'HTR-001'};
+  globalThis.fetch=async(url,options)=>{
+    if(url==='/api/auth/refresh'){refreshes++;await gate;return ok({accessToken:'fresh',user:account});}
+    assert.equal(url,'/api/private');reads++;
+    return options.headers.Authorization==='Bearer fresh'?ok('saved'):new Response('{}',{status:401});
+  };
+  const restore=auth.restore();const read=api.request('/private');
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(refreshes,1);release();
+  assert.deepEqual(await restore,account);assert.equal(await read,'saved');assert.equal(reads,2);assert.equal(refreshes,1);
+});
+
+test('failed restoration releases its flight so a later attempt may succeed', async () => {
+  let calls=0;globalThis.fetch=async()=>{calls++;return calls===1?new Response('{}',{status:401}):ok({accessToken:'renewed',user:{userId:'HTR-001'}});};
+  await assert.rejects(auth.restore(),error=>error.status===401);
+  assert.deepEqual(await auth.restore(),{userId:'HTR-001'});assert.equal(calls,2);
 });

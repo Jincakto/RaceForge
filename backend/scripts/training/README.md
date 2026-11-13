@@ -10,7 +10,7 @@ Status: implementation prepared locally. No reset/migration has been executed ag
 - PackageRoadmapPolicy and frontend Recommendation/Protocol clients are removed. There is no Java fallback curriculum.
 - Template edits are not exposed in this release. A sold package's type/duration/template cannot be changed; create a new catalogue package.
 - Stage gaps are allowed and shown as rest days. Sessions are not a purchased quota. Trainer may add multiple non-overlapping sessions per day, within saved stages and the current registration period; at most six distinct days per Monday?Sunday week.
-- Recovery/Medical/Training Lock, payment decisions and CENTER_COVERED rules are unchanged. Recovery templates describe authorized exercise, not veterinary appointment records.
+- Catalogue types are BASIC, RACING and PERFORMANCE. Recovery packages and center-funded replacement packages were removed. Medical Training Lock and heart-rate recovery remain.
 
 ## API contract (existing endpoints and permissions)
 POST /api/training-packages now requires roadmapTemplate:

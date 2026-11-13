@@ -88,6 +88,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/users/**").hasAnyAuthority("ADMIN", "CLUB_MANAGER")
                         .requestMatchers("/api/users/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/trainer-profiles")
+                                .hasAnyAuthority("ADMIN", "CLUB_MANAGER")
                         .anyRequest().access((authentication, context) -> {
                             Object principal = authentication.get().getPrincipal();
                             boolean active = principal instanceof AuthenticatedUser user

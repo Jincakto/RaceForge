@@ -33,7 +33,7 @@ class MedicalEligibilityConfirmationTest {
 
     private final MedicalRecordService service = new MedicalRecordService(
             profiles, records, vitals, exams, users, evaluation,
-            mapper, locks, audit, assignments, ids);
+            mapper, locks, audit, assignments, ids, mock(com.raceforge.backend.training.service.TrainingAssessmentMedicalBridge.class));
 
     private MedicalRecord draft(String selected, String overrideReason,
                                 String monitoringNote, String lockReason,
@@ -105,11 +105,36 @@ class MedicalEligibilityConfirmationTest {
     }
 
     @Test
-    void fitDifferentFromSuggestionKeepsOverrideExplanation() {
+    void initialCriticalConclusionCannotBeOverridden() {
         MedicalRecord record = draft("FIT", "Vet examined this case in detail", null, null,
                 MedicalEvaluationResult.EvaluationLevel.CRITICAL);
         service.confirmMedicalRecord("MED-091", "7");
-        assertEquals(Boolean.TRUE, record.getTrainingEligible());
+        assertEquals(Boolean.FALSE, record.getTrainingEligible());
+        assertEquals("NOT_FIT", record.getFinalConclusion());
+        assertNull(record.getOverrideReason());
+        verify(locks).lockFromConfirmedExamination(eq(record.getHealthProfile().getHorse()), eq(record), eq(record.getVeterinarian()), anyString());
+    }
+    @Test
+    void followUpCriticalCannotBeOverriddenToFit() {
+        MedicalRecord record = draft("FIT", "Vet examined this case in detail", null, null,
+                MedicalEvaluationResult.EvaluationLevel.CRITICAL);
+        record.setExamType("FOLLOW_UP");
+        when(evaluation.evaluate(eq("FOLLOW_UP"), isNull(), anyList())).thenReturn(
+                new MedicalEvaluationResult(MedicalEvaluationResult.EvaluationLevel.CRITICAL, "Critical", "Demo", false));
+        assertThrows(com.raceforge.backend.common.exception.BusinessRuleException.class,
+                () -> service.confirmMedicalRecord("MED-091", "7"));
+        assertEquals("DRAFT", record.getStatus());
+        verifyNoInteractions(locks);
+    }
+    @Test
+    void nonCriticalFollowUpOverrideKeepsExplanation() {
+        MedicalRecord record = draft("FIT", "Vet examined this case in detail", null, null,
+                MedicalEvaluationResult.EvaluationLevel.WARNING);
+        record.setExamType("FOLLOW_UP");
+        when(evaluation.evaluate(eq("FOLLOW_UP"), isNull(), anyList())).thenReturn(
+                new MedicalEvaluationResult(MedicalEvaluationResult.EvaluationLevel.WARNING, "Warning", "Demo", false));
+        service.confirmMedicalRecord("MED-091", "7");
+        assertTrue(record.getTrainingEligible());
         assertEquals("Vet examined this case in detail", record.getEligibilityReason());
         verifyNoInteractions(locks);
     }

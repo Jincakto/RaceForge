@@ -1,11 +1,12 @@
+import { sourceUrl, flattenModuleImports } from './sourceFiles.mjs';
 import {test,after,beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';import path from 'node:path';import {pathToFileURL} from 'node:url';import ts from 'typescript';
 const dir=await mkdtemp(path.join(tmpdir(),'training-schedule-'));
-for(const name of ['sessionPreview', 'packageBuilder', 'packageRoadmap','trainingSchedule','trainingTimestamp','api','remote','remoteActions','permissionApi','recommendations','proxyOrigin','data','trainingLogic']){
- const source=await readFile(new URL('../src/'+name+'.ts',import.meta.url),'utf8');
- const code=ts.transpileModule(source.replace('import.meta.env','({})'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace(/(['"])(\.\/[^'"]+)\1/g,(_,q,s)=>q+s+'.mjs'+q);await writeFile(path.join(dir,name+'.mjs'),code);
+for(const name of ["adminApi", "authApi", "horsesApi", "medicalApi", "notificationsApi", "packagesApi", "trainersApi", "trainingApi", "packageLifecycle", 'sessionPreview', 'packageBuilder', 'packageRoadmap','trainingSchedule','trainingTimestamp','api','trainingAssessment', 'remote','remoteActions','permissionApi','recommendations','proxyOrigin','data','trainingLogic']){
+ const source=await readFile(sourceUrl(name+'.ts'),'utf8');
+ const code=ts.transpileModule(source.replace('import.meta.env','({})'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace(/[\s\S]*/, flattenModuleImports);await writeFile(path.join(dir,name+'.mjs'),code);
 }
 const {selectedStages,scheduleRows,validateSessionWindow,packageSessions,sessionStartState}=await import(pathToFileURL(path.join(dir,'trainingSchedule.mjs')));
 const api=await import(pathToFileURL(path.join(dir,'api.mjs')));
@@ -68,12 +69,11 @@ test('editing persisted stages preserves the backend phase code and time metadat
  assert.equal(stage.phaseCode,'RACING_BASELINE');assert.equal(stage.sessionEndTime,'07:40:00');assert.deepEqual(stage.daysOfWeek,['MONDAY']);assert.equal(stage.objective,'Review');
 });
 
-test('Start allows early and late exercise on exactly the Bangkok scheduled day',()=>{
- const session=slot('start','10:00','10:30',{date:'04/11/2026',canStart:true});
- for(const now of ['2026-11-04T00:01:00+07:00','2026-11-04T23:59:00+07:00'])
-  assert.equal(sessionStartState(session,[],'HTR-001',new Date(now)).allowed,true);
- for(const now of ['2026-11-03T23:59:59+07:00','2026-11-05T00:00:00+07:00'])
-  assert.match(sessionStartState(session,[],'HTR-001',new Date(now)).reason,/scheduled date/);
+test('Start permits sessions planned before, on or after today when the backend allows it',()=>{
+ for(const date of ['03/11/2026','04/11/2026','05/11/2026']) {
+  const session=slot('start','10:00','10:30',{date,canStart:true});
+  assert.deepEqual(sessionStartState(session,[],'HTR-001'),{allowed:true,reason:''});
+ }
 });
 test('Start blocks running and stopped sessions until results are completed, across horses',()=>{
  const target=slot('target','10:00','10:30',{date:'04/11/2026',canStart:true});
@@ -88,12 +88,12 @@ test('Start blocks running and stopped sessions until results are completed, acr
  assert.equal(sessionStartState(target,[{...target,id:'same-horse',trainerId:'OTHER',status:'In Progress'}],'HTR-001',now).allowed,false);
  assert.equal(sessionStartState(target,[],'OTHER',now).allowed,false);
 });
-test('Start refreshes a date-only hint across Bangkok midnight and preserves server blocks',()=>{
- const target=slot('target','10:00','10:30',{date:'05/11/2026',canStart:false,startBlockedReason:'Start this session on its scheduled date (Bangkok time).'});
- assert.equal(sessionStartState(target,[],'HTR-001',new Date('2026-11-04T16:59:59Z')).allowed,false);
- assert.equal(sessionStartState(target,[],'HTR-001',new Date('2026-11-04T17:00:00Z')).allowed,true);
+test('Start preserves backend blocks and only unlocks when fresh server data allows it',()=>{
+ const target=slot('target','10:00','10:30',{date:'05/11/2026',canStart:false,startBlockedReason:'The paid package is not active.'});
+ assert.equal(sessionStartState(target,[],'HTR-001').reason,target.startBlockedReason);
+ assert.equal(sessionStartState({...target,canStart:true,startBlockedReason:undefined},[],'HTR-001').allowed,true);
  const locked={...target,startBlockedReason:'Horse is training-locked.'};
- assert.equal(sessionStartState(locked,[],'HTR-001',new Date('2026-11-04T17:00:01Z')).reason,locked.startBlockedReason);
+ assert.equal(sessionStartState(locked,[],'HTR-001').reason,locked.startBlockedReason);
 });
 test('session adapter preserves the backend Start explanation',()=>{
  assert.equal(sessionFromApi({sessionId:'x',status:'SCHEDULED',canStart:false,startBlockedReason:'Finish SES-1 first'}).startBlockedReason,'Finish SES-1 first');
@@ -101,8 +101,8 @@ test('session adapter preserves the backend Start explanation',()=>{
 test('failed Start and completion return errors and never announce success',async()=>{
  const session={user:{id:'HTR-001'},trainingPlans:[],trainingSessions:[],horses:[],enrollments:[]};
  const {actions,messages}=env(session);
- globalThis.fetch=async()=>new Response(JSON.stringify({success:false,message:'Finish SES-1 first'}),{status:409,headers:{'Content-Type':'application/json'}});
- assert.match(await actions.startSession('SES-2'),/Finish SES-1/);
- const failure=await actions.completeSession('SES-1',{time:'1',speed:'10',heartRate:90,performanceScore:60,recoveryMeasuredAt:'2026-11-04T08:00:00',notes:'Keep form'});
- assert.match(failure,/Finish SES-1/);assert.equal(messages.length,0);
+ globalThis.fetch=async()=>new Response(JSON.stringify({success:false,message:'PENDING_POST_TRAINING_REVIEW backend diagnostic',data:{code:'PENDING_POST_TRAINING_REVIEW'}}),{status:409,headers:{'Content-Type':'application/json'}});
+ assert.match(await actions.startSession('SES-2'),/vet check is pending/);
+ const failure=await actions.completeSession('SES-1',{distance:1,avgSpeed:10,endExerciseHeartRate:90,recoveryHeartRate2Min:60,recoveryMeasuredAt:'2026-11-04T08:00:00',performanceNotes:'Keep form',assessment:{checklistVersion:'POST_TRAINING_V1',checks:Object.fromEntries(['TASK_COMPLETION','SPEED_CONTROL','MOVEMENT_STABILITY','BALANCE','COMMAND_RESPONSE','FOCUS','STAMINA','SPEED_TRANSITION','COOPERATION','PERFORMANCE_CONSISTENCY'].map(code=>[code,true]))}});
+ assert.match(failure,/vet check is pending/);assert.doesNotMatch(failure,/PENDING_POST_TRAINING_REVIEW|backend diagnostic/);assert.equal(messages.length,0);
 });

@@ -97,6 +97,17 @@ public class StorageService {
         } catch (RestClientException e) { throw unavailable(); }
     }
 
+    /** Remove a superseded private object only after the owning DB transaction commits. */
+    public void deleteOnCommit(String bucket, String path) {
+        if (!managed(path)) return;
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            throw new IllegalStateException("Storage deletion requires an active transaction");
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() { remove(bucket, path); }
+        });
+    }
+
     private void remove(String bucket, String path) {
         try {
             client.delete().uri("/object/" + bucket + "/" + path).retrieve().toBodilessEntity();

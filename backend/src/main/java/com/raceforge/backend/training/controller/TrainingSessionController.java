@@ -21,13 +21,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 @Tag(name = "Training Sessions")
 public class TrainingSessionController {
 
-  @Autowired private com.raceforge.backend.training.service.TrainingSessionFeedbackService feedback;
-
-  @GetMapping("/{sessionId}/feedback")
-  public ResponseEntity<ApiResponse<java.util.Map<String,Object>>> feedback(@PathVariable String sessionId){
-      return ResponseEntity.ok(ApiResponse.success("Trainer review suggestions",feedback.feedback(sessionId)));
-  }
-
   @Autowired
   private TrainingSessionService trainingSessionService;
 
@@ -54,9 +47,10 @@ public class TrainingSessionController {
   @PatchMapping("/{sessionId}/stop")
   public ResponseEntity<ApiResponse<TrainingSessionResponse>> stop(@PathVariable String sessionId,
           @RequestBody(required=false) com.raceforge.backend.training.dto.StopSessionRequest request) {
-      return ResponseEntity.ok(ApiResponse.success("Exercise stopped; submit recovery measurements separately",trainingSessionService.stopSession(sessionId,request)));
+      return ResponseEntity.ok(ApiResponse.success("Exercise stopped; submit session results and assessment",trainingSessionService.stopSession(sessionId,request)));
   }
 
+  @io.swagger.v3.oas.annotations.Operation(summary = "Complete stopped exercise with measurements and a performance assessment", description = "All 10 POST_TRAINING_V1 answers are required, including when attendance delegates to completion. Individual concern notes are optional; optional overall notes use performanceNotes. Existing measurement and current trainer checks remain in force.")
   @PatchMapping("/{sessionId}/complete")
   public ResponseEntity<ApiResponse<TrainingSessionResponse>> complete(
           @PathVariable String sessionId,

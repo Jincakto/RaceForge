@@ -15,6 +15,7 @@ import com.raceforge.backend.medical.repository.HealthProfileRepository;
 import com.raceforge.backend.horse.repository.HorseAssignmentRepository;
 import com.raceforge.backend.medical.repository.MedicalRecordRepository;
 import com.raceforge.backend.notification.service.NotificationService;
+import com.raceforge.backend.training.service.TrainingAssessmentNotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +36,9 @@ public class MedicalAssignmentService {
     private final HealthProfileRepository profiles;
     private final NotificationService notifications;
     private final AuditLogService audit;
+    private final TrainingAssessmentNotificationService assessmentNotifications;
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
 
     public MedicalAssignmentService(HorseAssignmentRepository assignments,
                                     MedicalRecordRepository medicalRecords,
@@ -43,7 +47,7 @@ public class MedicalAssignmentService {
                                     HealthProfileRepository profiles,
                                     NotificationService notifications,
                                     AuditLogService audit,
-            com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator) {
+            com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator, TrainingAssessmentNotificationService assessmentNotifications) {
         this.idAllocator = idAllocator;
         this.assignments = assignments;
         this.medicalRecords = medicalRecords;
@@ -52,6 +56,7 @@ public class MedicalAssignmentService {
         this.profiles = profiles;
         this.notifications = notifications;
         this.audit = audit;
+        this.assessmentNotifications = assessmentNotifications;
     }
 
     /** CM assigns or reassigns a vet; a HealthProfile is created only once. */
@@ -103,6 +108,7 @@ public class MedicalAssignmentService {
         assignment.setStatus("ASSIGNED");
         assignment.setCreatedAt(LocalDateTime.now());
         assignments.saveAndFlush(assignment);
+        assessmentNotifications.onVeterinaryAssignmentChanged(horseId);
         notifications.notify(veterinarianId, "MEDICAL_ASSIGNMENT_CREATED",
                 "Veterinary care assignment", "You are responsible for horse " + horseId);
         recordAudit(managerId, assignment, "MEDICAL_ASSIGNMENT_CREATED", null);
@@ -116,6 +122,7 @@ public class MedicalAssignmentService {
         requireStatus(a, "ASSIGNED");
         a.setStatus("ACCEPTED");
         a.setRespondedAt(LocalDateTime.now());
+        assessmentNotifications.onVeterinaryAssignmentChanged(a.getHorse().getHorseId());
         recordAudit(veterinarianId, a, "MEDICAL_ASSIGNMENT_ACCEPTED", null);
         return MedicalAssignmentResponse.from(a);
     }
@@ -135,6 +142,7 @@ public class MedicalAssignmentService {
         notifications.notify(a.getAssignedBy().getUserId(), "MEDICAL_ASSIGNMENT_DECLINED",
                 "Veterinarian declined assignment",
                 "Horse " + a.getHorse().getHorseId() + ": " + reason.trim());
+        assessmentNotifications.onVeterinaryAssignmentChanged(a.getHorse().getHorseId());
         recordAudit(veterinarianId, a, "MEDICAL_ASSIGNMENT_DECLINED", reason.trim());
         return MedicalAssignmentResponse.from(a);
     }
@@ -222,8 +230,18 @@ public class MedicalAssignmentService {
     }
 
     private HorseAssignment findAssignedToVet(String assignmentId, String veterinarianId) {
+        // Match assignment creation and delivery: horse before assignment/assessment.
+        HorseAssignment snapshot = assignments.findById(assignmentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Veterinary assignment not found"));
+        if (!"VET".equals(snapshot.getKind()) || !snapshot.getAssignee().getUserId().equals(veterinarianId)) {
+            throw new BusinessRuleException("Only the assigned veterinarian may respond");
+        }
+        horses.findByIdForUpdate(snapshot.getHorse().getHorseId())
+                .orElseThrow(() -> new ResourceNotFoundException("Horse not found"));
         HorseAssignment a = assignments.findByIdForUpdate(assignmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Veterinary assignment not found"));
+        // A snapshot loaded before waiting for the horse may now be stale.
+        entityManager.refresh(a);
         if (!"VET".equals(a.getKind()) || !a.getAssignee().getUserId().equals(veterinarianId)) {
             throw new BusinessRuleException("Only the assigned veterinarian may respond");
         }

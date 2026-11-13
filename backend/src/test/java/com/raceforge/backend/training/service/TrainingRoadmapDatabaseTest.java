@@ -33,7 +33,10 @@ class TrainingRoadmapDatabaseTest {
      org.flywaydb.core.Flyway.configure().dataSource(root+name,user,password).baselineVersion("12").load().baseline();
      org.flywaydb.core.Flyway.configure().dataSource(root+name,user,password).locations("classpath:db/migration").load().migrate();
      try(var st=c.createStatement();var r=st.executeQuery("SELECT COL_LENGTH('dbo.Package_Roadmap_Template','source_urls_json')")){r.next();assertNull(r.getObject(1));}
-     script(c,read("scripts/training/03_seed_demo.sql"));assertEquals(4,count(c,"TRAINING_PACKAGE"));assertEquals(4,count(c,"Package_Roadmap_Template"));assertEquals(14,count(c,"Package_Stage_Template"));
+     script(c,read("src/test/resources/training/assessment_schema_TEST_ONLY.sql"));
+     script(c,read("scripts/training/06_horse_package_expired_status.sql"));
+     script(c,read("scripts/training/07_training_assessment_performance_codes.sql"));
+     script(c,read("scripts/training/03_seed_demo.sql"));assertEquals(3,count(c,"TRAINING_PACKAGE"));assertEquals(3,count(c,"Package_Roadmap_Template"));assertEquals(11,count(c,"Package_Stage_Template"));
     }
     try(var app=new SpringApplicationBuilder(BackendApplication.class).run("--server.port=0","--spring.datasource.url="+root+name,"--spring.datasource.username="+user,"--spring.datasource.password="+password,"--spring.flyway.enabled=false","--raceforge.training.package-expiry-cron=-","--logging.level.root=WARN","--logging.level.org.springframework=INFO","--logging.level.org.hibernate.SQL=OFF")){
      int port=((WebServerApplicationContext)app).getWebServer().getPort();
@@ -87,7 +90,7 @@ class TrainingRoadmapDatabaseTest {
       var one=new ScheduleSessionRequest();one.setPlanId(planA.getPlanId());one.setHorseId("HOR-901");one.setScheduledTime(badDate.atTime(12,0));one.setScheduledEnd(badDate.atTime(12,40));var extra=app.getBean(TrainingSessionService.class).scheduleSession(one);
       one.setScheduledTime(badDate.atTime(12,20));one.setScheduledEnd(badDate.atTime(13,0));assertThrows(RuntimeException.class,()->app.getBean(TrainingSessionService.class).scheduleSession(one));
       var sessions=app.getBean(TrainingSessionService.class);var startClock=Clock.fixed(badDate.atTime(6,0).atZone(testClock.getZone()).toInstant(),testClock.getZone());org.springframework.test.util.ReflectionTestUtils.setField(org.springframework.test.util.AopTestUtils.<TrainingSessionService>getTargetObject(sessions),"clock",startClock);sessions.startSession(extra.getSessionId());var measurementClock=Clock.offset(startClock,Duration.ofMinutes(1));org.springframework.test.util.ReflectionTestUtils.setField(org.springframework.test.util.AopTestUtils.<TrainingSessionService>getTargetObject(sessions),"clock",measurementClock);sessions.stopSession(extra.getSessionId(),null);
-      var measured=new CompleteSessionRequest();measured.setEndExerciseHeartRate(180);measured.setRecoveryHeartRate2Min(110);measured.setRecoveryMeasuredAt(LocalDateTime.now(measurementClock));measured.setDistance(new BigDecimal("1.20"));measured.setAvgSpeed(12.0);sessions.completeSession(extra.getSessionId(),measured,"HTR-901");assertNotNull(app.getBean(TrainingSessionFeedbackService.class).feedback(extra.getSessionId()).get("note"));
+      var measured=new CompleteSessionRequest();measured.setDistance(new BigDecimal("1.20"));measured.setAvgSpeed(12.0);measured.setAssessment(new com.raceforge.backend.training.dto.TrainingAssessmentRequest("POST_TRAINING_V1",java.util.Arrays.stream(com.raceforge.backend.training.entity.TrainingAssessmentCriterion.values()).collect(java.util.stream.Collectors.toMap(Enum::name,ignored->true)),Map.of()));sessions.completeSession(extra.getSessionId(),measured,"HTR-901");
       // Simulate dates produced by resume; saved plan anchor and completed results remain intact.
       try(var sql=c.createStatement()){sql.execute("UPDATE dbo.HORSE_PACKAGE SET start_date=CAST(DATEADD(day,20,GETDATE()) AS date),end_date=CAST(DATEADD(day,30,GETDATE()) AS date) WHERE horse_package_id='HPG-901'");}
       var resumed=new ScheduleSessionRequest();resumed.setPlanId(planA.getPlanId());resumed.setHorseId("HOR-901");resumed.setScheduledTime(LocalDate.now().plusDays(20).atTime(14,0));resumed.setScheduledEnd(LocalDate.now().plusDays(20).atTime(14,40));var resumedSession=sessions.scheduleSession(resumed);assertEquals("Later horse stage",resumedSession.getStageTitle());
@@ -114,7 +117,7 @@ class TrainingRoadmapDatabaseTest {
      // Cleanup supports both already-cleaned schema and the old legacy FK graph.
      script(c,"CREATE TABLE dbo.Training_Protocol(protocol_id varchar(20) PRIMARY KEY); CREATE TABLE dbo.Training_Recommendation(recommendation_id varchar(20) PRIMARY KEY,protocol_id varchar(20) REFERENCES dbo.Training_Protocol(protocol_id)); ALTER TABLE dbo.Training_Plan ADD recommendation_id varchar(20) NULL REFERENCES dbo.Training_Recommendation(recommendation_id); CREATE TABLE dbo.Training_Medical_Context(medical_record_id varchar(20));");
      script(c,read("scripts/training/04_cleanup_legacy.sql"));script(c,read("scripts/training/04_cleanup_legacy.sql"));
-     script(c,read("scripts/training/02_reset_training_TEST_ONLY.sql"));assertEquals(0,count(c,"TRAINING_PACKAGE"));script(c,read("scripts/training/03_seed_demo.sql"));assertEquals(4,count(c,"TRAINING_PACKAGE"));
+     script(c,read("scripts/training/02_reset_training_TEST_ONLY.sql"));assertEquals(0,count(c,"TRAINING_PACKAGE"));script(c,read("scripts/training/03_seed_demo.sql"));assertEquals(3,count(c,"TRAINING_PACKAGE"));
     }
    }finally{if(!name.matches("RaceForgeTrainingTest_[a-f0-9]{32}"))throw new IllegalStateException("Unsafe test database name");try(var s=admin.createStatement()){s.execute("ALTER DATABASE ["+name+"] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ["+name+"]");}}
   }

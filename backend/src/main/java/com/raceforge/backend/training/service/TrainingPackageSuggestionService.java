@@ -50,6 +50,7 @@ public class TrainingPackageSuggestionService {
         var history = readiness.read(horseId, now);
         List<Suggestion> result = new ArrayList<>();
         for (var pack : packages.findByStatusOrderByPackageNameAsc("ACTIVE")) {
+            if (!Set.of("BASIC", "RACING", "PERFORMANCE").contains(pack.getPackageType())) continue;
             var eligible = eligibility.evaluate(horse, pack, now.toLocalDate());
             PackageDemandProfileService.Profile profile = null;
             String roadmapGoal = null;
@@ -62,9 +63,7 @@ public class TrainingPackageSuggestionService {
             eligible.reasons().forEach(r -> codes.add(r.code()));
             String status;
             if (!eligible.canRegister()) status = "NOT_ELIGIBLE";
-            else if ("RECOVERY".equals(pack.getPackageType())) {
-                status = "AVAILABLE"; codes.add("RECOVERY_SEPARATE_ROUTE");
-            } else {
+            else {
                 codes.addAll(history.reasonCodes());
                 if (profile != null) codes.addAll(profile.reasonCodes());
                 status = match(history, profile, codes);

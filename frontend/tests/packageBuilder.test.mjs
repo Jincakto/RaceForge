@@ -1,12 +1,13 @@
+import { sourceNames, sourceUrl, flattenModuleImports } from './sourceFiles.mjs';
 import {test,after,beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,readdir,readFile,writeFile,rm} from 'node:fs/promises';
+import {mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';import path from 'node:path';import {pathToFileURL} from 'node:url';import ts from 'typescript';
 const dir=await mkdtemp(path.join(tmpdir(),'raceforge-package-builder-'));
-for(const file of await readdir(new URL('../src/',import.meta.url))) {
+for(const file of sourceNames()) {
  if(!file.endsWith('.ts')||file.endsWith('.d.ts'))continue;
- const source=await readFile(new URL('../src/'+file,import.meta.url),'utf8');
- const output=ts.transpileModule(source.replaceAll('import.meta.env','({})'),{compilerOptions:{module:ts.ModuleKind.ES2022,target:ts.ScriptTarget.ES2022}}).outputText.replace(/(['"])(\.\/[^'"]+)\1/g,(_,q,s)=>q+s+'.mjs'+q);
+ const source=await readFile(sourceUrl(file),'utf8');
+ const output=ts.transpileModule(source.replaceAll('import.meta.env','({})'),{compilerOptions:{module:ts.ModuleKind.ES2022,target:ts.ScriptTarget.ES2022}}).outputText.replace(/[\s\S]*/, flattenModuleImports);
  await writeFile(path.join(dir,file.replace(/\.ts$/,'.mjs')),output);
 }
 const b=await import(pathToFileURL(path.join(dir,'packageBuilder.mjs')));
@@ -21,7 +22,7 @@ const ok=data=>new Response(JSON.stringify({success:true,message:'OK',data}),{st
 function actions(){const events=[];const state={packages:[],user:{id:'CM-001',role:'manager'}};return {events,remote:makeRemoteActions({getState:()=>state,reload:async()=>{events.push('reload');},success:()=>events.push('success'),error:()=>events.push('error'),navigate:()=>{}})};}
 
 test('new-package durations are restricted by type without changing legacy sources',()=>{
- assert.deepEqual(b.PACKAGE_DURATIONS,{RACING:[90,180],BASIC:[30,60,90],PERFORMANCE:[30,60,90],RECOVERY:[30,60]});
+ assert.deepEqual(b.PACKAGE_DURATIONS,{RACING:[90,180],BASIC:[30,60,90],PERFORMANCE:[30,60,90]});
  for(const type of Object.keys(b.PACKAGE_DURATIONS))for(const days of b.PACKAGE_DURATIONS[type])assert.equal(b.packageInfoErrors({...draft(),packageType:type,durationDays:days}).durationDays,undefined);
  for(const days of [0,NaN,45,120])assert.ok(b.packageInfoErrors({...draft(),durationDays:days}).durationDays);
  const source=roadmap([stage(1,45)]);assert.equal(b.copyRoadmap(source).stages[0].endDay,45);assert.equal(source.stages[0].endDay,45);
@@ -91,4 +92,18 @@ test('invalid duration or unconfirmed date order cannot reach the save API',asyn
 test('incomplete source metadata is reported instead of supplying placeholder curriculum',async()=>{
  globalThis.fetch=async()=>ok({stages:[stage()]});
  await assert.rejects(readPackageCurriculum('PKG-INCOMPLETE'),/missing its title or goal/);
+});
+
+test('accepted trainer resumes a package through the current API and reloads state',async()=>{
+ const calls=[];globalThis.fetch=async(url,options)=>{calls.push({url:String(url),method:options.method,body:JSON.parse(options.body)});return ok({horsePackageId:'HPG-001',status:'ACTIVE'});};
+ const {remote,events}=actions();const result=await remote.acceptResumption('HPG-001');
+ assert.deepEqual(result,{ok:true,data:null});assert.deepEqual(calls,[{url:'/api/horse-packages/resumptions/HPG-001/accept',method:'POST',body:{}}]);assert.deepEqual(events,['reload','success']);
+});
+test('blocked resumption reports the server reason without a success or reload',async()=>{
+ globalThis.fetch=async()=>new Response(JSON.stringify({success:false,message:'Veterinarian must clear the horse first'}),{status:409});
+ const {remote,events}=actions();const result=await remote.acceptResumption('HPG-001');
+ assert.equal(result.ok,false);assert.match(result.message,/Veterinarian/);assert.deepEqual(events,['error']);
+});
+test('retired Recovery type cannot be used to create a package',()=>{
+ assert.equal(b.packageInfoErrors({...draft(),packageType:'RECOVERY'}).packageType,'Select a package type.');
 });

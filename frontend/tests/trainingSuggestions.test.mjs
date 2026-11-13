@@ -1,3 +1,4 @@
+import { sourceUrl, flattenModuleImports } from './sourceFiles.mjs';
 import {test,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
@@ -10,9 +11,11 @@ export function reset(){for(const e of effects)e?.cleanup?.();states=[];effects=
 export function useState(initial){const i=index++;if(!(i in states))states[i]=initial;return [states[i],v=>states[i]=typeof v==='function'?v(states[i]):v];}
 export function useEffect(fn,deps){const i=effectIndex++;const old=effects[i];if(!old||deps.some((d,k)=>d!==old.deps[k])){old?.cleanup?.();effects[i]={deps,cleanup:fn()};}}
 `);
-await writeFile(path.join(dir,'api.mjs'),`export const pending=[];export function request(path){return new Promise((resolve,reject)=>pending.push({path,resolve,reject}));}`);
-const source=await readFile(new URL('../src/trainingSuggestions.ts',import.meta.url),'utf8');
-const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace("from 'react'","from './react.mjs'").replace("from './api'","from './api.mjs'");
+await writeFile(path.join(dir,'api.mjs'),`export const idPath=encodeURIComponent;export const requestPdf=request;export const pending=[];export function request(path){return new Promise((resolve,reject)=>pending.push({path,resolve,reject}));}`);
+const packagesSource=await readFile(sourceUrl('packagesApi.ts'),'utf8');
+await writeFile(path.join(dir,'packagesApi.mjs'), flattenModuleImports(ts.transpileModule(packagesSource,{compilerOptions:{module:ts.ModuleKind.ES2022}}).outputText));
+const source=await readFile(sourceUrl('trainingSuggestions.ts'),'utf8');
+const js=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace("from 'react'","from './react.mjs'").replace(/[\s\S]*/, flattenModuleImports);
 await writeFile(path.join(dir,'suggestions.mjs'),js);
 const {sortSuggestions,suggestionReason,usePackageSuggestions}=await import(pathToFileURL(path.join(dir,'suggestions.mjs')));
 const harness=await import(pathToFileURL(path.join(dir,'react.mjs')));const {pending}=await import(pathToFileURL(path.join(dir,'api.mjs')));

@@ -1,3 +1,4 @@
+import { sourceUrl, flattenModuleImports } from './sourceFiles.mjs';
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
@@ -7,9 +8,9 @@ import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 const dir=await mkdtemp(path.join(tmpdir(),'training-purchase-'));
 after(()=>rm(dir,{recursive:true,force:true}));
-for(const name of ['trainingTimestamp','packageBuilder','trainingSchedule','packageRoadmap','data','trainingLogic']) {
- const source=await readFile(new URL('../src/'+name+'.ts',import.meta.url),'utf8');
- const code=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace(/(['"])(\.\/[^'"]+)\1/g,(_,q,s)=>q+s+'.mjs'+q);
+for(const name of ["adminApi", "authApi", "horsesApi", "medicalApi", "notificationsApi", "packagesApi", "trainersApi", "trainingApi", "packageLifecycle", 'trainingTimestamp','packageBuilder','trainingSchedule','packageRoadmap','data','trainingLogic']) {
+ const source=await readFile(sourceUrl(name+'.ts'),'utf8');
+ const code=ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace(/[\s\S]*/, flattenModuleImports);
  await writeFile(path.join(dir,name+'.mjs'),code);
 }
 const {purchaseBlockReason,TODAY,addDays}=await import(pathToFileURL(path.join(dir,'trainingLogic.mjs')));
@@ -23,6 +24,6 @@ for(const type of ['BASIC','PERFORMANCE','RACING']) {
  test(type+' accepts FIT when otherwise eligible',()=>assert.equal(purchaseBlockReason({...horse,healthStatus:'Eligible'},[],[{...record,decision:'eligible',trainingEligibility:'eligible'}],false,type),null));
  test(type+' retains active package restriction',()=>assert.match(purchaseBlockReason({...horse,healthStatus:'Eligible'},[{horseId:horse.id,status:'active',paymentStatus:'PAID',expiresAt:addDays(TODAY,10)}],[{...record,decision:'eligible',trainingEligibility:'eligible'}],false,type),/active package/));
 }
-test('RECOVERY retains its separate rule',()=>assert.equal(purchaseBlockReason({...horse,lock:true},[],[{...record,decision:'not-eligible'}],false,'RECOVERY'),null));
+test('retired package types cannot bypass medical restrictions',()=>assert.equal(purchaseBlockReason({...horse,lock:true},[],[{...record,decision:'not-eligible'}],false,'RECOVERY'),'Select a supported training package type'));
 test('monitoring BASIC still rejects an existing package',()=>assert.match(purchaseBlockReason(horse,[{horseId:horse.id,status:'active',paymentStatus:'PAID',expiresAt:addDays(TODAY,10)}],[record],false,'BASIC'),/active package/));
 test('unknown package selection does not globally reject monitoring',()=>assert.equal(purchaseBlockReason(horse,[],[record]),null));

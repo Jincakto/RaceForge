@@ -158,6 +158,30 @@ public class TrainerAssignmentService {
     return details(id);
   }
 
+  /** Lifecycle transitions close assignments without removing their history. */
+  @Transactional(propagation = org.springframework.transaction.annotation.Propagation.MANDATORY)
+  public List<String> closeForPackage(String packageId, String reason) {
+    scheduleCoordinator.lockSchedule();
+    var rows = jdbc.queryForList("SELECT a.id,a.assignee_id FROM dbo.Horse_Assignment a "
+        + "JOIN dbo.Training_Assignment ta ON ta.assignment_id=a.id "
+        + "WHERE ta.horse_package_id=? AND ta.ended_at IS NULL "
+        + "AND a.kind='TRAINER' AND a.status IN ('ASSIGNED','ACCEPTED') ORDER BY a.id", packageId);
+    Set<String> recipients = new LinkedHashSet<>();
+    for (var row : rows) {
+      close((String) row.get("id"), reason, "CANCELLED");
+      recipients.add((String) row.get("assignee_id"));
+    }
+    return List.copyOf(recipients);
+  }
+
+  @Transactional(readOnly = true)
+  public boolean hasPackageHistory(String packageId, String trainerUserId) {
+    return jdbc.queryForObject("SELECT COUNT(*) FROM dbo.Horse_Assignment a "
+        + "JOIN dbo.Training_Assignment ta ON ta.assignment_id=a.id "
+        + "WHERE ta.horse_package_id=? AND a.kind='TRAINER' AND a.assignee_id=?",
+        Integer.class, packageId, trainerUserId) > 0;
+  }
+
   public Map<String, Object> end(String id, String reason) {
     return close(id, reason, "CANCELLED");
   }

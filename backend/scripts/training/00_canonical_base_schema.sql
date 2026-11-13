@@ -257,7 +257,6 @@ CREATE TABLE [dbo].[HORSE_PACKAGE](
 	[total_price] [decimal](12, 2) NOT NULL,
 	[paused_at] [datetime] NULL,
 	[pause_reason] [nvarchar](255) NULL,
-	[replaced_horse_package_id] [varchar](20) NULL,
 	[created_at] [datetime] NOT NULL,
 	[updated_at] [datetime] NOT NULL,
 	[payment_status] [varchar](20) NOT NULL,
@@ -1634,14 +1633,7 @@ ALTER TABLE [dbo].[HORSE_PACKAGE] CHECK CONSTRAINT [FK_HORSE_PACKAGE_PACKAGE]
 
 GO
 
-ALTER TABLE [dbo].[HORSE_PACKAGE]  WITH CHECK ADD  CONSTRAINT [FK_HORSE_PACKAGE_REPLACED] FOREIGN KEY([replaced_horse_package_id])
-REFERENCES [dbo].[HORSE_PACKAGE] ([horse_package_id])
-
-
-
-GO
-
-ALTER TABLE [dbo].[HORSE_PACKAGE] CHECK CONSTRAINT [FK_HORSE_PACKAGE_REPLACED]
+-- Recovery package replacement relationship removed.
 
 
 
@@ -2589,7 +2581,7 @@ ALTER TABLE [dbo].[TRAINING_PACKAGE] CHECK CONSTRAINT [CK_TRAINING_PACKAGE_STATU
 
 GO
 
-ALTER TABLE [dbo].[TRAINING_PACKAGE]  WITH CHECK ADD  CONSTRAINT [CK_TRAINING_PACKAGE_TYPE] CHECK  (([package_type]='RECOVERY' OR [package_type]='PERFORMANCE' OR [package_type]='RACING' OR [package_type]='BASIC'))
+ALTER TABLE [dbo].[TRAINING_PACKAGE]  WITH CHECK ADD  CONSTRAINT [CK_TRAINING_PACKAGE_TYPE] CHECK  (([package_type]='PERFORMANCE' OR [package_type]='RACING' OR [package_type]='BASIC'))
 
 
 
@@ -2613,7 +2605,7 @@ ALTER TABLE [dbo].[Training_Plan] CHECK CONSTRAINT [CK_Code_Training_Plan]
 
 GO
 
-ALTER TABLE [dbo].[Training_Plan]  WITH CHECK ADD  CONSTRAINT [CK_TrainingPlan_PackageType] CHECK  (([package_type] IS NULL OR ([package_type]='RECOVERY' OR [package_type]='PERFORMANCE' OR [package_type]='RACING' OR [package_type]='BASIC')))
+ALTER TABLE [dbo].[Training_Plan]  WITH CHECK ADD  CONSTRAINT [CK_TrainingPlan_PackageType] CHECK  (([package_type] IS NULL OR ([package_type]='PERFORMANCE' OR [package_type]='RACING' OR [package_type]='BASIC')))
 
 
 

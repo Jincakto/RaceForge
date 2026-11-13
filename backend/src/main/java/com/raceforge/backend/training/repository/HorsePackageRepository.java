@@ -13,6 +13,8 @@ import java.util.Optional;
 
 public interface HorsePackageRepository extends JpaRepository<HorsePackage, String> {
 
+    Optional<HorsePackage> findByHorsePackageIdAndHorse_Owner_UserId(String horsePackageId, String ownerId);
+
     List<HorsePackage> findByHorse_HorseIdOrderByRegisteredAtDesc(String horseId);
 
     List<HorsePackage> findByHorse_HorseIdAndStatus(String horseId, String status);

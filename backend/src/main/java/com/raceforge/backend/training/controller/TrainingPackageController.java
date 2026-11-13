@@ -16,6 +16,7 @@ import java.util.List;
 @RequestMapping("/api/training-packages")
 @Tag(name = "Training Packages")
 @org.springframework.security.access.prepost.PreAuthorize("hasAnyAuthority('CLUB_MANAGER','HEAD_TRAINER','HORSE_OWNER')")
+@org.springframework.validation.annotation.Validated
 public class TrainingPackageController {
 
     private final TrainingPackageService service;
@@ -36,7 +37,7 @@ public class TrainingPackageController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<TrainingPackageResponse>> get(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<TrainingPackageResponse>> get(@PathVariable @jakarta.validation.constraints.Pattern(regexp = "PKG-[0-9]{3}", message = "Package ID must use PKG-XXX format") String id) {
         return ResponseEntity.ok(ApiResponse.success("Package retrieved", service.getPackage(id)));
     }
 

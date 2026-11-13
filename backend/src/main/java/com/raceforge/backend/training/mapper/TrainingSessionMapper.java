@@ -6,20 +6,19 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class TrainingSessionMapper {
+  @org.springframework.beans.factory.annotation.Autowired private com.raceforge.backend.training.service.TrainingAssessmentService assessmentService;
   @org.springframework.beans.factory.annotation.Autowired private com.raceforge.backend.training.service.TrainingScheduleCoordinator scheduleCoordinator;
   public TrainingSessionResponse toResponse(TrainingSession session){return toResponses(java.util.List.of(session)).get(0);}
   public java.util.List<TrainingSessionResponse> toResponses(java.util.List<TrainingSession> sessions){
       var responses=sessions.stream().map(this::toUnassignedResponse).toList();
-      scheduleCoordinator.decorate(responses);return responses;
+      scheduleCoordinator.decorate(responses);
+      assessmentService.enrich(sessions,responses);return responses;
   }
 
   private TrainingSessionResponse toUnassignedResponse(TrainingSession session) {
       TrainingSessionResponse response = new TrainingSessionResponse();
 
       response.setRestingHeartRate(session.getRestingHeartRate());
-      response.setEndExerciseHeartRate(session.getEndExerciseHeartRate());
-      response.setRecoveryHeartRate2Min(session.getRecoveryHeartRate2Min());
-      response.setRecoveryMeasuredAt(session.getRecoveryMeasuredAt());
       response.setRestingMedicalRecordId(session.getRestingMedicalRecordId());
       response.setRestingMeasuredAt(session.getRestingMeasuredAt());
       response.setHorsePackageId(session.getPlan().getHorsePackageId());
@@ -32,10 +31,6 @@ public class TrainingSessionMapper {
       response.setCanComplete(!locked && open && session.getActualEnd()!=null);
       if(session.getActualStart()!=null && session.getActualEnd()!=null)
           response.setActualDurationSeconds(java.time.Duration.between(session.getActualStart(),session.getActualEnd()).getSeconds());
-      if(session.getRecoveryMeasuredAt()!=null && session.getActualEnd()!=null)
-          response.setRecoveryDelaySeconds(java.time.Duration.between(session.getActualEnd(),session.getRecoveryMeasuredAt()).getSeconds());
-      if(session.getEndExerciseHeartRate()!=null && session.getRecoveryHeartRate2Min()!=null)
-          response.setHeartRateDrop2Min(session.getEndExerciseHeartRate()-session.getRecoveryHeartRate2Min());
       response.setPackageType(session.getPlan().getPackageType());
       response.setRoadmapVersion(session.getPlan().getRoadmapVersion());
       if(session.getTrainingStage()!=null){
@@ -49,7 +44,6 @@ public class TrainingSessionMapper {
       response.setScheduledStart(session.getScheduledStart());
       response.setScheduledEnd(session.getScheduledEnd());
       response.setDistance(session.getDistance());
-      response.setHeartRate(session.getHeartRate());
       response.setAvgSpeed(session.getAvgSpeed());
       response.setMaxSpeed(session.getMaxSpeed());
       response.setRecordedBy(session.getRecordedBy());

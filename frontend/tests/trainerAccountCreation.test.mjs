@@ -1,19 +1,19 @@
+import { sourceNames, sourceUrl, flattenModuleImports } from './sourceFiles.mjs';
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, readFile, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 
 const dir = await mkdtemp(path.join(tmpdir(), 'trainer-account-test-'));
-const src = new URL('../src/', import.meta.url);
-for (const name of await readdir(src)) {
+for (const name of sourceNames()) {
   if (!name.endsWith('.ts') || name.endsWith('.d.ts')) continue;
-  const source = await readFile(new URL(name, src), 'utf8');
+  const source = await readFile(sourceUrl(name), 'utf8');
   const code = ts.transpileModule(source.replaceAll('import.meta.env', '({})'), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
-  }).outputText.replace(/(['"])(\.\/[^'"]+)\1/g, (_, quote, specifier) => `${quote}${specifier}.mjs${quote}`);
+  }).outputText.replace(/[\s\S]*/, flattenModuleImports);
   await writeFile(path.join(dir, name.replace(/\.ts$/, '.mjs')), code);
 }
 const { makeRemoteActions } = await import(pathToFileURL(path.join(dir, 'remoteActions.mjs')).href);
@@ -28,24 +28,26 @@ function setup(handler) {
     calls.push(call);
     return handler(call);
   };
+  const snapshot = { user: { id: 'ADM-001', role: 'admin', apiRoleId: 7 }, users: [] };
   const actions = makeRemoteActions({
-    getState: () => ({ user: { id: 'ADM-001', role: 'admin', apiRoleId: 7 }, users: [] }),
+    getState: () => snapshot,
     reload: async () => { reloads++; }, success: message => successes.push(message),
     error: message => errors.push(message), navigate: () => {},
   });
-  return { actions, calls, successes, errors, reloads: () => reloads };
+  return { actions, calls, successes, errors, snapshot, reloads: () => reloads };
 }
 const trainer = email => ({ name: 'Trainer Example', email, phone: '', role: 'head_trainer' });
 
-test('creates User before an empty trainer profile using the returned ID', async () => {
-  const env = setup(call => response(call.url.endsWith('/admin/users') ? { userId: 'HTR-123' } : { trainer_id: 'HTR-456' }));
+test('admin creates an invited Trainer account; the trainer completes their own profile after activation', async () => {
+  const env = setup(() => response({ userId: 'HTR-123', status: 'INVITED' }));
   await env.actions.createAccount(trainer('success@example.test'));
-  assert.deepEqual(env.calls.map(c => c.url), ['/api/admin/users', '/api/trainer-profiles']);
+  assert.deepEqual(env.calls.map(c => c.url), ['/api/admin/users']);
   assert.equal(env.calls[0].body.roleId, 2);
-  assert.deepEqual(env.calls[1], { url: '/api/trainer-profiles', method: 'POST', body: { userId: 'HTR-123', bio: '', qualifications: '' } });
   assert.equal(env.successes.length, 1);
+  assert.match(env.successes[0], /invitation/i);
   assert.equal(env.reloads(), 1);
 });
+
 test('other staff roles only create User', async () => {
   const env = setup(() => response({ userId: 'VET-123' }));
   await env.actions.createAccount({ ...trainer('vet@example.test'), role: 'veterinarian' });
@@ -57,15 +59,21 @@ test('User failure never calls trainer profile creation', async () => {
   assert.equal(env.calls.length, 1);
   assert.equal(env.successes.length, 0);
 });
-test('profile failure reports partial success and retry does not create User again', async () => {
-  let failProfile = true;
-  const env = setup(call => call.url.endsWith('/admin/users') ? response({ userId: 'HTR-124' }) : response({}, failProfile ? 403 : 200));
+test('failed invitation does not pretend success, and retry only creates the invited account', async () => {
+  let fail = true;
+  const env = setup(() => response(fail ? null : { userId: 'HTR-124', status: 'INVITED' }, fail ? 500 : 200));
   const account = trainer('retry@example.test');
-  await assert.rejects(env.actions.createAccount(account), /HTR-124 was created, but its professional profile could not be created/);
-  assert.equal(env.successes.length, 0);
-  failProfile = false;
+  await assert.rejects(env.actions.createAccount(account));
+  assert.equal(env.successes.length, 0); assert.equal(env.reloads(), 0);
+  fail = false;
   await env.actions.createAccount(account);
-  assert.deepEqual(env.calls.map(c => c.url), ['/api/admin/users', '/api/trainer-profiles', '/api/trainer-profiles']);
-  assert.equal(env.calls[2].body.userId, 'HTR-124');
-  assert.equal(env.successes.length, 1);
+  assert.deepEqual(env.calls.map(c => c.url), ['/api/admin/users', '/api/admin/users']);
+  assert.equal(env.successes.length, 1); assert.equal(env.reloads(), 1);
+});
+
+test('an email already loaded in account management cannot create another account', async () => {
+  const env = setup(() => response({ userId: 'HTR-125' }));
+  env.snapshot.users.push({ email: 'EXISTING@example.test' });
+  await assert.rejects(env.actions.createAccount(trainer('existing@example.test')), /already belongs/);
+  assert.equal(env.calls.length, 0); assert.equal(env.successes.length, 0);
 });

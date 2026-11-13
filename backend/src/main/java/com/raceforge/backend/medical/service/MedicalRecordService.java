@@ -10,11 +10,17 @@ import com.raceforge.backend.medical.dto.*;
 import com.raceforge.backend.medical.entity.*;
 import com.raceforge.backend.medical.mapper.MedicalRecordMapper;
 import com.raceforge.backend.medical.repository.*;
+import com.raceforge.backend.training.service.TrainingAssessmentMedicalBridge;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.HashSet;
+import org.springframework.web.multipart.MultipartFile;
+import com.raceforge.backend.storage.StorageService;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -39,6 +45,10 @@ public class MedicalRecordService {
     private final TrainingLockService trainingLockService;
     private final AuditLogService auditLogService;
     private final MedicalAssignmentService medicalAssignments;
+    // Used for private clinical evidence; injected without changing legacy test constructors.
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private StorageService storage;
+    private final TrainingAssessmentMedicalBridge assessmentBridge;
 
     public MedicalRecordService(
             HealthProfileRepository healthProfileRepository,
@@ -51,7 +61,7 @@ public class MedicalRecordService {
             TrainingLockService trainingLockService,
             AuditLogService auditLogService,
             MedicalAssignmentService medicalAssignments,
-            com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator) {
+            com.raceforge.backend.horse.service.ModuleIdAllocator idAllocator, TrainingAssessmentMedicalBridge assessmentBridge) {
         this.idAllocator = idAllocator;
         this.healthProfileRepository = healthProfileRepository;
         this.medicalRecordRepository = medicalRecordRepository;
@@ -63,6 +73,7 @@ public class MedicalRecordService {
         this.trainingLockService = trainingLockService;
         this.auditLogService = auditLogService;
         this.medicalAssignments = medicalAssignments;
+        this.assessmentBridge = assessmentBridge;
     }
 
     /**
@@ -99,6 +110,8 @@ public class MedicalRecordService {
                 .orElseThrow(() -> new ResourceNotFoundException("Health profile not found"));
         User veterinarian = getVeterinarian(request.getVeterinarianId());
         medicalAssignments.requireAccepted(profile.getHorse().getHorseId(), veterinarian.getUserId());
+        assessmentBridge.prepareDraft(profile.getHorse().getHorseId(),
+                request.getPostTrainingSessionId(), request.getExaminedAt());
 
         MedicalRecord record = new MedicalRecord();
         record.setMedicalRecordId(nextMedicalRecordId());
@@ -128,12 +141,14 @@ public class MedicalRecordService {
         record.setNotes(request.getNotes());
         applySuggestion(record, medicalEvaluationService.evaluate(
                 record.getExamType(), request.getVitalSign(), request.getClinicalExams()));
+        applyDraftConclusionPolicy(record);
 
         // With an application-assigned String ID, Spring Data may use merge().
         // Always use the managed instance returned by save for child records.
         record = medicalRecordRepository.save(record);
         saveVitalSign(record, request.getVitalSign());
         saveClinicalExams(record, request.getClinicalExams());
+        assessmentBridge.bindDraft(record, request.getPostTrainingSessionId());
         auditLogService.record(veterinarian.getUserId(), profile.getHorse().getHorseId(),
                 "MEDICAL_RECORD", record.getMedicalRecordId(), "MEDICAL_RECORD_CREATED", "SUCCESS", null);
         return buildResponse(record);
@@ -163,6 +178,7 @@ public class MedicalRecordService {
         record.setNotes(request.getNotes());
         applySuggestion(record, medicalEvaluationService.evaluate(
                 record.getExamType(), request.getVitalSign(), request.getClinicalExams()));
+        applyDraftConclusionPolicy(record);
         medicalRecordRepository.save(record);
 
         MedicalVitalSign existing = medicalVitalSignRepository
@@ -181,11 +197,7 @@ public class MedicalRecordService {
             medicalVitalSignRepository.save(vital);
         }
 
-        List<MedicalClinicalExam> oldExams = medicalClinicalExamRepository
-                .findByMedicalRecord_MedicalRecordId(medicalRecordId);
-        medicalClinicalExamRepository.deleteAll(oldExams);
-        medicalClinicalExamRepository.flush();
-        saveClinicalExams(record, request.getClinicalExams());
+        updateClinicalExams(record, request.getClinicalExams());
         auditLogService.record(veterinarianId, record.getHealthProfile().getHorse().getHorseId(),
                 "MEDICAL_RECORD", medicalRecordId, "MEDICAL_DRAFT_UPDATED", "SUCCESS", null);
         return buildResponse(record);
@@ -200,6 +212,7 @@ public class MedicalRecordService {
     public MedicalRecordResponse confirmMedicalRecord(String medicalRecordId,
                                                       String veterinarianId) {
         MedicalRecord record = requireOwnedDraft(medicalRecordId, veterinarianId);
+        assessmentBridge.beforeConfirmation(record);
         MedicalVitalSign savedVital = medicalVitalSignRepository
                 .findByMedicalRecord_MedicalRecordId(medicalRecordId).orElse(null);
         List<MedicalClinicalExam> savedExams = medicalClinicalExamRepository
@@ -211,12 +224,36 @@ public class MedicalRecordService {
             throw new BusinessRuleException("Complete all vital signs and four clinical areas before confirmation");
         }
         String suggested = suggestedConclusion(evaluation);
-        String selected = normalize(record.getFinalConclusion());
-        if (selected == null || !FINAL_CONCLUSIONS.contains(selected)) {
-            throw new BusinessRuleException("Veterinarian must select a final conclusion");
+        boolean initial = "INITIAL".equalsIgnoreCase(record.getExamType());
+        String selected = initial ? suggested : normalize(record.getFinalConclusion());
+        if (selected == null) selected = suggested; // Vet may accept the system suggestion.
+        if (!FINAL_CONCLUSIONS.contains(selected)) {
+            throw new BusinessRuleException("A valid medical conclusion is required");
         }
-        if (!selected.equals(suggested)) {
+        // A critical finding is a hard safety gate in every examination type.
+        if (evaluation.level() == MedicalEvaluationResult.EvaluationLevel.CRITICAL
+                && !"NOT_FIT".equals(selected)) {
+            throw new BusinessRuleException("Critical findings cannot be overridden to FIT");
+        }
+        if (initial) {
+            // INITIAL uses the computed conclusion; the request cannot choose a different one.
+            record.setOverrideReason(null);
+            if ("FIT_WITH_MONITORING".equals(selected) && isBlank(record.getMonitoringNote())) {
+                record.setMonitoringNote(safeSummary(evaluation.systemNote()));
+            }
+            if ("NOT_FIT".equals(selected) && isBlank(record.getTrainingLockReason())) {
+                record.setTrainingLockReason(safeSummary(evaluation.systemNote()));
+            }
+        } else if (!selected.equals(suggested)) {
             requireExplanation(record.getOverrideReason(), "Reason for choosing a different conclusion");
+        } else {
+            // Accepting the system suggestion still records an auditable clinical reason.
+            if ("FIT_WITH_MONITORING".equals(selected) && isBlank(record.getMonitoringNote())) {
+                record.setMonitoringNote(safeSummary(evaluation.systemNote()));
+            }
+            if ("NOT_FIT".equals(selected) && isBlank(record.getTrainingLockReason())) {
+                record.setTrainingLockReason(safeSummary(evaluation.systemNote()));
+            }
         }
         if ("FIT_WITH_MONITORING".equals(selected)) {
             requireExplanation(record.getMonitoringNote(), "Monitoring instructions");
@@ -246,6 +283,7 @@ public class MedicalRecordService {
             trainingLockService.lockFromConfirmedExamination(horse, record, veterinarian,
                     record.getTrainingLockReason().trim());
         }
+        assessmentBridge.onConfirmed(record);
         // Deliberately do not auto-unlock on FIT / FIT_WITH_MONITORING.
         // Assignment remains accepted: a veterinarian may examine this horse
         // again without new approval from the Club Manager.
@@ -374,6 +412,42 @@ public class MedicalRecordService {
         vital.setWeight(request.getWeight());
     }
 
+    /** Preserve IDs and uploaded photos across repeated DRAFT saves. */
+    private void updateClinicalExams(MedicalRecord record, List<MedicalClinicalExamRequest> requests) {
+        if (requests == null) requests = List.of();
+        Map<String, MedicalClinicalExam> existing = new HashMap<>();
+        for (MedicalClinicalExam exam : medicalClinicalExamRepository
+                .findByMedicalRecord_MedicalRecordId(record.getMedicalRecordId())) {
+            existing.put(exam.getExaminationArea(), exam);
+        }
+        Set<String> retained = new HashSet<>();
+        for (MedicalClinicalExamRequest request : requests) {
+            if (request == null || isBlank(request.getExaminationArea())
+                    || isBlank(request.getConditionStatus())) continue;
+            String area = normalize(request.getExaminationArea());
+            if (!retained.add(area)) throw new BusinessRuleException("Duplicate clinical examination area: " + area);
+            MedicalClinicalExam exam = existing.get(area);
+            if (exam == null) {
+                exam = new MedicalClinicalExam();
+                exam.setClinicalExamId(idAllocator.next("CLN"));
+                exam.setMedicalRecord(record);
+                exam.setExaminationArea(area);
+            }
+            exam.setConditionStatus(normalize(request.getConditionStatus()));
+            exam.setNotes(trimToNull(request.getNotes()));
+            if ("NORMAL".equals(exam.getConditionStatus())) {
+                removeEvidence(exam);
+            }
+            medicalClinicalExamRepository.save(exam);
+        }
+        for (var entry : existing.entrySet()) {
+            if (!retained.contains(entry.getKey())) {
+                removeEvidence(entry.getValue());
+                medicalClinicalExamRepository.delete(entry.getValue());
+            }
+        }
+    }
+
     private void saveClinicalExams(MedicalRecord record, List<MedicalClinicalExamRequest> requests) {
         if (requests == null) {
             return;
@@ -425,6 +499,58 @@ public class MedicalRecordService {
             throw new BusinessRuleException("An active veterinarian is required");
         }
         return user;
+    }
+
+    private void applyDraftConclusionPolicy(MedicalRecord record) {
+        if ("INITIAL".equalsIgnoreCase(record.getExamType())) {
+            record.setFinalConclusion(record.getSuggestedConclusion());
+            record.setOverrideReason(null);
+        }
+    }
+
+    private String safeSummary(String message) {
+        String note = message == null || message.isBlank()
+                ? "System medical evaluation requires training restriction" : message;
+        return note.length() > 1000 ? note.substring(0, 1000) : note;
+    }
+
+    @Transactional
+    public MedicalRecordResponse uploadClinicalEvidence(String recordId, String vetId,
+                                                        String area, MultipartFile file) {
+        MedicalRecord record = requireOwnedDraft(recordId, vetId);
+        MedicalClinicalExam exam = requireClinicalArea(recordId, area);
+        if ("NORMAL".equalsIgnoreCase(exam.getConditionStatus())) {
+            throw new BusinessRuleException("Evidence images are only for ABNORMAL or CRITICAL findings");
+        }
+        if (storage == null) throw new BusinessRuleException("Medical image storage is not configured");
+        var upload = storage.validate(file, false);
+        exam.setEvidenceImagePath(storage.replace(StorageService.IMAGES, upload, exam.getEvidenceImagePath()));
+        medicalClinicalExamRepository.save(exam);
+        return buildResponse(record);
+    }
+
+    @Transactional
+    public MedicalRecordResponse deleteClinicalEvidence(String recordId, String vetId, String area) {
+        MedicalRecord record = requireOwnedDraft(recordId, vetId);
+        removeEvidence(requireClinicalArea(recordId, area));
+        return buildResponse(record);
+    }
+
+    private MedicalClinicalExam requireClinicalArea(String recordId, String area) {
+        String wanted = normalize(area);
+        if (wanted == null || !Set.of("EYES", "NOSE", "MOUTH", "MOVEMENT_LEGS").contains(wanted)) {
+            throw new BusinessRuleException("Unknown clinical examination area");
+        }
+        return medicalClinicalExamRepository.findByMedicalRecord_MedicalRecordId(recordId)
+                .stream().filter(e -> wanted.equals(e.getExaminationArea())).findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("Clinical examination area not found"));
+    }
+
+    private void removeEvidence(MedicalClinicalExam exam) {
+        if (exam.getEvidenceImagePath() != null && storage != null) {
+            storage.deleteOnCommit(StorageService.IMAGES, exam.getEvidenceImagePath());
+        }
+        exam.setEvidenceImagePath(null);
     }
 
     private MedicalRecordResponse buildResponse(MedicalRecord record) {

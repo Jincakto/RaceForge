@@ -76,6 +76,6 @@ class MedicalRecordIdGenerationTest {
                                         AuditLogService audit,
                                         MedicalAssignmentService assignments, com.raceforge.backend.horse.service.ModuleIdAllocator ids) {
         return new MedicalRecordService(profiles, records, vitals, exams, users,
-                evaluation, mapper, locks, audit, assignments, ids);
+                evaluation, mapper, locks, audit, assignments, ids, mock(com.raceforge.backend.training.service.TrainingAssessmentMedicalBridge.class));
     }
 }

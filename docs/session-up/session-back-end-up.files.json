@@ -1,0 +1,226 @@
+[
+    {
+        "path":  "backend/docs/TRAINING_ASSESSMENT_BACKEND_REPORT.md",
+        "sha256":  "99bce98388557f157e1f0701e7cf7e6076052dccb056e37beaa9ef1bbe75738c"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/medical/dto/MedicalRecordCreateRequest.java",
+        "sha256":  "a00e3c3acb613f28bde13e3b32ed651a8e115291b167445f0acd8632fcc1b2f5"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/medical/service/MedicalAssignmentService.java",
+        "sha256":  "d6de7fb4127dcbfa748660638c40be4cd8904064d6de9942d881c4d5feb4dbbc"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/medical/service/MedicalRecordService.java",
+        "sha256":  "1f9b68a488ab9eab1fc675c0797e9c9ba481a0bbbf65635d45c5409a1893cb08"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/notification/service/NotificationService.java",
+        "sha256":  "efd13ea11cbebe9ec3c4fd70ba2509faabe49cd6fcf642baab70269759c5d708"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/controller/TrainingAssessmentController.java",
+        "sha256":  "bf91829676860a3b11735011e1300dfa9f33b03cd80cd18ba72029f7a88dc322"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/controller/TrainingAssessmentRequestBodyAdvice.java",
+        "sha256":  "9d6a2be19bd416518d261170c1451227d32e7e1c3679bd79ad06eeed57ce4730"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/controller/TrainingSessionController.java",
+        "sha256":  "06b9a4a64a393bd7577cd23892187850b1256ebeb2df60aebe372112e13de5fe"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/dto/CompleteSessionRequest.java",
+        "sha256":  "10669083e2c644a5736602f76edef78099917a9f4405d6838a7a8b7c3b5ac07c"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/dto/CompletionRequired.java",
+        "sha256":  "50bd6b8508ac1d281eaa3343ab4fe355cc2923f88e6a1178602a26fee1ea1c17"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/dto/TrainingAssessmentItemResponse.java",
+        "sha256":  "9df69d7a296a0040a5570ddedb805847a556f8c49593db45e1bda38649e00c4e"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/dto/TrainingAssessmentRequest.java",
+        "sha256":  "1bea6ed8584fc63dfc976204775d6e07862ac81d495aa73e981bd29978b8133f"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/dto/TrainingAssessmentRequestDeserializer.java",
+        "sha256":  "30d319800b1d9acc0d1b835530afb37108358c03d54fb827a513e97147eb0e83"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/dto/TrainingAssessmentResponse.java",
+        "sha256":  "9ed49712913085fd5fbc9236dd2fdf57e22488d6003a21b4f8883c830cbe7a14"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/dto/TrainingAssessmentTemplateResponse.java",
+        "sha256":  "b5203eddb89379a8f9dce97d008e64439cffda885c65a46397ea3d16982c8ce3"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/dto/TrainingNotificationTargetResponse.java",
+        "sha256":  "3088f3fe99736f817150933e7cebd9e8154da5ec21eb8565edddc954614cbe9a"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/dto/TrainingSessionResponse.java",
+        "sha256":  "8a1cffda7e89ed468d04692e5ec1e9cb65bf51ffc289ac372af4916a282c755e"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/dto/TrainingVetNotificationResponse.java",
+        "sha256":  "2d6d6b234c7e6180f616fcbf9e0a832834c09e5d101ffd708d7a6f2dc26804af"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/dto/VetNotificationRequest.java",
+        "sha256":  "5cdf979757cd90307ce0b3b34901d9f9e64df85c14ec660c03668b5d7ac99e2c"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/entity/TrainingAssessmentAlertLevel.java",
+        "sha256":  "965a81d5afa350153fcdc685009a1034331ce54a56444c9462e537695c0cc20d"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/entity/TrainingAssessmentCriterion.java",
+        "sha256":  "93ec311ea75e613885541208836472e68a69da46c853ef549358b64aeaad2ffc"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/entity/TrainingAssessmentNotificationLink.java",
+        "sha256":  "fe580680f42075607d45f3b6c27eab0950cc7af82dd8b23069819eaabdd03c60"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/entity/TrainingAssessmentNotificationStatus.java",
+        "sha256":  "19652f84df3c22f385ecdf8426dea68f66aee2ec3d7759cc80a7a70042f58ef2"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/entity/TrainingAssessmentReviewStatus.java",
+        "sha256":  "132a25f4ced4580a61faf04a3c4a75688d864896723976086023f2ac142bf3d3"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/entity/TrainingSessionAssessment.java",
+        "sha256":  "ac84dd2a5726996b61a91045be99656f5127a3aa2eec3c57e9080315af1693ea"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/entity/TrainingSessionAssessmentItem.java",
+        "sha256":  "55cf9571e908b046a47b7a04cb34b81bf50f2992bdb27cf92081d9730365587b"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/mapper/TrainingAssessmentMapper.java",
+        "sha256":  "34a5a86f966223d38d142847ecee62369e184e42f9f3681d67401ba791f4d3c5"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/mapper/TrainingSessionMapper.java",
+        "sha256":  "9746a200d6f4284b077590911aebf82c2efd58807f89fa5dee00c741500a2424"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/repository/TrainingAssessmentNotificationLinkRepository.java",
+        "sha256":  "47f2ce9b8ae8831cb1ff6d73ebd9a47f22872cbbb2ec718cd6b128b9057bbe52"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/repository/TrainingAssessmentScopeRepository.java",
+        "sha256":  "fdecd5446999dba0acfb9c6e9f97a9cb5e30484699aedb131e550de25f868aa0"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/repository/TrainingSessionAssessmentItemRepository.java",
+        "sha256":  "00f0cab6c7a08b92491933bc0cfe3c445286a6e59942ccd2bf3f6137d6683eca"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/repository/TrainingSessionAssessmentRepository.java",
+        "sha256":  "89f21ff0fe9312506c872029cb8c0bfe183f6b92c9f38453122f83a6fb13780d"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/service/TrainingAssessmentAccessService.java",
+        "sha256":  "808241c0c5767f93fb65263246f4c9b16e8cfb1577a867638c09fbb6aec726ca"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/service/TrainingAssessmentMedicalBridge.java",
+        "sha256":  "f97ee0edd4851a3b525da24588e6c6f712546677fb07527d862bda6ea7c55ebb"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/service/TrainingAssessmentNotificationService.java",
+        "sha256":  "e5929b78c6636675b5399a55628ab73efc076d591bb541079b28d058dcab86a6"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/service/TrainingAssessmentRecordedEvent.java",
+        "sha256":  "6626a27cd1e49de2ebfba96f5b4431c56695c25ad60e482941cd9f2c0caf92e1"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/service/TrainingAssessmentRules.java",
+        "sha256":  "566ffe0ea1e6de78814c57b63cc34d5270ef7ccf425f875d8ba0b11ecbccfbc4"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/service/TrainingAssessmentService.java",
+        "sha256":  "ae16feac031beded21f7aab4425f0b8370ac26bc9898cb5aabeba606af429011"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/service/TrainingAssessmentValidator.java",
+        "sha256":  "aa7dfc6b64faf6429498f850aa1d2d70bb47fafc06d0351dcd06dc4b0d45ca2d"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/service/TrainingScheduleCoordinator.java",
+        "sha256":  "d1968f7af2dbcd2850d4e8bb68ae18140c6fee5375131b004ef397825a2a4ad8"
+    },
+    {
+        "path":  "backend/src/main/java/com/raceforge/backend/training/service/TrainingSessionService.java",
+        "sha256":  "51b5fd87c28ac1d2a9bef50621d943255cd593f50faabe8f2f727b5788446288"
+    },
+    {
+        "path":  "backend/src/test/java/com/raceforge/backend/medical/service/MedicalEligibilityConfirmationTest.java",
+        "sha256":  "17f7a7fdccd160147851675d1cdeb58dca6bebccfac2cc00dcfcc4eaa1dcee72"
+    },
+    {
+        "path":  "backend/src/test/java/com/raceforge/backend/medical/service/MedicalRecordIdGenerationTest.java",
+        "sha256":  "3f9359656b188e6c47ca8fe0106a65aeeb76e1438d7110aa8e8fcf7163204b6a"
+    },
+    {
+        "path":  "backend/src/test/java/com/raceforge/backend/medical/service/MedicalRecordPreviewTest.java",
+        "sha256":  "3c8e315e30fe358b76fe47b61c9f096b7fa01269ee47a7ac37db4bc4f112d6ca"
+    },
+    {
+        "path":  "backend/src/test/java/com/raceforge/backend/training/controller/TrainingAssessmentControllerTest.java",
+        "sha256":  "16ab059443537061f8992da5d7cb4dc69ba41703980cabd66282d1fc6b18b4aa"
+    },
+    {
+        "path":  "backend/src/test/java/com/raceforge/backend/training/dto/TrainingAssessmentRequestTest.java",
+        "sha256":  "609d5b7b1854d12630eb09379d5627a1fcc996084e88f77ab86709016a83073b"
+    },
+    {
+        "path":  "backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentAccessServiceTest.java",
+        "sha256":  "b29760e2da5308937a54cd0cdee2a402ca1d92b82e850d9a929ba0373cdbf4eb"
+    },
+    {
+        "path":  "backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentMedicalBridgeTest.java",
+        "sha256":  "576719f060b547646e7e1cae7874de5130d830064ce9e87bda6dc6185f8a7203"
+    },
+    {
+        "path":  "backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentMedicalHooksTest.java",
+        "sha256":  "db720a6d11300ddfe962be7e278eefaed2b192c6958230bbfd6602b65bfa6df1"
+    },
+    {
+        "path":  "backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentNotificationServiceTest.java",
+        "sha256":  "c8d957526a2881cb4ee535652e8943dda9fa83f65ce7e0644a040897f9911701"
+    },
+    {
+        "path":  "backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentRulesTest.java",
+        "sha256":  "3bc5c91e906177e46f03c8294cdbf106265f5cc461c63878b75e0100904eabf6"
+    },
+    {
+        "path":  "backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentServiceTest.java",
+        "sha256":  "9844a61a6f4c5baadceb2d5265bd0f25356e9de5e5875fb8566b31c6765c14c0"
+    },
+    {
+        "path":  "backend/src/test/java/com/raceforge/backend/training/service/TrainingAssessmentValidatorTest.java",
+        "sha256":  "d9e7feba3704570f9f634fd69d7d53a2109de18c27f25fb59d35d941e4dfc9e5"
+    },
+    {
+        "path":  "backend/src/test/java/com/raceforge/backend/training/service/TrainingNotificationReadTest.java",
+        "sha256":  "e73e02f5a1408c445ec452b444a4d7ff9da31453eb90b3013cc565f4bb8d9d37"
+    },
+    {
+        "path":  "backend/src/test/java/com/raceforge/backend/training/service/TrainingPendingReviewGuardTest.java",
+        "sha256":  "d42db6e5e8015cbe0e45951620e7ad5ec6a1e7e74903b616811a00102f0c3715"
+    },
+    {
+        "path":  "backend/src/test/java/com/raceforge/backend/training/service/TrainingSessionAssessmentCompletionTest.java",
+        "sha256":  "0cf344fa338eff4c9ccc59390b28919bdd87283f2a6dda8daf1ad91d316168f3"
+    }
+]

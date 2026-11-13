@@ -42,7 +42,7 @@ class HorseAdmissionServiceTest {
         horse.setAdmission(admission);
         horse.setAdmissionStatus(admissionStatus);
         horse.setImageUrl("https://example.org/horse.png");
-        horse.setRegistrationNumber("REG-014");
+        horse.setRegistrationNumber("036001000000014");
         horse.setDocumentType("REGISTRATION_CERTIFICATE");
         horse.setDocumentUrl("https://example.org/certificate.pdf");
         when(horses.findByIdForUpdate("HOR-014")).thenReturn(Optional.of(horse));

@@ -1,5 +1,5 @@
 import type { AppUser, Enrollment, TrainingSession } from '../../shared/data/data';
-import type { RemoteIssue } from '../../shared/api/remote';
+import type { RemoteIssue } from '../../app/remote';
 import { trainingTimestamp } from './trainingTimestamp';
 export type PackageLifecycleAction = 'complete' | 'cancel';
 export interface PackageLifecycleWire {

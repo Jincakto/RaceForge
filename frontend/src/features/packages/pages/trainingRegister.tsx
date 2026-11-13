@@ -1,14 +1,14 @@
-import { PackageLifecycleButton } from '../training/PackageLifecycleButton';
-import { canCancelRegistration, unfinishedPackageSession, registrationStatus, type PackageLifecycleResult } from '../training/packageLifecycle';
-import type { TrainingSession } from '../../shared/data/data';
-import { usePackageSuggestions, sortSuggestions, suggestionReason } from '../training/trainingSuggestions';
-import { PackageRoadmapPreview } from '../training/roadmapView';
+import { PackageLifecycleButton } from '../../training/PackageLifecycleButton';
+import { canCancelRegistration, unfinishedPackageSession, registrationStatus, type PackageLifecycleResult } from '../../training/packageLifecycle';
+import type { TrainingSession } from '../../../shared/data/data';
+import { usePackageSuggestions, sortSuggestions, suggestionReason } from '../hooks/trainingSuggestions';
+import { PackageRoadmapPreview } from '../../training/roadmapView';
 import { useEffect, useRef, useState } from 'react';
-import type { AppUser, Horse, Enrollment, TrainingPackage, Res, HealthRecord } from '../../shared/data/data';
-import { Badge, Btn, Card } from '../../shared/ui/ui';
-import { IdChip, Modal } from '../admin/admin';
-import { TrainerStatusPill } from './packages';
-import { money, enrollmentTerm, isCurrent, EXPIRY_WARN_DAYS, TODAY } from '../training/trainingLogic';
+import type { AppUser, Horse, Enrollment, TrainingPackage, Res, HealthRecord } from '../../../shared/data/data';
+import { Badge, Btn, Card } from '../../../shared/ui/ui';
+import { IdChip, Modal } from '../../admin/admin';
+import { TrainerStatusPill } from '../packages';
+import { money, enrollmentTerm, isCurrent, EXPIRY_WARN_DAYS, TODAY } from '../../training/trainingLogic';
 
 interface Props {
   state: { user: AppUser | null; horses: Horse[]; enrollments: Enrollment[]; packages: TrainingPackage[]; healthRecords: HealthRecord[]; trainingSessions?: TrainingSession[] };

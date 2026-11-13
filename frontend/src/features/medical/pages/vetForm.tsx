@@ -1,4 +1,4 @@
-import { request } from "../../shared/api/api";
+import { evaluateHorse } from "../api/medicalApi";
 import { useEffect, useMemo, useState } from "react";
 import type {
   AppUser,
@@ -7,11 +7,11 @@ import type {
   HorseClubRequest,
   HealthRecord,
   TrainingSession,
-} from "../../shared/data/data";
-import { getLifecycle } from "../../shared/data/data";
-import { Btn, Card, Input, Select, Textarea } from "../../shared/ui/ui";
-import { IdChip, Modal, GENDER_LABEL, dispId } from "../admin/admin";
-import { vetVisible } from "../horses/intake";
+} from "../../../shared/data/data";
+import { getLifecycle } from "../../../shared/data/data";
+import { Btn, Card, Input, Select, Textarea } from "../../../shared/ui/ui";
+import { IdChip, Modal, GENDER_LABEL, dispId } from "../../admin/admin";
+import { vetVisible } from "../../horses/intake";
 
 // ── Ngưỡng mẫu & tiện ích dùng chung (form khám + lịch sử khám) ─────────────────
 
@@ -497,11 +497,7 @@ export function VetHealthFormPage({
           notes: regions[r.key] === "ok" ? "" : notes[r.key] || "",
         })),
       };
-      void request(
-        `/medical/horses/${encodeURIComponent(horseId)}/evaluation`,
-        "POST",
-        body,
-      )
+      void evaluateHorse(horseId, body)
         .then((value) => {
           if (active) {
             setPreview({ ...value, key: previewKey });

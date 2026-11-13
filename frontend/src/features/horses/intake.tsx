@@ -1,6 +1,7 @@
+import { listAccounts } from "../admin/api/adminApi";
 import { useEffect, useState } from 'react';
-import { allPages } from '../../shared/api/api';
-import { userFromApi, latestConfirmedExam } from '../../shared/api/remote';
+
+import { userFromApi, latestConfirmedExam } from '../../app/remote';
 import type { AppUser, Horse, HorseClubRequest, HealthRecord } from '../../shared/data/data';
 import { Btn, Card } from '../../shared/ui/ui';
 import { IdChip, ReasonDialog, Modal } from '../admin/admin';
@@ -94,7 +95,7 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
     if (!pick?.horse.id) return;
     let active = true;
     setVetsLoading(true); setVetsError(''); setPickerUsers(null);
-    allPages('/users').then(rows => {
+    listAccounts().then(rows => {
       // Other accounts may not have a role yet; they must not discard the veterinarian catalogue.
       const mapped = rows.filter(row => row.role?.roleName === 'VETERINARIAN').map(userFromApi);
       if (active) setPickerUsers(mapped);

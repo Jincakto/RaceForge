@@ -1,39 +1,40 @@
-import { PackageLifecycleButton } from './PackageLifecycleButton';
-import { completionBlockReason, registrationStatus, type PackageLifecycleResult } from './packageLifecycle';
-import type { RemoteIssue } from '../../shared/api/remote';
-import { TrainingResumptions } from './TrainingResumptions';
-import { SessionPreviewModal } from './SessionPreviewModal';
+import { listTrainingPlanStages, listHorseTrainingSessions, saveTrainingPlanStages } from "../api/trainingApi";
+import { PackageLifecycleButton } from '../PackageLifecycleButton';
+import { completionBlockReason, registrationStatus, type PackageLifecycleResult } from '../packageLifecycle';
+import type { RemoteIssue } from '../../../app/remote';
+import { TrainingResumptions } from '../TrainingResumptions';
+import { SessionPreviewModal } from '../SessionPreviewModal';
 import {
   TrainingAssessmentBadge, TrainingAssessmentDetails, TrainingAssessmentForm,
   TrainingPendingReviewBanner,
-} from './TrainingAssessmentView';
+} from '../TrainingAssessmentView';
 import {
   assessmentErrorMessage, assessmentPreview, canRequestVetCheck, fetchAssessmentTemplate,
   toAssessmentRequest, type AssessmentAnswers, type CompleteSessionInput,
   type TrainingAssessmentTemplateResponse, type TrainingVetNotificationResponse,
-} from './trainingAssessment';
-import { useTrainingNow } from './useTrainingNow';
-import { futureSchedule, scheduleWarning, trainingStart } from './trainingSchedule';
-import { PackageRoadmapPreview, RoadmapTable, StagesEditor, SavedRoadmapPreview } from './roadmapView';
-import { validateRoadmap } from '../packages/packageRoadmap';
-import { selectedStages, scheduleRows, normalizeStages, clock, seconds, validateSessionWindow, sessionStartState, isoDay, type RoadmapStage } from './trainingSchedule';
-import { trainingTimestamp } from './trainingTimestamp';
-import { packageRoadmapFor, recommendationView } from './recommendations';
-import { request } from '../../shared/api/api';
+} from '../trainingAssessment';
+import { useTrainingNow } from '../useTrainingNow';
+import { futureSchedule, scheduleWarning, trainingStart } from '../trainingSchedule';
+import { PackageRoadmapPreview, RoadmapTable, StagesEditor, SavedRoadmapPreview } from '../roadmapView';
+import { validateRoadmap } from '../../packages/packageRoadmap';
+import { selectedStages, scheduleRows, normalizeStages, clock, seconds, validateSessionWindow, sessionStartState, isoDay, type RoadmapStage } from '../trainingSchedule';
+import { trainingTimestamp } from '../trainingTimestamp';
+import { packageRoadmapFor, recommendationView } from '../recommendations';
+
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   computeTrainingSuggestion, isHeavySession,
   type Horse, type HealthRecord, type TrainingPlan, type TrainingSession, type Res, type TrainingSuggestion, type Enrollment,
-} from '../../shared/data/data';
-import { Badge, Btn, Card, Input, Select, Textarea } from '../../shared/ui/ui';
-import { IdChip, Modal, ReasonDialog } from '../admin/admin';
-import { TrainerStatusPill } from '../packages/packages';
+} from '../../../shared/data/data';
+import { Badge, Btn, Card, Input, Select, Textarea } from '../../../shared/ui/ui';
+import { IdChip, Modal, ReasonDialog } from '../../admin/admin';
+import { TrainerStatusPill } from '../../packages/packages';
 import {
   TODAY, addDays, diffDays, isoToD, dToIso, validDate, weekdayLabel, parseD, fmtD, WEEKDAYS,
   checkSessionDrafts, trainerPlanBlockReason, currentEnrollment, enrollmentTerm,
   INTENSITY_LEVELS, WORKLOAD_OF, WORKLOAD_LABEL, suggestedLevel, PHASES, SESSION_TYPES,
   type TrainingSlice, type PlanDraft, type SessionDraft, type SessionWriteOptions,
-} from './trainingLogic';
+} from '../trainingLogic';
 
 interface HubState extends TrainingSlice { healthRecords: HealthRecord[]; trainingLoadedSources?: string[]; trainingLoadIssues?: RemoteIssue[] }
 
@@ -520,13 +521,13 @@ function SessionGenerator({ state, horseId, planId, onClose, onDone, onGenerate 
 
 function SavedStageEditor({state,plan,onClose}:{state:HubState;plan:TrainingPlan;onClose:()=>void}){
  const now=useTrainingNow();const [stages,setStages]=useState<RoadmapStage[]|null>(null);const [error,setError]=useState('');const [busy,setBusy]=useState(false);const [saved,setSaved]=useState(false);const [attempt,setAttempt]=useState(0);
- useEffect(()=>{let active=true;setStages(null);setError('');Promise.all([request<any[]>('/training-plans/'+encodeURIComponent(plan.id)+'/stages'),request<any[]>('/training-sessions/horse/'+encodeURIComponent(plan.horseId))]).then(([rows,sessions])=>{if(!active)return;if(sessions.some(s=>s.planId===plan.id))throw Error('This plan already has sessions. Adjust individual sessions instead.');setStages(normalizeStages(rows));}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[plan.id,attempt]);
+ useEffect(()=>{let active=true;setStages(null);setError('');Promise.all([listTrainingPlanStages(plan.id),listHorseTrainingSessions(plan.horseId)]).then(([rows,sessions])=>{if(!active)return;if(sessions.some(s=>s.planId===plan.id))throw Error('This plan already has sessions. Adjust individual sessions instead.');setStages(normalizeStages(rows));}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[plan.id,attempt]);
  const enrollment=state.enrollments.find(e=>e.id===plan.horsePackageId);
  const end=enrollment&&isoDay(enrollment.expiresAt)<isoDay(plan.endDate)?enrollment.expiresAt:plan.endDate;
  const duration=diffDays(plan.startDate,end)+1;
  const validation=stages?validateRoadmap({title:plan.phase,goal:plan.goals||'Review saved stages',stages},duration,dToIso(plan.startDate)):'';
  let rows:ReturnType<typeof scheduleRows>=[];try{if(stages&&!validation)rows=scheduleRows(stages,plan.startDate);}catch{}
- const save=async()=>{if(!stages||busy||validation)return;setBusy(true);setError('');try{await request('/training-plans/'+encodeURIComponent(plan.id)+'/stages','PUT',{stages});setSaved(true);}catch(e){setError((e as Error).message);}finally{setBusy(false);}};
+ const save=async()=>{if(!stages||busy||validation)return;setBusy(true);setError('');try{await saveTrainingPlanStages(plan.id, {stages});setSaved(true);}catch(e){setError((e as Error).message);}finally{setBusy(false);}};
  return <Modal title="Edit saved stages" onClose={onClose} wide><div className="space-y-4"><p>{plan.phase}: {plan.startDate} - {end}. Original stage anchor is unchanged. Times use UTC+7.</p>{saved?<p role="status" className="rounded-lg bg-green-50 p-3 text-green-800">Stages saved. Review the updated schedule before generating sessions.</p>:stages?<fieldset disabled={busy}><StagesEditor stages={stages} duration={duration} onChange={setStages}/>{validation&&<ErrorBox text={validation}/>} {scheduleWarning(rows,now)&&<p role="status" className="rounded-lg bg-amber-50 p-3 text-amber-800">{scheduleWarning(rows,now)}</p>}</fieldset>:!error&&<p>Loading saved stages...</p>}{error&&<ErrorBox text={error}/>}<div className="flex justify-end gap-2">{!stages&&error&&<Btn variant="secondary" onClick={()=>setAttempt(x=>x+1)}>Retry</Btn>}<Btn variant="secondary" onClick={onClose}>{saved?'Close':'Cancel'}</Btn>{!saved&&<Btn variant="gold" disabled={busy||!stages||!!validation} onClick={save}>{busy?'Saving...':'Save stages'}</Btn>}</div></div></Modal>;
 }
 
@@ -546,7 +547,7 @@ function SingleSessionForm({state,onClose,onGenerate,session}:{state:HubState;on
  const [stages,setStages]=useState<RoadmapStage[]>([]);const [loading,setLoading]=useState(false);const [loadError,setLoadError]=useState('');
  const [error,setError]=useState('');const [busy,setBusy]=useState(false);
  useEffect(()=>{let active=true;setStages([]);setLoadError('');if(!planId)return;setLoading(true);
- request<any[]>('/training-plans/'+encodeURIComponent(planId)+'/stages').then(rows=>{if(active)setStages(normalizeStages(rows));}).catch(e=>{if(active)setLoadError(e.message);}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[planId]);
+ listTrainingPlanStages(planId).then(rows=>{if(active)setStages(normalizeStages(rows));}).catch(e=>{if(active)setLoadError(e.message);}).finally(()=>{if(active)setLoading(false);});return()=>{active=false;};},[planId]);
  const day=plan&&date?diffDays(plan.startDate,isoToD(date))+1:0;
  const matching=stages.filter(s=>day>=s.startDay&&day<=s.endDay);const stage=matching.length===1?matching[0]:undefined;
  const setStart=(value:string)=>{setTime(value);setError('');if(stage)try{setEndTime(clock(seconds(value)+seconds(stage.sessionEndTime)-seconds(stage.sessionTime)).slice(0,5));}catch(e){setEndTime('');setError((e as Error).message);}};

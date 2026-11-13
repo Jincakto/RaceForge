@@ -1,4 +1,5 @@
-import { request, idPath } from '../../shared/api/api';
+import { getOwnTrainerProfile, createTrainerProfile, updateTrainerProfile } from "./api/trainersApi";
+import { idPath } from '../../shared/api/api';
 
 export interface TrainerProfile {
   trainer_id: string;
@@ -10,12 +11,12 @@ export interface TrainerProfile {
 
 // User identity comes from the access token on the server; no trainer ID is entered.
 export async function loadOwnTrainerProfile(): Promise<TrainerProfile | null> {
-  return request<TrainerProfile | null>('/trainer-profiles/me');
+  return getOwnTrainerProfile();
 }
 
 export async function createOwnTrainerProfile(bio: string, qualifications: string): Promise<TrainerProfile> {
   validateProfile(bio, qualifications);
-  return request<TrainerProfile>('/trainer-profiles', 'POST', {
+  return createTrainerProfile({
     bio: bio.trim(), qualifications: qualifications.trim(),
   });
 }
@@ -23,7 +24,7 @@ export async function createOwnTrainerProfile(bio: string, qualifications: strin
 export async function saveOwnTrainerProfile(profile: TrainerProfile, userId: string, bio: string, qualifications: string): Promise<TrainerProfile> {
   if (profile.user_id !== userId) throw new Error('You may only update your own profile.');
   validateProfile(bio, qualifications);
-  return request<TrainerProfile>(`/trainer-profiles/${idPath(profile.trainer_id)}`, 'PUT', {
+  return updateTrainerProfile(profile.trainer_id, {
     bio: bio.trim(), qualifications: qualifications.trim(),
   });
 }

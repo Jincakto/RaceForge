@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import type { AppUser, Horse, HealthRecord } from '../../shared/data/data';
-import { Btn, Card, Input, Select } from '../../shared/ui/ui';
-import { IdChip, dispId } from '../admin/admin';
-import { vetVisible } from '../horses/intake';
+import type { AppUser, Horse, HealthRecord } from '../../../shared/data/data';
+import { Btn, Card, Input, Select } from '../../../shared/ui/ui';
+import { IdChip, dispId } from '../../admin/admin';
+import { vetVisible } from '../../horses/intake';
 import {
   VITAL_DEFS, REGION_DEFS, THRESHOLD_SOURCE, DECISION_LABEL, DecisionPill, VitalStatusPill,
   evalVital, fmtNum, rangeText, recordDecision, type VitalDef,

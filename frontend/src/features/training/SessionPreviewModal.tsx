@@ -1,6 +1,7 @@
+import { listHorseTrainingSessions, listTrainingPlanStages } from "./api/trainingApi";
 import { useEffect, useRef, useState } from 'react';
-import { request, idPath } from '../../shared/api/api';
-import { sessionFromApi } from '../../shared/api/remote';
+import { idPath } from '../../shared/api/api';
+import { sessionFromApi } from '../../app/remote';
 import { useTrainingNow } from './useTrainingNow';
 import { Modal } from '../admin/admin';
 import { Btn, Input, Select } from '../../shared/ui/ui';
@@ -17,11 +18,11 @@ export function SessionPreviewModal({state,horseId,planId,onClose,onDone,onGener
  const [start,setStart]=useState('07:00');const [end,setEnd]=useState('19:00');const [stageChoice,setStageChoice]=useState('0');const [resetConfirm,setResetConfirm]=useState(false);const [attempt,setAttempt]=useState(0);
  const counter=useRef(0);const alive=useRef(true);const initialized=useRef(false);
  const scheduleHorseIds=[...new Set([horseId,...state.trainingPlans.map(p=>p.horseId)])];
- async function readSchedules(){const results=await Promise.all(scheduleHorseIds.map(id=>request<any[]>('/training-sessions/horse/'+idPath(id))));return results.flat().map(s=>sessionFromApi(s,state.user||undefined));}
+ async function readSchedules(){const results=await Promise.all(scheduleHorseIds.map(id=>listHorseTrainingSessions(id)));return results.flat().map(s=>sessionFromApi(s,state.user||undefined));}
  const sessions=current?[...state.trainingSessions.filter(s=>!scheduleHorseIds.includes(s.horseId)),...current]:state.trainingSessions;
  const context:PreviewContext={planId,horseId,trainerId:state.user!.id,startDate:plan.startDate,endDate:plan.endDate,stages,sessions,now};
  useEffect(()=>{alive.current=true;let active=true;setLoading(true);setLoadError('');
-  Promise.all([request<any[]>('/training-plans/'+idPath(planId)+'/stages'),readSchedules()]).then(([raw,scheduled])=>{if(!active)return;const next=normalizeStages(raw);setStages(next);const mapped=scheduled;setCurrent(mapped);if(!initialized.current){setRows(templatePreview({...context,stages:next,sessions:mapped,now:new Date()}));initialized.current=true;}}).catch(e=>{if(active)setLoadError((e as Error).message);}).finally(()=>{if(active)setLoading(false);});
+  Promise.all([listTrainingPlanStages(planId),readSchedules()]).then(([raw,scheduled])=>{if(!active)return;const next=normalizeStages(raw);setStages(next);const mapped=scheduled;setCurrent(mapped);if(!initialized.current){setRows(templatePreview({...context,stages:next,sessions:mapped,now:new Date()}));initialized.current=true;}}).catch(e=>{if(active)setLoadError((e as Error).message);}).finally(()=>{if(active)setLoading(false);});
   return()=>{active=false;alive.current=false;};
  },[planId,horseId,attempt]);
 

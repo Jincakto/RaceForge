@@ -1,7 +1,14 @@
-import { packageSessions } from '../../features/training/trainingSchedule';
-import { assessmentFromApi } from '../../features/training/trainingAssessment';
-import { ApiError, allPages, idPath as enc, request, rows } from './api';
-import type { AppUser, Horse, HealthRecord, Enrollment, TrainingPackage, TrainingPlan, TrainingSession, HorseClubRequest, AppNotification, Role } from '../data/data';
+import { listAccounts, listRolePermissions, listPermissionHistory } from "../features/admin/api/adminApi";
+import { listNotifications } from "../features/notifications/api/notificationsApi";
+import { listTrainerProfiles, listMyTrainerAssignments, getOwnTrainerProfile, listTrainerSessions, listPackageTrainerAssignments } from "../features/trainers/api/trainersApi";
+import { listHorses, listHorseRaceHistory } from "../features/horses/api/horsesApi";
+import { listTrainingPackages, getPackageTrainingContext, listHorsePackages } from "../features/packages/api/packagesApi";
+import { listMyVetAssignments, listHorseVetAssignments, listHorseMedicalRecords } from "../features/medical/api/medicalApi";
+import { listHorseTrainingSessions, listHorseTrainingPlans } from "../features/training/api/trainingApi";
+import { packageSessions } from '../features/training/trainingSchedule';
+import { assessmentFromApi } from '../features/training/trainingAssessment';
+import { ApiError, rows } from '../shared/api/api';
+import type { AppUser, Horse, HealthRecord, Enrollment, TrainingPackage, TrainingPlan, TrainingSession, HorseClubRequest, AppNotification, Role } from '../shared/data/data';
 
 type Wire = Record<string, any>;
 export const ROLE_NAMES: Record<Role, string> = { admin: 'ADMIN', manager: 'CLUB_MANAGER', head_trainer: 'HEAD_TRAINER', veterinarian: 'VETERINARIAN', groom: 'GROOM', owner: 'HORSE_OWNER' };
@@ -190,29 +197,29 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
       errors.add(`${label}: ${(error as Error).message}`); return fallback;
     }
   }
-  if (user.role === 'admin' || user.role === 'manager') data.users = await read("Accounts", async () => (await allPages('/users')).map(userFromApi), [user]);
-  const notifications = user.role === 'admin' ? [] : await read("Notifications", () => request<any[]>('/notifications'), []);
+  if (user.role === 'admin' || user.role === 'manager') data.users = await read("Accounts", async () => (await listAccounts()).map(userFromApi), [user]);
+  const notifications = user.role === 'admin' ? [] : await read("Notifications", () => listNotifications(), []);
   data.notifications = notifications.map(w => ({ id: String(w.notificationId), type: w.notificationType || 'info', message: w.message, time: dateText(w.createdAt), read: w.read, action: user.role === 'head_trainer' && w.notificationType === 'TRAINER_RESUMPTION_AVAILABLE' ? 'training-hub' : undefined, toUserIds: [user.id] }));
-  const trainerProfiles: Wire[] = ['admin', 'manager'].includes(user.role || '') ? await read("Trainer profiles", () => request('/trainer-profiles'), []) : [];
+  const trainerProfiles: Wire[] = ['admin', 'manager'].includes(user.role || '') ? await read("Trainer profiles", () => listTrainerProfiles(), []) : [];
   for (const p of trainerProfiles) {
     const found = data.users.find(u => u.id === p.user_id);
     if (found) { found.trainerProfileId = p.trainer_id; found.bio = p.bio || ''; found.certifications = p.qualifications || ''; }
   }
   if (user.role === 'admin') {
     const roles = Object.keys(ROLE_NAMES) as Role[];
-    const grants = await Promise.all(roles.map(async role => [role, await read(`Permissions ${role}`, () => request<string[]>(`/admin/permissions/${ROLE_NAMES[role]}`), [])] as const));
+    const grants = await Promise.all(roles.map(async role => [role, await read(`Permissions ${role}`, () => listRolePermissions(ROLE_NAMES[role]), [])] as const));
     data.serverPermissions = Object.fromEntries(grants);
-    const logs = await Promise.all(roles.map(role => read(`Permission history ${role}`, () => request<any[]>(`/admin/permissions/${ROLE_NAMES[role]}/audit-log`), [])));
+    const logs = await Promise.all(roles.map(role => read(`Permission history ${role}`, () => listPermissionHistory(ROLE_NAMES[role]), [])));
     data.permissionAudit = logs.flat().map(w => ({ id: w.logId, time: dateText(w.performedAt), actor: w.performedBy, actorRole: 'admin', action: `Permissions: ${w.action}`, target: `${w.roleName}: ${w.permissionCode}` }));
     data.trainingLoadIssues=store.issues(); if (errors.size) report('Some data could not be refreshed. See the affected sources and retry.'); return data;
   }
-  data.horses = (await read("Horses", () => request<Wire[]>('/horses'), [])).map(w => horseFromApi(w, data.users));
-  if (['manager', 'owner', 'head_trainer'].includes(user.role || '')) data.packages = (await read("Package catalogue", () => request<Wire[]>(user.role === 'manager' ? '/training-packages/all' : '/training-packages'), [])).map(packageFromApi);
+  data.horses = (await read("Horses", () => listHorses(), [])).map(w => horseFromApi(w, data.users));
+  if (['manager', 'owner', 'head_trainer'].includes(user.role || '')) data.packages = (await read("Package catalogue", () => listTrainingPackages(user.role === 'manager'), [])).map(packageFromApi);
 
 
   let vetAssignments: Wire[] = [];
   if (user.role === 'veterinarian') {
-    try { vetAssignments = await request<Wire[]>('/medical/assignments/mine'); }
+    try { vetAssignments = await listMyVetAssignments(); }
     catch (error) {
       data.vetAssignmentsError = error instanceof ApiError && error.status === 403
         ? 'The server denied access to your veterinary assignments. Assigned horses and medical records cannot be fully displayed. Please sign in again; if this persists, contact the administrator.'
@@ -220,7 +227,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
       errors.add(data.vetAssignmentsError);
     }
   }
-  const myAssignments: Wire[] = user.role === 'head_trainer' ? await read("Trainer assignments", () => request('/trainer-assignments/me'), []) : [];
+  const myAssignments: Wire[] = user.role === 'head_trainer' ? await read("Trainer assignments", () => listMyTrainerAssignments(), []) : [];
   // Pending assignments intentionally do not grant /horses/{id} access. Show the
   // assignment's own summary, so the trainer can accept before fetching private data.
   for (const a of myAssignments.filter(a => a.status === 'ASSIGNED')) {
@@ -231,15 +238,14 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
   }
   for (const horse of data.horses) {
     if (user.role === 'head_trainer' && !horse.trainerIds?.includes(user.id)) continue;
-    const path = `/horses/${enc(horse.id)}`;
-    const assignments = user.role === 'manager' ? await read("Assign veterinarian", () => request<Wire[]>(`/medical/assignments/horses/${enc(horse.id)}`), []) : vetAssignments.filter(a => a.horseId === horse.id);
+    const assignments = user.role === 'manager' ? await read("Assign veterinarian", () => listHorseVetAssignments(horse.id), []) : vetAssignments.filter(a => a.horseId === horse.id);
     const current = [...assignments].sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
     if (current) {
       horse.vetId = current.veterinarianId; horse.vetName = current.veterinarianName; horse.vetAssignmentId = current.assignmentId;
       horse.vetAssign = { status: ['ACCEPTED','COMPLETED'].includes(current.status) ? 'accepted' : current.status === 'ASSIGNED' ? 'pending' : 'declined', history: [...assignments].reverse().map(a => ({ time: dateText(a.createdAt), from: null, to: a.veterinarianName, by: a.assignedBy, reason: a.reason || a.status })) };
     }
     if (['manager', 'owner', 'veterinarian'].includes(user.role || '')) {
-      const records = await read(`Examination records ${horse.id}`, () => request<Wire[]>(`/medical/horses/${enc(horse.id)}/records`), []);
+      const records = await read(`Examination records ${horse.id}`, () => listHorseMedicalRecords(horse.id), []);
       const mapped = records.map(w => recordFromApi(w, horse.id, data.users));
       data.healthRecords.push(...mapped);
       const latest = latestConfirmedExam(mapped, horse.id);
@@ -247,30 +253,30 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
       horse.weight = Number(latest?.vitals?.weight || 0);
       if (latest?.decision === 'conditional') horse.healthStatus = 'Monitor';
     }
-    const raceRows = await read(`Achievements ${horse.id}`, () => request<Wire[]>(`${path}/race-history`), []);
+    const raceRows = await read(`Achievements ${horse.id}`, () => listHorseRaceHistory(horse.id), []);
     horse.raceHistory = raceRows.map(w => ({ id: w.raceHistoryId, date: dateText(w.raceDate), raceName: w.raceName, distance: String(w.distance), position: w.finishPosition, totalHorses: 0, time: w.completionTime || '', venue: w.racecourse || '', jockey: w.jockeyName || '', prize: String(w.prize ?? '') }));
     horse.totalRaces = horse.raceHistory.length; horse.wins = horse.raceHistory.filter(r => r.position === 1).length;
     horse.achievements = horse.raceHistory.filter(r => r.position <= 3).map(r => ({ id: r.id, date: r.date, title: r.raceName, description: r.venue, prize: r.prize, position: r.position }));
     data.horseClubRequests.push({ id: horse.id, horseId: horse.id, horseName: horse.name, horseBreed: horse.breed, horseImageUrl: horse.imageUrl, ownerId: horse.ownerId, ownerName: horse.ownerName, clubId: CENTER, submittedAt: '', expiresAt: '', status: horse.approvalStatus, reviewNote: '' });
     if (['manager', 'owner'].includes(user.role || '')) {
-      const packs = await read(`Package ${horse.id}`, () => request<Wire[]>(`/horse-packages/${user.role === 'manager' ? 'manage/' : ''}horse/${enc(horse.id)}`), []);
+      const packs = await read(`Package ${horse.id}`, () => listHorsePackages(horse.id, user.role === 'manager'), []);
       data.enrollments.push(...packs.map(w => enrollmentFromApi(w, data.packages, horse)));
     }
     if (user.role === 'head_trainer' && myAssignments.some(a => a.horse_id === horse.id && currentTrainerAssignment(a))) {
-      const plans = await read(`Plans ${horse.id}`, () => request<Wire[]>(`${path}/training-plans`), []);
+      const plans = await read(`Plans ${horse.id}`, () => listHorseTrainingPlans(horse.id), []);
       data.trainingPlans.push(...plans.map(w => planFromApi(w)));
     }
-    if (['owner', 'manager'].includes(user.role || '')) data.trainingSessions.push(...(await read(`Training schedule ${horse.id}`, () => request<Wire[]>(`/training-sessions/horse/${enc(horse.id)}`), [])).map(w => sessionFromApi(w, user.role === 'head_trainer' ? user : undefined)));
+    if (['owner', 'manager'].includes(user.role || '')) data.trainingSessions.push(...(await read(`Training schedule ${horse.id}`, () => listHorseTrainingSessions(horse.id), [])).map(w => sessionFromApi(w, user.role === 'head_trainer' ? user : undefined)));
   }
   if (user.role === 'head_trainer') {
     for(const horseId of new Set<string>(myAssignments.filter(currentTrainerAssignment).map(a=>a.horse_id))){
-      const sessions=await read<Wire[]>('Training schedule '+horseId,()=>request('/training-sessions/horse/'+enc(horseId)),[]);
+      const sessions=await read<Wire[]>('Training schedule '+horseId,()=>listHorseTrainingSessions(horseId),[]);
       data.trainingSessions.push(...sessions.map(w=>sessionFromApi(w)));
     }
     for (const a of myAssignments) {
       if (data.enrollments.some(e => e.id === a.horse_package_id)) continue;
       if (!currentTrainerAssignment(a)) continue;
-      const context = await read(`Assigned packages ${a.horse_package_id}`, () => request(`/horse-packages/${enc(a.horse_package_id)}/training-context`), null);
+      const context = await read(`Assigned packages ${a.horse_package_id}`, () => getPackageTrainingContext(a.horse_package_id), null);
       if (context) {
         if(!data.horses.some(h=>h.id===a.horse_id))
           data.horses.push(horseFromApi({horseId:a.horse_id,horseName:context.horseName,trainerIds:[],healthStatus:context.healthStatus,admissionStatus:context.admissionStatus},data.users));
@@ -285,9 +291,9 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
     }
   }
   if(user.role==='head_trainer'){
-    const profile=await read<Wire|null>('Training profile',()=>request('/trainer-profiles/me'),null);
+    const profile=await read<Wire|null>('Training profile',()=>getOwnTrainerProfile(),null);
     if(profile?.trainer_id){
-      const history=await read<Wire[]>('Training result history',()=>request('/trainer-profiles/'+enc(profile.trainer_id)+'/sessions'),[]);
+      const history=await read<Wire[]>('Training result history',()=>listTrainerSessions(profile.trainer_id),[]);
       for(const row of history){
         const w={sessionId:row.session_id,horsePackageId:row.horse_package_id,planId:row.plan_id,horseId:row.horse_id,
           scheduledStart:row.scheduled_start,scheduledEnd:row.scheduled_end,status:row.status,recordedBy:row.recorded_by,
@@ -304,7 +310,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
   data.trainingSessions=uniqueSessions(data.trainingSessions);
   for (const e of data.enrollments) {
     if (e.directAssignmentId) continue;
-    const assignments = user.role === 'head_trainer' ? myAssignments.filter(a => a.horse_package_id === e.id) : await read(`Package trainer ${e.id}`, () => request<Wire[]>(`/horse-packages/${enc(e.id)}/trainer-assignments`), []);
+    const assignments = user.role === 'head_trainer' ? myAssignments.filter(a => a.horse_package_id === e.id) : await read(`Package trainer ${e.id}`, () => listPackageTrainerAssignments(e.id), []);
     const a = assignments.find(a => currentTrainerAssignment(a)) || assignments.find(a => a.status === 'ASSIGNED');
     if (a) { e.trainerId = a.assignee_id; e.trainerName = a.trainer_name; e.trainerStatus = currentTrainerAssignment(a) ? 'confirmed' : 'pending'; e.assignmentId = a.assignment_id || a.id; }
     e.assignHistory = [...assignments].reverse().map(a => ({ time: dateText(a.created_at), kind: currentTrainerAssignment(a) ? 'confirm' : a.status === 'DECLINED' ? 'decline' : 'assign', from: null, to: a.trainer_name, by: a.assigned_by_name, reason: a.reason || a.status }));

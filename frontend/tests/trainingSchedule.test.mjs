@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,readFile,writeFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';import path from 'node:path';import {pathToFileURL} from 'node:url';import ts from 'typescript';
 const dir=await mkdtemp(path.join(tmpdir(),'training-schedule-'));
-for(const name of ['sessionPreview', 'packageBuilder', 'packageRoadmap','trainingSchedule','trainingTimestamp','api','trainingAssessment', 'remote','remoteActions','permissionApi','recommendations','proxyOrigin','data','trainingLogic']){
+for(const name of ["adminApi", "authApi", "horsesApi", "medicalApi", "notificationsApi", "packagesApi", "trainersApi", "trainingApi", "packageLifecycle", 'sessionPreview', 'packageBuilder', 'packageRoadmap','trainingSchedule','trainingTimestamp','api','trainingAssessment', 'remote','remoteActions','permissionApi','recommendations','proxyOrigin','data','trainingLogic']){
  const source=await readFile(sourceUrl(name+'.ts'),'utf8');
  const code=ts.transpileModule(source.replace('import.meta.env','({})'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.ES2022}}).outputText.replace(/[\s\S]*/, flattenModuleImports);await writeFile(path.join(dir,name+'.mjs'),code);
 }

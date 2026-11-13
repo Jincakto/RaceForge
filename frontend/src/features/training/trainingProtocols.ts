@@ -1,4 +1,5 @@
-import { request, idPath } from '../../shared/api/api';
+import { postTrainingProtocol } from './api/trainingApi';
+export { listProtocols, changeProtocolStatus } from './api/trainingApi';
 export const WEEK_DAYS = ['MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY','SUNDAY'];
 export interface ProtocolStage { startDay: number; endDay: number; activityName: string; intensity: string; daysOfWeek: string[]; sessionTime: string; sessionEndTime: string; }
 export interface ProtocolDraft { name: string; packageType: string; minWeight: number; maxWeight: number; stages: ProtocolStage[]; rationale: string; }
@@ -15,9 +16,7 @@ export function validateProtocol(d: ProtocolDraft) {
     last = s.endDay;
   }
 }
-export const listProtocols = () => request<ProtocolRow[]>('/training-protocols');
-export function createProtocol(draft: ProtocolDraft) { validateProtocol(draft); return request<ProtocolRow>('/training-protocols','POST',draft); }
-export const changeProtocolStatus = (id: string, action: 'approve' | 'retire') => request<ProtocolRow>(`/training-protocols/${idPath(id)}/${action}`,'POST');
+export function createProtocol(draft: ProtocolDraft) { validateProtocol(draft); return postTrainingProtocol(draft); }
 export function protocolOverlap(d: Pick<ProtocolRow,'package_type'|'min_weight'|'max_weight'|'protocol_id'>, list: ProtocolRow[]) {
   return list.some(p=>p.protocol_id!==d.protocol_id && p.status==='APPROVED' && p.package_type===d.package_type && Number(p.min_weight)<Number(d.max_weight) && Number(p.max_weight)>Number(d.min_weight));
 }

@@ -1,8 +1,9 @@
-import { request, idPath } from '../../shared/api/api';
+import { getPackageRoadmap } from "./api/packagesApi";
+import { idPath } from '../../shared/api/api';
 import { roadmapFromApi, type PackageRoadmap } from './packageRoadmap';
 /** Package IDs are the source boundary; horse Training_Plans are never queried. */
 export async function readPackageCurriculum(packageId:string):Promise<PackageRoadmap> {
-  const raw=await request<any>('/training-packages/'+idPath(packageId)+'/roadmap-template');
+  const raw=await getPackageRoadmap(packageId);
   if(typeof raw?.title!=='string'||!raw.title.trim()||typeof raw.goal!=='string'||!raw.goal.trim())throw Error('The source curriculum is missing its title or goal.');
   const result=roadmapFromApi(raw);
   if(!result.stages.length)throw Error('No roadmap stages are configured for this package.');

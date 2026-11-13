@@ -9,13 +9,13 @@ import ts from 'typescript';
 
 // Run the actual TS adapters without Vite or a database; HTTP is the test boundary.
 const dir = await mkdtemp(path.join(tmpdir(), 'raceforge-api-tests-'));
-for (const name of ['sessionPreview', 'packageBuilder', 'packageRoadmap', 'trainingSchedule', 'trainingTimestamp', 'api', 'trainingAssessment', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
+for (const name of ["adminApi", "authApi", "horsesApi", "medicalApi", "notificationsApi", "packagesApi", "trainersApi", "trainingApi", "packageLifecycle", 'sessionPreview', 'packageBuilder', 'packageRoadmap', 'trainingSchedule', 'trainingTimestamp', 'api', 'trainingAssessment', 'remote', 'remoteActions', 'permissionApi', 'recommendations', 'proxyOrigin', 'data', 'trainingLogic', 'trainerProfile', 'trainingProtocols']) {
   const source = await readFile(sourceUrl(`${name}.ts`), 'utf8');
   const code = ts.transpileModule(source.replace('import.meta.env', '({})'), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText
     .replace(/[\s\S]*/, flattenModuleImports);
   await writeFile(path.join(dir, `${name}.mjs`), code);
 }
-const api = await import(pathToFileURL(path.join(dir, 'api.mjs')).href);
+const api = { ...await import(pathToFileURL(path.join(dir, 'api.mjs')).href), ...await import(pathToFileURL(path.join(dir, 'authApi.mjs')).href) };
 const mapping = await import(pathToFileURL(path.join(dir, 'remote.mjs')).href);
 const { makeRemoteActions } = await import(pathToFileURL(path.join(dir, 'remoteActions.mjs')).href);
 const protocols = await import(pathToFileURL(path.join(dir, 'trainingProtocols.mjs')).href);
@@ -143,8 +143,8 @@ test('does not retry a forbidden action, and rejects non-API HTML', async () => 
 test('public registration payload never contains role or groom selection', async () => {
   globalThis.fetch = async (url, init) => { assert.equal(url, '/api/auth/register'); assert.deepEqual(Object.keys(JSON.parse(init.body)).sort(), ['email','fullName','password','phone']); return ok({ message:'OTP sent' }); };
   await api.auth.register({ fullName:'Owner', email:'test@example.invalid', password:'password123', phone:'' });
-  const app = await readFile(sourceUrl('App.tsx'), 'utf8');
-  const registration = app.slice(app.indexOf('function RegisterPage'), app.indexOf('// ── Onboarding'));
+  const app = await readFile(sourceUrl('AuthPages.tsx'), 'utf8');
+  const registration = app.slice(app.indexOf('function RegisterPage'), app.indexOf('function OnboardingPage'));
   assert.match(registration, /auth\.register/);
   assert.doesNotMatch(registration, /role:\s*['"]groom/);
 });

@@ -1,5 +1,6 @@
+import { listPendingResumptions } from "../packages/api/packagesApi";
 import { useEffect, useRef, useState } from 'react';
-import { request } from '../../shared/api/api';
+
 import type { Res } from '../../shared/data/data';
 import { Btn, Card } from '../../shared/ui/ui';
 
@@ -22,7 +23,7 @@ export function TrainingResumptions({ revision, onAccept }: {
   useEffect(() => {
     let active = true;
     setLoading(true); setError('');
-    request<TrainerResumption[]>('/horse-packages/resumptions/mine')
+    listPendingResumptions()
       .then(data => { if (active) setRows(data); })
       .catch(e => { if (active) { setRows([]); setError(e.message || 'Unable to load training resumptions.'); } })
       .finally(() => { if (active) setLoading(false); });

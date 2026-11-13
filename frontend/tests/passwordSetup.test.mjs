@@ -16,10 +16,11 @@ function compile(source) {
   }).outputText.replace(/[\s\S]*/, flattenModuleImports)
     .replace(/(['"])(react(?:\/jsx-runtime)?)\1/g, (_, quote, specifier) => `${quote}${pathToFileURL(localRequire.resolve(specifier)).href}${quote}`);
 }
-for (const name of ['api', 'passwordSetup']) {
+for (const name of ['api', 'authApi', 'passwordSetup']) {
   await writeFile(path.join(dir, `${name}.mjs`), compile(await readFile(sourceUrl(`${name}.ts`), 'utf8')));
 }
 const api = await import(pathToFileURL(path.join(dir, 'api.mjs')).href);
+const { auth } = await import(pathToFileURL(path.join(dir, 'authApi.mjs')).href);
 const flow = await import(pathToFileURL(path.join(dir, 'passwordSetup.mjs')).href);
 const originalFetch = globalThis.fetch;
 const originalWindow = globalThis.window;
@@ -32,12 +33,12 @@ const ok = data => new Response(JSON.stringify({ success:true, data, message:'OK
 
 // Render the actual existing LoginPage, without loading the rest of App or
 // sending requests. This verifies the real password/login presentation.
-const appSource=await readFile(sourceUrl('App.tsx'),'utf8');
+const appSource=await readFile(sourceUrl('AuthPages.tsx'),'utf8');
 const ast=ts.createSourceFile('App.tsx',appSource,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
 const login=ast.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='LoginPage');
 await writeFile(path.join(dir,'LoginPage.mjs'),compile(`
 import { useState, useMemo, useRef } from 'react';
-import { auth } from './api';
+import { auth } from './authApi';
 import { passwordSetupLink, createPasswordSetupSubmitter, passwordSetupError, requestPasswordReset } from './passwordSetup';
 ${login.getText(ast)}
 export { LoginPage };
@@ -162,7 +163,7 @@ test('concurrent mount restorations rotate the refresh cookie once', async () =>
   let release; const gate=new Promise(resolve=>{release=resolve;}); let calls=0;
   const account={userId:'HTR-001',role:{roleName:'HEAD_TRAINER'}};
   globalThis.fetch=async url=>{assert.equal(url,'/api/auth/refresh');calls++;await gate;return ok({accessToken:'fresh',user:account});};
-  const first=api.auth.restore(), second=api.auth.restore();
+  const first=auth.restore(), second=auth.restore();
   assert.equal(calls,1); release();
   assert.deepEqual(await Promise.all([first,second]),[account,account]);
 });
@@ -175,13 +176,13 @@ test('restoration and an expired API request share the same token rotation', asy
     assert.equal(url,'/api/private');reads++;
     return options.headers.Authorization==='Bearer fresh'?ok('saved'):new Response('{}',{status:401});
   };
-  const restore=api.auth.restore();const read=api.request('/private');
+  const restore=auth.restore();const read=api.request('/private');
   await new Promise(resolve=>setImmediate(resolve));assert.equal(refreshes,1);release();
   assert.deepEqual(await restore,account);assert.equal(await read,'saved');assert.equal(reads,2);assert.equal(refreshes,1);
 });
 
 test('failed restoration releases its flight so a later attempt may succeed', async () => {
   let calls=0;globalThis.fetch=async()=>{calls++;return calls===1?new Response('{}',{status:401}):ok({accessToken:'renewed',user:{userId:'HTR-001'}});};
-  await assert.rejects(api.auth.restore(),error=>error.status===401);
-  assert.deepEqual(await api.auth.restore(),{userId:'HTR-001'});assert.equal(calls,2);
+  await assert.rejects(auth.restore(),error=>error.status===401);
+  assert.deepEqual(await auth.restore(),{userId:'HTR-001'});assert.equal(calls,2);
 });

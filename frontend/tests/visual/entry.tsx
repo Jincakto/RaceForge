@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import '../../src/app/index.css';
-import { ResultForm } from '../../src/features/training/trainingPlans';
+import { ResultForm } from '../../src/features/training/pages/trainingPlans';
 import {
   TrainingAssessmentDetails, TrainingAssessmentEmpty, TrainingAssessmentReadOnly,
 } from '../../src/features/training/TrainingAssessmentView';

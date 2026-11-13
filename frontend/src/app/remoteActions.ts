@@ -1,14 +1,20 @@
-import { canCancelRegistration, completionBlockReason, unfinishedPackageSession, type PackageLifecycleAction, type PackageLifecycleWire, type PackageLifecycleOutcome, type PackageLifecycleResult } from '../../features/training/packageLifecycle';
-import { rowProblem, persistedRow, type PreviewContext, type PreviewSession } from '../../features/training/sessionPreview';
-import { selectedStages, scheduleRows, normalizeStages } from '../../features/training/trainingSchedule';
-import { trainingTimestamp } from '../../features/training/trainingTimestamp';
-import { assessmentErrorMessage, completionPayload, fetchSessionAssessment, isDuplicateCompletionError, vetRequestReason, type CompleteSessionInput, type TrainingVetNotificationResponse } from '../../features/training/trainingAssessment';
-import { ApiError, idPath as enc, request } from './api';
+import { getPackageRegistration, getPackageTrainingContext, changePackageLifecycle, registerHorsePackage, createPackagePaymentLink, syncPackagePayment, listHorsePackages, createTrainingPackage, acceptTrainingResumption } from "../features/packages/api/packagesApi";
+import { getHorseHealthProfile, saveMedicalDraft, uploadClinicalEvidence, confirmMedicalRecord, getMedicalRecord, assignVeterinarian, respondToVetAssignment, releaseTrainingLock } from "../features/medical/api/medicalApi";
+import { createHorse, createRaceHistory, submitAdmission, updateHorse, deleteRaceHistory, updateRaceHistory, activateHorse, approveAdmission, rejectAdmission } from "../features/horses/api/horsesApi";
+import { createStaffAccount, updateAccountStatus, resendStaffInvitation } from "../features/admin/api/adminApi";
+import { assignTrainer, respondToTrainerAssignment } from "../features/trainers/api/trainersApi";
+import { createTrainingPlan, listTrainingPlanStages, listHorseTrainingSessions, createTrainingSession, adjustTrainingSession, generateTrainingSessions, startTrainingSession, saveSessionAttendance, stopTrainingSession, completeTrainingSession, requestSessionVetCheck } from "../features/training/api/trainingApi";
+import { canCancelRegistration, completionBlockReason, unfinishedPackageSession, type PackageLifecycleAction, type PackageLifecycleWire, type PackageLifecycleOutcome, type PackageLifecycleResult } from '../features/training/packageLifecycle';
+import { rowProblem, persistedRow, type PreviewContext, type PreviewSession } from '../features/training/sessionPreview';
+import { selectedStages, scheduleRows, normalizeStages } from '../features/training/trainingSchedule';
+import { trainingTimestamp } from '../features/training/trainingTimestamp';
+import { assessmentErrorMessage, completionPayload, fetchSessionAssessment, isDuplicateCompletionError, vetRequestReason, type CompleteSessionInput, type TrainingVetNotificationResponse } from '../features/training/trainingAssessment';
+import { ApiError } from '../shared/api/api';
 import { staffRoleId, ROLE_NAMES, isoDate, enrollmentFromApi, horsePayload, horseCreateForm, medicalPayload, packageFromApi, planFromApi, recordFromApi, sessionFromApi } from './remote';
 import type { RemoteSlice } from './remote';
-import type { AppUser, Horse, HealthRecord, Res, Enrollment, TrainingPackage, TrainingPlan, TrainingSession, Role } from '../data/data';
-import { validatePackage, type PackageDraft, type PlanDraft, type SessionDraft, type SessionWriteOptions } from '../../features/training/trainingLogic';
-import { changePermission, permissionForPage } from './permissionApi';
+import type { AppUser, Horse, HealthRecord, Res, Enrollment, TrainingPackage, TrainingPlan, TrainingSession, Role } from '../shared/data/data';
+import { validatePackage, type PackageDraft, type PlanDraft, type SessionDraft, type SessionWriteOptions } from '../features/training/trainingLogic';
+import { changePermission, permissionForPage } from "../features/admin/api/permissionApi";
 
 
 interface State extends RemoteSlice { user: AppUser | null; }
@@ -58,9 +64,12 @@ export function makeRemoteActions(env: Env) {
       try{
         await reload();
         let wire:PackageLifecycleWire;
-        if(actor.role==='owner')wire=await request('/horse-packages/'+enc(id));
+        if (actor.role === 'owner') {
+          const detail = await getPackageRegistration(id);
+          wire = { ...detail, deletedSessionCount: 0 };
+        }
         else {
-          const context=await request('/horse-packages/'+enc(id)+'/training-context');
+          const context=await getPackageTrainingContext(id);
           wire={registration:{horsePackageId:id,horseId:e.horseId,status:context.packageStatus},certificate:null,deletedSessionCount:0};
         }
         const expected=action==='complete'?'COMPLETED':'CANCELLED';
@@ -83,7 +92,7 @@ export function makeRemoteActions(env: Env) {
         if(reason)return {ok:false,message:reason};
       }
       try{
-        const wire=await request<PackageLifecycleWire>('/horse-packages/'+enc(id)+'/'+action,'PATCH');
+        const wire=await changePackageLifecycle(id, action);
         if(wire.registration?.horsePackageId!==id || wire.registration.status!==(action==='complete'?'COMPLETED':'CANCELLED')
             || !Number.isInteger(wire.deletedSessionCount) || wire.deletedSessionCount<0)throw new Error('Unconfirmed registration response');
         return await finish(wire);
@@ -98,12 +107,12 @@ export function makeRemoteActions(env: Env) {
   }
   async function saveRecord(rec: HealthRecord): Promise<HealthRecord> {
     const state = getState();
-    const profile = rec.profileId || await request<string>(`/horses/${enc(rec.horseId)}/health-profile`);
+    const profile = rec.profileId || await getHorseHealthProfile(rec.horseId);
     const body = medicalPayload(rec, profile);
     // Keep the server-created draft ID on the form if confirmation fails; retry updates it.
     const existing = rec.profileId && rec.id ? rec.id : undefined;
     if (existing) body.postTrainingSessionId = undefined;
-    const draft = await request(existing ? `/medical/records/${enc(existing)}/draft` : '/medical/records', existing ? 'PUT' : 'POST', body);
+    const draft = await saveMedicalDraft(existing, body);
     rec.id = draft.medicalRecordId; rec.profileId = profile;
     for (const [key, finding] of Object.entries(rec.regions || {})) {
       if (finding.ok || !finding.evidenceFile) continue;
@@ -111,12 +120,12 @@ export function makeRemoteActions(env: Env) {
       const upload = new FormData();
       upload.append('file', finding.evidenceFile);
       try {
-        await request(`/medical/records/${enc(rec.id)}/clinical-exams/${enc(area)}/evidence`, 'PUT', upload);
+        await uploadClinicalEvidence(rec.id, area, upload);
       } catch (error) {
         throw new Error(`Could not upload evidence for ${key}. ${(error as Error).message}`);
       }
     }
-    const confirmed = rec.status === 'draft' ? draft : await request(`/medical/records/${enc(draft.medicalRecordId)}/confirm`, 'POST', body);
+    const confirmed = rec.status === 'draft' ? draft : await confirmMedicalRecord(draft.medicalRecordId, body);
     return recordFromApi(confirmed, rec.horseId, state.users);
   }
   async function savePostTrainingRecord(sessionId: string, rec: HealthRecord): Promise<HealthRecord> {
@@ -130,7 +139,7 @@ export function makeRemoteActions(env: Env) {
     if (assessment.reviewedMedicalRecordId) throw new Error('This post-training check has already been reviewed.');
     rec.postTrainingSessionId = sessionId; rec.isPostTraining = true;
     if (assessment.linkedMedicalRecordId && !rec.profileId) {
-      const linked = await request('/medical/records/' + enc(assessment.linkedMedicalRecordId));
+      const linked = await getMedicalRecord(assessment.linkedMedicalRecordId);
       if (linked.status === 'DRAFT') { rec.id = linked.medicalRecordId; rec.profileId = linked.profileId; }
       else if (linked.status !== 'CANCELLED') throw new Error('The linked examination cannot be edited.');
     }
@@ -150,16 +159,16 @@ export function makeRemoteActions(env: Env) {
         const key = `${getState().user?.id}:${horse.microchip?.trim().toUpperCase()}`;
         let progress = createdRegistrations.get(key);
         if (!progress) {
-          const created = await request('/horses', 'POST', horseCreateForm(horse));
+          const created = await createHorse(horseCreateForm(horse));
           progress = { id: created.horseId, raceKeys: new Set() }; createdRegistrations.set(key, progress);
         }
         horse.id = progress.id;
         try {
           for (const r of horse.raceHistory) {
             const payload = racePayload(r); const raceKey = JSON.stringify(payload);
-            if (!progress.raceKeys.has(raceKey)) { await request(`/horses/${enc(horse.id)}/race-history`, 'POST', payload); progress.raceKeys.add(raceKey); }
+            if (!progress.raceKeys.has(raceKey)) { await createRaceHistory(horse.id, payload); progress.raceKeys.add(raceKey); }
           }
-          await request(`/horses/${enc(horse.id)}/admission`, 'POST');
+          await submitAdmission(horse.id);
           createdRegistrations.delete(key);
         } catch (e) { await reload(); throw e; }
         navigate('my-horses');
@@ -175,12 +184,12 @@ export function makeRemoteActions(env: Env) {
         if (JSON.stringify(next.trainerHistory) !== JSON.stringify(prev.trainerHistory)) {
           throw new Error("Assign trainers through a paid horse package on the Trainer assignments page.");
         }
-        if (JSON.stringify(horsePayload(next)) !== JSON.stringify(horsePayload(prev))) await request(`/horses/${enc(next.id)}`, 'PUT', horsePayload(next));
-        for (const old of prev.raceHistory) if (!next.raceHistory.some(r => r.id === old.id)) await request(`/horses/race-history/${enc(old.id)}`, 'DELETE');
+        if (JSON.stringify(horsePayload(next)) !== JSON.stringify(horsePayload(prev))) await updateHorse(next.id, horsePayload(next));
+        for (const old of prev.raceHistory) if (!next.raceHistory.some(r => r.id === old.id)) await deleteRaceHistory(old.id);
         for (const r of next.raceHistory) {
           const old = prev.raceHistory.find(x => x.id === r.id);
-          if (!old) await request(`/horses/${enc(next.id)}/race-history`, 'POST', racePayload(r));
-          else if (JSON.stringify(old) !== JSON.stringify(r)) await request(`/horses/race-history/${enc(r.id)}`, 'PUT', racePayload(r));
+          if (!old) await createRaceHistory(next.id, racePayload(r));
+          else if (JSON.stringify(old) !== JSON.stringify(r)) await updateRaceHistory(r.id, racePayload(r));
         }
       });
     },
@@ -188,50 +197,50 @@ export function makeRemoteActions(env: Env) {
       if (getState().user?.role !== 'manager') throw new Error("Only a club manager may activate a horse.");
       const horse = getState().horses.find(h => h.id === id);
       if (!horse || horse.approvalStatus !== 'approved') throw new Error("Horse admission must be approved before activation.");
-      await request(`/horses/${enc(id)}/activate`, 'PATCH');
+      await activateHorse(id);
     }, "Horse activated. Health and training lock requirements still apply when registering for a package."),
-    submitHorse: (id: string) => fire(`submit-${id}`, () => request(`/horses/${enc(id)}/admission`, 'POST')),
+    submitHorse: (id: string) => fire(`submit-${id}`, () => submitAdmission(id)),
     approveHorse: (id: string) => fire(`review-${id}`, async () => {
-      await request(`/horses/${enc(id)}/admission/approve`, 'POST', { note: "Examination records and supporting evidence reviewed." });
+      await approveAdmission(id, { note: "Examination records and supporting evidence reviewed." });
       try {
-        await request(`/horses/${enc(id)}/activate`, 'PATCH');
+        await activateHorse(id);
       } catch (cause) {
         await reload();
         throw new Error(`Horse admission was approved, but activation failed. Retry activation from the horse profile. ${(cause as Error).message}`);
       }
     }, "Horse admitted to the club and activated."),
-    rejectHorse: (id: string, note: string) => fire(`review-${id}`, () => request(`/horses/${enc(id)}/admission/reject`, 'POST', { note })),
-    assignVet: (horseId: string, veterinarianId: string, _reason: string) => fire(`vet-${horseId}`, () => request(`/medical/assignments/horses/${enc(horseId)}`, 'POST', { veterinarianId })),
+    rejectHorse: (id: string, note: string) => fire(`review-${id}`, () => rejectAdmission(id, { note })),
+    assignVet: (horseId: string, veterinarianId: string, _reason: string) => fire(`vet-${horseId}`, () => assignVeterinarian(horseId, { veterinarianId })),
     respondVet: (horseId: string, accepted: boolean, reason: string) => fire(`vet-response-${horseId}`, () => {
       const id = getState().horses.find(h => h.id === horseId)?.vetAssignmentId;
       if (!id) throw new Error("Veterinary assignment ID not found.");
-      return request(`/medical/assignments/${enc(id)}/${accepted ? 'accept' : 'decline'}`, 'POST', accepted ? undefined : { reason });
+      return respondToVetAssignment(id, accepted, accepted ? undefined : { reason });
     }),
     saveHealth: (rec: HealthRecord) => run(`medical-${rec.horseId}`, () => saveRecord(rec), ''),
     savePostTrainingHealth: (sessionId: string, rec: HealthRecord) => run(`medical-${rec.horseId}`, () => savePostTrainingRecord(sessionId, rec), ''),
     async postExam(sessionId: string, rec: HealthRecord): Promise<string | null> {
       try { await run(`medical-${rec.horseId}`, () => savePostTrainingRecord(sessionId, rec)); return null; } catch (e) { error((e as Error).message); return (e as Error).message; }
     },
-    unlock: (id: string, reason: string) => result<null>(`unlock-${id}`, async () => { await request(`/medical/horses/${enc(id)}/training-lock/unlock`, 'POST', { reason }); return null; }),
+    unlock: (id: string, reason: string) => result<null>(`unlock-${id}`, async () => { await releaseTrainingLock(id, { reason }); return null; }),
     createAccount: (u: AppUser) => fire('create-account', async () => {
       if (!u.role || ['owner', 'admin'].includes(u.role)) throw new Error("Administrators create staff accounts here. Horse owners register themselves.");
       const existing = getState().users.find(account => account.email.trim().toLowerCase() === u.email.trim().toLowerCase());
       if (existing) throw new Error('This email already belongs to an account. Do not create it again.');
       // Professional profiles are self-service after invitation activation.
-      await request('/admin/users', 'POST', {
+      await createStaffAccount({
         fullName: u.name, email: u.email, phone: u.phone || '',
         roleId: staffRoleId(u.role, getState().user),
       });
     }, "Staff account created. A password setup invitation email will be sent."),
-    toggleLock: (id: string, _reason: string) => fire(`account-${id}`, () => request(`/users/${enc(id)}/status`, 'PATCH', { status: getState().users.find(u => u.id === id)?.locked ? 'ACTIVE' : 'INACTIVE' })),
-    invite: (id: string, _reason: string) => fire(`invite-${id}`, () => request(`/admin/users/${enc(id)}/invitation`, 'POST'), "Password setup invitation email resent."),
+    toggleLock: (id: string, _reason: string) => fire(`account-${id}`, () => updateAccountStatus(id, { status: getState().users.find(u => u.id === id)?.locked ? 'ACTIVE' : 'INACTIVE' })),
+    invite: (id: string, _reason: string) => fire(`invite-${id}`, () => resendStaffInvitation(id), "Password setup invitation email resent."),
     // PayOS: create the registration (or reuse an unpaid one) and request a payment link.
     async startPayment(horseId: string, packageId: string): Promise<Res<{ enrollmentId: string; url: string; orderCode: number }>> {
       return result(`purchase-${horseId}`, async () => {
         const state = getState();
         const pending = state.enrollments.find(e => e.horseId === horseId && e.packageId === packageId && e.paymentStatus === 'PENDING');
-        const registered = pending ? { horsePackageId: pending.id } : await request('/horse-packages/register', 'POST', { horseId, packageId });
-        const payment = await request(`/horse-packages/${enc(registered.horsePackageId)}/payment-link`, 'POST');
+        const registered = pending ? { horsePackageId: pending.id } : await registerHorsePackage({ horseId, packageId });
+        const payment = await createPackagePaymentLink(registered.horsePackageId);
         if (!payment?.checkoutUrl) throw new Error("PayOS did not return a payment link. Please try again.");
         return { enrollmentId: registered.horsePackageId as string, url: payment.checkoutUrl as string, orderCode: payment.orderCode as number };
       });
@@ -239,8 +248,8 @@ export function makeRemoteActions(env: Env) {
     // Ask BE to sync the PayOS state, then read the package back so PAID comes from BE only.
     async syncPayment(horseId: string, enrollmentId: string): Promise<Res<Enrollment>> {
       return result(`payment-sync-${enrollmentId}`, async () => {
-        await request(`/horse-packages/${enc(enrollmentId)}/payment-sync`, 'POST');
-        const packs = await request(`/horse-packages/horse/${enc(horseId)}`) as Array<{ horsePackageId: string }>;
+        await syncPackagePayment(enrollmentId);
+        const packs = await listHorsePackages(horseId) as Array<{ horsePackageId: string }>;
         const w = packs.find(p => p.horsePackageId === enrollmentId);
         if (!w) throw new Error("Registration not found after payment check.");
         const state = getState();
@@ -251,7 +260,7 @@ export function makeRemoteActions(env: Env) {
       if (draft.id) unavailable("editing training packages");
       const errors = validatePackage(draft, getState().packages);
       if (Object.keys(errors).length) throw new Error(Object.values(errors).join(' '));
-      return packageFromApi(await request('/training-packages', 'POST', { packageName: draft.name.trim(), packageType: draft.packageType, description: draft.description, durationDays: draft.durationDays, price: draft.price, roadmapTemplate: draft.roadmapTemplate }));
+      return packageFromApi(await createTrainingPackage({ packageName: draft.name.trim(), packageType: draft.packageType, description: draft.description, durationDays: draft.durationDays, price: draft.price, roadmapTemplate: draft.roadmapTemplate }));
     }),
     togglePackage: (_id: string, _active: boolean) => result<TrainingPackage>('package-status', async () => unavailable("enabling or disabling training packages")),
     assignTrainer: (enrollmentId: string, userId: string, reason = '') => result<Enrollment>(`assign-${enrollmentId}`, async () => {
@@ -259,14 +268,14 @@ export function makeRemoteActions(env: Env) {
       if (e.directAssignmentId || e.apiStatus !== 'ACTIVE' || e.paymentStatus !== 'PAID') throw new Error("Select an active, paid horse package before assigning a trainer.");
       const trainerId = state.users.find(u => u.id === userId)?.trainerProfileId;
       if (!trainerId) throw new Error("The trainer has no professional profile. Ask the trainer to complete their professional profile after activating their account, then refresh the list.");
-      await request(e.assignmentId ? `/trainer-assignments/${enc(e.assignmentId)}/replace` : '/trainer-assignments', 'POST', e.assignmentId ? { trainerId, reason } : { trainerId, horsePackageId: enrollmentId });
+      await assignTrainer(e.assignmentId, e.assignmentId ? { trainerId, reason } : { trainerId, horsePackageId: enrollmentId });
       return { ...e, trainerId: userId, trainerStatus: 'pending' };
     }),
     respondAssign: (enrollmentId: string, accepted: boolean, reason = '') => result<null>(`respond-${enrollmentId}`, async () => {
       const entry = getState().enrollments.find(e => e.id === enrollmentId);
       if (entry?.directAssignmentId || !entry) throw new Error("A package-linked trainer assignment is required.");
       const id = entry?.assignmentId; if (!id) throw new Error("Assignment ID not found.");
-      await request(`/trainer-assignments/${enc(id)}/respond`, 'POST', { accepted, reason }); return null;
+      await respondToTrainerAssignment(id, { accepted, reason }); return null;
     }),
     createPlan: (draft: PlanDraft) => result<TrainingPlan>(`plan-${draft.horseId}`, async () => {
       const state = getState();
@@ -277,7 +286,7 @@ export function makeRemoteActions(env: Env) {
       if (draft.workload && !selectedIntensity) throw new Error('Select a valid training intensity.');
       const stages = selectedStages(draft.suggestion.stages, draft.weekdays, draft.time, selectedIntensity);
       if (isoDate(draft.startDate) !== isoDate(e.startedAt) || isoDate(draft.endDate) !== isoDate(e.expiresAt)) throw new Error("Roadmap dates must match the paid package term.");
-      const plan = await request(`/horses/${enc(draft.horseId)}/training-plans`, 'POST', { planName: draft.phase, goal: draft.goals, startDate: isoDate(e.startedAt), endDate: isoDate(e.expiresAt), assignmentId: e.assignmentId, stages });
+      const plan = await createTrainingPlan(draft.horseId, { planName: draft.phase, goal: draft.goals, startDate: isoDate(e.startedAt), endDate: isoDate(e.expiresAt), assignmentId: e.assignmentId, stages });
       return planFromApi(plan, e);
     }),
     generateSessions: (horseId: string, planId: string, drafts: SessionDraft[], options?: SessionWriteOptions) => result<TrainingSession[]>(`generate-${planId}`, async () => {
@@ -285,9 +294,9 @@ export function makeRemoteActions(env: Env) {
         if (!drafts.length) throw new Error('Add at least one session to the preview.');
         const state=getState();const plan=state.trainingPlans.find(p=>p.id===planId&&p.horseId===horseId);
         if(!plan)throw new Error('The training plan is no longer available. Refresh the plan list.');
-        const stages=normalizeStages(await request<any[]>('/training-plans/'+enc(planId)+'/stages'));
+        const stages=normalizeStages(await listTrainingPlanStages(planId));
         const scheduleHorseIds=[...new Set([horseId,...state.trainingPlans.map(p=>p.horseId)])];
-        const readSchedules=async()=> (await Promise.all(scheduleHorseIds.map(id=>request<any[]>('/training-sessions/horse/'+enc(id))))).flat().map(w=>sessionFromApi(w,state.user||undefined));
+        const readSchedules=async()=> (await Promise.all(scheduleHorseIds.map(id=>listHorseTrainingSessions(id)))).flat().map(w=>sessionFromApi(w,state.user||undefined));
         let current=await readSchedules();
         const context:PreviewContext={planId,horseId,trainerId:state.user!.id,startDate:plan.startDate,endDate:plan.endDate,stages,sessions:[...state.trainingSessions.filter(s=>!scheduleHorseIds.includes(s.horseId)),...current],now:new Date()};
         const rows:PreviewSession[]=drafts.map((d,i)=>{
@@ -300,7 +309,7 @@ export function makeRemoteActions(env: Env) {
         try {
           for(const row of rows){
             const found=persistedRow(row,context);if(found){saved.push(found);continue;}
-            const data=await request('/training-sessions','POST',{planId,horseId,scheduledTime:isoDate(row.date)+'T'+row.time+':00',scheduledEnd:isoDate(row.date)+'T'+row.endTime+':00'});
+            const data=await createTrainingSession({planId,horseId,scheduledTime:isoDate(row.date)+'T'+row.time+':00',scheduledEnd:isoDate(row.date)+'T'+row.endTime+':00'});
             const session=sessionFromApi(data,state.user||undefined);saved.push(session);context.sessions.push(session);
           }
           return saved;
@@ -319,35 +328,35 @@ export function makeRemoteActions(env: Env) {
         const scheduledStart = isoDate(d.date)+'T'+d.time+':00';
         const scheduledEnd = isoDate(d.date)+'T'+d.endTime+':00';
         const saved = options.mode === 'adjust'
-          ? await request('/training-sessions/'+enc(options.sessionId!)+'/adjust', 'PATCH', { scheduledStart, scheduledEnd, intensity: options.intensity, reason: options.reason })
-          : await request('/training-sessions', 'POST', { planId, horseId, scheduledTime: scheduledStart, scheduledEnd });
+          ? await adjustTrainingSession(options.sessionId!, { scheduledStart, scheduledEnd, intensity: options.intensity, reason: options.reason })
+          : await createTrainingSession({ planId, horseId, scheduledTime: scheduledStart, scheduledEnd });
         return [sessionFromApi(saved, getState().user || undefined)];
       }
       if (getState().trainingSessions.some(s=>s.planId===planId)) throw new Error('This plan already has sessions. Add or adjust individual sessions instead.');
       // Reconcile with server before every generation/retry, including lost responses.
-      const current=await request<any[]>('/training-sessions/horse/'+enc(horseId));
+      const current=await listHorseTrainingSessions(horseId);
       if(current.some(w=>w.planId===planId))return current.filter(w=>w.planId===planId).map(w=>sessionFromApi(w,getState().user||undefined));
-      const generated = await request('/training-plans/'+enc(planId)+'/generate-sessions', 'POST', {confirmed:true});
+      const generated = await generateTrainingSessions(planId);
       return (Array.isArray(generated)?generated:generated.sessions||[]).map((w:any)=>sessionFromApi(w,getState().user||undefined));
     }),
     checkIn: (id: string, present: boolean, note = '') => result<null>(`attendance-${id}`, async () => {
-      if (present) { await request(`/training-sessions/${enc(id)}/start`, 'PATCH'); return null; }
-      const data = await request(`/training-sessions/${enc(id)}/attendance`, 'PUT', { status: 'MISSED', absenceReason: 'OTHER', absenceNote: note });
+      if (present) { await startTrainingSession(id); return null; }
+      const data = await saveSessionAttendance(id, { status: 'MISSED', absenceReason: 'OTHER', absenceNote: note });
       if (data.warningTriggered) error(data.warningMessage); return null;
     }),
     async startSession(id: string): Promise<string | null> {
-      try { await run(`start-${id}`, () => request(`/training-sessions/${enc(id)}/start`, 'PATCH')); return null; } catch (e) { const message = assessmentErrorMessage(e, 'Unable to start the session. Refresh its status and try again.'); error(message); return message; }
+      try { await run(`start-${id}`, () => startTrainingSession(id)); return null; } catch (e) { const message = assessmentErrorMessage(e, 'Unable to start the session. Refresh its status and try again.'); error(message); return message; }
     },
-    stopSession: (id: string) => result<null>(`stop-${id}`, async () => { await request(`/training-sessions/${enc(id)}/stop`, 'PATCH', {}); return null; }),
+    stopSession: (id: string) => result<null>(`stop-${id}`, async () => { await stopTrainingSession(id); return null; }),
     acceptResumption: (id: string) => result<null>(`resume-${id}`, async () => {
-      await request(`/horse-packages/resumptions/${enc(id)}/accept`, 'POST', {}); return null;
+      await acceptTrainingResumption(id); return null;
     }),
     async completeSession(id: string, input: CompleteSessionInput): Promise<string | null> {
       try {
         await run(`complete-${id}`, async () => {
           const payload = completionPayload(input);
           try {
-            await request(`/training-sessions/${enc(id)}/complete`, 'PATCH', payload);
+            await completeTrainingSession(id, payload);
           } catch (failure) {
             if (!isDuplicateCompletionError(failure)) throw failure;
             // A lost response or double-click may follow a committed save. Verify persisted data.
@@ -363,8 +372,7 @@ export function makeRemoteActions(env: Env) {
       try {
         const trimmed = vetRequestReason(reason);
         const data = await run(`vet-check-${id}`, async () => {
-          const response = await request<TrainingVetNotificationResponse>(
-            `/training-sessions/${enc(id)}/vet-notification`, 'POST', { reason: trimmed });
+          const response = await requestSessionVetCheck(id, { reason: trimmed });
           if (!response || response.sessionId !== id || typeof response.startBlocked !== 'boolean' || typeof response.message !== 'string'
               || !['SENT', 'ALREADY_SENT', 'WAITING_FOR_VET_ASSIGNMENT', 'NOT_REQUESTED'].includes(response.requestStatus)) {
             throw new Error('Invalid vet notification response');

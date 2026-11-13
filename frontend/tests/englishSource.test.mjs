@@ -44,7 +44,7 @@ test('the app uses native English text without rewriting user content through a 
 const localRequire = createRequire(new URL('../package.json', import.meta.url));
 const dir = await mkdtemp(path.join(tmpdir(), 'raceforge-english-components-'));
 after(async () => { if (path.dirname(dir) === tmpdir()) await rm(dir, { recursive: true }); });
-for (const name of ['api.ts', 'trainerProfile.ts', 'trainerProfileForm.tsx', 'trainingProtocols.ts', 'trainingProtocolsPage.tsx', 'ui.tsx']) {
+for (const name of ['api.ts', 'trainersApi.ts', 'trainingApi.ts', 'trainerProfile.ts', 'trainerProfileForm.tsx', 'trainingProtocols.ts', 'trainingProtocolsPage.tsx', 'ui.tsx']) {
   const source = await readFile(sourceUrl(name), 'utf8');
   const output = ts.transpileModule(source.replace('import.meta.env', '({})'), { compilerOptions: { module: ts.ModuleKind.ES2022, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText
     .replace(/[\s\S]*/, flattenModuleImports)

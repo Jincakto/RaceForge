@@ -1,11 +1,12 @@
-import { ApiError, idPath, request } from '../../shared/api/api';
+import { getAssessmentNotificationTarget, getAssessmentTemplate, getSessionAssessment } from "./api/trainingApi";
+import { ApiError, idPath } from '../../shared/api/api';
 import type { AppUser, Enrollment, TrainingSession } from '../../shared/data/data';
 
 export interface TrainingAssessmentContext { sessionId: string; horseId: string; }
 export const isAssessmentNotification = (type: string) => ['TRAINING_ASSESSMENT_ALERT', 'TRAINING_ASSESSMENT_REQUEST'].includes(type);
 
 export async function fetchAssessmentNotification(notificationId: string) {
-  const target = await request<TrainingAssessmentContext>('/training-assessments/notifications/' + idPath(notificationId) + '/target');
+  const target = await getAssessmentNotificationTarget(notificationId);
   if (!target || typeof target.sessionId !== 'string' || typeof target.horseId !== 'string') throw new Error('The notification target could not be verified.');
   const assessment = await fetchSessionAssessment(target.sessionId);
   if (assessment.horseId !== target.horseId) throw new Error('The notification does not match this horse.');
@@ -196,7 +197,7 @@ export function assessmentFromApi(value: unknown): TrainingAssessmentResponse | 
 }
 
 export async function fetchAssessmentTemplate(): Promise<TrainingAssessmentTemplateResponse> {
-  const value = await request<TrainingAssessmentTemplateResponse>('/training-assessments/template');
+  const value = await getAssessmentTemplate();
   if (!record(value) || value.version !== ASSESSMENT_VERSION || !Array.isArray(value.criteria) || value.criteria.length !== 10
       || new Set(value.criteria.map(item => item.code)).size !== 10
       || value.criteria.some(item => !criterionCodes.has(item.code) || typeof item.label !== 'string' || typeof item.helpText !== 'string')
@@ -206,7 +207,7 @@ export async function fetchAssessmentTemplate(): Promise<TrainingAssessmentTempl
   return value;
 }
 export async function fetchSessionAssessment(sessionId: string): Promise<TrainingAssessmentResponse> {
-  const value = assessmentFromApi(await request<unknown>('/training-sessions/' + idPath(sessionId) + '/assessment'));
+  const value = assessmentFromApi(await getSessionAssessment(sessionId));
   if (!value || value.sessionId !== sessionId) throw new AssessmentInputError('The saved health check could not be verified. Refresh the session and try again.');
   return value;
 }

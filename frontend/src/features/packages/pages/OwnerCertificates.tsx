@@ -1,14 +1,12 @@
+import { getPackageRegistration, getPackageCertificate } from "../api/packagesApi";
 import { useEffect, useState } from 'react';
-import { idPath, request, requestPdf } from '../../shared/api/api';
-import type { Enrollment, Horse } from '../../shared/data/data';
-import { Btn, Card } from '../../shared/ui/ui';
+import type { Enrollment, Horse } from '../../../shared/data/data';
+import { Btn, Card } from '../../../shared/ui/ui';
 
 interface Certificate {
   certificateNumber: string;
   issueDate: string;
 }
-
-const registrationPath = (id: string) => '/horse-packages/' + idPath(id);
 
 export function OwnerCertificates({ ownerId, horses, enrollments }: {
   ownerId: string;
@@ -27,7 +25,7 @@ export function OwnerCertificates({ ownerId, horses, enrollments }: {
     let active = true;
     const ids: string[] = JSON.parse(registrationIds);
     void Promise.allSettled(ids.map(async id => {
-      const detail = await request<{ certificate: Certificate | null }>(registrationPath(id));
+      const detail = await getPackageRegistration(id);
       return [id, detail.certificate] as const;
     })).then(results => {
       if (!active) return;
@@ -44,7 +42,7 @@ export function OwnerCertificates({ ownerId, horses, enrollments }: {
     setDownloading(id);
     setDownloadError('');
     try {
-      const pdf = await requestPdf(registrationPath(id) + '/certificate');
+      const pdf = await getPackageCertificate(id);
       const url = URL.createObjectURL(pdf);
       const link = document.createElement('a');
       link.href = url;

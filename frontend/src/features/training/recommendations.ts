@@ -1,10 +1,11 @@
+import { getRegistrationRoadmap } from "../packages/api/packagesApi";
 import { normalizeStages } from './trainingSchedule';
-import { request, idPath as enc } from '../../shared/api/api';
+import { idPath as enc } from '../../shared/api/api';
 import type { TrainingSuggestion } from '../../shared/data/data';
 const cache = new Map<string, Promise<any>>();
 export function packageRoadmapFor(packageId: string) {
   const key = packageId;
-  if (!cache.has(key)) cache.set(key, request(`/horse-packages/${enc(packageId)}/roadmap-template`).then(value => { recommendationView(value); return value; }).catch(e => { cache.delete(key); throw e; }));
+  if (!cache.has(key)) cache.set(key, getRegistrationRoadmap(packageId).then(value => { recommendationView(value); return value; }).catch(e => { cache.delete(key); throw e; }));
   return cache.get(key)!;
 }
 export function clearRecommendations() { cache.clear(); }

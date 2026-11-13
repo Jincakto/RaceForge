@@ -1,5 +1,6 @@
+import { getTrainingPackageSuggestions } from "../api/packagesApi";
 import { useEffect, useState } from 'react';
-import { request } from '../../shared/api/api';
+
 
 export type SuggestionStatus = 'RECOMMENDED' | 'AVAILABLE' | 'REVIEW_REQUIRED' | 'NOT_ELIGIBLE';
 export interface PackageSuggestion {
@@ -56,7 +57,7 @@ export function usePackageSuggestions(horseId: string, enabled: boolean) {
     setData(null); setError('');
     if (!enabled || !horseId) { setLoading(false); return; }
     setLoading(true);
-    request<SuggestionResponse>(`/horses/${encodeURIComponent(horseId)}/training-package-suggestions`)
+    getTrainingPackageSuggestions(horseId)
       .then(result => { if (active) setData(result); })
       .catch(e => { if (active) setError(e.message || 'Could not load suggestions.'); })
       .finally(() => { if (active) setLoading(false); });

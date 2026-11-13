@@ -7,7 +7,7 @@ let accessToken = '';
 interface RefreshedSession { accessToken: string; user: any; }
 let refreshFlight: Promise<RefreshedSession> | undefined;
 // Share token rotation between mount restoration and concurrent 401 retries.
-function refreshSession(): Promise<RefreshedSession> {
+export function refreshSession(): Promise<RefreshedSession> {
   refreshFlight ??= request<RefreshedSession>('/auth/refresh', 'POST', {}, false)
     .then(data => { accessToken = data.accessToken; return data; })
     .finally(() => { refreshFlight = undefined; });
@@ -64,21 +64,13 @@ export async function request<T = any>(path: string, method = 'GET', body?: unkn
   return payload.data as T;
 }
 export const requestPdf = (path: string) => request<Blob>(path, 'GET', undefined, true, 'pdf');
-export const auth = {
-  async login(email: string, password: string) { const data = await request('/auth/login', 'POST', { email, password }); setAccessToken(data.accessToken); return data.user; },
-  async restore() { return (await refreshSession()).user; },
-  async logout() { try { await request('/auth/logout', 'POST', {}); } finally { clearSession(); } },
-  register: (body: { fullName: string; email: string; password: string; phone?: string }) => request('/auth/register', 'POST', body),
-  verify: (email: string, otp: string) => request('/auth/verify-email', 'POST', { email, otp }),
-  resend: (email: string) => request('/auth/resend-otp', 'POST', { email }),
-};
 export const idPath = (id: string) => encodeURIComponent(id);
 export function rows<T = any>(data: T[] | { content: T[] }): T[] { return Array.isArray(data) ? data : data?.content || []; }
-export async function allPages(path: string) {
-  const result: any[] = [];
+export async function allPages<T = any>(path: string) {
+  const result: T[] = [];
   for (let page = 0; ; page++) {
     const data = await request(`${path}${path.includes('?') ? '&' : '?'}page=${page}&size=100`);
-    result.push(...rows(data));
+    result.push(...rows<T>(data));
     if (Array.isArray(data) || page + 1 >= data.totalPages) return result;
   }
 }

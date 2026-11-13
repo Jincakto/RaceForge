@@ -1,4 +1,4 @@
-import { permissionForPage } from '../../shared/api/permissionApi';
+import { permissionForPage } from "./api/permissionApi";
 import React, { useMemo, useRef, useState } from 'react';
 import type { AppUser, Club, Role } from '../../shared/data/data';
 import { Badge, Btn, Card, Input, Select, Textarea } from '../../shared/ui/ui';

@@ -1,5 +1,5 @@
-import { request } from './api';
-import type { Role } from '../data/data';
+import { request } from '../../../shared/api/api';
+import type { Role } from '../../../shared/data/data';
 export const permissionForPage = (role: Role, page: string): string | undefined => {
   if (page === 'trainer-assign') return 'ASSIGN_TRAINER';
   if (page === 'training-hub') return role === 'head_trainer' ? 'MANAGE_TRAINING' : 'VIEW_TRAINING';

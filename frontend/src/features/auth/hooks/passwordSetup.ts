@@ -1,4 +1,6 @@
-import { ApiError, auth, request } from '../../shared/api/api';
+import { submitNewPassword, sendPasswordReset } from "../api/authApi";
+import { auth } from "../api/authApi";
+import { ApiError } from '../../../shared/api/api';
 
 export interface PasswordSetupLink { token: string; invitation: boolean; }
 
@@ -21,7 +23,7 @@ export function createPasswordSetupSubmitter(link: PasswordSetupLink) {
     if (pending) return pending;
     if (!link.token.trim()) return Promise.reject(new Error("The link is missing a verification token. Open the link from your email again."));
     if (!newPassword.trim() || newPassword.length < 8 || newPassword.length > 100) return Promise.reject(new Error("Password must contain 8–100 characters."));
-    pending = request(link.invitation ? '/auth/staff/set-password' : '/auth/reset-password', 'POST', { token: link.token, newPassword })
+    pending = submitNewPassword(link.invitation, { token: link.token, newPassword })
       .finally(() => { pending = undefined; });
     return pending;
   };
@@ -40,5 +42,5 @@ export function passwordSetupError(error: unknown, invitation: boolean): string 
 export async function requestPasswordReset(email: string): Promise<unknown> {
   const normalized = email.trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) throw new Error("Enter a valid email address.");
-  return request('/auth/forgot-password', 'POST', { email: normalized });
+  return sendPasswordReset({ email: normalized });
 }

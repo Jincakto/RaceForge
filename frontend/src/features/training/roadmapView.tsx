@@ -1,5 +1,7 @@
+import { getPackageRoadmap } from "../packages/api/packagesApi";
+import { listTrainingPlanStages } from "./api/trainingApi";
 import { useEffect, useState } from 'react';
-import { ApiError, request, idPath } from '../../shared/api/api';
+import { ApiError, idPath } from '../../shared/api/api';
 import { Btn, Input, Select, Textarea } from '../../shared/ui/ui';
 import { blankStage, roadmapFromApi, type PackageRoadmap } from '../packages/packageRoadmap';
 import { DAY_KEYS, type RoadmapStage } from './trainingSchedule';
@@ -16,7 +18,7 @@ function LoadedRoadmap({ packageId }: { packageId: string }) {
   const [error,setError]=useState(''); const [attempt,setAttempt]=useState(0);
   useEffect(()=>{
     let active=true; setData(null); setError('');
-    request(`/training-packages/${idPath(packageId)}/roadmap-template`).then(value=>{if(active)setData(roadmapFromApi(value));}).catch(e=>{if(active)setError(e instanceof ApiError && e.status===403 ? 'Your account cannot view this package curriculum.' : (e as Error).message);});
+    getPackageRoadmap(packageId).then(value=>{if(active)setData(roadmapFromApi(value));}).catch(e=>{if(active)setError(e instanceof ApiError && e.status===403 ? 'Your account cannot view this package curriculum.' : (e as Error).message);});
     return ()=>{active=false;};
   },[packageId,attempt]);
   if(error)return <div role="alert" className="space-y-2 text-sm text-red-700"><p>{error}</p><Btn size="sm" variant="secondary" onClick={()=>setAttempt(n=>n+1)}>Retry roadmap</Btn></div>;
@@ -42,7 +44,7 @@ export function SavedRoadmapPreview({ planId, title, goal }: { planId:string; ti
   const [data,setData]=useState<PackageRoadmap | null>(null); const [error,setError]=useState('');
   useEffect(()=>{
     if(!open)return;let active=true;setData(null);setError('');
-    request<any[]>(`/training-plans/${idPath(planId)}/stages`).then(stages=>{if(active)setData(roadmapFromApi({title,goal,stages}));}).catch(e=>{if(active)setError((e as Error).message);});
+    listTrainingPlanStages(planId).then(stages=>{if(active)setData(roadmapFromApi({title,goal,stages}));}).catch(e=>{if(active)setError((e as Error).message);});
     return ()=>{active=false;};
   },[open,planId,title,goal,attempt]);
   return <details className="mt-3 rounded-lg border border-gray-200 p-3" onToggle={e=>setOpen(e.currentTarget.open)}><summary className="cursor-pointer text-sm font-semibold text-[#8a6420]">View saved roadmap stages</summary>{open&&<div className="mt-3">{error?<div role="alert"><p className="text-sm text-red-700">{error}</p><Btn size="sm" variant="secondary" onClick={()=>setAttempt(n=>n+1)}>Retry roadmap</Btn></div>:data?<RoadmapTable roadmap={data}/>:<p role="status" className="text-sm text-gray-500">Loading saved roadmap...</p>}</div>}</details>;

@@ -8,9 +8,11 @@ import { ResponsiveContainer, LineChart, CartesianGrid, XAxis, YAxis, Tooltip, L
 export function ManagerDashboard({
   state,
   navigate,
+  onSelectHorse,
 }: {
   state: AppState;
   navigate: (p: Page) => void;
+  onSelectHorse: (horseId: string) => void;
 }) {
   const clubId = state.user!.clubId;
   const myClub = state.clubs.find((c) => c.id === clubId);
@@ -76,7 +78,7 @@ export function ManagerDashboard({
                 {pendingHorses.length === 1 ? "" : "s"} pending
               </div>
               <div className="text-sm text-sky-600">
-                Automatically closes after 7 days
+                Review each submitted horse and its admission progress
               </div>
             </div>
             <span className="text-sky-600 text-sm font-medium">Review →</span>
@@ -107,7 +109,7 @@ export function ManagerDashboard({
             </div>
           </Card>
         ))}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Horses in the club"
           value={horses.length}
@@ -129,7 +131,7 @@ export function ManagerDashboard({
           color="navy"
         />
       </div>
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold">Horses in the club</h3>
@@ -139,10 +141,12 @@ export function ManagerDashboard({
           </div>
           {horses.length === 0 && <p className="py-8 text-center text-sm text-gray-500">No admitted horses in the club yet.</p>}
           {horses.map((h) => (
-            <div
+            <button
+              type="button"
               key={h.id}
-              onClick={() => navigate("horse-detail")}
-              className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer border border-transparent hover:border-[#c9973b] transition-all mb-1"
+              onClick={() => onSelectHorse(h.id)}
+              aria-label={`View details for ${h.name}`}
+              className="w-full text-left flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer border border-transparent hover:border-[#c9973b] focus-visible:ring-2 focus-visible:ring-[#c9973b] transition-all mb-1"
             >
               <img
                 src={h.imageUrl || undefined}
@@ -156,7 +160,7 @@ export function ManagerDashboard({
                 </div>
               </div>
               <LifecycleBadge horse={h} />
-            </div>
+            </button>
           ))}
         </Card>
         <Card className="p-5">

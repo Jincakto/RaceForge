@@ -34,8 +34,26 @@ export function makeRemoteActions(env: Env) {
     finally { locks.delete(key); }
   }
   const fire = (key: string, action: () => Promise<unknown>, message?: string) => run(key, action, message).catch(e => { if (e instanceof DuplicateRequestInProgress) info(e.message); else error((e as Error).message); throw e; });
-  const result = async <T>(key: string, action: () => Promise<T>): Promise<Res<T>> => {
-    try { return { ok: true, data: await run(key, action) }; } catch (e) { const message = (e as Error).message; if (e instanceof DuplicateRequestInProgress) info(message); else error(message); return { ok: false, message }; }
+  const result = async <T>(key: string, action: () => Promise<T>, successMessage = 'Saved on the server.'): Promise<Res<T>> => {
+    try { return { ok: true, data: await run(key, action, successMessage) }; }
+    catch (failure) {
+      const message = failure instanceof Error ? failure.message : 'Unable to complete the request.';
+      if (failure instanceof DuplicateRequestInProgress) info(message); else error(message);
+      return { ok: false, message };
+    }
+  };
+  // A repeated click while the first request is in flight is informational,
+  // never a failed server mutation. Real API/validation errors remain red.
+  const notifyActionFailure = (failure: unknown, fallback: string): string => {
+    if (failure instanceof DuplicateRequestInProgress) {
+      info(failure.message);
+      return failure.message;
+    }
+    const message = failure instanceof ApiError
+      ? assessmentErrorMessage(failure, fallback)
+      : failure instanceof Error && failure.message ? failure.message : fallback;
+    error(message);
+    return message;
   };
   async function packageLifecycle(id: string, action: PackageLifecycleAction): Promise<PackageLifecycleResult> {
     const state=getState(),actor=state.user;
@@ -220,7 +238,7 @@ export function makeRemoteActions(env: Env) {
     saveHealth: (rec: HealthRecord) => run(`medical-${rec.horseId}`, () => saveRecord(rec), ''),
     savePostTrainingHealth: (sessionId: string, rec: HealthRecord) => run(`medical-${rec.horseId}`, () => savePostTrainingRecord(sessionId, rec), ''),
     async postExam(sessionId: string, rec: HealthRecord): Promise<string | null> {
-      try { await run(`medical-${rec.horseId}`, () => savePostTrainingRecord(sessionId, rec)); return null; } catch (e) { error((e as Error).message); return (e as Error).message; }
+      try { await run(`medical-${rec.horseId}`, () => savePostTrainingRecord(sessionId, rec)); return null; } catch (e) { return notifyActionFailure(e, 'Unable to save this examination.'); }
     },
     unlock: (id: string, reason: string) => result<null>(`unlock-${id}`, async () => { await releaseTrainingLock(id, { reason }); return null; }),
     createAccount: (u: AppUser) => fire('create-account', async () => {
@@ -340,13 +358,27 @@ export function makeRemoteActions(env: Env) {
       const generated = await generateTrainingSessions(planId);
       return (Array.isArray(generated)?generated:generated.sessions||[]).map((w:any)=>sessionFromApi(w,getState().user||undefined));
     }),
-    checkIn: (id: string, present: boolean, note = '') => result<null>(`attendance-${id}`, async () => {
-      if (present) { await startTrainingSession(id); return null; }
-      const data = await saveSessionAttendance(id, { status: 'MISSED', absenceReason: 'OTHER', absenceNote: note });
-      if (data.warningTriggered) warning(data.warningMessage); return null;
-    }),
+    async checkIn(id: string, present: boolean, note = ''): Promise<Res<null>> {
+      // Do not emit success inside run(): it would overwrite the vet warning
+      // after the data refresh. Return the warning with the completed action.
+      const response = await result<{ warningMessage: string | null }>(`attendance-${id}`, async () => {
+        if (present) {
+          await startTrainingSession(id);
+          return { warningMessage: null };
+        }
+        const data = await saveSessionAttendance(id, { status: 'MISSED', absenceReason: 'OTHER', absenceNote: note });
+        return { warningMessage: data.warningTriggered
+          ? (data.warningMessage || 'Attendance saved, but a veterinary review may be required.')
+          : null };
+      }, '');
+      if (!response.ok) return response;
+      if (response.data.warningMessage) warning(response.data.warningMessage);
+      else success('Saved on the server.');
+      return { ok: true, data: null };
+    },
     async startSession(id: string): Promise<string | null> {
-      try { await run(`start-${id}`, () => startTrainingSession(id)); return null; } catch (e) { const message = assessmentErrorMessage(e, 'Unable to start the session. Refresh its status and try again.'); error(message); return message; }
+      try { await run(`start-${id}`, () => startTrainingSession(id)); return null; }
+      catch (e) { return notifyActionFailure(e, 'Unable to start the session. Refresh its status and try again.'); }
     },
     stopSession: (id: string) => result<null>(`stop-${id}`, async () => { await stopTrainingSession(id); return null; }),
     acceptResumption: (id: string) => result<null>(`resume-${id}`, async () => {
@@ -382,8 +414,7 @@ export function makeRemoteActions(env: Env) {
         }, 'Vet check request updated.');
         return { ok: true, data };
       } catch (failure) {
-        const message = assessmentErrorMessage(failure, 'Unable to request a vet check. Please try again.');
-        error(message);
+        const message = notifyActionFailure(failure, 'Unable to request a vet check. Please try again.');
         return { ok: false, message };
       }
     },

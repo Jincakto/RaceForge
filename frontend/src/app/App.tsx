@@ -114,6 +114,10 @@ export default function App() {
     [],
   );
 
+  const openHorseDetails = useCallback((horseId: string) => {
+    setState(s => ({ ...s, selectedHorseId: horseId, page: 'horse-detail' }));
+  }, []);
+
   const showError = useCallback((msg: string) => {
     setState(s => ({ ...s, errorMsg: msg, infoMsg: null, warningMsg: null, showSuccess: null }));
     setTimeout(() => setState(s => s.errorMsg === msg ? { ...s, errorMsg: null } : s), 6000);
@@ -429,7 +433,7 @@ export default function App() {
       case "dashboard": {
         const r = state.user!.role;
         if (r === "manager")
-          return <ManagerDashboard state={state} navigate={navigate} />;
+          return <ManagerDashboard state={state} navigate={navigate} onSelectHorse={openHorseDetails} />;
         if (r === "head_trainer")
           return <HeadTrainerDashboard state={state} navigate={navigate} />;
         if (r === "veterinarian")
@@ -702,13 +706,7 @@ export default function App() {
         );
       case "staff":
         return (
-          <StaffPage
-            state={state}
-            navigate={navigate}
-            onUpdatePermissions={() =>
-              remote.unavailable("individual access permissions")
-            }
-          />
+<StaffPage state={state} />
         );
       case "notifications":
         return (
@@ -762,7 +760,7 @@ export default function App() {
           />
         );
       default:
-        return <ManagerDashboard state={state} navigate={navigate} />;
+        return <NoAccess text="This page is unavailable for your account." />;
     }
   };
 

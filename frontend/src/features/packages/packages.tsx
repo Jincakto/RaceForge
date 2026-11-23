@@ -1,6 +1,6 @@
 import { PackageRoadmapPreview } from '../training/roadmapView';
 import { CreatePackageForm } from './packageCreateForm';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { AppUser, Horse, Enrollment, TrainingPackage, Res } from '../../shared/data/data';
 import { Badge, Btn, Card, Input, Select } from '../../shared/ui/ui';
 import { IdChip, Modal } from '../admin/admin';
@@ -110,6 +110,8 @@ export function TrainerAssignPage({ user, users, horses, enrollments, onAssign }
   const [openHistory, setOpenHistory] = useState<string | null>(null);
   const [flash, setFlash] = useState('');
   const [trainerSearch, setTrainerSearch] = useState('');
+  const [busy, setBusy] = useState(false);
+  const pendingRef = useRef(false);
 
   const trainers = users.filter(u => u.role === 'head_trainer' && u.clubId === user.clubId && u.status === 'active' && !u.locked && !!u.trainerProfileId);
   const myEnr = enrollments.filter(e => isCurrent(e) && !e.directAssignmentId && e.apiStatus === 'ACTIVE' && e.paymentStatus === 'PAID' && horses.some(h => h.id === e.horseId && h.clubId === user.clubId));
@@ -120,11 +122,16 @@ export function TrainerAssignPage({ user, users, horses, enrollments, onAssign }
 
   const open = (e: Enrollment) => { setDlg(e); setTrainerId(''); setTrainerSearch(''); setReason(''); setErr(''); };
   const submit = async () => {
-    if (!dlg) return;
+    if (!dlg || pendingRef.current) return;
     if (!trainerId) { setErr("Select a trainer."); return; }
     if (replacing && reason.trim().length < 10) { setErr("Replacement reason must contain at least 10 characters."); return; }
     if (reason.length > 300) { setErr("Reason cannot exceed 300 characters."); return; }
-    const r = await onAssign(dlg.id, trainerId, reason);
+    pendingRef.current = true;
+    setBusy(true);
+    let r: Res<Enrollment>;
+    try { r = await onAssign(dlg.id, trainerId, reason); }
+    catch (e) { setErr((e as Error).message); return; }
+    finally { pendingRef.current = false; setBusy(false); }
     if (!r.ok) { setErr(r.message); return; }
     setFlash(`Successfully ${replacing ? "replaced" : "assigned"} trainer for package ${dlg.id}.`);
     setDlg(null);
@@ -199,7 +206,7 @@ export function TrainerAssignPage({ user, users, horses, enrollments, onAssign }
       })}
 
       {dlg && (
-        <Modal title={replacing ? "Replace trainer" : "Assign trainers"} onClose={() => setDlg(null)}>
+        <Modal title={replacing ? "Replace trainer" : "Assign trainers"} onClose={() => { if (!pendingRef.current) setDlg(null); }}>
           <div className="space-y-4">
             <div className="rounded-lg bg-gray-50 p-3 text-sm text-gray-600">
               <div className="flex items-center gap-2"><strong>{horses.find(x => x.id === dlg.horseId)?.name}</strong><IdChip kind="ENR" id={dlg.id} /></div>
@@ -226,8 +233,8 @@ export function TrainerAssignPage({ user, users, horses, enrollments, onAssign }
             )}
             {err && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{err}</div>}
             <div className="flex justify-end gap-2">
-              <Btn variant="secondary" onClick={() => setDlg(null)}>Cancel</Btn>
-              <Btn variant="gold" onClick={submit}>{replacing ? "Confirm replacement" : "Confirm assignment"}</Btn>
+              <Btn variant="secondary" disabled={busy} onClick={() => setDlg(null)}>Cancel</Btn>
+              <Btn variant="gold" disabled={busy} onClick={submit}>{busy ? "Processing…" : replacing ? "Confirm replacement" : "Confirm assignment"}</Btn>
             </div>
           </div>
         </Modal>

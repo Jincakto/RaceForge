@@ -4,7 +4,7 @@ import { type Horse, type AppNotification, type Role, type AppUser } from "../sh
 import { useState, useRef, useCallback, useEffect } from "react";
 import { type AppState, type Page } from "./appTypes";
 import { CENTER, RemoteSourceStore, type RemoteIssue, loadRemote, userFromApi } from "./remote";
-import { DEFAULT_ROLE_PERMS, ROLE_LABELS, SuccessToast, ErrorToast, NoAccess, visibleNotifications, AppLayout, PAGE_TITLES } from "./AppLayout";
+import { DEFAULT_ROLE_PERMS, ROLE_LABELS, SuccessToast, ErrorToast, NoticeToast, NoAccess, visibleNotifications, AppLayout, PAGE_TITLES } from "./AppLayout";
 import { type AuditEntry, NoPermission, FEATURES, AccountManagementPage, PermissionMatrixPage, AuditLogPage, AdminDashboard } from "../features/admin/admin";
 import { permissionForPage } from "../features/admin/api/permissionApi";
 import { restoreSessionForLocation } from "../features/auth/hooks/passwordSetup";
@@ -95,6 +95,8 @@ export default function App() {
     notifications: [],
     enrollments: [],
     errorMsg: null,
+    infoMsg: null,
+    warningMsg: null,
     selectedHorseId: "",
     packages: [],
     viewTrainerId: null,
@@ -113,13 +115,23 @@ export default function App() {
   );
 
   const showError = useCallback((msg: string) => {
-    setState((s) => ({ ...s, errorMsg: msg }));
-    setTimeout(() => setState((s) => ({ ...s, errorMsg: null })), 6000);
+    setState(s => ({ ...s, errorMsg: msg, infoMsg: null, warningMsg: null, showSuccess: null }));
+    setTimeout(() => setState(s => s.errorMsg === msg ? { ...s, errorMsg: null } : s), 6000);
+  }, []);
+
+  const showInfo = useCallback((msg: string) => {
+    setState(s => ({ ...s, infoMsg: msg, errorMsg: null, warningMsg: null, showSuccess: null }));
+    setTimeout(() => setState(s => s.infoMsg === msg ? { ...s, infoMsg: null } : s), 4000);
+  }, []);
+
+  const showWarning = useCallback((msg: string) => {
+    setState(s => ({ ...s, warningMsg: msg, infoMsg: null, errorMsg: null, showSuccess: null }));
+    setTimeout(() => setState(s => s.warningMsg === msg ? { ...s, warningMsg: null } : s), 6000);
   }, []);
 
   const showSuccess = useCallback((msg: string) => {
-    setState((s) => ({ ...s, showSuccess: msg }));
-    setTimeout(() => setState((s) => ({ ...s, showSuccess: null })), 3000);
+    setState(s => ({ ...s, showSuccess: msg, infoMsg: null, warningMsg: null, errorMsg: null }));
+    setTimeout(() => setState(s => s.showSuccess === msg ? { ...s, showSuccess: null } : s), 3500);
   }, []);
 
   const logAudit = useCallback(
@@ -247,6 +259,8 @@ export default function App() {
     applyPackageLifecycle: outcome => setState(s => ({ ...s, enrollments: s.enrollments.some(e => e.id === outcome.registration.id) ? s.enrollments.map(e => e.id === outcome.registration.id ? { ...e, ...outcome.registration } : e) : [...s.enrollments, outcome.registration], trainingSessions: s.trainingSessions.filter(row => !(outcome.registration.apiStatus === "CANCELLED" && row.horsePackageId === outcome.registration.id && row.status === "Scheduled" && !row.actualStart)) })),
     success: showSuccess,
     error: showError,
+    info: showInfo,
+    warning: showWarning,
     navigate: (p) => navigate(p as Page),
   });
   const background = (p: Promise<unknown>) => {
@@ -292,6 +306,8 @@ export default function App() {
     return (
       <>
         {state.showSuccess && <SuccessToast message={state.showSuccess} />}
+        {state.infoMsg && <NoticeToast message={state.infoMsg} severity="info" />}
+        {state.warningMsg && <NoticeToast message={state.warningMsg} severity="warning" />}
         {state.errorMsg && <ErrorToast message={state.errorMsg} />}
         {state.page === "home" && <HomePage navigate={navigate} />}
         {state.page === "login" && (
@@ -682,9 +698,7 @@ export default function App() {
           : <PerformancePage state={state} />;
       case "reports":
         return (
-          <ReportsPage
-            onUnavailable={() => remote.unavailable("PDF report export")}
-          />
+          <ReportsPage />
         );
       case "staff":
         return (
@@ -755,6 +769,8 @@ export default function App() {
   return (
     <>
       {state.showSuccess && <SuccessToast message={state.showSuccess} />}
+      {state.infoMsg && <NoticeToast message={state.infoMsg} severity="info" />}
+      {state.warningMsg && <NoticeToast message={state.warningMsg} severity="warning" />}
       {state.errorMsg && <ErrorToast message={state.errorMsg} />}
       <AppLayout
         user={state.user!}

@@ -18,23 +18,24 @@ import { changePermission, permissionForPage } from "../features/admin/api/permi
 
 
 interface State extends RemoteSlice { user: AppUser | null; }
-interface Env { getState: () => State; reload: () => Promise<void>; success: (message: string) => void; error: (message: string) => void; navigate: (page: string) => void; applyPackageLifecycle?: (outcome: PackageLifecycleOutcome) => void; }
+interface Env { getState: () => State; reload: () => Promise<void>; success: (message: string) => void; error: (message: string) => void; info: (message: string) => void; warning: (message: string) => void; navigate: (page: string) => void; applyPackageLifecycle?: (outcome: PackageLifecycleOutcome) => void; }
+class DuplicateRequestInProgress extends Error {}
 const locks = new Set<string>();
 const packageLifecycleResults = new Map<string, PackageLifecycleOutcome>();
 const uncertainPackageOperations = new Set<string>();
 const createdRegistrations = new Map<string, { id: string; raceKeys: Set<string> }>();
 export function makeRemoteActions(env: Env) {
-  const { getState, reload, success, error, navigate } = env;
+  const { getState, reload, success, error, info, warning, navigate } = env;
   const unavailable = (label: string): never => { throw new Error(`The API is not yet available for ${label}. Changes have not been saved.`); };
   async function run<T>(key: string, action: () => Promise<T>, message = "Saved on the server."): Promise<T> {
-    if (locks.has(key)) throw new Error("A request is already being processed.");
+    if (locks.has(key)) throw new DuplicateRequestInProgress("This request is already being processed.");
     locks.add(key);
     try { const result = await action(); await reload(); if (message) success(message); return result; }
     finally { locks.delete(key); }
   }
-  const fire = (key: string, action: () => Promise<unknown>, message?: string) => run(key, action, message).catch(e => { error((e as Error).message); throw e; });
+  const fire = (key: string, action: () => Promise<unknown>, message?: string) => run(key, action, message).catch(e => { if (e instanceof DuplicateRequestInProgress) info(e.message); else error((e as Error).message); throw e; });
   const result = async <T>(key: string, action: () => Promise<T>): Promise<Res<T>> => {
-    try { return { ok: true, data: await run(key, action) }; } catch (e) { const message = (e as Error).message; error(message); return { ok: false, message }; }
+    try { return { ok: true, data: await run(key, action) }; } catch (e) { const message = (e as Error).message; if (e instanceof DuplicateRequestInProgress) info(message); else error(message); return { ok: false, message }; }
   };
   async function packageLifecycle(id: string, action: PackageLifecycleAction): Promise<PackageLifecycleResult> {
     const state=getState(),actor=state.user;
@@ -342,7 +343,7 @@ export function makeRemoteActions(env: Env) {
     checkIn: (id: string, present: boolean, note = '') => result<null>(`attendance-${id}`, async () => {
       if (present) { await startTrainingSession(id); return null; }
       const data = await saveSessionAttendance(id, { status: 'MISSED', absenceReason: 'OTHER', absenceNote: note });
-      if (data.warningTriggered) error(data.warningMessage); return null;
+      if (data.warningTriggered) warning(data.warningMessage); return null;
     }),
     async startSession(id: string): Promise<string | null> {
       try { await run(`start-${id}`, () => startTrainingSession(id)); return null; } catch (e) { const message = assessmentErrorMessage(e, 'Unable to start the session. Refresh its status and try again.'); error(message); return message; }

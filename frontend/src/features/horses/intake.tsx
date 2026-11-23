@@ -1,5 +1,5 @@
 import { listAccounts } from "../admin/api/adminApi";
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { userFromApi, latestConfirmedExam } from '../../app/remote';
 import type { AppUser, Horse, HorseClubRequest, HealthRecord } from '../../shared/data/data';
@@ -104,6 +104,10 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
     return () => { active = false; };
   }, [pick?.horse.id, user.id, vetsVersion]);
   const [pickErr, setPickErr] = useState('');
+  const [assignBusy, setAssignBusy] = useState(false);
+  const assignPending = useRef(false);
+  const [approveBusy, setApproveBusy] = useState(false);
+  const approvePending = useRef(false);
   const [vetSearch, setVetSearch] = useState('');
   const [showVetSuggestions, setShowVetSuggestions] = useState(false);
   const matchingVets = vets.filter(v => searchText(`${v.name} ${v.id}`).includes(pick?.vetId ? '' : searchText(vetSearch)));
@@ -124,14 +128,16 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
   const count = (n: number) => rows.filter(x => x.st === n).length;
 
   const choose = async () => {
-    if (!pick) return;
+    if (!pick || assignPending.current) return;
     if (vetsLoading || vetsError) { setPickErr('Wait for the veterinarian list to load successfully.'); return; }
     if (pick.vetId && !vets.some(v => v.id === pick.vetId && v.status === 'active' && !v.locked)) { setPickErr('Select a veterinarian with an active, unlocked account.'); return; }
     if (!pick.vetId) { setPickErr('Please select a veterinarian.'); return; }
     if (pick.horse.vetId && pick.vetId === pick.horse.vetId && pick.horse.vetAssign?.status !== 'declined') { setPickErr('This veterinarian is already assigned to the horse.'); return; }
     if (pick.horse.vetId && pick.horse.vetAssign?.status !== 'declined') { setReplace(pick); setPick(null); setPickErr(''); return; }
+    assignPending.current = true; setAssignBusy(true);
     try { await onAssign(pick.horse.id, pick.vetId, pick.horse.vetId ? 'Reassigned after the previous veterinarian declined' : 'Assigned for intake examination');
     setPick(null); setPickErr(''); } catch (e) { setPickErr((e as Error).message); }
+    finally { assignPending.current = false; setAssignBusy(false); }
   };
 
   const tryApprove = (r: HorseClubRequest, h?: Horse) => {
@@ -209,7 +215,7 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
       )}
 
       {pick && (
-        <Modal title={pick.horse.vetId ? 'Reassign veterinarian' : 'Assign veterinarian'} onClose={() => setPick(null)}>
+        <Modal title={pick.horse.vetId ? 'Reassign veterinarian' : 'Assign veterinarian'} onClose={() => { if (!assignPending.current) setPick(null); }}>
           <p className="mb-3 text-sm text-gray-600">Horse: <b>{pick.horse.name}</b>{pick.horse.vetName && <> · currently assigned to <b>{pick.horse.vetName}</b></>}</p>
           {vetsError && <div role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">Could not load veterinarians: {vetsError}<button type="button" className="ml-2 font-semibold underline" onClick={() => setVetsVersion(v => v + 1)}>Retry</button></div>}
           <div className="relative mb-3" onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) setShowVetSuggestions(false); }} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setShowVetSuggestions(false); } }}>
@@ -236,7 +242,7 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
           <p className="mb-2 text-xs text-gray-500">Green/red indicates account activation, not online presence. Accounts awaiting activation or locked accounts cannot receive assignments.</p>
           <p className="text-xs text-gray-500">{pick.vetId ? `${vetLoad(pick.vetId)} horses currently assigned to this veterinarian. ` : ''}Counts include assignments awaiting acceptance; declined assignments are excluded.</p>
           {pickErr && <p id="intake-vet-error" role="alert" className="mt-2 text-sm text-red-600">{pickErr}</p>}
-          <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setPick(null)}>Cancel</Btn><Btn onClick={choose}>{pick.horse.vetId && pick.horse.vetAssign?.status !== 'declined' ? 'Continue' : 'Assign'}</Btn></div>
+          <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" disabled={assignBusy} onClick={() => setPick(null)}>Cancel</Btn><Btn disabled={assignBusy || vetsLoading || !!vetsError} onClick={choose}>{assignBusy ? 'Assigning…' : pick.horse.vetId && pick.horse.vetAssign?.status !== 'declined' ? 'Continue' : 'Assign'}</Btn></div>
         </Modal>
       )}
       {replace && (
@@ -250,9 +256,9 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
           onConfirm={async reason => { await onReject(rejectFor.id, reason); setRejectFor(null); }} />
       )}
       {approveFor && (
-        <Modal title="Confirm club admission" onClose={() => setApproveFor(null)}>
+        <Modal title="Confirm club admission" onClose={() => { if (!approvePending.current) setApproveFor(null); }}>
           <p className="text-sm text-gray-600">Admit and activate <b>{approveFor.horseName}</b>? The horse will appear in the Horse List and its core profile fields will be locked.</p>
-          <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" onClick={() => setApproveFor(null)}>Cancel</Btn><Btn variant="gold" onClick={async () => { try { await onApprove(approveFor.id); setApproveFor(null); } catch (e) { setWarn(w => ({ ...w, [approveFor.id]: (e as Error).message })); } }}>Admit</Btn></div>
+          <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" disabled={approveBusy} onClick={() => setApproveFor(null)}>Cancel</Btn><Btn variant="gold" disabled={approveBusy} onClick={async () => { if (approvePending.current) return; approvePending.current = true; setApproveBusy(true); try { await onApprove(approveFor.id); setApproveFor(null); } catch (e) { setWarn(w => ({ ...w, [approveFor.id]: (e as Error).message })); } finally { approvePending.current = false; setApproveBusy(false); } }}>{approveBusy ? "Approving…" : "Admit"}</Btn></div>
         </Modal>
       )}
       {history && <AssignHistory horse={history} onClose={() => setHistory(null)} />}

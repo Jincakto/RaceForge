@@ -112,7 +112,9 @@ public class OwnerPayments {
             throw new BusinessRuleException("Partially paid registration needs reconciliation.");
         // Keep the verified receipt even if a new medical lock prevents package activation.
         String state = paid ? "PAID" : "CANCELLED";
-        sql.update("UPDATE dbo.PayOS_Order SET payment_state=? WHERE order_code=? AND payment_state='PENDING'", state, code);
+        sql.update("UPDATE dbo.PayOS_Order SET payment_state=?, "
+                + "confirmed_at_utc=CASE WHEN ?='PAID' THEN COALESCE(confirmed_at_utc, SYSUTCDATETIME()) ELSE confirmed_at_utc END "
+                + "WHERE order_code=? AND payment_state='PENDING'", state, state, code);
         try {
             tx.executeWithoutResult(t -> {
                 var locked = sql.queryForObject("SELECT * FROM dbo.PayOS_Order WITH (UPDLOCK, ROWLOCK) WHERE order_code=?", this::map, code);

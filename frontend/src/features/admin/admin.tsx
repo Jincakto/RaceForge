@@ -82,21 +82,28 @@ export function ReasonDialog({ title, description, confirmLabel, danger = false,
   { title: string; description: React.ReactNode; confirmLabel: string; danger?: boolean; onConfirm: (reason: string) => void | Promise<unknown>; onClose: () => void }) {
   const [reason, setReason] = useState('');
   const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const inflight = useRef(false);
   const submit = async () => {
+    if (inflight.current) return;
     const r = reason.trim();
     if (r.length < 10) { setErr('The reason must contain at least 10 characters.'); return; }
     if (r.length > 300) { setErr('The reason cannot exceed 300 characters.'); return; }
-    try { await onConfirm(r); } catch (e) { setErr((e as Error).message); }
+    inflight.current = true;
+    setBusy(true);
+    try { await onConfirm(r); }
+    catch (e) { setErr((e as Error).message); }
+    finally { inflight.current = false; setBusy(false); }
   };
   return (
-    <Modal title={title} onClose={onClose}>
+    <Modal title={title} onClose={() => { if (!inflight.current) onClose(); }}>
       <div className="mb-4 text-sm text-gray-600">{description}</div>
       <label className="mb-1 block text-sm font-medium text-gray-700">Reason <span className="text-red-500">*</span></label>
       <Textarea value={reason} onChange={v => { setReason(v); setErr(''); }} placeholder="Provide a clear reason — it will be recorded in the audit log" />
       <div className="mt-0.5 flex justify-between text-xs"><span className="text-red-600">{err}</span><span className="text-gray-400">{reason.length}/300</span></div>
       <div className="mt-5 flex justify-end gap-2">
-        <Btn variant="secondary" onClick={onClose}>Cancel</Btn>
-        <Btn variant={danger ? 'danger' : 'primary'} onClick={submit}>{confirmLabel}</Btn>
+        <Btn variant="secondary" disabled={busy} onClick={onClose}>Cancel</Btn>
+        <Btn variant={danger ? 'danger' : 'primary'} disabled={busy} onClick={submit}>{busy ? "Processing…" : confirmLabel}</Btn>
       </div>
     </Modal>
   );

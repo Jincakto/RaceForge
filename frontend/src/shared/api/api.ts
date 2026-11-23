@@ -15,12 +15,12 @@ export function refreshSession(): Promise<RefreshedSession> {
 }
 export function clearSession() { accessToken = ''; }
 export function setAccessToken(token: string) { accessToken = token; }
-export async function request<T = any>(path: string, method = 'GET', body?: unknown, retry = true, format: 'json' | 'pdf' = 'json'): Promise<T> {
+export async function request<T = any>(path: string, method = 'GET', body?: unknown, retry = true, format: 'json' | 'pdf' | 'csv' = 'json'): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${base}${path}`, {
       method, credentials: 'include',
-      headers: { Accept: format === 'pdf' ? 'application/pdf, application/json' : 'application/json', ...(body === undefined || body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+      headers: { Accept: format === 'pdf' ? 'application/pdf, application/json' : format === 'csv' ? 'text/csv, application/json' : 'application/json', ...(body === undefined || body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
       ...(body === undefined ? {} : { body: body instanceof FormData ? body : JSON.stringify(body) }),
     });
   } catch { throw new ApiError("Cannot connect to the server. Check the backend and API configuration.", 0); }
@@ -31,6 +31,10 @@ export async function request<T = any>(path: string, method = 'GET', body?: unkn
       clearSession(); window.dispatchEvent(new Event('raceforge:session-expired')); throw error;
     }
     return request<T>(path, method, body, false, format);
+  }
+  if (format === 'csv' && response.ok) {
+    if (!response.headers.get('Content-Type')?.startsWith('text/csv')) throw new ApiError('The server did not return CSV.', response.status);
+    return await response.blob() as T;
   }
   if (format === 'pdf' && response.ok) {
     if (response.headers.get('Content-Type')?.split(';')[0] !== 'application/pdf') {
@@ -74,3 +78,5 @@ export async function allPages<T = any>(path: string) {
     if (Array.isArray(data) || page + 1 >= data.totalPages) return result;
   }
 }
+
+export const requestCsv = (path: string) => request<Blob>(path, 'GET', undefined, true, 'csv');

@@ -5,77 +5,91 @@ import { type AppUser, type Role } from "../../../shared/data/data";
 import { type Page, type AppState } from "../../../app/appTypes";
 import { ROLE_LABELS, GRANTABLE_PAGES, NAV_ITEMS } from "../../../app/AppLayout";
 import { useState, useEffect } from "react";
+import { revenueSummary, revenueTransactions, revenueExport, type RevenueSummary, type RevenueTransaction, type RevenueFilter } from "../api/reportsApi";
 
 import { userFromApi } from "../../../app/remote";
 import { memberHorses } from "../../horses/memberHorses";
 import { TrainerProfileForm } from "../../trainers/trainerProfileForm";
 
-export function ReportsPage({ onUnavailable }: { onUnavailable: () => void }) {
+export function ReportsPage() {
+  const [inputs, setInputs] = useState<RevenueFilter>({});
+  const [filters, setFilters] = useState<RevenueFilter>({});
+  const [summary, setSummary] = useState<RevenueSummary | null>(null);
+  const [transactions, setTransactions] = useState<RevenueTransaction[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState('');
+  const currency = (amount: number) => `${Math.round(amount).toLocaleString('vi-VN')} ₫`;
+  useEffect(() => {
+    let live = true;
+    setLoading(true); setError('');
+    Promise.all([revenueSummary(filters), revenueTransactions(filters)])
+      .then(([overview, rows]) => { if (live) { setSummary(overview); setTransactions(rows); } })
+      .catch(e => { if (live) { setSummary(null); setTransactions([]); setError((e as Error).message); } })
+      .finally(() => { if (live) setLoading(false); });
+    return () => { live = false; };
+  }, [filters]);
+  const exportCsv = async () => {
+    if (exporting || loading || error) return;
+    setExporting(true);
+    try {
+      const file = await revenueExport(filters);
+      const url = URL.createObjectURL(file);
+      const link = document.createElement('a');
+      link.href = url; link.download = 'RaceForge-revenue.csv';
+      link.click(); URL.revokeObjectURL(url);
+    } catch (e) { setError((e as Error).message); }
+    finally { setExporting(false); }
+  };
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-xl font-serif font-bold">Reports</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><h2 className="text-xl font-serif font-bold">Revenue reports</h2>
+          <p className="text-sm text-gray-500">Verified PayOS collections (gross, before refunds). Date is based on the payment confirmation in Vietnam time.</p></div>
+        <Btn variant="secondary" disabled={loading || !!error || exporting} onClick={exportCsv}>{exporting ? 'Exporting…' : '⬇ Export CSV'}</Btn>
       </div>
-      <div className="grid grid-cols-2 gap-5">
-        {[
-          {
-            title: "September 2026 performance report",
-            icon: "📈",
-            type: "Performance",
-          },
-          {
-            title: "Medical and veterinary report",
-            icon: "🏥",
-            type: "Health",
-          },
-          { title: "Monthly training plan", icon: "📋", type: "Training" },
-          { title: "Race season summary 2026", icon: "🏆", type: "Racing" },
-        ].map((r) => (
-          <Card
-            key={r.title}
-            className="p-5 cursor-pointer hover:border-[#c9973b]"
-          >
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-[#1a2844]/10 flex items-center justify-center text-2xl">
-                {r.icon}
-              </div>
-              <div className="flex-1">
-                <div className="font-semibold">{r.title}</div>
-              </div>
-            </div>
-            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-              <Badge status={r.type} />
-              <Btn variant="secondary" onClick={onUnavailable}>
-                ⬇ Download PDF
-              </Btn>
-            </div>
-          </Card>
-        ))}
-      </div>
-      <Card className="p-5">
-        <h3 className="font-semibold mb-4">2026 season overview</h3>
-        <ResponsiveContainer width="100%" height={220}>
-          <BarChart data={[]}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-            <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip />
-            <Legend />
-            <Bar
-              dataKey="fitness"
-              fill="#1a4a3a"
-              name="Fitness %"
-              radius={[3, 3, 0, 0]}
-            />
-            <Bar
-              dataKey="speed"
-              fill="#c9973b"
-              name="Speed km/h"
-              radius={[3, 3, 0, 0]}
-            />
-          </BarChart>
-        </ResponsiveContainer>
+      <Card className="p-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-xs text-gray-600">From date <input aria-label="From date" type="date" value={inputs.from || ''} onChange={e => setInputs(p => ({...p, from:e.target.value}))} className="mt-1 block rounded-lg border border-gray-300 px-3 py-2 text-sm" /></label>
+          <label className="text-xs text-gray-600">To date <input aria-label="To date" type="date" value={inputs.to || ''} onChange={e => setInputs(p => ({...p, to:e.target.value}))} className="mt-1 block rounded-lg border border-gray-300 px-3 py-2 text-sm" /></label>
+          <label className="text-xs text-gray-600">Package type <select aria-label="Package type" value={inputs.packageType || ''} onChange={e => setInputs(p => ({...p, packageType:e.target.value}))} className="mt-1 block rounded-lg border border-gray-300 px-3 py-2 text-sm">
+            <option value="">All types</option><option value="BASIC">Basic</option><option value="PERFORMANCE">Performance</option><option value="RACING">Racing</option>
+          </select></label>
+          <Btn disabled={loading || (!!inputs.from && !!inputs.to && inputs.from > inputs.to)} onClick={() => setFilters({...inputs})}>Apply filters</Btn>
+          <Btn variant="ghost" onClick={() => {setInputs({}); setFilters({});}}>Reset</Btn>
+        </div>
+        {inputs.from && inputs.to && inputs.from > inputs.to && <p className="mt-2 text-sm text-red-700">End date must be on or after start date.</p>}
       </Card>
+      {loading && <Card className="p-7 text-center text-gray-500">Loading confirmed payments…</Card>}
+      {error && (
+        <div role="alert">
+          <Card className="border-l-4 border-red-500 bg-red-50 p-4 text-red-800">
+            Unable to load revenue report: {error}
+          </Card>
+        </div>
+      )}
+      {!loading && !error && summary && <>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[['Gross collected', currency(summary.totalCollected)], ['Paid orders', String(summary.paidOrderCount)], ['Average payment', currency(summary.averagePayment)], ['Paid, not activated', String(summary.notAppliedCount)]].map(([label, value]) =>
+            <Card key={label} className="p-4"><p className="text-xs text-gray-500">{label}</p><p className="mt-2 text-lg font-bold text-[#0f1729]">{value}</p></Card>)}
+        </div>
+        {summary.historicalUndatedPaidCount > 0 && <Card className="border-l-4 border-amber-400 bg-amber-50 p-3 text-sm text-amber-900">
+          {summary.historicalUndatedPaidCount} historical PAID order(s) have no trustworthy confirmation timestamp. They count in unfiltered totals, but cannot be assigned to a dated reporting period.
+        </Card>}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="p-5"><h3 className="mb-3 font-semibold">Collections by month</h3>
+            {summary.byMonth.length ? <ResponsiveContainer width="100%" height={240}><BarChart data={summary.byMonth}><CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb"/><XAxis dataKey="label" tick={{fontSize:11}}/><YAxis tick={{fontSize:11}}/><Tooltip formatter={value => currency(Number(value))}/><Bar dataKey="amount" name="Collected (VND)" fill="#c9973b" radius={[3,3,0,0]}/></BarChart></ResponsiveContainer> : <p className="py-8 text-center text-sm text-gray-500">No paid orders in the selected period.</p>}
+          </Card>
+          <Card className="p-5"><h3 className="mb-3 font-semibold">Collections by package type</h3>
+            {summary.byType.length ? <div className="divide-y divide-gray-100">{summary.byType.map(row => <div key={row.label} className="flex justify-between gap-3 py-3 text-sm"><span>{row.label} <span className="text-gray-500">({row.orderCount} orders)</span></span><strong>{currency(row.amount)}</strong></div>)}</div> : <p className="py-8 text-center text-sm text-gray-500">No collections to summarize.</p>}
+          </Card>
+        </div>
+        <Card className="overflow-x-auto p-5"><h3 className="mb-3 font-semibold">Confirmed payment transactions</h3>
+          {transactions.length ? <table className="w-full text-left text-sm"><thead><tr className="border-b border-gray-200 text-xs text-gray-500"><th className="pb-2 pr-4">Order</th><th className="pb-2 pr-4">Registration</th><th className="pb-2 pr-4">Package</th><th className="pb-2 pr-4">Amount</th><th className="pb-2 pr-4">Confirmed (UTC)</th><th className="pb-2">Activation</th></tr></thead><tbody>
+          {transactions.map(tx => <tr key={tx.orderCode} className="border-b border-gray-100"><td className="py-2 pr-4 font-mono">{tx.orderCode}</td><td className="py-2 pr-4">{tx.horsePackageId}</td><td className="py-2 pr-4">{tx.packageName} ({tx.packageType})</td><td className="py-2 pr-4 whitespace-nowrap">{currency(tx.amount)}</td><td className="py-2 pr-4 whitespace-nowrap">{tx.confirmedAtUtc ? tx.confirmedAtUtc.replace('T', ' ') : 'Unknown (legacy)'}</td><td className="py-2">{tx.applied ? <span className="text-emerald-700">Applied</span> : <span className="text-amber-700">Needs review</span>}</td></tr>)}</tbody></table> : <p className="py-8 text-center text-sm text-gray-500">No confirmed payments match the current filters.</p>}
+        </Card>
+        <p className="text-xs text-gray-500">Source: PayOS_Order.payment_state = PAID. This is gross cash collected, not net revenue or profit. Cancelled/unpaid orders are excluded.</p>
+      </>}
     </div>
   );
 }

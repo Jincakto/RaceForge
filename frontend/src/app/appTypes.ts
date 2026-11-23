@@ -62,6 +62,8 @@ export interface AppState {
   notifications: AppNotification[];
   enrollments: Enrollment[];
   errorMsg: string | null;
+  infoMsg?: string | null;
+  warningMsg?: string | null;
   selectedHorseId: string;
   packages: TrainingPackage[];
   viewTrainerId: string | null;

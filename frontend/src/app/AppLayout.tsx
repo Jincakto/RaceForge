@@ -4,22 +4,29 @@ import { type Page, type AppState } from "./appTypes";
 import { FEATURES } from "../features/admin/admin";
 import { Card } from "../shared/ui/ui";
 
-export function SuccessToast({ message }: { message: string }) {
+export type NoticeSeverity = 'success' | 'info' | 'warning' | 'error';
+const noticeStyles: Record<NoticeSeverity, { className: string; symbol: string; label: string }> = {
+  success: { className: 'bg-emerald-700', symbol: '✓', label: 'Success' },
+  info: { className: 'bg-sky-700', symbol: 'ⓘ', label: 'Information' },
+  warning: { className: 'bg-amber-600', symbol: '⚠', label: 'Warning' },
+  error: { className: 'bg-red-700', symbol: '⛔', label: 'Error' },
+};
+export function NoticeToast({ message, severity }: { message: string; severity: NoticeSeverity }) {
+  const tone = noticeStyles[severity];
   return (
-    <div className="fixed top-6 right-6 z-50 bg-emerald-600 text-white px-5 py-3 rounded-xl shadow-xl flex items-center gap-3">
-      <span className="text-lg">✓</span>
-      <span className="font-medium text-sm">{message}</span>
+    <div role={severity === 'error' ? 'alert' : 'status'} aria-live={severity === 'error' ? 'assertive' : 'polite'}
+      className={`fixed top-6 right-6 z-50 max-w-md text-white px-5 py-3 rounded-xl shadow-xl flex items-start gap-3 ${tone.className}`}>
+      <span aria-hidden="true" className="text-lg leading-tight">{tone.symbol}</span>
+      <span className="text-sm"><strong className="mr-1">{tone.label}:</strong>{message}</span>
     </div>
   );
 }
 
+export function SuccessToast({ message }: { message: string }) {
+  return <NoticeToast severity="success" message={message} />;
+}
 export function ErrorToast({ message }: { message: string }) {
-  return (
-    <div className="fixed top-6 right-6 z-50 max-w-md bg-red-600 text-white px-5 py-3 rounded-xl shadow-xl flex items-start gap-3">
-      <span className="text-lg leading-tight">⛔</span>
-      <span className="font-medium text-sm">{message}</span>
-    </div>
-  );
+  return <NoticeToast severity="error" message={message} />;
 }
 
 export function UserAvatarDropdown({
@@ -88,6 +95,7 @@ export const NAV_ITEMS: Partial<
   manager: [
     { icon: "⊞", label: "Dashboard", page: "dashboard" },
     { icon: "🐎", label: "Horses in the club", page: "horse-list" },
+    { icon: "🏥", label: "Medical records (view)", page: "health-records" },
     {
       icon: "📋",
       label: "Horse intake",

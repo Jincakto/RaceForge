@@ -32,6 +32,8 @@ export function ManagerDashboard({
   const unassigned = state.enrollments.filter(
     (e) =>
       e.status === "active" &&
+      e.apiStatus === "ACTIVE" &&
+      e.paymentStatus === "PAID" &&
       e.trainerStatus === "unassigned" &&
       horses.some((h) => h.id === e.horseId),
   );
@@ -91,7 +93,7 @@ export function ManagerDashboard({
           <Card
             key={h.id}
             className="p-4 border-l-4 border-red-500 bg-red-50"
-            onClick={() => navigate("horse-list")}
+            onClick={() => onSelectHorse(h.id)}
           >
             <div className="flex items-center gap-3">
               <span className="text-xl">🔒</span>
@@ -156,7 +158,7 @@ export function ManagerDashboard({
               <div className="flex-1">
                 <div className="font-medium text-sm">{h.name}</div>
                 <div className="text-xs text-gray-500">
-                  {h.breed} · {h.age}t
+                  {h.breed} · {h.age} years old
                 </div>
               </div>
               <LifecycleBadge horse={h} />

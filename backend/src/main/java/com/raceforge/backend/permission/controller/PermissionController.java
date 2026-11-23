@@ -33,11 +33,9 @@ public class PermissionController {
   }
 
   @DeleteMapping("/revoke")
-  public ResponseEntity<ApiResponse<Void>> revoke(
-          @RequestParam String roleName,
-          @RequestParam String permissionCode,
+  public ResponseEntity<ApiResponse<Void>> revoke(@Valid @RequestBody GrantPermissionRequest request,
           @AuthenticationPrincipal AuthenticatedUser user) {
-      permissionService.revoke(roleName, permissionCode, user.userId());
+      permissionService.revoke(request, user.userId());
       return ResponseEntity.ok(ApiResponse.success("Permission revoked", null));
   }
 

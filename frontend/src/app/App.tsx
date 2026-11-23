@@ -104,6 +104,7 @@ export default function App() {
     userPermissions: {},
     rolePerms: DEFAULT_ROLE_PERMS,
     auditLog: [],
+    permissionAuditLog: [],
   });
 
   const stateRef = useRef(state);
@@ -198,7 +199,8 @@ export default function App() {
       setState((s) => ({
         ...s,
         rolePerms,
-        auditLog: data.permissionAudit || [],
+        auditLog: data.systemAudit || [],
+        permissionAuditLog: data.permissionAudit || [],
       }));
     }
     data.horses.forEach((h) => {
@@ -355,7 +357,7 @@ export default function App() {
     if (
       role === "admin" &&
       !adminOnly
-        .concat(["dashboard", "notifications", "profile"])
+        .concat(["dashboard", "notifications", "profile", "reports"])
         .includes(state.page)
     )
       return (
@@ -423,13 +425,13 @@ export default function App() {
       case "permissions":
         return (
           <PermissionMatrixPage
-            rolePerms={state.rolePerms}
-            audit={state.auditLog}
+            grants={state.serverPermissions}
+            audit={state.permissionAuditLog}
             onToggle={remote.togglePermission}
           />
         );
       case "audit-log":
-        return <AuditLogPage audit={state.auditLog} />;
+        return <AuditLogPage />;
       case "dashboard": {
         const r = state.user!.role;
         if (r === "manager")

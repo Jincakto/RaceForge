@@ -1,0 +1,233 @@
+diff --git a/backend/src/main/java/com/raceforge/backend/permission/config/PermissionDataSeeder.java b/backend/src/main/java/com/raceforge/backend/permission/config/PermissionDataSeeder.java
+index 43d62e7..f30c285 100644
+--- a/backend/src/main/java/com/raceforge/backend/permission/config/PermissionDataSeeder.java
++++ b/backend/src/main/java/com/raceforge/backend/permission/config/PermissionDataSeeder.java
+@@ -64,6 +64,10 @@ public class PermissionDataSeeder implements CommandLineRunner {
+       seedNewPermission("MANAGE_TRAINING", "Create schedules and record training results.", List.of("HEAD_TRAINER"));
+       seedNewPermission("VIEW_TRAINING", "Read training schedules and results.",
+               List.of("HEAD_TRAINER", "CLUB_MANAGER", "HORSE_OWNER"));
++      // New permission: preserve the existing manager report access on deployment.
++      // Subsequent explicit revoke is not undone on restart.
++      seedNewPermission("VIEW_REPORTS", "Read confirmed PayOS revenue reports.",
++              List.of("CLUB_MANAGER"));
+   }
+ 
+   private void seedNewPermission(String code, String description, List<String> defaults) {
+diff --git a/backend/src/main/java/com/raceforge/backend/report/RevenueReportController.java b/backend/src/main/java/com/raceforge/backend/report/RevenueReportController.java
+index 0840819..539b4e9 100644
+--- a/backend/src/main/java/com/raceforge/backend/report/RevenueReportController.java
++++ b/backend/src/main/java/com/raceforge/backend/report/RevenueReportController.java
+@@ -15,7 +15,9 @@ import org.springframework.web.bind.annotation.RestController;
+ 
+ @RestController
+ @RequestMapping("/api/reports/revenue")
+-@PreAuthorize("hasAnyAuthority('ADMIN','CLUB_MANAGER')")
++// Administrators retain their fixed reporting access. Club Managers can have
++// VIEW_REPORTS granted/revoked, without bypassing the role check.
++@PreAuthorize("hasAuthority('ADMIN') or (hasAuthority('CLUB_MANAGER') and @permissionAccess.has(authentication, 'VIEW_REPORTS'))")
+ public class RevenueReportController {
+     private final RevenueReportService service;
+     public RevenueReportController(RevenueReportService service) { this.service = service; }
+diff --git a/backend/src/main/java/com/raceforge/backend/security/SecurityConfig.java b/backend/src/main/java/com/raceforge/backend/security/SecurityConfig.java
+index b6e2b09..dde6707 100644
+--- a/backend/src/main/java/com/raceforge/backend/security/SecurityConfig.java
++++ b/backend/src/main/java/com/raceforge/backend/security/SecurityConfig.java
+@@ -83,6 +83,10 @@ public class SecurityConfig {
+                                 return false;
+                             }
+                         }).authenticated()
++                        // Revenue is a read-only cross-role report. ADMIN is intentionally
++                        // excluded from BUSINESS_ROLES, so it needs an explicit rule here.
++                        .requestMatchers(HttpMethod.GET, "/api/reports/revenue/**")
++                                .hasAnyAuthority("ADMIN", "CLUB_MANAGER")
+                         .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
+                         .requestMatchers("/api/users/me/**").authenticated()
+                         .requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
+diff --git a/frontend/src/features/admin/admin.tsx b/frontend/src/features/admin/admin.tsx
+index 3f9505a..600a9f5 100644
+--- a/frontend/src/features/admin/admin.tsx
++++ b/frontend/src/features/admin/admin.tsx
+@@ -318,90 +318,113 @@ function CreateAccountModal({ users, clubs, onCreate, onClose }: { users: AppUse
+ 
+ // ── PermissionMatrixPage ──────────────────────────────────────────────────────
+ 
+-// These are the only mutable role permissions backed by authorization checks.
+-// Admin-only MANAGE_PERMISSION is protected server-side and cannot be revoked.
+-const ENFORCED_PERMISSION_ROWS = [
+-  {
+-    code: 'ASSIGN_TRAINER', label: 'Assign or replace trainers',
+-    description: 'Club Manager: manage trainer assignments on paid horse packages.',
+-  },
+-  {
+-    code: 'MANAGE_TRAINING', label: 'Manage training',
+-    description: 'Head Trainer: create plans, manage sessions and record training results.',
+-  },
+-  {
+-    code: 'VIEW_TRAINING', label: 'Read training information',
+-    description: 'Training read access still requires the appropriate role and horse/package scope.',
+-  },
+-] as const;
++// Preserve the full, grouped matrix from the original design. A feature row is
++// not automatically a grant: only explicit codes enforced at the API are toggles.
++// Other features remain restricted by existing backend roles and record scope.
++type PermissionMatrixRow = { page: string; label: string; icon: string; group: string };
++const MATRIX_ROWS: PermissionMatrixRow[] = [
++  ...FEATURES,
++  { page: 'training-read-access', label: 'Read training information', icon: '📖', group: 'Training' },
++];
++const MATRIX_GROUPS = Array.from(new Set(MATRIX_ROWS.map(row => row.group)));
++const MATRIX_CODES: Record<string, Partial<Record<Role, string>>> = {
++  'trainer-assign': { manager: 'ASSIGN_TRAINER' },
++  'training-hub': { head_trainer: 'MANAGE_TRAINING' },
++  'training-read-access': { manager: 'VIEW_TRAINING', head_trainer: 'VIEW_TRAINING', owner: 'VIEW_TRAINING' },
++  reports: { manager: 'VIEW_REPORTS' },
++};
++const MATRIX_DESCRIPTIONS: Record<string, string> = {
++  'trainer-assign': 'ASSIGN_TRAINER — assign or replace a trainer for an eligible paid package',
++  'training-hub': 'MANAGE_TRAINING — manage training plans, schedules and results',
++  'training-read-access': 'VIEW_TRAINING — still limited to authorized horses and packages',
++  reports: 'VIEW_REPORTS — view confirmed PayOS revenue (Club Manager only)',
++};
+ 
+ export function PermissionMatrixPage({ grants, audit, onToggle }: {
+   grants?: Record<string, string[]>; audit: AuditEntry[];
+   onToggle: (role: Role, code: string, on: boolean, reason: string) => Promise<unknown>;
+ }) {
+-  const [pending, setPending] = useState<{ role: Role; code: string; on: boolean } | null>(null);
+-  const selected = pending && ENFORCED_PERMISSION_ROWS.find(f => f.code === pending.code);
++  const [pending, setPending] = useState<{ role: Role; code: string; label: string; on: boolean } | null>(null);
+   const permLog = audit.filter(a => a.action.startsWith('Permissions')).slice(0, 6);
+   const loaded = grants !== undefined;
+   return (
+     <div className="space-y-5">
+       <div>
+         <h2 className="font-serif text-xl font-bold text-[#0f1729]">Permissions</h2>
+-        <p className="text-sm text-gray-500">These switches show actual backend permissions. Unlisted features remain controlled by their role and record-level access rules.</p>
++        <p className="mt-1 text-sm text-gray-500">
++          Grouped by feature area. Switches represent server-enforced permissions;
++          a dash means the feature is controlled by its existing role and record-level rules, not by this matrix.
++        </p>
+       </div>
+       {!loaded && (
+         <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+           Permission data has not loaded. Refresh and check the backend connection before changing grants.
+         </div>
+       )}
++      <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
++        <span><span className="mr-1 text-emerald-600">●</span> Server-enforced grant (editable)</span>
++        <span><span className="mr-1 text-gray-400">—</span> Role / record-level authorization (not editable here)</span>
++      </div>
+       <Card className="overflow-x-auto">
+-        <table className="w-full text-sm">
++        <table className="w-full min-w-[850px] text-sm">
+           <thead>
+             <tr className="border-b border-gray-200 bg-gray-50">
+-              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Backend permission</th>
+-              {MATRIX_ROLES.map(r => <th key={r} className="px-3 py-3 text-center text-xs font-semibold text-gray-500">{ROLE_NAME[r]}</th>)}
++              <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Feature / permission</th>
++              {MATRIX_ROLES.map(role => <th key={role} className="px-3 py-3 text-center text-xs font-semibold text-gray-500">{ROLE_NAME[role]}</th>)}
++              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500">Administrator</th>
+             </tr>
+           </thead>
+           <tbody>
+-            {ENFORCED_PERMISSION_ROWS.map(f => (
+-              <tr key={f.code} className="border-b border-gray-100 last:border-0">
+-                <td className="px-5 py-3">
+-                  <div className="font-medium text-slate-800">{f.label}</div>
+-                  <code className="text-xs text-slate-500">{f.code}</code>
+-                  <p className="mt-1 max-w-lg text-xs text-slate-500">{f.description}</p>
+-                </td>
+-                {MATRIX_ROLES.map(role => {
+-                  const editable = isEditableRolePermission(role, f.code);
+-                  const enabled = grants?.[role]?.includes(f.code) === true;
+-                  return (
+-                    <td key={role} className="px-3 py-3 text-center">
+-                      {editable ? (
+-                        <button type="button" role="switch" disabled={!loaded}
+-                          title={loaded ? f.code : 'Permission data unavailable'}
+-                          aria-checked={enabled} aria-label={`${f.label} — ${ROLE_NAME[role]}`}
+-                          onClick={() => setPending({ role, code: f.code, on: !enabled })}
+-                          className={`relative h-5 w-9 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+-                          <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${enabled ? 'left-[18px]' : 'left-0.5'}`} />
+-                        </button>
+-                      ) : <span title="Restricted by backend role checks" className="text-gray-400">—</span>}
++            {MATRIX_GROUPS.map(group => (
++              <React.Fragment key={group}>
++                <tr><td colSpan={MATRIX_ROLES.length + 2}
++                  className="bg-[#1a2844]/5 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-[#1a2844]">{group}</td></tr>
++                {MATRIX_ROWS.filter(row => row.group === group).map(row => (
++                  <tr key={row.page} className="border-b border-gray-100 last:border-0">
++                    <td className="px-5 py-3">
++                      <div className="font-medium text-gray-800">{row.icon} {row.label}</div>
++                      {MATRIX_DESCRIPTIONS[row.page] &&
++                        <div className="mt-1 max-w-lg text-xs text-gray-500">{MATRIX_DESCRIPTIONS[row.page]}</div>}
+                     </td>
+-                  );
+-                })}
+-              </tr>
++                    {MATRIX_ROLES.map(role => {
++                      const code = MATRIX_CODES[row.page]?.[role];
++                      const editable = !!code && isEditableRolePermission(role, code);
++                      const enabled = !!code && grants?.[role]?.includes(code) === true;
++                      return (
++                        <td key={role} className="px-3 py-3 text-center">
++                          {editable && code ? (
++                            <button type="button" role="switch" disabled={!loaded}
++                              title={loaded ? code : 'Permission data unavailable'}
++                              aria-checked={enabled} aria-label={`${row.label} — ${ROLE_NAME[role]}`}
++                              onClick={() => setPending({ role, code, label: row.label, on: !enabled })}
++                              className={`relative h-5 w-9 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${enabled ? 'bg-emerald-500' : 'bg-gray-300'}`}>
++                              <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${enabled ? 'left-[18px]' : 'left-0.5'}`} />
++                            </button>
++                          ) : <span title="Access is fixed by backend role and record rules" className="text-gray-400">—</span>}
++                        </td>
++                      );
++                    })}
++                    <td className="px-3 py-3 text-center text-xs text-gray-400" title="Administrator access is governed by backend API policies, not delegated here">Policy</td>
++                  </tr>
++                ))}
++              </React.Fragment>
+             ))}
+           </tbody>
+         </table>
+       </Card>
+-      <p className="text-xs text-gray-500">Administrator permission management is protected by the server and cannot be delegated here. Changing a grant does not bypass role, ownership or horse-assignment checks.</p>
++      <p className="text-xs text-gray-500">
++        This table is an authorization inventory, not a bypass for role restrictions. Administrator policies
++        are server-managed. Further editable permissions require corresponding backend enforcement.
++      </p>
+       <Card className="p-5">
+         <h3 className="mb-3 font-semibold text-[#0f1729]">Recent permission changes</h3>
+         {permLog.map(a => <div key={a.id} className="border-b border-gray-100 py-2 text-sm last:border-0"><span className="font-mono text-xs text-gray-400">{a.time}</span> · <b>{a.actor}</b> {a.action} <span className="text-gray-500">{a.target}</span>{a.reason && <span className="block text-xs italic text-gray-400">Reason: {a.reason}</span>}</div>)}
+         {permLog.length === 0 && <p className="text-sm text-gray-400">No changes yet.</p>}
+       </Card>
+-      {pending && selected && (
++      {pending && (
+         <ReasonDialog title={pending.on ? 'Grant permission' : 'Revoke permission'} danger={!pending.on}
+           confirmLabel="Confirm" onClose={() => setPending(null)}
+-          description={<p>{pending.on ? 'Grant' : 'Revoke'} <b>{selected.label}</b> for <b>{ROLE_NAME[pending.role]}</b>. A reason is required and recorded.</p>}
++          description={<p>{pending.on ? 'Grant' : 'Revoke'} <b>{pending.label}</b> ({pending.code}) for <b>{ROLE_NAME[pending.role]}</b>. A reason is required and recorded.</p>}
+           onConfirm={async reason => { await onToggle(pending.role, pending.code, pending.on, reason); setPending(null); }} />
+       )}
+     </div>
+diff --git a/frontend/src/features/admin/api/permissionApi.ts b/frontend/src/features/admin/api/permissionApi.ts
+index a715441..6d0f2c0 100644
+--- a/frontend/src/features/admin/api/permissionApi.ts
++++ b/frontend/src/features/admin/api/permissionApi.ts
+@@ -3,6 +3,7 @@ import type { Role } from '../../../shared/data/data';
+ export const permissionForPage = (role: Role, page: string): string | undefined => {
+   if (page === 'trainer-assign') return 'ASSIGN_TRAINER';
+   if (page === 'training-hub') return role === 'head_trainer' ? 'MANAGE_TRAINING' : 'VIEW_TRAINING';
++  if (page === 'reports' && role === 'manager') return 'VIEW_REPORTS';
+   if (page === 'accounts') return 'MANAGE_ACCOUNTS';
+   if (page === 'permissions') return 'MANAGE_PERMISSION';
+   return undefined;
+@@ -11,7 +12,7 @@ export const permissionForPage = (role: Role, page: string): string | undefined
+  * Other features require server-side authorization work, not UI-only toggles.
+  */
+ export const EDITABLE_ROLE_PERMISSIONS: Partial<Record<Role, readonly string[]>> = {
+-  manager: ['ASSIGN_TRAINER', 'VIEW_TRAINING'],
++  manager: ['ASSIGN_TRAINER', 'VIEW_TRAINING', 'VIEW_REPORTS'],
+   head_trainer: ['MANAGE_TRAINING', 'VIEW_TRAINING'],
+   owner: ['VIEW_TRAINING'],
+ };

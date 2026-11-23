@@ -15,7 +15,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/reports/revenue")
-@PreAuthorize("hasAnyAuthority('ADMIN','CLUB_MANAGER')")
+// Administrators retain their fixed reporting access. Club Managers can have
+// VIEW_REPORTS granted/revoked, without bypassing the role check.
+@PreAuthorize("hasAuthority('ADMIN') or (hasAuthority('CLUB_MANAGER') and @permissionAccess.has(authentication, 'VIEW_REPORTS'))")
 public class RevenueReportController {
     private final RevenueReportService service;
     public RevenueReportController(RevenueReportService service) { this.service = service; }

@@ -53,6 +53,9 @@ public class PermissionService {
   @Autowired
   private PermissionAuditLogMapper auditLogMapper;
 
+  @Autowired
+  private FeaturePermissionPolicy featurePolicy;
+
   @Transactional
   public void grant(GrantPermissionRequest request, String performedBy) {
       String roleName = request.getRoleName().trim().toUpperCase(Locale.ROOT);
@@ -62,6 +65,10 @@ public class PermissionService {
               .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + roleName));
       Permission permission = permissionRepository.findByPermissionName(permissionCode)
               .orElseThrow(() -> new ResourceNotFoundException("Permission not found: " + permissionCode));
+
+      if (!featurePolicy.mayGrant(roleName, permissionCode)) {
+          throw new BusinessRuleException("Permission " + permissionCode + " is not available for role " + roleName);
+      }
 
       if (MANAGE_PERMISSION_CODE.equals(permissionCode) && !ADMIN_ROLE.equals(roleName)) {
           throw new BusinessRuleException(
@@ -79,13 +86,13 @@ public class PermissionService {
       rp.setPermission(permission);
       rolePermissionRepository.save(rp);
 
-      writeAuditLog("GRANT", role, permission, performedBy);
+      writeAuditLog("GRANT", role, permission, performedBy, request.getReason());
   }
 
   @Transactional
-  public void revoke(String roleName, String permissionCode, String performedBy) {
-      roleName = roleName.trim().toUpperCase(Locale.ROOT);
-      permissionCode = permissionCode.trim().toUpperCase(Locale.ROOT);
+  public void revoke(GrantPermissionRequest request, String performedBy) {
+      String roleName = request.getRoleName().trim().toUpperCase(Locale.ROOT);
+      String permissionCode = request.getPermissionCode().trim().toUpperCase(Locale.ROOT);
       if (MANAGE_PERMISSION_CODE.equals(permissionCode) && ADMIN_ROLE.equals(roleName)) {
           throw new BusinessRuleException(
                   "Cannot revoke MANAGE_PERMISSION from ADMIN — would leave nobody able to configure permissions.");
@@ -102,7 +109,7 @@ public class PermissionService {
       }
 
       rolePermissionRepository.deleteById(id);
-      writeAuditLog("REVOKE", role, permission, performedBy);
+      writeAuditLog("REVOKE", role, permission, performedBy, request.getReason());
   }
 
   @Transactional(readOnly = true)
@@ -134,14 +141,16 @@ public class PermissionService {
               .collect(Collectors.toList());
   }
 
-  private void writeAuditLog(String action, Role role, Permission permission, String performedBy) {
+  private void writeAuditLog(String action, Role role, Permission permission, String performedBy, String reason) {
       PermissionAuditLog log = new PermissionAuditLog();
       log.setUserId(performedBy);
       log.setAction(action);
       log.setEntityType(PermissionAuditLog.ENTITY_TYPE);
       log.setEntityId(role.getRoleId().toString());
       log.setResult("SUCCESS");
-      log.setReason(permission.getPermissionName());
+      // Keep the original permission code readable for legacy history queries.
+      // The first separator divides the code from the human explanation.
+      log.setReason(permission.getPermissionName() + " | " + reason.trim());
       log.setCreatedAt(LocalDateTime.now());
       auditLogRepository.save(log);
   }

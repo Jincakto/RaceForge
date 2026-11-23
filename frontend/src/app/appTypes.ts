@@ -70,5 +70,7 @@ export interface AppState {
   showSuccess: string | null;
   userPermissions: Record<string, Page[]>;
   rolePerms: Record<string, string[]>;
+  serverPermissions?: Record<string, string[]>;
   auditLog: AuditEntry[];
+  permissionAuditLog: AuditEntry[];
 }

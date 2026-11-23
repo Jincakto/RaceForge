@@ -64,6 +64,12 @@ public class PermissionDataSeeder implements CommandLineRunner {
       seedNewPermission("MANAGE_TRAINING", "Create schedules and record training results.", List.of("HEAD_TRAINER"));
       seedNewPermission("VIEW_TRAINING", "Read training schedules and results.",
               List.of("HEAD_TRAINER", "CLUB_MANAGER", "HORSE_OWNER"));
+      com.raceforge.backend.permission.service.FeaturePermissionPolicy.DEFAULT_GRANTS.forEach((code, roles) ->
+              seedNewPermission(code, "Feature permission: " + code, roles));
+      // New permission: preserve the existing manager report access on deployment.
+      // Subsequent explicit revoke is not undone on restart.
+      seedNewPermission("VIEW_REPORTS", "Read confirmed PayOS revenue reports.",
+              List.of("CLUB_MANAGER"));
   }
 
   private void seedNewPermission(String code, String description, List<String> defaults) {

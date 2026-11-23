@@ -22,9 +22,15 @@ import com.raceforge.backend.account.AccountConstants;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final com.raceforge.backend.permission.service.FeaturePermissionPolicy featurePolicy;
+    private final com.raceforge.backend.permission.service.PermissionService permissionService;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
+            com.raceforge.backend.permission.service.FeaturePermissionPolicy featurePolicy,
+            com.raceforge.backend.permission.service.PermissionService permissionService) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.featurePolicy = featurePolicy;
+        this.permissionService = permissionService;
     }
 
     @Bean
@@ -83,6 +89,11 @@ public class SecurityConfig {
                                 return false;
                             }
                         }).authenticated()
+                        // Revenue is a read-only cross-role report. ADMIN is intentionally
+                        // excluded from BUSINESS_ROLES, so it needs an explicit rule here.
+                        .requestMatchers(HttpMethod.GET, "/api/reports/revenue/**")
+                                .hasAnyAuthority("ADMIN", "CLUB_MANAGER")
+                        .requestMatchers(HttpMethod.GET, "/api/permissions/me").authenticated()
                         .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
                         .requestMatchers("/api/users/me/**").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
@@ -96,7 +107,14 @@ public class SecurityConfig {
                                     && "ACTIVE".equals(user.status())
                                     && user.roleId() != null
                                     && AccountConstants.BUSINESS_ROLES.contains(user.roleId());
-                            return new AuthorizationDecision(authentication.get().isAuthenticated() && active);
+                            if (!authentication.get().isAuthenticated() || !active) return new AuthorizationDecision(false);
+                            AuthenticatedUser actor = (AuthenticatedUser) principal;
+                            String path = context.getRequest().getRequestURI().substring(
+                                    context.getRequest().getContextPath().length());
+                            String required = featurePolicy.requiredFor(actor.roleName(),
+                                    context.getRequest().getMethod(), path);
+                            return new AuthorizationDecision(required == null
+                                    || permissionService.hasPermission(actor.roleName(), required));
                         })
                 )
                 .httpBasic(httpBasic -> httpBasic.disable())

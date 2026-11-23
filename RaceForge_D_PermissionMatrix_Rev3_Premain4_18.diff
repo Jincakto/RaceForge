@@ -1,0 +1,456 @@
+diff --git a/backend/src/main/java/com/raceforge/backend/permission/config/PermissionDataSeeder.java b/backend/src/main/java/com/raceforge/backend/permission/config/PermissionDataSeeder.java
+index f30c285..715209c 100644
+--- a/backend/src/main/java/com/raceforge/backend/permission/config/PermissionDataSeeder.java
++++ b/backend/src/main/java/com/raceforge/backend/permission/config/PermissionDataSeeder.java
+@@ -64,6 +64,8 @@ public class PermissionDataSeeder implements CommandLineRunner {
+       seedNewPermission("MANAGE_TRAINING", "Create schedules and record training results.", List.of("HEAD_TRAINER"));
+       seedNewPermission("VIEW_TRAINING", "Read training schedules and results.",
+               List.of("HEAD_TRAINER", "CLUB_MANAGER", "HORSE_OWNER"));
++      com.raceforge.backend.permission.service.FeaturePermissionPolicy.DEFAULT_GRANTS.forEach((code, roles) ->
++              seedNewPermission(code, "Feature permission: " + code, roles));
+       // New permission: preserve the existing manager report access on deployment.
+       // Subsequent explicit revoke is not undone on restart.
+       seedNewPermission("VIEW_REPORTS", "Read confirmed PayOS revenue reports.",
+diff --git a/backend/src/main/java/com/raceforge/backend/permission/controller/CurrentPermissionsController.java b/backend/src/main/java/com/raceforge/backend/permission/controller/CurrentPermissionsController.java
+new file mode 100644
+index 0000000..64a144f
+--- /dev/null
++++ b/backend/src/main/java/com/raceforge/backend/permission/controller/CurrentPermissionsController.java
+@@ -0,0 +1,31 @@
++package com.raceforge.backend.permission.controller;
++
++import com.raceforge.backend.common.response.ApiResponse;
++import com.raceforge.backend.permission.service.PermissionService;
++import com.raceforge.backend.security.AuthenticatedUser;
++import java.util.Set;
++import org.springframework.http.ResponseEntity;
++import org.springframework.security.access.AccessDeniedException;
++import org.springframework.security.core.annotation.AuthenticationPrincipal;
++import org.springframework.web.bind.annotation.GetMapping;
++import org.springframework.web.bind.annotation.RequestMapping;
++import org.springframework.web.bind.annotation.RestController;
++
++/** Read-only current-role grants, with no admin privilege required. */
++@RestController
++@RequestMapping("/api/permissions")
++public class CurrentPermissionsController {
++    private final PermissionService permissions;
++
++    public CurrentPermissionsController(PermissionService permissions) {
++        this.permissions = permissions;
++    }
++
++    @GetMapping("/me")
++    public ResponseEntity<ApiResponse<Set<String>>> mine(@AuthenticationPrincipal AuthenticatedUser actor) {
++        if (actor == null || !"ACTIVE".equals(actor.status()) || actor.roleName() == null)
++            throw new AccessDeniedException("An active account is required");
++        return ResponseEntity.ok(ApiResponse.success("Current permissions retrieved",
++                permissions.getPermissionsForRole(actor.roleName())));
++    }
++}
+diff --git a/backend/src/main/java/com/raceforge/backend/permission/service/FeaturePermissionPolicy.java b/backend/src/main/java/com/raceforge/backend/permission/service/FeaturePermissionPolicy.java
+new file mode 100644
+index 0000000..27758df
+--- /dev/null
++++ b/backend/src/main/java/com/raceforge/backend/permission/service/FeaturePermissionPolicy.java
+@@ -0,0 +1,96 @@
++package com.raceforge.backend.permission.service;
++
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.Set;
++import org.springframework.stereotype.Component;
++
++/**
++ * Permissions for existing business roles. A grant never replaces the role,
++ * horse ownership, or assignment checks already enforced by controllers.
++ * Endpoint rules below cover only unambiguous API actions. Other grants are
++ * currently UI visibility controls and are labelled as such in the matrix.
++ */
++@Component
++public class FeaturePermissionPolicy {
++    public static final Map<String, List<String>> DEFAULT_GRANTS = defaults();
++
++    private static Map<String, List<String>> defaults() {
++        Map<String, List<String>> values = new LinkedHashMap<>();
++        values.put("VIEW_CLUB_HORSES", List.of("CLUB_MANAGER", "HEAD_TRAINER", "VETERINARIAN"));
++        values.put("VIEW_MY_HORSES", List.of("HORSE_OWNER"));
++        values.put("REGISTER_HORSE", List.of("HORSE_OWNER"));
++        values.put("MANAGE_HORSE_INTAKE", List.of("CLUB_MANAGER"));
++        values.put("VIEW_MEDICAL_RECORDS", List.of("CLUB_MANAGER", "VETERINARIAN", "HORSE_OWNER"));
++        values.put("WRITE_MEDICAL_RECORD", List.of("VETERINARIAN"));
++        values.put("ACCESS_VET_ASSIGNMENTS", List.of("VETERINARIAN"));
++        values.put("MANAGE_VET_ASSIGNMENTS", List.of("CLUB_MANAGER"));
++        values.put("REGISTER_TRAINING_PACKAGE", List.of("HORSE_OWNER"));
++        values.put("MANAGE_PACKAGE_CATALOG", List.of("CLUB_MANAGER"));
++        values.put("VIEW_PERFORMANCE", List.of("HORSE_OWNER"));
++        values.put("CARE_TASKS", List.of("GROOM"));
++        values.put("VIEW_INVENTORY", List.of("GROOM"));
++        values.put("VIEW_STAFF", List.of("CLUB_MANAGER"));
++        return Map.copyOf(values);
++    }
++
++    public boolean mayGrant(String role, String code) {
++        List<String> roles = DEFAULT_GRANTS.get(code);
++        if (roles != null) return roles.contains(role);
++        return switch (code) {
++            case "ASSIGN_TRAINER", "VIEW_REPORTS" -> "CLUB_MANAGER".equals(role);
++            case "MANAGE_TRAINING" -> "HEAD_TRAINER".equals(role);
++            case "VIEW_TRAINING" -> Set.of("CLUB_MANAGER", "HEAD_TRAINER", "HORSE_OWNER").contains(role);
++            case "MANAGE_PERMISSION", "MANAGE_ACCOUNTS" -> "ADMIN".equals(role);
++            default -> true; // Other historical administrative permissions keep their current checks.
++        };
++    }
++
++    /** Return null when an action has no separate matrix grant. */
++    public String requiredFor(String role, String method, String path) {
++        if (role == null || method == null || path == null) return null;
++        boolean get = "GET".equals(method);
++        boolean post = "POST".equals(method);
++        boolean edit = post || "PUT".equals(method) || "PATCH".equals(method) || "DELETE".equals(method);
++        if (get && path.matches("/api/horses(?:/[^/]+)?")) {
++            if ("HORSE_OWNER".equals(role)) return "VIEW_MY_HORSES";
++            if (Set.of("CLUB_MANAGER", "HEAD_TRAINER", "VETERINARIAN").contains(role)) return "VIEW_CLUB_HORSES";
++        }
++        if ("HORSE_OWNER".equals(role) && post
++                && (path.equals("/api/horses") || path.matches("/api/horses/[^/]+/admission")))
++            return "REGISTER_HORSE";
++        if ("CLUB_MANAGER".equals(role)
++                && ((post && path.matches("/api/horses/[^/]+/admission/(approve|reject)"))
++                    || ("PATCH".equals(method) && path.matches("/api/horses/[^/]+/(activate|deactivate)"))))
++            return "MANAGE_HORSE_INTAKE";
++        if ("CLUB_MANAGER".equals(role) && edit
++                && (path.matches("/api/horses/[^/]+/trainers(?:/[^/]+)?")
++                    || path.matches("/api/horses/[^/]+/trainer")))
++            return "ASSIGN_TRAINER";
++        if (get && Set.of("CLUB_MANAGER", "VETERINARIAN", "HORSE_OWNER").contains(role)
++                && (path.matches("/api/medical/records/[^/]+")
++                    || path.matches("/api/medical/horses/[^/]+/(records|previous-examination|training-lock/history)")))
++            return "VIEW_MEDICAL_RECORDS";
++        if ("VETERINARIAN".equals(role) && edit
++                && (path.equals("/api/medical/records") || path.startsWith("/api/medical/records/")
++                    || path.matches("/api/medical/horses/[^/]+/(evaluation|training-lock/unlock)")))
++            return "WRITE_MEDICAL_RECORD";
++        if ("VETERINARIAN".equals(role)
++                && ((get && path.startsWith("/api/medical/assignments/mine"))
++                    || (post && path.matches("/api/medical/assignments/[^/]+/(accept|decline)"))))
++            return "ACCESS_VET_ASSIGNMENTS";
++        if ("CLUB_MANAGER".equals(role) && post && path.matches("/api/medical/assignments/horses/[^/]+"))
++            return "MANAGE_VET_ASSIGNMENTS";
++        if ("HORSE_OWNER".equals(role) && post && path.equals("/api/horse-packages/register"))
++            return "REGISTER_TRAINING_PACKAGE";
++        if ((get || post) && (path.equals("/api/training-packages") || path.startsWith("/api/training-packages/"))) {
++            if ("CLUB_MANAGER".equals(role)) return "MANAGE_PACKAGE_CATALOG";
++            if (get && "HORSE_OWNER".equals(role)) return "REGISTER_TRAINING_PACKAGE";
++        }
++        // CARE_TASKS, VIEW_INVENTORY, VIEW_PERFORMANCE and VIEW_STAFF
++        // affect UI visibility only: their current APIs do not provide a distinct
++        // independent operation that can safely be protected without refactoring.
++        return null;
++    }
++}
+diff --git a/backend/src/main/java/com/raceforge/backend/permission/service/PermissionService.java b/backend/src/main/java/com/raceforge/backend/permission/service/PermissionService.java
+index e0ccf83..9d90c74 100644
+--- a/backend/src/main/java/com/raceforge/backend/permission/service/PermissionService.java
++++ b/backend/src/main/java/com/raceforge/backend/permission/service/PermissionService.java
+@@ -53,6 +53,9 @@ public class PermissionService {
+   @Autowired
+   private PermissionAuditLogMapper auditLogMapper;
+ 
++  @Autowired
++  private FeaturePermissionPolicy featurePolicy;
++
+   @Transactional
+   public void grant(GrantPermissionRequest request, String performedBy) {
+       String roleName = request.getRoleName().trim().toUpperCase(Locale.ROOT);
+@@ -63,6 +66,10 @@ public class PermissionService {
+       Permission permission = permissionRepository.findByPermissionName(permissionCode)
+               .orElseThrow(() -> new ResourceNotFoundException("Permission not found: " + permissionCode));
+ 
++      if (!featurePolicy.mayGrant(roleName, permissionCode)) {
++          throw new BusinessRuleException("Permission " + permissionCode + " is not available for role " + roleName);
++      }
++
+       if (MANAGE_PERMISSION_CODE.equals(permissionCode) && !ADMIN_ROLE.equals(roleName)) {
+           throw new BusinessRuleException(
+                   "MANAGE_PERMISSION is exclusive to ADMIN, cannot grant it to " + roleName);
+diff --git a/backend/src/main/java/com/raceforge/backend/security/SecurityConfig.java b/backend/src/main/java/com/raceforge/backend/security/SecurityConfig.java
+index dde6707..9e0c5b2 100644
+--- a/backend/src/main/java/com/raceforge/backend/security/SecurityConfig.java
++++ b/backend/src/main/java/com/raceforge/backend/security/SecurityConfig.java
+@@ -22,9 +22,15 @@ import com.raceforge.backend.account.AccountConstants;
+ public class SecurityConfig {
+ 
+     private final JwtAuthenticationFilter jwtAuthenticationFilter;
++    private final com.raceforge.backend.permission.service.FeaturePermissionPolicy featurePolicy;
++    private final com.raceforge.backend.permission.service.PermissionService permissionService;
+ 
+-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
++    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
++            com.raceforge.backend.permission.service.FeaturePermissionPolicy featurePolicy,
++            com.raceforge.backend.permission.service.PermissionService permissionService) {
+         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
++        this.featurePolicy = featurePolicy;
++        this.permissionService = permissionService;
+     }
+ 
+     @Bean
+@@ -87,6 +93,7 @@ public class SecurityConfig {
+                         // excluded from BUSINESS_ROLES, so it needs an explicit rule here.
+                         .requestMatchers(HttpMethod.GET, "/api/reports/revenue/**")
+                                 .hasAnyAuthority("ADMIN", "CLUB_MANAGER")
++                        .requestMatchers(HttpMethod.GET, "/api/permissions/me").authenticated()
+                         .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
+                         .requestMatchers("/api/users/me/**").authenticated()
+                         .requestMatchers(HttpMethod.GET, "/api/users/me").authenticated()
+@@ -100,7 +107,14 @@ public class SecurityConfig {
+                                     && "ACTIVE".equals(user.status())
+                                     && user.roleId() != null
+                                     && AccountConstants.BUSINESS_ROLES.contains(user.roleId());
+-                            return new AuthorizationDecision(authentication.get().isAuthenticated() && active);
++                            if (!authentication.get().isAuthenticated() || !active) return new AuthorizationDecision(false);
++                            AuthenticatedUser actor = (AuthenticatedUser) principal;
++                            String path = context.getRequest().getRequestURI().substring(
++                                    context.getRequest().getContextPath().length());
++                            String required = featurePolicy.requiredFor(actor.roleName(),
++                                    context.getRequest().getMethod(), path);
++                            return new AuthorizationDecision(required == null
++                                    || permissionService.hasPermission(actor.roleName(), required));
+                         })
+                 )
+                 .httpBasic(httpBasic -> httpBasic.disable())
+diff --git a/frontend/src/app/remote.ts b/frontend/src/app/remote.ts
+index 6695ea7..02b8126 100644
+--- a/frontend/src/app/remote.ts
++++ b/frontend/src/app/remote.ts
+@@ -1,4 +1,5 @@
+ import { listAccounts, listRolePermissions, listPermissionHistory } from "../features/admin/api/adminApi";
++import { getMyPermissions } from "../features/admin/api/permissionApi";
+ import { listSystemAuditLogs, systemAuditToEntry } from "../features/admin/api/auditLogsApi";
+ import type { AuditEntry } from "../features/admin/admin";
+ import { listNotifications } from "../features/notifications/api/notificationsApi";
+@@ -220,12 +221,27 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
+     data.systemAudit = recentAudit ? recentAudit.content.map(systemAuditToEntry) : [];
+     data.trainingLoadIssues=store.issues(); if (errors.size) report('Some data could not be refreshed. See the affected sources and retry.'); return data;
+   }
+-  data.horses = (await read("Horses", () => listHorses(), [])).map(w => horseFromApi(w, data.users));
+-  if (['manager', 'owner', 'head_trainer'].includes(user.role || '')) data.packages = (await read("Package catalogue", () => listTrainingPackages(user.role === 'manager'), [])).map(packageFromApi);
++  // Fetch actual grants for business-role sessions, not only for Admin.
++  // Fail closed on an unavailable permissions endpoint rather than presenting stale access.
++  const loadedGrants = await read("Current permissions", () => getMyPermissions(), []);
++  // Never use a cached grant set when a refresh failed (including a 403).
++  const currentGrants = store.issues().some(issue => issue.key === 'Current permissions')
++    ? [] : loadedGrants;
++  data.serverPermissions = { [user.role!]: currentGrants };
++
++  const hasGrant = (code: string) => currentGrants.includes(code);
++  const mayLoadHorses = user.role === 'owner' ? hasGrant('VIEW_MY_HORSES')
++    : ['manager', 'head_trainer', 'veterinarian'].includes(user.role || '')
++      ? hasGrant('VIEW_CLUB_HORSES') : true;
++  if (mayLoadHorses) data.horses = (await read("Horses", () => listHorses(), [])).map(w => horseFromApi(w, data.users));
++  const mayLoadCatalogue = user.role === 'manager' ? hasGrant('VIEW_PACKAGE_CATALOG')
++    : user.role === 'owner' ? hasGrant('REGISTER_TRAINING_PACKAGE') : true;
++  if (mayLoadCatalogue && ['manager', 'owner', 'head_trainer'].includes(user.role || ''))
++    data.packages = (await read("Package catalogue", () => listTrainingPackages(user.role === 'manager'), [])).map(packageFromApi);
+ 
+ 
+   let vetAssignments: Wire[] = [];
+-  if (user.role === 'veterinarian') {
++  if (user.role === 'veterinarian' && hasGrant('VIEW_VET_ASSIGNMENTS')) {
+     try { vetAssignments = await listMyVetAssignments(); }
+     catch (error) {
+       data.vetAssignmentsError = error instanceof ApiError && error.status === 403
+@@ -251,7 +267,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
+       horse.vetId = current.veterinarianId; horse.vetName = current.veterinarianName; horse.vetAssignmentId = current.assignmentId;
+       horse.vetAssign = { status: ['ACCEPTED','COMPLETED'].includes(current.status) ? 'accepted' : current.status === 'ASSIGNED' ? 'pending' : 'declined', history: [...assignments].reverse().map(a => ({ time: dateText(a.createdAt), from: null, to: a.veterinarianName, by: a.assignedBy, reason: a.reason || a.status })) };
+     }
+-    if (['manager', 'owner', 'veterinarian'].includes(user.role || '')) {
++    if (hasGrant('VIEW_MEDICAL_RECORDS') && ['manager', 'owner', 'veterinarian'].includes(user.role || '')) {
+       const records = await read(`Examination records ${horse.id}`, () => listHorseMedicalRecords(horse.id), []);
+       const mapped = records.map(w => recordFromApi(w, horse.id, data.users));
+       data.healthRecords.push(...mapped);
+@@ -273,7 +289,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
+       const plans = await read(`Plans ${horse.id}`, () => listHorseTrainingPlans(horse.id), []);
+       data.trainingPlans.push(...plans.map(w => planFromApi(w)));
+     }
+-    if (['owner', 'manager'].includes(user.role || '')) data.trainingSessions.push(...(await read(`Training schedule ${horse.id}`, () => listHorseTrainingSessions(horse.id), [])).map(w => sessionFromApi(w, user.role === 'head_trainer' ? user : undefined)));
++    if (hasGrant('VIEW_TRAINING') && ['owner', 'manager'].includes(user.role || '')) data.trainingSessions.push(...(await read(`Training schedule ${horse.id}`, () => listHorseTrainingSessions(horse.id), [])).map(w => sessionFromApi(w, user.role === 'head_trainer' ? user : undefined)));
+   }
+   if (user.role === 'head_trainer') {
+     for(const horseId of new Set<string>(myAssignments.filter(currentTrainerAssignment).map(a=>a.horse_id))){
+diff --git a/frontend/src/features/admin/admin.tsx b/frontend/src/features/admin/admin.tsx
+index 600a9f5..096709c 100644
+--- a/frontend/src/features/admin/admin.tsx
++++ b/frontend/src/features/admin/admin.tsx
+@@ -1,4 +1,4 @@
+-import { isEditableRolePermission } from "./api/permissionApi";
++import { isEditableRolePermission, PAGE_PERMISSIONS, API_ENFORCED_CODES } from "./api/permissionApi";
+ import { listSystemAuditLogs, type AuditLogFilters, type AuditLogPageResult } from "./api/auditLogsApi";
+ import React, { useEffect, useMemo, useRef, useState } from 'react';
+ import type { AppUser, Club, Role } from '../../shared/data/data';
+@@ -59,6 +59,7 @@ export const FEATURES: { page: string; label: string; icon: string; group: strin
+   { page: 'performance', label: 'Performance', icon: '📈', group: 'Training' },
+   { page: 'care-hub', label: 'Care & stables', icon: '🌿', group: 'Care' },
+   { page: 'inventory', label: 'Inventory', icon: '📦', group: 'Care' },
++  { page: 'inventory-log', label: 'Inventory history', icon: '📜', group: 'Care' },
+   { page: 'staff', label: 'Club staff', icon: '👥', group: 'Administration' },
+   { page: 'reports', label: 'Reports', icon: '📊', group: 'Administration' },
+ ];
+@@ -318,26 +319,24 @@ function CreateAccountModal({ users, clubs, onCreate, onClose }: { users: AppUse
+ 
+ // ── PermissionMatrixPage ──────────────────────────────────────────────────────
+ 
+-// Preserve the full, grouped matrix from the original design. A feature row is
+-// not automatically a grant: only explicit codes enforced at the API are toggles.
+-// Other features remain restricted by existing backend roles and record scope.
++// Preserve the original grouped layout. Toggle codes are restricted to eligible
++// roles. Some entries are UI-visibility only; their label makes that explicit.
++// Backend checks still enforce role, ownership, and assignment restrictions.
+ type PermissionMatrixRow = { page: string; label: string; icon: string; group: string };
+ const MATRIX_ROWS: PermissionMatrixRow[] = [
+   ...FEATURES,
+   { page: 'training-read-access', label: 'Read training information', icon: '📖', group: 'Training' },
+ ];
+ const MATRIX_GROUPS = Array.from(new Set(MATRIX_ROWS.map(row => row.group)));
+-const MATRIX_CODES: Record<string, Partial<Record<Role, string>>> = {
+-  'trainer-assign': { manager: 'ASSIGN_TRAINER' },
+-  'training-hub': { head_trainer: 'MANAGE_TRAINING' },
+-  'training-read-access': { manager: 'VIEW_TRAINING', head_trainer: 'VIEW_TRAINING', owner: 'VIEW_TRAINING' },
+-  reports: { manager: 'VIEW_REPORTS' },
+-};
++const MATRIX_CODES = PAGE_PERMISSIONS;
+ const MATRIX_DESCRIPTIONS: Record<string, string> = {
+   'trainer-assign': 'ASSIGN_TRAINER — assign or replace a trainer for an eligible paid package',
+   'training-hub': 'MANAGE_TRAINING — manage training plans, schedules and results',
+   'training-read-access': 'VIEW_TRAINING — still limited to authorized horses and packages',
+   reports: 'VIEW_REPORTS — view confirmed PayOS revenue (Club Manager only)',
++  'post-exam': 'Uses WRITE_MEDICAL_RECORD — the same permission as Health examination',
++  'vet-assign': 'Manage veterinary assignments (Club Manager) or view assigned horses (Veterinarian)',
++  'inventory-log': 'Uses VIEW_INVENTORY — the same permission as Inventory',
+ };
+ 
+ export function PermissionMatrixPage({ grants, audit, onToggle }: {
+@@ -352,8 +351,8 @@ export function PermissionMatrixPage({ grants, audit, onToggle }: {
+       <div>
+         <h2 className="font-serif text-xl font-bold text-[#0f1729]">Permissions</h2>
+         <p className="mt-1 text-sm text-gray-500">
+-          Grouped by feature area. Switches represent server-enforced permissions;
+-          a dash means the feature is controlled by its existing role and record-level rules, not by this matrix.
++          Grouped by feature area. Active switches can grant/revoke a role's existing feature access,
++          without bypassing ownership or assignment. Some features currently only control page visibility.
+         </p>
+       </div>
+       {!loaded && (
+@@ -362,8 +361,9 @@ export function PermissionMatrixPage({ grants, audit, onToggle }: {
+         </div>
+       )}
+       <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
+-        <span><span className="mr-1 text-emerald-600">●</span> Server-enforced grant (editable)</span>
+-        <span><span className="mr-1 text-gray-400">—</span> Role / record-level authorization (not editable here)</span>
++        <span><span className="mr-1 text-emerald-600">●</span> API-enforced permission</span>
++        <span><span className="mr-1 text-amber-600">●</span> Page visibility only (not API security)</span>
++        <span><span className="mr-1 text-gray-400">—</span> Not grantable to this role</span>
+       </div>
+       <Card className="overflow-x-auto">
+         <table className="w-full min-w-[850px] text-sm">
+@@ -385,6 +385,8 @@ export function PermissionMatrixPage({ grants, audit, onToggle }: {
+                       <div className="font-medium text-gray-800">{row.icon} {row.label}</div>
+                       {MATRIX_DESCRIPTIONS[row.page] &&
+                         <div className="mt-1 max-w-lg text-xs text-gray-500">{MATRIX_DESCRIPTIONS[row.page]}</div>}
++                      {Object.values(MATRIX_CODES[row.page] || {}).some(code => code && !API_ENFORCED_CODES.has(code)) &&
++                        <div className="mt-1 text-xs text-amber-700">Visibility-only: this page has no independent backend action to enforce yet</div>}
+                     </td>
+                     {MATRIX_ROLES.map(role => {
+                       const code = MATRIX_CODES[row.page]?.[role];
+@@ -413,8 +415,8 @@ export function PermissionMatrixPage({ grants, audit, onToggle }: {
+         </table>
+       </Card>
+       <p className="text-xs text-gray-500">
+-        This table is an authorization inventory, not a bypass for role restrictions. Administrator policies
+-        are server-managed. Further editable permissions require corresponding backend enforcement.
++        Permissions only apply to eligible roles, with existing record-level checks still enforced.
++        Amber visibility-only rows do not protect API calls; do not use them to grant access to sensitive records.
+       </p>
+       <Card className="p-5">
+         <h3 className="mb-3 font-semibold text-[#0f1729]">Recent permission changes</h3>
+diff --git a/frontend/src/features/admin/api/permissionApi.ts b/frontend/src/features/admin/api/permissionApi.ts
+index 6d0f2c0..91ff71f 100644
+--- a/frontend/src/features/admin/api/permissionApi.ts
++++ b/frontend/src/features/admin/api/permissionApi.ts
+@@ -1,26 +1,63 @@
+ import { request } from '../../../shared/api/api';
+ import type { Role } from '../../../shared/data/data';
+ export const permissionForPage = (role: Role, page: string): string | undefined => {
+-  if (page === 'trainer-assign') return 'ASSIGN_TRAINER';
+-  if (page === 'training-hub') return role === 'head_trainer' ? 'MANAGE_TRAINING' : 'VIEW_TRAINING';
+-  if (page === 'reports' && role === 'manager') return 'VIEW_REPORTS';
+-  if (page === 'accounts') return 'MANAGE_ACCOUNTS';
+-  if (page === 'permissions') return 'MANAGE_PERMISSION';
+-  return undefined;
++  const entry = PAGE_PERMISSIONS[page];
++  return entry?.[role];
+ };
+-/** Only these role/permission pairs are enforced by existing backend operations.
+- * Other features require server-side authorization work, not UI-only toggles.
+- */
++
++/** A grant never grants an unrelated backend role or access to another user's horse. */
++export const PAGE_PERMISSIONS: Record<string, Partial<Record<Role, string>>> = {
++  'horse-list': { manager: 'VIEW_CLUB_HORSES', head_trainer: 'VIEW_CLUB_HORSES', veterinarian: 'VIEW_CLUB_HORSES' },
++  'my-horses': { owner: 'VIEW_MY_HORSES' },
++  'horse-create': { owner: 'REGISTER_HORSE' },
++  'center-requests': { manager: 'MANAGE_HORSE_INTAKE' },
++  'health-records': { manager: 'VIEW_MEDICAL_RECORDS', veterinarian: 'VIEW_MEDICAL_RECORDS', owner: 'VIEW_MEDICAL_RECORDS' },
++  'vet-health-form': { veterinarian: 'WRITE_MEDICAL_RECORD' },
++  'vet-assign': { manager: 'MANAGE_VET_ASSIGNMENTS', veterinarian: 'ACCESS_VET_ASSIGNMENTS' },
++  'post-exam': { veterinarian: 'WRITE_MEDICAL_RECORD' },
++  'training-register': { owner: 'REGISTER_TRAINING_PACKAGE' },
++  'package-catalog': { manager: 'MANAGE_PACKAGE_CATALOG' },
++  'trainer-assign': { manager: 'ASSIGN_TRAINER' },
++  'training-hub': { head_trainer: 'MANAGE_TRAINING' },
++  'training-read-access': { manager: 'VIEW_TRAINING', head_trainer: 'VIEW_TRAINING', owner: 'VIEW_TRAINING' },
++  'performance': { owner: 'VIEW_PERFORMANCE' },
++  'care-hub': { groom: 'CARE_TASKS' },
++  'inventory': { groom: 'VIEW_INVENTORY' },
++  'inventory-log': { groom: 'VIEW_INVENTORY' },
++  'staff': { manager: 'VIEW_STAFF' },
++  'reports': { manager: 'VIEW_REPORTS' },
++  'accounts': { admin: 'MANAGE_ACCOUNTS' },
++  'permissions': { admin: 'MANAGE_PERMISSION' },
++};
++
++/** Backend-enforced grants also block the corresponding API operation when revoked. */
++export const API_ENFORCED_CODES = new Set([
++  'VIEW_CLUB_HORSES', 'VIEW_MY_HORSES', 'REGISTER_HORSE', 'MANAGE_HORSE_INTAKE',
++  'VIEW_MEDICAL_RECORDS', 'WRITE_MEDICAL_RECORD', 'ACCESS_VET_ASSIGNMENTS',
++  'MANAGE_VET_ASSIGNMENTS', 'REGISTER_TRAINING_PACKAGE', 'MANAGE_PACKAGE_CATALOG',
++  'ASSIGN_TRAINER', 'MANAGE_TRAINING', 'VIEW_TRAINING', 'VIEW_REPORTS',
++]);
++
+ export const EDITABLE_ROLE_PERMISSIONS: Partial<Record<Role, readonly string[]>> = {
+-  manager: ['ASSIGN_TRAINER', 'VIEW_TRAINING', 'VIEW_REPORTS'],
+-  head_trainer: ['MANAGE_TRAINING', 'VIEW_TRAINING'],
+-  owner: ['VIEW_TRAINING'],
++  manager: ['VIEW_CLUB_HORSES', 'MANAGE_HORSE_INTAKE', 'VIEW_MEDICAL_RECORDS',
++    'MANAGE_VET_ASSIGNMENTS', 'MANAGE_PACKAGE_CATALOG', 'ASSIGN_TRAINER',
++    'VIEW_TRAINING', 'VIEW_STAFF', 'VIEW_REPORTS'],
++  head_trainer: ['VIEW_CLUB_HORSES', 'MANAGE_TRAINING', 'VIEW_TRAINING'],
++  veterinarian: ['VIEW_CLUB_HORSES', 'VIEW_MEDICAL_RECORDS', 'WRITE_MEDICAL_RECORD',
++    'ACCESS_VET_ASSIGNMENTS'],
++  groom: ['CARE_TASKS', 'VIEW_INVENTORY'],
++  owner: ['VIEW_MY_HORSES', 'REGISTER_HORSE', 'VIEW_MEDICAL_RECORDS',
++    'REGISTER_TRAINING_PACKAGE', 'VIEW_TRAINING', 'VIEW_PERFORMANCE'],
+ };
+ 
+ export function isEditableRolePermission(role: Role, code: string): boolean {
+   return EDITABLE_ROLE_PERMISSIONS[role]?.includes(code) === true;
+ }
+ 
++export async function getMyPermissions(): Promise<string[]> {
++  return request<string[]>('/permissions/me');
++}
++
+ export async function changePermission(roleName: string, permissionCode: string, enabled: boolean, reason: string) {
+   const payload = { roleName, permissionCode, reason: reason.trim() };
+   return enabled

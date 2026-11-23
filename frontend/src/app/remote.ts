@@ -1,4 +1,7 @@
 import { listAccounts, listRolePermissions, listPermissionHistory } from "../features/admin/api/adminApi";
+import { getMyPermissions } from "../features/admin/api/permissionApi";
+import { listSystemAuditLogs, systemAuditToEntry } from "../features/admin/api/auditLogsApi";
+import type { AuditEntry } from "../features/admin/admin";
 import { listNotifications } from "../features/notifications/api/notificationsApi";
 import { listTrainerProfiles, listMyTrainerAssignments, getOwnTrainerProfile, listTrainerSessions, listPackageTrainerAssignments } from "../features/trainers/api/trainersApi";
 import { listHorses, listHorseRaceHistory } from "../features/horses/api/horsesApi";
@@ -171,7 +174,7 @@ export function uniqueSessions(sessions: TrainingSession[]) {
   for(const session of sessions)if(!byId.has(session.id))byId.set(session.id,session);
   return [...byId.values()];
 }
-export interface RemoteSlice { trainingLoadedSources?: string[]; trainingLoadIssues?: RemoteIssue[]; vetAssignmentsError?: string; users: AppUser[]; horses: Horse[]; healthRecords: HealthRecord[]; horseClubRequests: HorseClubRequest[]; packages: TrainingPackage[]; enrollments: Enrollment[]; trainingPlans: TrainingPlan[]; trainingSessions: TrainingSession[]; notifications: AppNotification[]; serverPermissions?: Record<string, string[]>; permissionAudit?: any[]; }
+export interface RemoteSlice { trainingLoadedSources?: string[]; trainingLoadIssues?: RemoteIssue[]; vetAssignmentsError?: string; users: AppUser[]; horses: Horse[]; healthRecords: HealthRecord[]; horseClubRequests: HorseClubRequest[]; packages: TrainingPackage[]; enrollments: Enrollment[]; trainingPlans: TrainingPlan[]; trainingSessions: TrainingSession[]; notifications: AppNotification[]; serverPermissions?: Record<string, string[]>; permissionAudit?: AuditEntry[]; systemAudit?: AuditEntry[]; }
 export async function loadRemote(user: AppUser, report: (message: string) => void, store = new RemoteSourceStore(), onlySource?: string): Promise<RemoteSlice> {
   const generation=store.begin(user.id+":"+user.role);
   const data: RemoteSlice = { users: [user], horses: [], healthRecords: [], horseClubRequests: [], packages: [], enrollments: [], trainingPlans: [], trainingSessions: [], notifications: [], vetAssignmentsError: undefined };
@@ -208,17 +211,37 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
   if (user.role === 'admin') {
     const roles = Object.keys(ROLE_NAMES) as Role[];
     const grants = await Promise.all(roles.map(async role => [role, await read(`Permissions ${role}`, () => listRolePermissions(ROLE_NAMES[role]), [])] as const));
-    data.serverPermissions = Object.fromEntries(grants);
+    // Never present failed permission lookups as an empty grant set that Admin can edit.
+    data.serverPermissions = store.issues().some(issue => issue.key.startsWith('Permissions '))
+      ? undefined : Object.fromEntries(grants);
     const logs = await Promise.all(roles.map(role => read(`Permission history ${role}`, () => listPermissionHistory(ROLE_NAMES[role]), [])));
-    data.permissionAudit = logs.flat().map(w => ({ id: w.logId, time: dateText(w.performedAt), actor: w.performedBy, actorRole: 'admin', action: `Permissions: ${w.action}`, target: `${w.roleName}: ${w.permissionCode}` }));
+    data.permissionAudit = logs.flat().map(w => ({ id: w.logId, time: dateText(w.performedAt), actor: w.performedBy, actorRole: 'admin', action: `Permissions: ${w.action}`, target: `${w.roleName}: ${w.permissionCode}`, reason: w.reason || undefined }));
+    // System audit comes from dbo.Audit_Log, not the separate permission history table.
+    const recentAudit = await read("System audit", () => listSystemAuditLogs({}, 0, 5), null);
+    data.systemAudit = recentAudit ? recentAudit.content.map(systemAuditToEntry) : [];
     data.trainingLoadIssues=store.issues(); if (errors.size) report('Some data could not be refreshed. See the affected sources and retry.'); return data;
   }
-  data.horses = (await read("Horses", () => listHorses(), [])).map(w => horseFromApi(w, data.users));
-  if (['manager', 'owner', 'head_trainer'].includes(user.role || '')) data.packages = (await read("Package catalogue", () => listTrainingPackages(user.role === 'manager'), [])).map(packageFromApi);
+  // Fetch actual grants for business-role sessions, not only for Admin.
+  // Fail closed on an unavailable permissions endpoint rather than presenting stale access.
+  const loadedGrants = await read("Current permissions", () => getMyPermissions(), []);
+  // Never use a cached grant set when a refresh failed (including a 403).
+  const currentGrants = store.issues().some(issue => issue.key === 'Current permissions')
+    ? [] : loadedGrants;
+  data.serverPermissions = { [user.role!]: currentGrants };
+
+  const hasGrant = (code: string) => currentGrants.includes(code);
+  const mayLoadHorses = user.role === 'owner' ? hasGrant('VIEW_MY_HORSES')
+    : ['manager', 'head_trainer', 'veterinarian'].includes(user.role || '')
+      ? hasGrant('VIEW_CLUB_HORSES') : true;
+  if (mayLoadHorses) data.horses = (await read("Horses", () => listHorses(), [])).map(w => horseFromApi(w, data.users));
+  const mayLoadCatalogue = user.role === 'manager' ? hasGrant('VIEW_PACKAGE_CATALOG')
+    : user.role === 'owner' ? hasGrant('REGISTER_TRAINING_PACKAGE') : true;
+  if (mayLoadCatalogue && ['manager', 'owner', 'head_trainer'].includes(user.role || ''))
+    data.packages = (await read("Package catalogue", () => listTrainingPackages(user.role === 'manager'), [])).map(packageFromApi);
 
 
   let vetAssignments: Wire[] = [];
-  if (user.role === 'veterinarian') {
+  if (user.role === 'veterinarian' && hasGrant('VIEW_VET_ASSIGNMENTS')) {
     try { vetAssignments = await listMyVetAssignments(); }
     catch (error) {
       data.vetAssignmentsError = error instanceof ApiError && error.status === 403
@@ -244,7 +267,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
       horse.vetId = current.veterinarianId; horse.vetName = current.veterinarianName; horse.vetAssignmentId = current.assignmentId;
       horse.vetAssign = { status: ['ACCEPTED','COMPLETED'].includes(current.status) ? 'accepted' : current.status === 'ASSIGNED' ? 'pending' : 'declined', history: [...assignments].reverse().map(a => ({ time: dateText(a.createdAt), from: null, to: a.veterinarianName, by: a.assignedBy, reason: a.reason || a.status })) };
     }
-    if (['manager', 'owner', 'veterinarian'].includes(user.role || '')) {
+    if (hasGrant('VIEW_MEDICAL_RECORDS') && ['manager', 'owner', 'veterinarian'].includes(user.role || '')) {
       const records = await read(`Examination records ${horse.id}`, () => listHorseMedicalRecords(horse.id), []);
       const mapped = records.map(w => recordFromApi(w, horse.id, data.users));
       data.healthRecords.push(...mapped);
@@ -266,7 +289,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
       const plans = await read(`Plans ${horse.id}`, () => listHorseTrainingPlans(horse.id), []);
       data.trainingPlans.push(...plans.map(w => planFromApi(w)));
     }
-    if (['owner', 'manager'].includes(user.role || '')) data.trainingSessions.push(...(await read(`Training schedule ${horse.id}`, () => listHorseTrainingSessions(horse.id), [])).map(w => sessionFromApi(w, user.role === 'head_trainer' ? user : undefined)));
+    if (hasGrant('VIEW_TRAINING') && ['owner', 'manager'].includes(user.role || '')) data.trainingSessions.push(...(await read(`Training schedule ${horse.id}`, () => listHorseTrainingSessions(horse.id), [])).map(w => sessionFromApi(w, user.role === 'head_trainer' ? user : undefined)));
   }
   if (user.role === 'head_trainer') {
     for(const horseId of new Set<string>(myAssignments.filter(currentTrainerAssignment).map(a=>a.horse_id))){

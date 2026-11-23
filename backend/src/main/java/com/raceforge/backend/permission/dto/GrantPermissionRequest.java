@@ -13,6 +13,10 @@ public class GrantPermissionRequest {
   @Size(max = 100)
   private String permissionCode;
 
+  @NotBlank
+  @Size(min = 10, max = 300)
+  private String reason;
+
   // Legacy field accepted for compatibility, but the controller uses the authenticated actor.
   private String performedBy;
 
@@ -33,6 +37,14 @@ public class GrantPermissionRequest {
 
   public void setPermissionCode(String permissionCode) {
       this.permissionCode = permissionCode;
+  }
+
+  public String getReason() {
+      return reason;
+  }
+
+  public void setReason(String reason) {
+      this.reason = reason;
   }
 
   public String getPerformedBy() {

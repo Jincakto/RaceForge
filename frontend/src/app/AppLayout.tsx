@@ -90,6 +90,7 @@ export const NAV_ITEMS: Partial<
     { icon: "👤", label: "Account management", page: "accounts" },
     { icon: "🛡", label: "Permissions", page: "permissions" },
     { icon: "📜", label: "Audit log", page: "audit-log" },
+    { icon: "📊", label: "Revenue reports", page: "reports" },
     { icon: "🔔", label: "Notifications", page: "notifications" },
   ],
   manager: [

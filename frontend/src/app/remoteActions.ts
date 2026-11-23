@@ -14,7 +14,7 @@ import { staffRoleId, ROLE_NAMES, isoDate, enrollmentFromApi, horsePayload, hors
 import type { RemoteSlice } from './remote';
 import type { AppUser, Horse, HealthRecord, Res, Enrollment, TrainingPackage, TrainingPlan, TrainingSession, Role } from '../shared/data/data';
 import { validatePackage, type PackageDraft, type PlanDraft, type SessionDraft, type SessionWriteOptions } from '../features/training/trainingLogic';
-import { changePermission, permissionForPage } from "../features/admin/api/permissionApi";
+import { changePermission, isEditableRolePermission } from "../features/admin/api/permissionApi";
 
 
 interface State extends RemoteSlice { user: AppUser | null; }
@@ -167,11 +167,11 @@ export function makeRemoteActions(env: Env) {
   return {
     completePackage: (id: string) => packageLifecycle(id, 'complete'),
     cancelRegistration: (id: string) => packageLifecycle(id, 'cancel'),
-    togglePermission: (role: Role, page: string, enabled: boolean, _reason: string) => fire(`permission-${role}-${page}`, async () => {
-      const code = permissionForPage(role, page);
-      if (!code) unavailable("granting access to this feature: the server controls it directly by role");
-      await changePermission(ROLE_NAMES[role], code!, enabled);
-    }),
+    togglePermission: (role: Role, code: string, enabled: boolean, reason: string) => fire(`permission-${role}-${code}`, async () => {
+      if (!isEditableRolePermission(role, code)) unavailable('changing this role-restricted permission');
+      if (reason.trim().length < 10 || reason.trim().length > 300) throw new Error('The reason must be 10–300 characters.');
+      await changePermission(ROLE_NAMES[role], code, enabled, reason);
+    }, 'Permission updated on the server.'),
     unavailable: (label: string) => { error(`The API is not available for ${label}; the operation has not been saved.`); },
     async createHorse(horse: Horse) {
       return fire('create-horse', async () => {

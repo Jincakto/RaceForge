@@ -177,6 +177,7 @@ export function HorseListPage({
                 </td>
                 <td className="px-5 py-3">
                   <Badge status={h.trainingStatus} />
+                  {h.latestPackageStatus === "COMPLETED" && <span className="ml-1 text-xs font-semibold text-emerald-700">Package completed</span>}
                 </td>
                 <td className="px-5 py-3">
                   <LifecycleBadge horse={h} />

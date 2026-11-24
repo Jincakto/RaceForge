@@ -90,8 +90,10 @@ export const NAV_ITEMS: Partial<
     { icon: "👤", label: "Account management", page: "accounts" },
     { icon: "🛡", label: "Permissions", page: "permissions" },
     { icon: "📜", label: "Audit log", page: "audit-log" },
+    { icon: "🐎", label: "All horses", page: "admin-horses" },
+    { icon: "📦", label: "Package catalogue", page: "admin-packages" },
+    { icon: "💳", label: "Payment monitor", page: "payment-monitor" },
     { icon: "📊", label: "Revenue reports", page: "reports" },
-    { icon: "🔔", label: "Notifications", page: "notifications" },
   ],
   manager: [
     { icon: "⊞", label: "Dashboard", page: "dashboard" },
@@ -106,6 +108,7 @@ export const NAV_ITEMS: Partial<
     { icon: "🏷", label: "Package catalogue", page: "package-catalog" },
     { icon: "🧑‍🏫", label: "Trainer assignments", page: "trainer-assign" },
     { icon: "👥", label: "Staff", page: "staff" },
+    { icon: "📦", label: "Package registrations", page: "package-registrations" },
     { icon: "📊", label: "Reports", page: "reports" },
     { icon: "🔔", label: "Notifications", page: "notifications" },
   ],
@@ -362,17 +365,20 @@ export function AppLayout({
             <h1 className="text-base font-semibold text-[#0f1729]">{title}</h1>
           </div>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate("notifications")}
-              className="relative w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
-            >
-              🔔
-              {unread > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
-                  {unread}
-                </span>
-              )}
-            </button>
+            {user.role !== "admin" && (
+              <button
+                onClick={() => navigate("notifications")}
+                className="relative w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100"
+                aria-label="Open notifications"
+              >
+                🔔
+                {unread > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold">
+                    {unread}
+                  </span>
+                )}
+              </button>
+            )}
             <button
               onClick={() => navigate("profile")}
               className="w-8 h-8 rounded-full bg-[#1a2844] flex items-center justify-center text-white text-xs font-bold"
@@ -388,6 +394,10 @@ export function AppLayout({
 }
 
 export const PAGE_TITLES: Partial<Record<Page, string>> = {
+  "admin-horses": "All horses",
+  "admin-packages": "Package catalogue",
+  "payment-monitor": "Payment monitor",
+  "package-registrations": "Package registrations",
   accounts: "Account management",
   permissions: "Permissions",
   "audit-log": "Audit log",

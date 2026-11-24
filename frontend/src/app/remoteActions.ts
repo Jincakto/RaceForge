@@ -251,7 +251,7 @@ export function makeRemoteActions(env: Env) {
         roleId: staffRoleId(u.role, getState().user),
       });
     }, "Staff account created. A password setup invitation email will be sent."),
-    toggleLock: (id: string, _reason: string) => fire(`account-${id}`, () => updateAccountStatus(id, { status: getState().users.find(u => u.id === id)?.locked ? 'ACTIVE' : 'INACTIVE' })),
+    toggleLock: (id: string, reason: string) => fire(`account-${id}`, () => updateAccountStatus(id, { status: getState().users.find(u => u.id === id)?.locked ? 'ACTIVE' : 'INACTIVE', reason })),
     invite: (id: string, _reason: string) => fire(`invite-${id}`, () => resendStaffInvitation(id), "Password setup invitation email resent."),
     // PayOS: create the registration (or reuse an unpaid one) and request a payment link.
     async startPayment(horseId: string, packageId: string): Promise<Res<{ enrollmentId: string; url: string; orderCode: number }>> {

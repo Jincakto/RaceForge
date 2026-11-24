@@ -311,6 +311,7 @@ export function HorseDetailPage({
                 <LifecycleBadge horse={horse} />
                 <Badge status={horse.healthStatus} />
                 <Badge status={horse.trainingStatus} />
+                {horse.latestPackageStatus === "COMPLETED" && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">Package completed</span>}
                 {horse.vetClearance && (
                   <span className="bg-emerald-600 text-white text-xs px-2 py-0.5 rounded-full">
                     ✓ Confirmed by veterinarian

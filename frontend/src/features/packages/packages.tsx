@@ -1,6 +1,7 @@
 import { PackageRoadmapPreview } from '../training/roadmapView';
+import { listOversightRegistrations, type OversightRegistration } from '../admin/api/oversightApi';
 import { CreatePackageForm } from './packageCreateForm';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AppUser, Horse, Enrollment, TrainingPackage, Res } from '../../shared/data/data';
 import { Badge, Btn, Card, Input, Select } from '../../shared/ui/ui';
 import { IdChip, Modal } from '../admin/admin';
@@ -21,72 +22,121 @@ export function TrainerStatusPill({ status }: { status: Enrollment['trainerStatu
 interface CatalogProps {
   packages: TrainingPackage[];
   enrollments: Enrollment[];
-  onSave: (d: PackageDraft) => Promise<Res<TrainingPackage>>;
-  onToggle: (id: string, active: boolean) => Promise<Res<TrainingPackage>>;
+  onSave?: (d: PackageDraft) => Promise<Res<TrainingPackage>>;
+  onToggle?: (id: string, active: boolean) => Promise<Res<TrainingPackage>>;
+  readOnly?: boolean;
 }
 
-export function PackageCatalogPage({ packages, enrollments, onSave }: CatalogProps) {
+const packageStatusClass = (status: string) =>
+  ['COMPLETED', 'ACTIVE', 'PAID'].includes(status) ? 'bg-emerald-50 text-emerald-700' :
+  ['CANCELLED', 'FAILED', 'REJECTED'].includes(status) ? 'bg-red-50 text-red-700' :
+  'bg-amber-50 text-amber-800';
+const PackageStatus = ({ status }: { status: string }) => <span className={`inline-block rounded-full px-2 py-1 text-xs font-medium ${packageStatusClass(status)}`}>{status || '—'}</span>;
+const packageDate = (value?: string | null) => value ? value.slice(0, 10) : '—';
+
+/** The CM catalogue and the Admin read-only catalogue share the same expandable cards. */
+export function PackageCatalogPage({ packages, onSave, readOnly = false }: CatalogProps) {
   const [creating, setCreating] = useState(false);
   const [actionError, setActionError] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [registrations, setRegistrations] = useState<OversightRegistration[]>([]);
+  const [registrationLoading, setRegistrationLoading] = useState(true);
+  const [registrationError, setRegistrationError] = useState('');
+  const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    setRegistrationLoading(true);
+    setRegistrationError('');
+    listOversightRegistrations()
+      .then(rows => { if (alive) setRegistrations(rows); })
+      .catch(error => { if (alive) { setRegistrations([]); setRegistrationError((error as Error).message); } })
+      .finally(() => { if (alive) setRegistrationLoading(false); });
+    return () => { alive = false; };
+  }, [reload]);
 
   const list = packages.filter(p => filter === 'all' || (filter === 'active' ? p.active : !p.active));
-  const usage = (id: string) => enrollments.filter(e => e.packageId === id).length;
+  const registrationCount = (id: string) => registrationLoading || registrationError ? '—' : registrations.filter(e => e.packageId === id).length;
 
   return (
     <div className="w-full space-y-5">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="font-serif text-xl font-bold text-[#0f1729]">Training package catalogue</h2>
-          <p className="text-sm text-gray-500">{packages.filter(p => p.active).length}/{packages.length}  active packages · Disabled packages are hidden from horse owners</p>
+          <p className="text-sm text-gray-500">{packages.filter(p => p.active).length}/{packages.length} active packages · {readOnly ? 'Read-only overview of all versions and their registrations' : 'Disabled packages are hidden from horse owners'}</p>
         </div>
-        <Btn variant="gold" onClick={() => { setCreating(true); setActionError(''); }}>+ Create package</Btn>
+        {!readOnly && onSave && <Btn variant="gold" onClick={() => { setCreating(true); setActionError(''); }}>+ Create package</Btn>}
       </div>
 
-      <div className="flex gap-2">
-        {([['all', "All"], ['active', "Active"], ['inactive', "Inactive"]] as const).map(([k, l]) => (
+      <div className="flex flex-wrap items-center gap-2">
+        {([['all', 'All'], ['active', 'Active'], ['inactive', 'Inactive']] as const).map(([k, l]) => (
           <button key={k} onClick={() => setFilter(k)} className={`rounded-full border px-3 py-1 text-xs font-medium ${filter === k ? 'border-[#1a2844] bg-[#1a2844] text-white' : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`}>{l}</button>
         ))}
+        <Btn size="sm" variant="secondary" disabled={registrationLoading} onClick={() => setReload(n => n + 1)}>Refresh purchases</Btn>
       </div>
 
-      {actionError && <Card className="border-l-4 border-red-500 bg-red-50 p-4 text-sm text-red-700">{actionError}</Card>}
+      {actionError && <div role="alert"><Card className="border-l-4 border-red-500 bg-red-50 p-4 text-sm text-red-700">{actionError}</Card></div>}
+      {registrationError && <div role="alert" className="rounded-lg border-l-4 border-amber-500 bg-amber-50 p-3 text-sm text-amber-800">Unable to load package registration history: {registrationError}. Counts are unavailable. <button className="underline" onClick={() => setReload(n => n + 1)}>Retry</button></div>}
 
       {list.length === 0 ? (
         <Card className="p-10 text-center">
           <div className="mb-2 text-4xl">📦</div>
-          <div className="font-semibold text-gray-600">{packages.length === 0 ? "No training packages yet" : "No packages match this filter"}</div>
-          {packages.length === 0 && <div className="mt-3"><Btn variant="gold" onClick={() => setCreating(true)}>+ Create your first package</Btn></div>}
+          <div className="font-semibold text-gray-600">{packages.length === 0 ? 'No training packages yet' : 'No packages match this filter'}</div>
+          {packages.length === 0 && !readOnly && onSave && <div className="mt-3"><Btn variant="gold" onClick={() => setCreating(true)}>+ Create your first package</Btn></div>}
         </Card>
       ) : (
         <div className="grid items-start gap-4 md:grid-cols-2">
-          {list.map(p => (
-            <Card key={p.id} className={`min-w-0 p-5 md:has-[>details[open]]:col-span-2 ${p.active ? '' : 'opacity-70'}`}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="mb-1 flex flex-wrap items-center gap-2">
-                    <IdChip kind="PKG" id={p.id} />
-                    <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${p.active ? 'border-emerald-200 bg-emerald-100 text-emerald-800' : 'border-gray-200 bg-gray-100 text-gray-500'}`}>{p.active ? "Active" : "Inactive"}</span>
-                    {p.popular && <span className="rounded-full bg-[#c9973b]/15 px-2 py-0.5 text-xs font-medium text-[#8a6420]">Popular</span>}
+          {list.map(pack => {
+            const purchases = registrations.filter(r => r.packageId === pack.id);
+            return <Card key={pack.id} className={`min-w-0 p-5 md:has-[>details[open]]:col-span-2 ${pack.active ? '' : 'opacity-80'}`}>
+              <details className="group">
+                <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden" aria-label={`View ${pack.name} details and purchases`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="mb-1 flex flex-wrap items-center gap-2">
+                        <IdChip kind="PKG" id={pack.id} />
+                        <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${pack.active ? 'border-emerald-200 bg-emerald-100 text-emerald-800' : 'border-gray-200 bg-gray-100 text-gray-500'}`}>{pack.active ? 'Active' : 'Inactive'}</span>
+                        {pack.popular && <span className="rounded-full bg-[#c9973b]/15 px-2 py-0.5 text-xs font-medium text-[#8a6420]">Popular</span>}
+                      </div>
+                      <h3 className="font-serif text-lg font-bold text-[#0f1729]">{pack.name}</h3>
+                    </div>
+                    <div className="text-right"><div className="font-serif text-xl font-bold text-[#c9973b]">{money(pack.price)}</div></div>
                   </div>
-                  <h3 className="font-serif text-lg font-bold text-[#0f1729]">{p.name}</h3>
+                  <p className="mt-2 text-sm text-gray-600">{pack.description || 'No description'}</p>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs">
+                    <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Duration</div><div className="font-mono text-sm font-bold">{pack.durationDays} days</div></div>
+                    <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Registered</div><div className="font-mono text-sm font-bold">{registrationCount(pack.id)}</div></div>
+                  </div>
+                  <p className="mt-3 text-right text-sm font-medium text-[#8a6420]">View details & purchases <span className="inline-block group-open:rotate-180">⌄</span></p>
+                </summary>
+                <div className="mt-4 space-y-4 border-t border-slate-200 pt-4">
+                  <PackageRoadmapPreview packageId={pack.id} />
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2"><h4 className="font-semibold text-[#0f1729]">Registration history</h4><span className="text-xs text-slate-500">{registrationLoading ? 'Loading…' : registrationError ? 'Unavailable' : `${purchases.length} registrations`}</span></div>
+                    <p className="text-xs text-slate-500">All registration statuses, including earlier purchases of this package version. Training completion does not change the horse's medical health status.</p>
+                    {registrationLoading ? <p role="status" className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">Loading registration history…</p>
+                      : registrationError ? <p className="text-sm text-amber-800">Registration data could not be retrieved. Use Refresh purchases to retry.</p>
+                      : purchases.length === 0 ? <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">No registrations for this package version.</p>
+                      : <div className="overflow-x-auto rounded-lg border border-gray-200"><table className="w-full min-w-[900px] text-left text-xs">
+                        <thead className="bg-slate-50 text-slate-500"><tr>{['Registration / date', 'Owner / horse', 'Payment', 'Training status', 'Trainer', 'Period / paid price'].map(label => <th key={label} className="px-3 py-3">{label}</th>)}</tr></thead>
+                        <tbody>{purchases.map(r => <tr key={r.horsePackageId} className="border-t border-slate-100 align-top">
+                          <td className="px-3 py-3"><span className="font-mono">{r.horsePackageId}</span><div className="mt-1 text-slate-500">{packageDate(r.registeredAt)}</div></td>
+                          <td className="px-3 py-3"><strong>{r.ownerName}</strong><div className="text-slate-500">{r.horseName} ({r.horseId})</div></td>
+                          <td className="px-3 py-3"><PackageStatus status={r.paymentStatus} /></td>
+                          <td className="px-3 py-3"><PackageStatus status={r.status} /><div className="mt-1 text-slate-500">Remaining {r.remainingDays ?? '—'} days</div></td>
+                          <td className="px-3 py-3">{r.trainerName || 'Not assigned'}{r.trainerAssignmentStatus && <div className="text-slate-500">{r.trainerAssignmentStatus}{r.trainerEndedAt ? ' · Ended' : ''}</div>}</td>
+                          <td className="px-3 py-3"><div>{packageDate(r.startDate)} → {packageDate(r.endDate)}</div><strong>{money(r.totalPrice)}</strong></td>
+                        </tr>)}</tbody>
+                      </table></div>}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="font-serif text-xl font-bold text-[#c9973b]">{money(p.price)}</div>
-                </div>
-              </div>
-              <p className="mt-2 text-sm text-gray-600">{p.description || "No description"}</p>
-              <PackageRoadmapPreview packageId={p.id} />
-              <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs">
-                <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Duration</div><div className="font-mono text-sm font-bold">{p.durationDays}  days</div></div>
-                <div className="rounded-lg bg-gray-50 p-2"><div className="text-gray-500">Registered</div><div className="font-mono text-sm font-bold">{usage(p.id)}</div></div>
-              </div>
-            </Card>
-          ))}
+              </details>
+            </Card>;
+          })}
         </div>
       )}
 
-      {creating && <CreatePackageForm packages={packages} onSave={onSave} onClose={()=>setCreating(false)} />}
-
+      {creating && !readOnly && onSave && <CreatePackageForm packages={packages} onSave={onSave} onClose={() => setCreating(false)} />}
     </div>
   );
 }

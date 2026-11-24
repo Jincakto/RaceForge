@@ -33,6 +33,7 @@ import { TrainingRegisterPage } from "../features/packages/pages/trainingRegiste
 import { OwnerCertificates } from "../features/packages/pages/OwnerCertificates";
 import { PerformancePage } from "../features/training/pages/PerformancePage";
 import { ReportsPage, StaffPage, ProfilePage } from "../features/admin/pages/AdminPages";
+import { AdminHorsesPage, AdminPackageCataloguePage, PaymentMonitorPage, PackageRegistrationsPage } from "../features/admin/pages/OversightPages";
 import { NotificationsPage } from "../features/notifications/pages/NotificationsPage";
 import { isAssessmentNotification } from "../features/training/trainingAssessment";
 import { TrainingAssessmentNotification } from "../features/training/TrainingAssessmentNotification";
@@ -357,12 +358,16 @@ export default function App() {
     if (
       role === "admin" &&
       !adminOnly
-        .concat(["dashboard", "notifications", "profile", "reports"])
+        .concat(["dashboard", "profile", "reports", "admin-horses", "admin-packages", "payment-monitor", "package-registrations"])
         .includes(state.page)
     )
       return (
         <NoPermission text="Administrators do not perform training operations. Use the administration sections in the sidebar." />
       );
+    if (state.page === "package-registrations" && role !== "admin" && role !== "manager")
+      return <NoPermission text="Only administrators and club managers can view package registrations." />;
+    if (["admin-horses", "admin-packages", "payment-monitor"].includes(state.page) && role !== "admin")
+      return <NoPermission text="This is an administrator-only read-only page." />;
     if (
       role !== "admin" &&
       FEATURES.some((f) => f.page === state.page) &&
@@ -420,6 +425,7 @@ export default function App() {
             clubs={state.clubs}
             onCreate={remote.createAccount}
             onToggleLock={remote.toggleLock}
+            onResendInvitation={(id) => remote.invite(id, "Resend invitation requested by administrator")}
           />
         );
       case "permissions":
@@ -432,6 +438,14 @@ export default function App() {
         );
       case "audit-log":
         return <AuditLogPage />;
+      case "admin-horses":
+        return <AdminHorsesPage />;
+      case "admin-packages":
+        return <AdminPackageCataloguePage />;
+      case "payment-monitor":
+        return <PaymentMonitorPage />;
+      case "package-registrations":
+        return <PackageRegistrationsPage />;
       case "dashboard": {
         const r = state.user!.role;
         if (r === "manager")
@@ -711,6 +725,7 @@ export default function App() {
 <StaffPage state={state} />
         );
       case "notifications":
+        if (role === "admin") return <NoAccess text="Administrator activity is available under Audit log." />;
         return (
           <>
           <NotificationsPage

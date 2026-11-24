@@ -93,6 +93,30 @@ public class SecurityConfig {
                         // excluded from BUSINESS_ROLES, so it needs an explicit rule here.
                         .requestMatchers(HttpMethod.GET, "/api/reports/revenue/**")
                                 .hasAnyAuthority("ADMIN", "CLUB_MANAGER")
+                        // Admin may preview a catalogue roadmap without package edit rights.
+                        // Business roles must still pass the existing Permission Matrix check;
+                        // a bare role matcher would accidentally bypass revoked catalogue access.
+                        .requestMatchers(HttpMethod.GET, "/api/training-packages/*/roadmap-template")
+                                .access((authentication, context) -> {
+                                    Object principal = authentication.get().getPrincipal();
+                                    if (!(principal instanceof AuthenticatedUser actor)
+                                            || !"ACTIVE".equals(actor.status()) || actor.roleId() == null) {
+                                        return new AuthorizationDecision(false);
+                                    }
+                                    if ("ADMIN".equals(actor.roleName())) return new AuthorizationDecision(true);
+                                    if (!AccountConstants.BUSINESS_ROLES.contains(actor.roleId())) {
+                                        return new AuthorizationDecision(false);
+                                    }
+                                    String required = featurePolicy.requiredFor(actor.roleName(),
+                                            context.getRequest().getMethod(),
+                                            context.getRequest().getRequestURI().substring(
+                                                    context.getRequest().getContextPath().length()));
+                                    return new AuthorizationDecision(required == null
+                                            || permissionService.hasPermission(actor.roleName(), required));
+                                })
+                        // Oversight is strictly read-only; controller methods narrow Admin vs CM.
+                        .requestMatchers(HttpMethod.GET, "/api/oversight/**")
+                                .hasAnyAuthority("ADMIN", "CLUB_MANAGER")
                         .requestMatchers(HttpMethod.GET, "/api/permissions/me").authenticated()
                         .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
                         .requestMatchers("/api/users/me/**").authenticated()

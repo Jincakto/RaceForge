@@ -2,6 +2,11 @@ import { type AppState, type Page } from "../../../app/appTypes";
 import { Card, Btn, Badge } from "../../../shared/ui/ui";
 import { StatCard } from "../../../shared/ui/StatCard";
 import { LifecycleBadge } from "../../horses/components/HorseProfileWidgets";
+import { useEffect, useMemo, useState } from 'react';
+import { getOwnTrainerProfile, listTrainerSessions } from '../api/trainersApi';
+
+type HistorySession = { session_id: string; horse_id: string; horse_name: string;
+  horse_package_id?: string; status: string; actual_end?: string | null; scheduled_start?: string | null };
 
 export function HeadTrainerDashboard({
   state,
@@ -10,7 +15,36 @@ export function HeadTrainerDashboard({
   state: AppState;
   navigate: (p: Page) => void;
 }) {
-  const horses = state.horses.filter((h) => h.clubId === state.user!.clubId);
+  // Only assignments still accepted and attached to paid active/paused packages.
+  const currentIds = useMemo(() => new Set(state.enrollments
+    .filter(e => e.trainerId === state.user!.id && e.trainerStatus === 'confirmed'
+      && e.paymentStatus === 'PAID' && ['ACTIVE', 'PAUSED'].includes(e.apiStatus || ''))
+    .map(e => e.horseId)), [state.enrollments, state.user]);
+  const horses = state.horses.filter(h => h.clubId === state.user!.clubId && currentIds.has(h.id));
+  const [history, setHistory] = useState<HistorySession[]>([]);
+  const [historyError, setHistoryError] = useState('');
+  useEffect(() => {
+    let active = true;
+    setHistoryError('');
+    getOwnTrainerProfile().then(profile => profile?.trainer_id ? listTrainerSessions(profile.trainer_id) : [])
+      .then(rows => { if (active) setHistory(rows as HistorySession[]); })
+      .catch(err => { if (active) { setHistory([]); setHistoryError((err as Error).message); } });
+    return () => { active = false; };
+  }, [state.user?.id]);
+  const historicalHorses = useMemo(() => {
+    const grouped = new Map<string, { id: string; name: string; count: number; last: string }>();
+    for (const row of history) {
+      if (!row.horse_id || currentIds.has(row.horse_id)) continue;
+      const old = grouped.get(row.horse_id);
+      const date = row.actual_end || row.scheduled_start || '';
+      if (old) { old.count++; if (date > old.last) old.last = date; }
+      else grouped.set(row.horse_id, { id: row.horse_id, name: row.horse_name || row.horse_id, count: 1, last: date });
+    }
+    return [...grouped.values()].sort((a, b) => b.last.localeCompare(a.last));
+  }, [history, currentIds]);
+  const recordedSpeeds = state.trainingSessions.filter(s => s.status === 'Completed')
+    .map(s => Number(s.result?.speed)).filter(n => Number.isFinite(n) && n > 0);
+  const avgSpeed = recordedSpeeds.length ? `${(recordedSpeeds.reduce((sum,n) => sum + n, 0) / recordedSpeeds.length).toFixed(1)} km/h` : '—';
   return (
     <div className="space-y-6">
       <div>
@@ -102,14 +136,14 @@ export function HeadTrainerDashboard({
           color="gold"
         />
         <StatCard
-          label="Sessions this week"
+          label="Scheduled sessions"
           value={
             state.trainingSessions.filter((s) => s.status === "Scheduled")
               .length
           }
           color="green"
         />
-        <StatCard label="Average speed" value="58.6 km/h" color="navy" />
+        <StatCard label="Average recorded speed" value={avgSpeed} color="navy" />
       </div>
       <div className="grid grid-cols-2 gap-6">
         <Card className="p-5">
@@ -119,11 +153,11 @@ export function HeadTrainerDashboard({
               Open training →
             </Btn>
           </div>
+          {horses.length === 0 && <p className="text-sm text-slate-500">No current accepted, paid training assignments.</p>}
           {horses.map((h) => (
             <div
               key={h.id}
-              onClick={() => navigate("horse-detail")}
-              className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer border border-transparent hover:border-[#c9973b] transition-all mb-1"
+              className="flex items-center gap-3 p-3 rounded-lg border border-slate-100 mb-1"
             >
               <img
                 src={h.imageUrl || undefined}
@@ -171,6 +205,18 @@ export function HeadTrainerDashboard({
           ))}
         </Card>
       </div>
+      <Card className="p-5">
+        <h3 className="font-semibold">Formerly trained horses — session history</h3>
+        <p className="mt-1 text-xs text-slate-500">Completed/missed session records are preserved after a trainer assignment ends. This is history, not renewed access to the horse profile.</p>
+        {historyError && <p role="alert" className="mt-3 text-sm text-red-700">Cannot load session history: {historyError}</p>}
+        {!historyError && historicalHorses.length === 0 && <p className="mt-3 text-sm text-slate-500">No former training history recorded.</p>}
+        <div className="mt-3 grid gap-2 md:grid-cols-2">
+          {historicalHorses.map(h => <div key={h.id} className="rounded-lg border border-slate-200 p-3">
+            <div className="font-medium">{h.name} <span className="font-mono text-xs text-slate-500">{h.id}</span></div>
+            <p className="text-xs text-slate-500">{h.count} recorded sessions · Last: {h.last ? h.last.slice(0, 10) : 'Unknown'}</p>
+          </div>)}
+        </div>
+      </Card>
     </div>
   );
 }

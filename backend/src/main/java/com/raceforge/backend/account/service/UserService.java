@@ -113,7 +113,9 @@ public class UserService {
             refreshTokenRepository.revokeAllForUser(id, Instant.now());
         }
         notificationService.notify(id, "ACCOUNT_STATUS", "Account status updated", "Your account status is now " + nextStatus + ".");
-        auditService.record(managerId, "USER_STATUS_UPDATED", "User", id, "SUCCESS", nextStatus);
+        String note = request.reason() == null ? "" : request.reason().trim();
+        auditService.record(managerId, "USER_STATUS_UPDATED", "User", id, "SUCCESS",
+                "Status: " + nextStatus + (note.isEmpty() ? "" : "; reason: " + note));
         return mapper.toUserResponse(user);
     }
 

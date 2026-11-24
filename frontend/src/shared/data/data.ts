@@ -216,6 +216,7 @@ export interface Horse {
   groomName: string;
   healthStatus: HealthStatus;
   trainingStatus: TrainingStatus;
+  latestPackageStatus?: string; // HORSE_PACKAGE lifecycle, never the horse health/club status
   approvalStatus: ApprovalStatus;
   registrationDate: string;
   approvedAt: string | null;

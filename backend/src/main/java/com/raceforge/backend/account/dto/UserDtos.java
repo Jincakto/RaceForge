@@ -28,6 +28,6 @@ public final class UserDtos {
     ) {
     }
 
-    public record UpdateStatusRequest(@NotBlank String status) {
+    public record UpdateStatusRequest(@NotBlank String status, @Size(max = 300) String reason) {
     }
 }

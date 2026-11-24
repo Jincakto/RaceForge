@@ -234,7 +234,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
     : ['manager', 'head_trainer', 'veterinarian'].includes(user.role || '')
       ? hasGrant('VIEW_CLUB_HORSES') : true;
   if (mayLoadHorses) data.horses = (await read("Horses", () => listHorses(), [])).map(w => horseFromApi(w, data.users));
-  const mayLoadCatalogue = user.role === 'manager' ? hasGrant('VIEW_PACKAGE_CATALOG')
+  const mayLoadCatalogue = user.role === 'manager' ? hasGrant('MANAGE_PACKAGE_CATALOG')
     : user.role === 'owner' ? hasGrant('REGISTER_TRAINING_PACKAGE') : true;
   if (mayLoadCatalogue && ['manager', 'owner', 'head_trainer'].includes(user.role || ''))
     data.packages = (await read("Package catalogue", () => listTrainingPackages(user.role === 'manager'), [])).map(packageFromApi);
@@ -325,10 +325,18 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
           distance:row.distance,avgSpeed:row.avg_speed,notes:row.notes,evaluation:row.evaluation,
           canStart:false,canStop:false,canComplete:false};
         data.trainingSessions.push(sessionFromApi(w));
-        if(!data.horses.some(h=>h.id===row.horse_id))
-          data.horses.push(horseFromApi({horseId:row.horse_id,horseName:row.horse_name,trainerIds:[]},data.users));
+        // Completed sessions are historical evidence, not an active horse assignment.
+        // Do not create an incomplete Horse placeholder (it displays false "Inactive" details).
       }
     }
+  }
+  // Present package completion separately from Horse.healthStatus and Horse.status.
+  for (const horse of data.horses) {
+    const history = data.enrollments.filter(e => e.horseId === horse.id);
+    const activePaid = history.find(e => ['ACTIVE', 'PAUSED'].includes(e.apiStatus || '') && e.paymentStatus === 'PAID');
+    const completed = history.find(e => e.apiStatus === 'COMPLETED');
+    if (activePaid) horse.latestPackageStatus = activePaid.apiStatus;
+    else if (completed) horse.latestPackageStatus = 'COMPLETED';
   }
   data.trainingSessions=uniqueSessions(data.trainingSessions);
   for (const e of data.enrollments) {

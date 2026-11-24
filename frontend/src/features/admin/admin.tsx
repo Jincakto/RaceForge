@@ -1,3 +1,4 @@
+import { getBackendHealth, getOversightOverview, type OverviewMetrics } from "./api/oversightApi";
 import { isEditableRolePermission, PAGE_PERMISSIONS, API_ENFORCED_CODES } from "./api/permissionApi";
 import { listSystemAuditLogs, type AuditLogFilters, type AuditLogPageResult } from "./api/auditLogsApi";
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -135,6 +136,20 @@ export function NoPermission({ text = "You do not have permission to access this
 // ── Admin dashboard ───────────────────────────────────────────────────────────
 
 export function AdminDashboard({ users, audit, navigate }: { users: AppUser[]; audit: AuditEntry[]; navigate: (p: any) => void }) {
+  const [metrics, setMetrics] = useState<OverviewMetrics | null>(null);
+  const [heartbeat, setHeartbeat] = useState('Checking…');
+  const [metricError, setMetricError] = useState('');
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    setMetricError('');
+    getBackendHealth().then(result => { if (alive) setHeartbeat(result.status === 'UP' ? 'UP' : result.status); })
+      .catch(() => { if (alive) setHeartbeat('Unavailable'); });
+    getOversightOverview().then(result => { if (alive) setMetrics(result); })
+      .catch(err => { if (alive) { setMetrics(null); setMetricError((err as Error).message); } });
+    return () => { alive = false; };
+  }, [refresh]);
+
   const count = (r: Role) => users.filter(u => u.role === r).length;
   const locked = users.filter(u => u.locked).length;
   return (
@@ -151,6 +166,27 @@ export function AdminDashboard({ users, audit, navigate }: { users: AppUser[]; a
           <Card key={s.l} className="p-5"><div className="text-xs font-medium uppercase tracking-wider text-gray-500">{s.l}</div><div className="mt-1 font-serif text-3xl font-bold text-[#1a2844]">{s.v}</div></Card>
         ))}
       </div>
+      <Card className="p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div><h3 className="font-semibold text-[#0f1729]">Operational overview</h3><p className="text-xs text-slate-500">Counts retrieved directly from SQL Server, not placeholder values.</p><p className="mt-1 text-xs text-slate-500">Backend heartbeat: <strong>{heartbeat}</strong> · Database queries: <strong>{metrics ? 'Responding' : metricError ? 'Unavailable' : 'Checking…'}</strong>. Supabase/PayOS external status is not inferred.</p></div>
+          <Btn variant="secondary" size="sm" onClick={() => setRefresh(v => v + 1)}>Refresh</Btn>
+        </div>
+        {metricError && <p role="alert" className="mt-3 text-sm text-red-700">Cannot load operational counts: {metricError}</p>}
+        {metrics ? <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          {([
+            ['Horses', metrics.horses, 'admin-horses'],
+            ['Admission in progress', metrics.awaitingAdmission, 'admin-horses'],
+            ['Training-locked horses', metrics.lockedHorses, 'admin-horses'],
+            ['Active paid packages', metrics.activePackages, 'package-registrations'],
+            ['Completed packages', metrics.completedPackages, 'package-registrations'],
+            ['Pending PayOS orders', metrics.pendingPayments, 'payment-monitor'],
+            ['Paid but not applied', metrics.paidNotApplied, 'payment-monitor'],
+          ] as [string, number, string][]).map(([label, count, page]) =>
+            <button key={label} className="rounded-lg border border-slate-200 p-3 text-left hover:border-amber-400" onClick={() => navigate(page)}>
+              <div className="text-xs text-slate-500">{label}</div><div className="mt-1 text-2xl font-semibold">{count}</div>
+            </button>)}
+        </div> : !metricError && <p role="status" className="mt-3 text-sm text-slate-500">Loading operational metrics…</p>}
+      </Card>
       <div className="grid gap-4 lg:grid-cols-3">
         {[
           { p: 'accounts', t: "Account management", d: 'Create staff accounts and lock or unlock access.' },
@@ -183,10 +219,11 @@ type AccountDialog =
 
 const PAGE_SIZE = 8;
 
-export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleLock }: {
+export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleLock, onResendInvitation }: {
   actor: AppUser; users: AppUser[]; clubs: Club[];
   onCreate: (u: AppUser) => Promise<unknown>;
   onToggleLock: (id: string, reason: string) => Promise<unknown>;
+  onResendInvitation: (id: string) => Promise<unknown>;
 }) {
   const [q, setQ] = useState('');
   const [roleF, setRoleF] = useState('all');
@@ -195,6 +232,8 @@ export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleL
   const [showCreate, setShowCreate] = useState(false);
   const [dialog, setDialog] = useState<AccountDialog>(null);
   const [newPwd, setNewPwd] = useState<{ name: string; pwd: string } | null>(null);
+  const [inviteBusy, setInviteBusy] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState('');
 
   const filtered = useMemo(() => users.filter(u => {
     const s = q.trim().toLowerCase();
@@ -212,6 +251,7 @@ export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleL
       <div className="flex items-start justify-between">
         <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">Account management</h2><p className="text-sm text-gray-500">{filtered.length}  accounts · Horse owners register publicly; staff accounts are created by an administrator.</p></div>
         <Btn onClick={() => setShowCreate(true)}>+ Create account</Btn>
+        {inviteError && <p role="alert" className="text-sm text-red-700">Invitation failed: {inviteError}</p>}
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <input value={q} onChange={e => { setQ(e.target.value); setPage(1); }} placeholder="Search by account name or ID…" aria-label="Search accounts by name or ID" className="w-72 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#c9973b]" />
@@ -235,7 +275,15 @@ export function AccountManagementPage({ actor, users, clubs, onCreate, onToggleL
                   <td className="px-5 py-3">
                     {self ? <span className="text-xs text-gray-400">Your account</span> : (
                       <div className="flex flex-wrap gap-1.5">
-                        <Btn size="sm" variant={u.locked ? 'secondary' : 'danger'} onClick={() => setDialog({ kind: 'lock', user: u })}>{u.locked ? "Unlock" : "Lock"}</Btn>
+                        {(u.status === 'active' || u.locked) && <Btn size="sm" variant={u.locked ? 'secondary' : 'danger'} onClick={() => setDialog({ kind: 'lock', user: u })}>{u.locked ? "Unlock" : "Lock"}</Btn>}
+                        {u.role !== 'owner' && u.role !== 'admin' && u.status !== 'active' && !u.locked &&
+                          <Btn size="sm" variant="secondary" disabled={inviteBusy !== null} onClick={async () => {
+                            if (inviteBusy) return;
+                            setInviteError(''); setInviteBusy(u.id);
+                            try { await onResendInvitation(u.id); }
+                            catch (err) { setInviteError((err as Error).message); }
+                            finally { setInviteBusy(null); }
+                          }}>{inviteBusy === u.id ? 'Sending…' : 'Resend invitation'}</Btn>}
                       </div>
                     )}
                   </td>

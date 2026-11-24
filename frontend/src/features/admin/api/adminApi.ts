@@ -13,7 +13,7 @@ export const updateCurrentAccount = (body: { fullName: string; phone: string; av
 export const createStaffAccount = (body: { fullName: string; email: string; phone: string; roleId: number }) =>
   request<ApiRecord>('/admin/users', 'POST', body);
 
-export const updateAccountStatus = (id: string, body: { status: string }) =>
+export const updateAccountStatus = (id: string, body: { status: string; reason?: string }) =>
   request<ApiRecord>(`/users/${idPath(id)}/status`, 'PATCH', body);
 
 export const resendStaffInvitation = (id: string) =>

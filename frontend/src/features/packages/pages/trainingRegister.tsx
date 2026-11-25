@@ -15,7 +15,7 @@ interface Props {
   navigate: (p: string) => void;
   onStartPayment: (horseId: string, packageId: string, enrollmentId?: string) => Promise<Res<{ enrollmentId: string; url: string; orderCode: number }>>;
   onCancelRegistration?: (id: string) => Promise<PackageLifecycleResult>;
-  onSyncPayment: (horseId: string, enrollmentId: string) => Promise<Res<Enrollment>>;
+  onSyncPayment: (horseId: string, enrollmentId: string, silent?: boolean) => Promise<Res<Enrollment>>;
 }
 
 const STEPS = ["Choose horse", "Suggestions", "Review", "Payment", "Receipt"];
@@ -92,6 +92,8 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
   const [renewOf, setRenewOf] = useState<Enrollment | null>(null);
   const [checkout, setCheckout] = useState<{ enrollmentId: string; url: string; orderCode: number } | null>(null);
   const checking = useRef(false);
+  const paymentGeneration = useRef(0);
+  useEffect(() => () => { paymentGeneration.current++; }, []);
   const [paying, setPaying] = useState(false);
   const [payMsg, setPayMsg] = useState<{ kind: 'fail' | 'cancel' | 'error'; text: string } | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -107,6 +109,7 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
   const followUp = latestExam?.decision === 'conditional' || latestExam?.trainingEligibility === 'conditional' ? latestExam.followUpNote || latestExam.trainingNote || latestExam.conclusion : '';
 
   const start = (renew?: Enrollment) => {
+    paymentGeneration.current++;
     setResumeEnr(null); setRenewOf(renew || null);
     setPkgId(''); setGoal('');
     setHorseId(renew ? renew.horseId : '');
@@ -114,12 +117,21 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
     setMode('wizard');
   };
   const resume = (e: Enrollment) => {
+    paymentGeneration.current++;
     setResumeEnr(e); setRenewOf(null); setGoal('');
     setHorseId(e.horseId); setPkgId(e.packageId);
     setCheckout(null); setPayMsg(null); setReceipt(null); setFieldError(''); setPaying(false);
     setStep(3); setMode('wizard');
   };
-  const leave = () => { setMode('list'); setResumeEnr(null); setRenewOf(null); setPayMsg(null); setConfirmOpen(false); };
+  const resetPayment = () => {
+    paymentGeneration.current++;
+    setCheckout(null); setPaying(false); setPayMsg(null); setConfirmOpen(false);
+  };
+  const leave = () => { resetPayment(); setMode('list'); setStep(0); setResumeEnr(null); setRenewOf(null); setFieldError(''); };
+  const reselect = (message: string) => {
+    resetPayment(); setResumeEnr(null); setPkgId(''); setStep(1);
+    suggestions.retry(); setFieldError(message);
+  };
 
   const next = () => {
     setFieldError('');
@@ -132,36 +144,46 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
     if (paying) return;
     if (!horse || !pkg || (!resumeEnr && !selectedSuggestion?.canRegister)) { setPayMsg({ kind: 'error', text: 'Select an eligible package.' }); return; }
     setPayMsg(null); setPaying(true);
+    const generation = paymentGeneration.current;
     const r = await onStartPayment(horseId, resumeEnr ? resumeEnr.packageId : pkgId, resumeEnr?.id);
+    if (generation !== paymentGeneration.current) return;
     setPaying(false);
-    if (!r.ok) { setPayMsg({ kind: 'error', text: r.message }); return; }
+    if (!r.ok) {
+      if (/Payment cancelled or expired|package version is no longer available|registration has expired/i.test(r.message)) { reselect(r.message); return; }
+      setPayMsg({ kind: 'error', text: r.message }); return;
+    }
     setCheckout(r.data);
   };
 
   const check = async (silent = false) => {
-    if (!checkout || checking.current) return;
+    if (mode !== 'wizard' || step !== 3 || !checkout || checking.current) return;
+    const generation = paymentGeneration.current;
     checking.current = true;
     if (!silent) { setPayMsg(null); setPaying(true); }
-    const r = await onSyncPayment(horseId, checkout.enrollmentId);
+    const r = await onSyncPayment(horseId, checkout.enrollmentId, silent);
     checking.current = false;
+    if (generation !== paymentGeneration.current) return;
     if (!silent) setPaying(false);
     if (!r.ok) { if (!silent) setPayMsg({ kind: 'error', text: r.message }); return; }
     if (r.data.paymentStatus === 'PAID' && r.data.apiStatus === 'ACTIVE') { setReceipt(r.data); setCheckout(null); setStep(4); return; }
+    if (['CANCELLED', 'EXPIRED'].includes(r.data.apiStatus || '') || r.data.paymentStatus === 'FAILED') {
+      reselect('Your previous payment was cancelled or expired. Please review the latest package before paying again.'); return;
+    }
     if (!silent) setPayMsg({ kind: 'fail', text: "Payment is not confirmed yet. If you have just paid, wait a few seconds and check again." });
   };
 
   useEffect(() => {
-    if (!checkout || step !== 3) return;
+    if (mode !== 'wizard' || !checkout || step !== 3) return;
     const id = window.setInterval(() => { void check(true); }, 5000);
     return () => window.clearInterval(id);
-  }, [checkout, step]);
+  }, [mode, checkout, step, horseId]);
 
   // Show the PayOS checkout (VietQR) as an overlay inside this page. The embedded
   // layout is rejected by PayOS for this merchant, so the standard overlay is used.
   const [embedError, setEmbedError] = useState('');
   const payosApi = useRef<{ open: () => void; exit: () => void } | null>(null);
   useEffect(() => {
-    if (!EMBED_PAYOS || !checkout || step !== 3) return;
+    if (!EMBED_PAYOS || mode !== 'wizard' || !checkout || step !== 3) return;
     setEmbedError('');
     let cancelled = false;
     loadPayOsScript().then(() => {
@@ -172,14 +194,14 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
         CHECKOUT_URL: checkout.url,
         embedded: false,
         onSuccess: () => { void check(true); },
-        onCancel: () => { setCheckout(null); setPayMsg({ kind: 'cancel', text: "Payment cancelled. You may create a new payment link at any time." }); },
+        onCancel: () => { if (!cancelled) void check(true); },
         onExit: () => {},
       });
       if (!api) { setEmbedError("The PayOS checkout could not be started."); return; }
       payosApi.current = api; api.open();
     }).catch(() => { if (!cancelled) setEmbedError("The PayOS checkout could not be loaded. Use “Open payment page” instead."); });
     return () => { cancelled = true; try { payosApi.current?.exit(); } catch { /* ignore */ } payosApi.current = null; };
-  }, [checkout?.url, step]);
+  }, [mode, checkout?.url, step]);
 
   // ── Danh sách ──
   if (mode === 'list') {
@@ -265,7 +287,7 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
       </div>}
       {step === 1 && <div className="space-y-4">
           <Card className="space-y-3 p-5">
-            <h3 className="font-serif text-lg font-bold">Understand the program types</h3>
+            <h3 className="font-serif text-lg font-bold">Package Types</h3>
             <div className="grid gap-3 md:grid-cols-3">
               {[
                 ['BASIC', 'Build foundations', 'For horses developing basic training habits, technique and general fitness.'],
@@ -344,7 +366,7 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
           {payMsg && (
             <div className={`rounded-lg border p-3 text-sm ${payMsg.kind === 'cancel' ? 'border-gray-200 bg-gray-50 text-gray-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
               {payMsg.text}
-              <div className="mt-2 flex gap-2"><Btn size="sm" variant="gold" onClick={() => (checkout ? check() : pay())}>{checkout ? "Check again" : "Retry"}</Btn></div>
+              <div className="mt-2 flex gap-2"><Btn size="sm" variant="gold" disabled={paying} onClick={() => (checkout ? check() : pay())}>{checkout ? "Check again" : "Retry"}</Btn></div>
             </div>
           )}
           {!payMsg && !checkout && <Btn variant="gold" disabled={paying} onClick={pay}>{paying ? "Creating payment link..." : "Create payment link"}</Btn>}
@@ -368,7 +390,7 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
           {step === 2 ? <Btn variant="gold" onClick={() => setConfirmOpen(true)}>Continue to payment</Btn> : <Btn variant="gold" disabled={(step === 0 && !horse) || (step === 1 && !canContinue)} onClick={next}>Continue →</Btn>}
         </div>
       )}
-      {step === 3 && !paying && !payMsg && <div><Btn variant="secondary" onClick={() => (resumeEnr ? leave() : setStep(2))}>← Back</Btn></div>}
+      {step === 3 && !paying && !payMsg && <div><Btn variant="secondary" onClick={() => { if (resumeEnr) leave(); else { resetPayment(); setStep(2); } }}>← Back</Btn></div>}
 
       {confirmOpen && pkg && horse && (
         <Modal title="Confirm package registration?" onClose={() => setConfirmOpen(false)}>

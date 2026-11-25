@@ -48,4 +48,17 @@ class OwnerPaymentReconciliationTest {
  @Test void lateReceiptIsRetainedWithoutActivation(){when(gateway.lookup(1)).thenReturn(paid("2026-11-25T03:31:00Z"));var receipt=service.reconcile("HPG-001","OWN-001");assertEquals("PAID",receipt.paymentState());assertFalse(receipt.applied());assertTrue(receipt.reviewRequired());verifyNoInteractions(normal);}
  @Test void medicalFailureRetainsReceiptAndCanBeRetried(){when(gateway.lookup(1)).thenReturn(paid("2026-11-25T03:20:00Z"));when(normal.applyVerifiedPayment(anyString(),eq(true),anyString(),any())).thenThrow(new BusinessRuleException("Training locked"));var receipt=service.reconcile("HPG-001","OWN-001");assertEquals("PAID",receipt.paymentState());assertTrue(receipt.reviewRequired());assertFalse(receipt.applied());assertEquals("Training locked",receipt.applicationError());}
  @Test void paidAfterCancelledOrderStillEntersReconciliation(){state="CANCELLED";applied=true;when(gateway.lookup(1)).thenReturn(paid("2026-11-25T03:31:00Z"));var receipt=service.reconcile("HPG-001","OWN-001");assertEquals("PAID",receipt.paymentState());assertFalse(receipt.applied());assertTrue(receipt.reviewRequired());}
+ @Test void checkoutReconcilesCancelledLinkBeforeReuse(){
+  deadline=Instant.now().plusSeconds(1800);
+  when(gateway.lookup(1)).thenReturn(new PayOsGateway.Link(1,5000,"link","link","CANCELLED",null,0L,5000L,List.of()));
+  var receipt=service.checkout("HPG-001","OWN-001");
+  assertEquals("CANCELLED",receipt.paymentState());assertTrue(receipt.applied());
+  verify(normal).applyVerifiedPayment("HPG-001",false,"OWN-001",null);
+ }
+ @Test void checkoutKeepsPendingLinkWhenStillValid(){
+  deadline=Instant.now().plusSeconds(1800);
+  when(gateway.lookup(1)).thenReturn(new PayOsGateway.Link(1,5000,"link","link","PENDING",null,0L,5000L,List.of()));
+  var receipt=service.checkout("HPG-001","OWN-001");
+  assertEquals("PENDING",receipt.paymentState());assertEquals("https://pay.test",receipt.checkoutUrl());verifyNoInteractions(normal);
+ }
 }

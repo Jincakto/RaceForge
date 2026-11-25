@@ -35,11 +35,11 @@ export function makeRemoteActions(env: Env) {
     finally { locks.delete(key); }
   }
   const fire = (key: string, action: () => Promise<unknown>, message?: string) => run(key, action, message).catch(e => { if (e instanceof DuplicateRequestInProgress) info(e.message); else error((e as Error).message); throw e; });
-  const result = async <T>(key: string, action: () => Promise<T>, successMessage = 'Saved on the server.'): Promise<Res<T>> => {
+  const result = async <T>(key: string, action: () => Promise<T>, successMessage = 'Saved on the server.', silent = false): Promise<Res<T>> => {
     try { return { ok: true, data: await run(key, action, successMessage) }; }
     catch (failure) {
       const message = failure instanceof Error ? failure.message : 'Unable to complete the request.';
-      if (failure instanceof DuplicateRequestInProgress) info(message); else error(message);
+      if (!silent) { if (failure instanceof DuplicateRequestInProgress) info(message); else error(message); }
       return { ok: false, message };
     }
   };
@@ -265,14 +265,14 @@ export function makeRemoteActions(env: Env) {
         const registered = pending ? { horsePackageId: pending.id } : await registerHorsePackage({ horseId, packageId });
         const payment = await createPackagePaymentLink(registered.horsePackageId);
         if(payment.reviewRequired || (payment.paymentState === 'PAID' && !payment.applied)) throw new Error('Payment received and awaiting manager review. ' + (payment.applicationError || ''));
-        if(payment.paymentState === 'CANCELLED') throw new Error('This payment link is cancelled. Refresh the registration list.');
-        if(payment.paymentState === 'PAID' && payment.applied) throw new Error('This registration is already paid and activated. Refresh the registration list.');
+        if(payment.paymentState === 'CANCELLED') { await reload(); throw new Error('Payment cancelled or expired. Please select the latest available package again.'); }
+        if(payment.paymentState === 'PAID' && payment.applied) { await reload(); throw new Error('This registration is already paid and activated. Refresh the registration list.'); }
         if (!payment?.checkoutUrl) throw new Error("PayOS did not return a payment link. Please try again.");
         return { enrollmentId: registered.horsePackageId as string, url: payment.checkoutUrl as string, orderCode: payment.orderCode as number };
       });
     },
     // Ask BE to sync the PayOS state, then read the package back so PAID comes from BE only.
-    async syncPayment(horseId: string, enrollmentId: string): Promise<Res<Enrollment>> {
+    async syncPayment(horseId: string, enrollmentId: string, silent = false): Promise<Res<Enrollment>> {
       return result(`payment-sync-${enrollmentId}`, async () => {
         const payment = await syncPackagePayment(enrollmentId);
         if(payment.reviewRequired || (payment.paymentState === 'PAID' && !payment.applied)) throw new Error('Payment received, but package activation requires manager review. ' + (payment.applicationError || 'Please contact the club manager.'));
@@ -281,7 +281,7 @@ export function makeRemoteActions(env: Env) {
         if (!w) throw new Error("Registration not found after payment check.");
         const state = getState();
         return enrollmentFromApi(w as never, state.packages, state.horses.find(h => h.id === horseId));
-      });
+      }, '', silent);
     },
     savePackage: (draft: PackageDraft) => result<TrainingPackage>('package', async () => {
 

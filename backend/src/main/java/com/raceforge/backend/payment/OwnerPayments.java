@@ -68,13 +68,20 @@ public class OwnerPayments {
         gateway.requireConfiguration();
         var order = owned(id, owner, true);
         var payment = order.payment();
-        if(!"PENDING".equals(payment.paymentState())) return payment;
-        if(order.expiresAt()!=null && !java.time.Instant.now().isBefore(order.expiresAt())) {
-            var checked=sync(order,gateway.lookup(payment.orderCode()));
-            if(!"PAID".equals(checked.paymentState())) throw new BusinessRuleException("This registration has expired. Payment has been checked; create a new registration.");
+        if(!"PENDING".equals(payment.paymentState()) || payment.reviewRequired()) return payment;
+        // Reconcile an existing link before returning it: PayOS may have cancelled it.
+        if(payment.checkoutUrl()!=null) {
+            var checked = sync(order, gateway.lookup(payment.orderCode()));
+            if (!"PENDING".equals(checked.paymentState()) || checked.reviewRequired()) return checked;
+            if(order.expiresAt()!=null && !java.time.Instant.now().isBefore(order.expiresAt()))
+                throw new BusinessRuleException("This registration has expired. Payment has been checked; create a new registration.");
             return checked;
         }
-        if(payment.checkoutUrl()!=null) return payment;
+        if(order.expiresAt()!=null && !java.time.Instant.now().isBefore(order.expiresAt())) {
+            var checked=sync(order,gateway.lookup(payment.orderCode()));
+            if("PENDING".equals(checked.paymentState()) && !checked.reviewRequired()) throw new BusinessRuleException("This registration has expired. Payment has been checked; create a new registration.");
+            return checked;
+        }
         var link = gateway.create(payment.orderCode(), payment.amount(), id,order.expiresAt());
         String linkId = verifyLink(order, link);
         String url = link.checkoutUrl() != null ? link.checkoutUrl() : "https://pay.payos.vn/web/" + linkId;

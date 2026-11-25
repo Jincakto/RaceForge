@@ -244,7 +244,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
 
 
   let vetAssignments: Wire[] = [];
-  if (user.role === 'veterinarian' && hasGrant('VIEW_VET_ASSIGNMENTS')) {
+  if (user.role === 'veterinarian' && hasGrant('ACCESS_VET_ASSIGNMENTS')) {
     try { vetAssignments = await listMyVetAssignments(); }
     catch (error) {
       data.vetAssignmentsError = error instanceof ApiError && error.status === 403

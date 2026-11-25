@@ -61,4 +61,13 @@ class OwnerPaymentReconciliationTest {
   var receipt=service.checkout("HPG-001","OWN-001");
   assertEquals("PENDING",receipt.paymentState());assertEquals("https://pay.test",receipt.checkoutUrl());verifyNoInteractions(normal);
  }
+
+ @Test void resumingExistingLinkChecksProviderAndNeverRecreatesCancelledPayment(){
+  deadline=Instant.now().plusSeconds(3600);
+  when(gateway.lookup(1)).thenReturn(new PayOsGateway.Link(1,5000,"link","link","CANCELLED",null,0L,5000L));
+  var payment=service.checkout("HPG-001","OWN-001");
+  assertEquals("CANCELLED",payment.paymentState());
+  verify(gateway).lookup(1);
+  verify(gateway,never()).create(anyLong(),anyLong(),anyString(),any());
+ }
 }

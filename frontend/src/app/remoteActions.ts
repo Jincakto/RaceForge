@@ -1,3 +1,4 @@
+import { PaymentNotice, paymentNotice } from '../features/packages/paymentState';
 import { updateTrainingPackage, toggleTrainingPackage } from '../features/packages/api/packagesApi';
 import { getPackageRegistration, getPackageTrainingContext, changePackageLifecycle, registerHorsePackage, createPackagePaymentLink, syncPackagePayment, listHorsePackages, createTrainingPackage, acceptTrainingResumption } from "../features/packages/api/packagesApi";
 import { getHorseHealthProfile, saveMedicalDraft, uploadClinicalEvidence, confirmMedicalRecord, getMedicalRecord, assignVeterinarian, respondToVetAssignment, releaseTrainingLock } from "../features/medical/api/medicalApi";
@@ -39,8 +40,8 @@ export function makeRemoteActions(env: Env) {
     try { return { ok: true, data: await run(key, action, successMessage) }; }
     catch (failure) {
       const message = failure instanceof Error ? failure.message : 'Unable to complete the request.';
-      if (!silent) { if (failure instanceof DuplicateRequestInProgress) info(message); else error(message); }
-      return { ok: false, message };
+      if (!silent) { if (failure instanceof DuplicateRequestInProgress || failure instanceof PaymentNotice) info(message); else error(message); }
+      return { ok: false, message, ...(failure instanceof PaymentNotice ? { code: failure.code } : {}) };
     }
   };
   // A repeated click while the first request is in flight is informational,
@@ -264,18 +265,19 @@ export function makeRemoteActions(env: Env) {
         if(enrollmentId && !pending) throw new Error('Registration not found. Refresh the page.');
         const registered = pending ? { horsePackageId: pending.id } : await registerHorsePackage({ horseId, packageId });
         const payment = await createPackagePaymentLink(registered.horsePackageId);
-        if(payment.reviewRequired || (payment.paymentState === 'PAID' && !payment.applied)) throw new Error('Payment received and awaiting manager review. ' + (payment.applicationError || ''));
-        if(payment.paymentState === 'CANCELLED') { await reload(); throw new Error('Payment cancelled or expired. Please select the latest available package again.'); }
-        if(payment.paymentState === 'PAID' && payment.applied) { await reload(); throw new Error('This registration is already paid and activated. Refresh the registration list.'); }
+        const notice = paymentNotice(payment);
+        if (notice) { await reload(); throw notice; }
+        if(payment.paymentState === 'PAID' && payment.applied) { await reload(); throw new PaymentNotice('PAYMENT_ALREADY_PAID', 'This registration is already paid. Return to your packages to view its status.'); }
         if (!payment?.checkoutUrl) throw new Error("PayOS did not return a payment link. Please try again.");
         return { enrollmentId: registered.horsePackageId as string, url: payment.checkoutUrl as string, orderCode: payment.orderCode as number };
-      });
+      }, '');
     },
     // Ask BE to sync the PayOS state, then read the package back so PAID comes from BE only.
     async syncPayment(horseId: string, enrollmentId: string, silent = false): Promise<Res<Enrollment>> {
       return result(`payment-sync-${enrollmentId}`, async () => {
         const payment = await syncPackagePayment(enrollmentId);
-        if(payment.reviewRequired || (payment.paymentState === 'PAID' && !payment.applied)) throw new Error('Payment received, but package activation requires manager review. ' + (payment.applicationError || 'Please contact the club manager.'));
+        const notice = paymentNotice(payment);
+        if (notice) { await reload(); throw notice; }
         const packs = await listHorsePackages(horseId) as Array<{ horsePackageId: string }>;
         const w = packs.find(p => p.horsePackageId === enrollmentId);
         if (!w) throw new Error("Registration not found after payment check.");

@@ -6,6 +6,8 @@ import com.raceforge.backend.notification.dto.NotificationResponse;
 import com.raceforge.backend.notification.entity.Notification;
 import com.raceforge.backend.notification.repository.NotificationRepository;
 import com.raceforge.backend.security.AuthenticatedUser;
+import com.raceforge.backend.common.response.ApiResponse;
+import java.time.Instant;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -63,5 +65,16 @@ public class NotificationController {
         notification.setRead(true);
 
         return NotificationResponse.from(repository.save(notification));
+    }
+
+    public record ReadAllResult(int updatedCount, long unreadCount, Instant readThrough) {}
+
+    @PatchMapping("/read-all")
+    @Transactional
+    public ApiResponse<ReadAllResult> markAllRead(@AuthenticationPrincipal AuthenticatedUser principal) {
+        Instant cutoff = Instant.now();
+        int updated = repository.markAllRead(principal.userId(), cutoff);
+        return ApiResponse.success("Notifications marked as read",
+                new ReadAllResult(updated, repository.countByUserIdAndReadFalse(principal.userId()), cutoff));
     }
 }

@@ -1,15 +1,21 @@
 import { type AppNotification } from "../../../shared/data/data";
 import { Btn, Card } from "../../../shared/ui/ui";
+import { useRef, useState } from 'react';
 
 export function NotificationsPage({
   notifications,
   onMarkRead,
+  onMarkAllRead,
   onOpen,
 }: {
   notifications: AppNotification[];
   onMarkRead: (id: string) => void;
+  onMarkAllRead: () => Promise<void>;
   onOpen: (n: AppNotification) => void;
 }) {
+  const [markingAll, setMarkingAll] = useState(false);
+  const marking = useRef(false);
+  const [readError, setReadError] = useState('');
   const icons: Record<string, string> = {
     health: "🏥",
     training: "🏇",
@@ -26,11 +32,19 @@ export function NotificationsPage({
         <h2 className="text-xl font-serif font-bold">Notifications</h2>
         <Btn
           variant="ghost"
-          onClick={() => notifications.forEach((n) => onMarkRead(n.id))}
+          disabled={markingAll || !notifications.some(n => !n.read)}
+          onClick={async () => {
+            if (marking.current) return;
+            marking.current = true; setMarkingAll(true); setReadError('');
+            try { await onMarkAllRead(); }
+            catch (error) { setReadError((error as Error).message); }
+            finally { marking.current = false; setMarkingAll(false); }
+          }}
         >
-          Mark all as read
+          {markingAll ? 'Marking as read…' : 'Mark all as read'}
         </Btn>
       </div>
+      {readError && <p role="alert" className="text-sm text-red-700">{readError}</p>}
       {notifications.length === 0 && (
         <Card className="p-10 text-center text-gray-400 text-sm">
           No notifications yet

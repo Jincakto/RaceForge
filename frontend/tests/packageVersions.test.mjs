@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
+const paymentExports = {};
+vm.runInNewContext(ts.transpileModule(readFileSync(new URL('../src/features/packages/paymentState.ts', import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:paymentExports,Error});
 function actions(state,api){
  const source=ts.transpileModule(readFileSync(new URL('../src/app/remoteActions.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
  const exports={};
- vm.runInNewContext(source,{exports,Error,require:name=>name.endsWith('/packagesApi')?api:name==='./remote'?{packageFromApi:r=>r,enrollmentFromApi:r=>r}:name.endsWith('/trainingLogic')?{validatePackage:()=>({})}:{}});
+ vm.runInNewContext(source,{exports,Error,require:name=>name.endsWith('/paymentState')?paymentExports:name.endsWith('/packagesApi')?api:name==='./remote'?{packageFromApi:r=>r,enrollmentFromApi:r=>r}:name.endsWith('/trainingLogic')?{validatePackage:()=>({})}:{}});
  return exports.makeRemoteActions({getState:()=>state,reload:async()=>{},success:()=>{},error:()=>{},info:()=>{},warning:()=>{},navigate:()=>{}});
 }
 test('explicit resume pays the exact registration instead of creating another',async()=>{

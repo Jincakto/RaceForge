@@ -205,7 +205,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
   }
   if (user.role === 'admin' || user.role === 'manager') data.users = await read("Accounts", async () => (await listAccounts()).map(userFromApi), [user]);
   const notifications = user.role === 'admin' ? [] : await read("Notifications", () => listNotifications(), []);
-  data.notifications = notifications.map(w => ({ id: String(w.notificationId), type: w.notificationType || 'info', message: w.message, time: dateText(w.createdAt), read: w.read, action: user.role === 'head_trainer' && w.notificationType === 'TRAINER_RESUMPTION_AVAILABLE' ? 'training-hub' : undefined, toUserIds: [user.id] }));
+  data.notifications = notifications.map(w => notificationFromApi(w, user));
   const trainerProfiles: Wire[] = ['admin', 'manager'].includes(user.role || '') ? await read("Trainer profiles", () => listTrainerProfiles(), []) : [];
   for (const p of trainerProfiles) {
     const found = data.users.find(u => u.id === p.user_id);
@@ -355,4 +355,8 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
   for (const p of data.trainingPlans) { p.progress = planProgress(p.id, data.trainingSessions); const e = data.enrollments.find(e => e.id === p.horsePackageId) || data.enrollments.find(e => e.horseId === p.horseId && e.trainerStatus === 'confirmed' && e.status === 'active'); if (e) { p.startDate ||= e.startedAt; p.endDate ||= e.expiresAt; p.horsePackageId ||= e.id; p.assignmentId ||= e.assignmentId; } }
   if (errors.size) report('Some data could not be refreshed. See the affected sources and retry.');
   data.trainingLoadedSources=store.loadedSources(); data.trainingLoadIssues=store.issues(); return data;
+}
+
+export function notificationFromApi(w: { notificationId: number; notificationType: string; message: string; createdAt: string; read: boolean }, user: AppUser): AppNotification {
+  return { id: String(w.notificationId), type: w.notificationType || 'info', message: w.message, time: dateText(w.createdAt), read: w.read, action: user.role === 'head_trainer' && w.notificationType === 'TRAINER_RESUMPTION_AVAILABLE' ? 'training-hub' : undefined, toUserIds: [user.id] };
 }

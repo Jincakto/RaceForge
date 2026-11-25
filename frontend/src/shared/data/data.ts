@@ -121,7 +121,7 @@ export const TRAINING_PACKAGES: TrainingPackage[] = [
   { id: 'PKG-000003', name: "Competition", description: "Prepare for peak season performance with race-distance simulations.", sessions: 36, durationDays: 98, price: 58000000, active: true, focus: ["Race-distance simulation", "Distance-specific race tactics", "Pre-race taper"] },
 ];
 
-export type Res<T> = { ok: true; data: T } | { ok: false; message: string };
+export type Res<T> = { ok: true; data: T } | { ok: false; message: string; code?: string };
 
 /** Next sequential display id, e.g. nextSeq('SES', ids) -> 'SES-000018'. Ignores legacy ids. */
 export function nextSeq(prefix: string, ids: string[]): string {

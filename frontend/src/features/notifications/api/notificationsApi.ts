@@ -12,3 +12,6 @@ export const listNotifications = () =>
 
 export const markNotificationRead = (id: string) =>
   request<NotificationResponse>(`/notifications/${idPath(id)}/read`, 'PATCH');
+
+export const markAllNotificationsRead = () =>
+  request<{ updatedCount: number; unreadCount: number; readThrough: string }>('/notifications/read-all', 'PATCH');

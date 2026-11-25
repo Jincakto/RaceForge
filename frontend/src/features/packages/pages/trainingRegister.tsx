@@ -5,7 +5,9 @@ import { usePackageSuggestions, sortSuggestions, suggestionReason } from '../hoo
 import { PackageRoadmapPreview } from '../../training/roadmapView';
 import { useEffect, useRef, useState } from 'react';
 import type { AppUser, Horse, Enrollment, TrainingPackage, Res, HealthRecord } from '../../../shared/data/data';
-import { Badge, Btn, Card } from '../../../shared/ui/ui';
+import { Badge, Btn, Card, Input, Select } from '../../../shared/ui/ui';
+import { CANCELLED_PAYMENT_MESSAGE, terminalPaymentCode } from '../paymentState';
+import { EMPTY_REGISTRATION_FILTERS, REGISTRATION_STATUSES, filterRegistrations } from '../registrationFilters';
 import { IdChip, Modal } from '../../admin/admin';
 import { TrainerStatusPill } from '../packages';
 import { money, enrollmentTerm, isCurrent, EXPIRY_WARN_DAYS, TODAY } from '../../training/trainingLogic';
@@ -77,6 +79,9 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
   const user = state.user!;
   const myHorses = state.horses.filter(h => h.ownerId === user.id);
   const myEnr = state.enrollments.filter(e => myHorses.some(h => h.id === e.horseId)).slice().reverse();
+  const [filters, setFilters] = useState({ ...EMPTY_REGISTRATION_FILTERS });
+  const shownEnr = filterRegistrations(myEnr, myHorses, filters);
+  const paymentStatuses = [...new Set(myEnr.map(e => e.paymentStatus).filter((value): value is string => !!value))].sort();
   const horseName = (id: string) => state.horses.find(h => h.id === id)?.name || "Horses";
 
   const [mode, setMode] = useState<'list' | 'wizard'>('list');
@@ -92,10 +97,9 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
   const [renewOf, setRenewOf] = useState<Enrollment | null>(null);
   const [checkout, setCheckout] = useState<{ enrollmentId: string; url: string; orderCode: number } | null>(null);
   const checking = useRef(false);
-  const paymentGeneration = useRef(0);
-  useEffect(() => () => { paymentGeneration.current++; }, []);
   const [paying, setPaying] = useState(false);
-  const [payMsg, setPayMsg] = useState<{ kind: 'fail' | 'cancel' | 'error'; text: string } | null>(null);
+  const [payMsg, setPayMsg] = useState<{ kind: 'fail' | 'cancel' | 'error'; text: string; terminal?: boolean } | null>(null);
+  const paymentGeneration = useRef(0);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [receipt, setReceipt] = useState<Enrollment | null>(null);
   const [viewReceipt, setViewReceipt] = useState<Enrollment | null>(null);
@@ -123,15 +127,9 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
     setCheckout(null); setPayMsg(null); setReceipt(null); setFieldError(''); setPaying(false);
     setStep(3); setMode('wizard');
   };
-  const resetPayment = () => {
-    paymentGeneration.current++;
-    setCheckout(null); setPaying(false); setPayMsg(null); setConfirmOpen(false);
-  };
+  const resetPayment = () => { paymentGeneration.current++; setCheckout(null); setPaying(false); setPayMsg(null); setConfirmOpen(false); };
   const leave = () => { resetPayment(); setMode('list'); setStep(0); setResumeEnr(null); setRenewOf(null); setFieldError(''); };
-  const reselect = (message: string) => {
-    resetPayment(); setResumeEnr(null); setPkgId(''); setStep(1);
-    suggestions.retry(); setFieldError(message);
-  };
+  const reselect = (message: string) => { resetPayment(); setResumeEnr(null); setPkgId(''); setStep(1); suggestions.retry(); setFieldError(message); };
 
   const next = () => {
     setFieldError('');
@@ -148,35 +146,37 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
     const r = await onStartPayment(horseId, resumeEnr ? resumeEnr.packageId : pkgId, resumeEnr?.id);
     if (generation !== paymentGeneration.current) return;
     setPaying(false);
-    if (!r.ok) {
-      if (/Payment cancelled or expired|package version is no longer available|registration has expired/i.test(r.message)) { reselect(r.message); return; }
-      setPayMsg({ kind: 'error', text: r.message }); return;
-    }
+    if (!r.ok) { if (!terminalPaymentCode(r.code) && /package version is no longer available/i.test(r.message)) { reselect(r.message); return; } const terminal = terminalPaymentCode(r.code); setPayMsg({ kind: terminal ? 'cancel' : 'error', text: r.message, terminal }); return; }
     setCheckout(r.data);
   };
 
   const check = async (silent = false) => {
     if (mode !== 'wizard' || step !== 3 || !checkout || checking.current) return;
-    const generation = paymentGeneration.current;
     checking.current = true;
+    const generation = paymentGeneration.current;
     if (!silent) { setPayMsg(null); setPaying(true); }
     const r = await onSyncPayment(horseId, checkout.enrollmentId, silent);
     checking.current = false;
     if (generation !== paymentGeneration.current) return;
     if (!silent) setPaying(false);
-    if (!r.ok) { if (!silent) setPayMsg({ kind: 'error', text: r.message }); return; }
-    if (r.data.paymentStatus === 'PAID' && r.data.apiStatus === 'ACTIVE') { setReceipt(r.data); setCheckout(null); setStep(4); return; }
-    if (['CANCELLED', 'EXPIRED'].includes(r.data.apiStatus || '') || r.data.paymentStatus === 'FAILED') {
-      reselect('Your previous payment was cancelled or expired. Please review the latest package before paying again.'); return;
+    if (!r.ok) {
+      if (terminalPaymentCode(r.code)) { setCheckout(null); setPaying(false); setPayMsg({ kind: 'cancel', text: r.message, terminal: true }); }
+      else if (!silent) setPayMsg({ kind: 'error', text: r.message });
+      return;
     }
+    if (r.data.apiStatus === 'EXPIRED' || (r.data.apiStatus === 'CANCELLED' && r.data.paymentStatus !== 'PAID')) {
+      setCheckout(null); setPaying(false); setPayMsg({ kind: 'cancel', terminal: true,
+        text: r.data.apiStatus === 'EXPIRED' ? 'This registration has expired. Please start a new registration.' : CANCELLED_PAYMENT_MESSAGE }); return;
+    }
+    if (r.data.paymentStatus === 'PAID' && r.data.apiStatus === 'ACTIVE') { setReceipt(r.data); setCheckout(null); setStep(4); return; }
     if (!silent) setPayMsg({ kind: 'fail', text: "Payment is not confirmed yet. If you have just paid, wait a few seconds and check again." });
   };
 
   useEffect(() => {
-    if (mode !== 'wizard' || !checkout || step !== 3) return;
+    if (!checkout || step !== 3 || mode !== 'wizard') return;
     const id = window.setInterval(() => { void check(true); }, 5000);
     return () => window.clearInterval(id);
-  }, [mode, checkout, step, horseId]);
+  }, [checkout, step, mode, horseId]);
 
   // Show the PayOS checkout (VietQR) as an overlay inside this page. The embedded
   // layout is rejected by PayOS for this merchant, so the standard overlay is used.
@@ -211,13 +211,23 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
           <div><h2 className="font-serif text-xl font-bold text-[#0f1729]">My training packages</h2><p className="text-sm text-gray-500">Choose horse / suggestions / review / pay</p></div>
           <Btn variant="gold" onClick={() => start()}>+ Register a new package</Btn>
         </div>
+        {myEnr.length > 0 && <Card className="p-4 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <Select label="Horse" value={filters.horseId} options={[{ value: '', label: 'All horses' }, ...myHorses.map(h => ({ value: h.id, label: h.name }))]} onChange={horseId => setFilters(f => ({ ...f, horseId }))} />
+            <Select label="Registration status" value={filters.status} options={[{ value: '', label: 'All statuses' }, ...REGISTRATION_STATUSES.map(value => ({ value, label: value === 'PENDING' ? 'Awaiting payment' : value.charAt(0) + value.slice(1).toLowerCase() }))]} onChange={status => setFilters(f => ({ ...f, status }))} />
+            <Select label="Payment status" value={filters.paymentStatus} options={[{ value: '', label: 'All payments' }, ...paymentStatuses.map(value => ({ value, label: value.charAt(0) + value.slice(1).toLowerCase() }))]} onChange={paymentStatus => setFilters(f => ({ ...f, paymentStatus }))} />
+            <Input label="Search" value={filters.search} placeholder="Registration, package or horse" onChange={search => setFilters(f => ({ ...f, search }))} />
+          </div>
+          <div className="flex justify-between items-center"><p className="text-xs text-gray-500" role="status">{shownEnr.length} of {myEnr.length} registrations</p><Btn size="sm" variant="ghost" onClick={() => setFilters({ ...EMPTY_REGISTRATION_FILTERS })}>Clear filters</Btn></div>
+        </Card>}
+        {myEnr.length > 0 && shownEnr.length === 0 && <Card className="p-8 text-center text-sm text-gray-500">No registrations match your filters.</Card>}
         {myEnr.length === 0 ? (
           <Card className="p-10 text-center">
             <div className="mb-2 text-4xl">🎯</div>
             <div className="mb-3 font-semibold text-gray-600">{myHorses.length === 0 ? "You have no horses yet" : "You have not registered for any training packages"}</div>
             {myHorses.length === 0 ? <Btn variant="gold" onClick={() => navigate('horse-create')}>+ Register a new horse</Btn> : <Btn variant="gold" onClick={() => start()}>Register for your first package</Btn>}
           </Card>
-        ) : myEnr.map(e => {
+        ) : shownEnr.map(e => {
           const t = enrollmentTerm(e);
           const pct = Math.round(e.sessionsDone / Math.max(1, e.sessionsTotal) * 100);
           const unpaid = e.paymentStatus === 'PENDING' && e.apiStatus === 'PENDING' && (!e.pendingExpiresAtUtc || Date.parse(e.pendingExpiresAtUtc)>Date.now());
@@ -252,8 +262,9 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
               )}
               <PackageRoadmapPreview packageId={e.packageId} />
               {onCancelRegistration && canCancelRegistration(e,user,myHorses.find(h=>h.id===e.horseId)?.ownerId) && <PackageLifecycleButton enrollment={e} action="cancel" onAction={onCancelRegistration} blockedReason={unfinishedPackageSession(e,state.trainingSessions || []) ? 'Finish the started session and its results before cancelling this registration.' : null} />}
-              {unpaid && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">This registration has not been paid. Continue to get a new PayOS payment link.</div>}
-              <div className="mt-3 flex gap-2">{unpaid ? <Btn size="sm" variant="gold" onClick={() => resume(e)}>Continue payment</Btn> : <Btn size="sm" variant="secondary" onClick={() => setViewReceipt(e)}>View receipt</Btn>}</div>
+              {unpaid && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">This registration has not been paid. Continue to open or request its payment link.</div>}
+              {e.apiStatus === 'CANCELLED' && e.paymentStatus !== 'PAID' && <p className="mt-3 rounded-lg bg-gray-50 p-3 text-xs text-gray-700">{CANCELLED_PAYMENT_MESSAGE}</p>}
+              <div className="mt-3 flex gap-2">{unpaid ? <Btn size="sm" variant="gold" onClick={() => resume(e)}>Continue payment</Btn> : e.paymentStatus === 'PAID' ? <Btn size="sm" variant="secondary" onClick={() => setViewReceipt(e)}>View receipt</Btn> : null}</div>
             </Card>
           );
         })}
@@ -366,7 +377,7 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
           {payMsg && (
             <div className={`rounded-lg border p-3 text-sm ${payMsg.kind === 'cancel' ? 'border-gray-200 bg-gray-50 text-gray-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
               {payMsg.text}
-              <div className="mt-2 flex gap-2"><Btn size="sm" variant="gold" disabled={paying} onClick={() => (checkout ? check() : pay())}>{checkout ? "Check again" : "Retry"}</Btn></div>
+              <div className="mt-2 flex gap-2">{payMsg.terminal ? <><Btn size="sm" variant="secondary" onClick={leave}>Back to packages</Btn><Btn size="sm" variant="gold" onClick={() => start()}>Register a new package</Btn></> : <Btn size="sm" variant="gold" disabled={paying} onClick={() => (checkout ? check() : pay())}>{checkout ? "Check again" : "Retry"}</Btn>}</div>
             </div>
           )}
           {!payMsg && !checkout && <Btn variant="gold" disabled={paying} onClick={pay}>{paying ? "Creating payment link..." : "Create payment link"}</Btn>}

@@ -1,9 +1,9 @@
-import { markNotificationRead } from "../features/notifications/api/notificationsApi";
+import { markNotificationRead, markAllNotificationsRead, listNotifications } from "../features/notifications/api/notificationsApi";
 import { getCurrentAccount } from "../features/admin/api/adminApi";
 import { type Horse, type AppNotification, type Role, type AppUser } from "../shared/data/data";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { type AppState, type Page } from "./appTypes";
-import { CENTER, RemoteSourceStore, type RemoteIssue, loadRemote, userFromApi } from "./remote";
+import { CENTER, RemoteSourceStore, type RemoteIssue, loadRemote, userFromApi, notificationFromApi } from "./remote";
 import { DEFAULT_ROLE_PERMS, ROLE_LABELS, SuccessToast, ErrorToast, NoticeToast, NoAccess, visibleNotifications, AppLayout, PAGE_TITLES } from "./AppLayout";
 import { type AuditEntry, NoPermission, FEATURES, AccountManagementPage, PermissionMatrixPage, AuditLogPage, AdminDashboard } from "../features/admin/admin";
 import { permissionForPage } from "../features/admin/api/permissionApi";
@@ -716,6 +716,16 @@ export default function App() {
               state.notifications,
               state.user!,
             )}
+            onMarkAllRead={async () => {
+              const user = stateRef.current.user;
+              if (!user) throw new Error('Please sign in again.');
+              const version = ++loadVersion.current;
+              await markAllNotificationsRead();
+              const notifications = await listNotifications();
+              if (stateRef.current.user?.id === user.id && version === loadVersion.current) {
+                setState(s => ({ ...s, notifications: notifications.map(n => notificationFromApi(n, user)) }));
+              }
+            }}
             onMarkRead={(id) =>
               background(
                 markNotificationRead(id)

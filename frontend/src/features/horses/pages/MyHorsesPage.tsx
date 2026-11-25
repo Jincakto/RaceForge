@@ -19,8 +19,8 @@ export function MyHorsesPage({
   onSelectHorse: (id: string) => void;
 }) {
   const myHorses = state.horses.filter((h) => h.ownerId === user.id);
-  const clubHorses = myHorses.filter((h) => h.clubId === user.clubId);
-  const unregistered = myHorses.filter((h) => !h.clubId);
+  const clubHorses = myHorses.filter((h) => h.clubId === user.clubId && h.approvalStatus === 'approved');
+  const unregistered = myHorses.filter((h) => h.approvalStatus !== 'approved');
   const pendingReqs = state.horseClubRequests.filter(
     (r) => r.ownerId === user.id && r.status === "pending",
   );
@@ -159,6 +159,7 @@ export function MyHorsesPage({
                   return rq ? (
                     <div className="mt-4 border-t border-gray-100 pt-4">
                       <IntakeProgress stage={intakeStage(h, rq)} />
+                      {h.screeningStatus === 'NEEDS_CORRECTION' && <p className="mt-2 text-xs text-amber-800">Please update and resubmit: {h.screeningReason}</p>}
                       {rq.status === "rejected" && (
                         <p className="mt-2 text-xs text-red-600">
                           Rejection reason: {rq.reviewNote}

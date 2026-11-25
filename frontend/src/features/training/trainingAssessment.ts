@@ -124,17 +124,24 @@ export function assessmentPreview(answers: AssessmentAnswers): AssessmentPreview
 }
 
 class AssessmentInputError extends Error { }
-export function toAssessmentRequest(answers: AssessmentAnswers, version = ASSESSMENT_VERSION): TrainingAssessmentRequest {
+export function toAssessmentRequest(answers: AssessmentAnswers, version = ASSESSMENT_VERSION, failNotes: Record<string, string> = {}): TrainingAssessmentRequest {
   if (version !== ASSESSMENT_VERSION) throw new AssessmentInputError('Refresh the health check template before saving.');
   if (!assessmentPreview(answers)) throw new AssessmentInputError('Complete all 10 checks before saving.');
   const checks = Object.fromEntries(ASSESSMENT_CRITERIA.map(item => [item.code, answers[item.code]])) as Record<AssessmentCriterionCode, boolean>;
-  return { checklistVersion: version, checks };
+  const notes: Record<string, string> = {};
+  for (const item of ASSESSMENT_CRITERIA) {
+    if (checks[item.code]) continue;
+    const note = failNotes[item.code]?.trim();
+    if (!note || note.length > 1000) throw new AssessmentInputError('Enter an observation reason of 1–1,000 characters for ' + item.label + '.');
+    notes[item.code] = note;
+  }
+  return { checklistVersion: version, checks, failNotes: notes };
 }
 
 /** Explicit write DTO: keep actual distance and speed separate from legacy result display fields. */
 export function completionPayload(input: CompleteSessionInput): CompleteSessionInput {
   if (!input || !input.assessment) throw new AssessmentInputError('Complete all 10 checks before saving.');
-  const assessment = toAssessmentRequest(input.assessment.checks, input.assessment.checklistVersion);
+  const assessment = toAssessmentRequest(input.assessment.checks, input.assessment.checklistVersion, input.assessment.failNotes);
   if (typeof input.distance !== 'number' || !Number.isFinite(input.distance) || input.distance < 0 || input.distance > 999999.99
       || Math.abs(input.distance * 100 - Math.round(input.distance * 100)) > 0.000001) {
     throw new AssessmentInputError('Enter the actual distance in km, with up to 2 decimal places.');

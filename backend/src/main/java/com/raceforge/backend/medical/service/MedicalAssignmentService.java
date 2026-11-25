@@ -70,6 +70,7 @@ public class MedicalAssignmentService {
         if (!List.of("PENDING", "APPROVED").contains(horse.getAdmissionStatus())) {
             throw new BusinessRuleException("Horse must be submitted for admission before veterinary assignment");
         }
+        requireScreenedForCare(horse);
 
         // Assignment is ongoing care responsibility, not a task for one exam.
         // Locking the Horse row above prevents two CM requests from replacing
@@ -120,6 +121,7 @@ public class MedicalAssignmentService {
         requireRole(veterinarianId, "VETERINARIAN");
         HorseAssignment a = findAssignedToVet(assignmentId, veterinarianId);
         requireStatus(a, "ASSIGNED");
+        requireScreenedForCare(a.getHorse());
         a.setStatus("ACCEPTED");
         a.setRespondedAt(LocalDateTime.now());
         assessmentNotifications.onVeterinaryAssignmentChanged(a.getHorse().getHorseId());
@@ -192,6 +194,9 @@ public class MedicalAssignmentService {
      */
     @Transactional(readOnly = true)
     public void requireAccepted(String horseId, String veterinarianId) {
+        Horse horse = horses.findById(horseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Horse not found"));
+        requireScreenedForCare(horse);
         HorseAssignment current = assignments
                 .findFirstByHorse_HorseIdAndKindOrderByCreatedAtDesc(horseId, "VET")
                 .orElse(null);
@@ -204,6 +209,14 @@ public class MedicalAssignmentService {
     private boolean isOpenForCare(HorseAssignment assignment) {
         return "ASSIGNED".equals(assignment.getStatus())
                 || EXAM_ALLOWED_STATUSES.contains(assignment.getStatus());
+    }
+
+    private void requireScreenedForCare(Horse horse) {
+        if ("APPROVED".equals(horse.getAdmissionStatus())) return;
+        if (!"PENDING".equals(horse.getAdmissionStatus()) || horse.getAdmission() == null
+                || !"PASSED".equals(horse.getAdmission().getScreeningStatus())) {
+            throw new BusinessRuleException("Horse must pass document screening before veterinary assignment or examination");
+        }
     }
 
     private boolean isLatestOpenAssignment(HorseAssignment assignment) {

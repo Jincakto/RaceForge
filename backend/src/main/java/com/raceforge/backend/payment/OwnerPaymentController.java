@@ -12,6 +12,13 @@ public class OwnerPaymentController {
 
     public OwnerPaymentController(OwnerPayments payments) { this.payments = payments; }
 
+    @GetMapping("/payments/payos/reconciliation")
+    @PreAuthorize("hasAuthority('CLUB_MANAGER')")
+    public ApiResponse<java.util.List<OwnerPayments.Payment>> reviews(){return ApiResponse.success("Payments needing review",payments.pendingReview());}
+    @PostMapping("/payments/payos/reconciliation/{code}/retry")
+    @PreAuthorize("hasAuthority('CLUB_MANAGER')")
+    public ApiResponse<OwnerPayments.Payment> retry(@PathVariable long code){return ApiResponse.success("Payment reconciled",payments.retryReview(code));}
+
     @PostMapping("/horse-packages/{id}/payment-link")
     @PreAuthorize("hasAuthority('HORSE_OWNER')")
     public ApiResponse<OwnerPayments.Payment> checkout(@PathVariable String id,

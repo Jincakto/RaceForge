@@ -62,7 +62,7 @@ class HorsePackageAdmissionTest {
         Horse horse=approvedHorse();
         var pack=new com.raceforge.backend.training.entity.TrainingPackage();
         pack.setDurationDays(30);pack.setStatus("ACTIVE");pack.setPackageType("RACING");
-        when(packages.findById("PKG-012")).thenReturn(Optional.of(pack));
+        when(packages.findByIdForUpdate("PKG-012")).thenReturn(Optional.of(pack));
         doThrow(new BusinessRuleException("RACING requires FIT")).when(guard).requireRacingEligible(horse);
         assertThrows(BusinessRuleException.class,()->service.register(new HorsePackageRegisterRequest("HOR-001","PKG-012"),"7"));
         var order=inOrder(guard);order.verify(guard).requireHealthy(horse);order.verify(guard).requireRacingEligible(horse);
@@ -78,7 +78,7 @@ class HorsePackageAdmissionTest {
         Horse horse=approvedHorse();
         var pack=new com.raceforge.backend.training.entity.TrainingPackage();
         pack.setDurationDays(30);pack.setStatus("ACTIVE");pack.setPackageType(type);
-        when(packages.findById("PKG-012")).thenReturn(Optional.of(pack));
+        when(packages.findByIdForUpdate("PKG-012")).thenReturn(Optional.of(pack));
         var profile=new com.raceforge.backend.medical.entity.HealthProfile();profile.setProfileId("HPR-001");
         when(profiles.findByHorse_HorseId("HOR-001")).thenReturn(Optional.of(profile));
         var initial=new com.raceforge.backend.medical.entity.MedicalRecord();initial.setExamType("INITIAL");initial.setStatus("CONFIRMED");

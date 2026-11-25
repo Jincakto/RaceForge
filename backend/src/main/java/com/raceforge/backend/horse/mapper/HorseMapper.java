@@ -59,6 +59,11 @@ public class HorseMapper {
         response.setStatus(horse.getStatus());
         response.setAdmissionStatus(horse.getAdmissionStatus());
         response.setAdmissionNote(horse.getAdmissionNote());
+        if (horse.getAdmission() != null) {
+            response.setScreeningStatus(horse.getAdmission().getScreeningStatus());
+            response.setScreeningReason(horse.getAdmission().getScreeningReason());
+            response.setAdmissionSubmittedAt(horse.getAdmission().getSubmittedAt());
+        }
         return response;
     }
 

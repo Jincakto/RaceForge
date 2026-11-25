@@ -49,3 +49,6 @@ export const acceptTrainingResumption = (id: string) =>
 
 export const getTrainingPackageSuggestions = (id: string) =>
   request<SuggestionResponse>(`/horses/${idPath(id)}/training-package-suggestions`);
+
+export const updateTrainingPackage = (id: string, body: unknown) => request<ApiRecord>(`/training-packages/${idPath(id)}`, 'PUT', body);
+export const toggleTrainingPackage = (id: string, active: boolean) => request<ApiRecord>(`/training-packages/${idPath(id)}/status`, 'PATCH', {status: active ? 'ACTIVE' : 'INACTIVE'});

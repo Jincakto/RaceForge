@@ -107,6 +107,35 @@ class TrainingAssessmentNotificationServiceTest {
     }
 
     @Test
+    void normalPendingCompletionNotifiesVetOnceAndFollowsReassignment() {
+        assessment.setReviewStatus(TrainingAssessmentReviewStatus.PENDING);
+        service.notifyAutomatic(assessment);
+        service.notifyAutomatic(assessment);
+        verify(notificationService, times(1)).notifyAndReturnId(eq(vet.getUserId()),
+                eq(TrainingAssessmentNotificationService.REQUEST_TYPE), anyString(), anyString());
+        verify(notificationService, never()).notifyAndReturnId(eq(manager.getUserId()), anyString(), anyString(), anyString());
+        assertEquals(TrainingAssessmentReviewStatus.PENDING, assessment.getReviewStatus());
+        assertEquals(TrainingAssessmentNotificationStatus.SENT, assessment.getNotificationStatus());
+        var replacement = user("VET-002", "VETERINARIAN");
+        when(access.currentVet("HOR-001", false)).thenReturn(Optional.of(replacement));
+        when(assessments.findByHorseIdAndReviewStatus("HOR-001", TrainingAssessmentReviewStatus.PENDING)).thenReturn(List.of(assessment));
+        service.onVeterinaryAssignmentChanged("HOR-001");
+        verify(notificationService).notifyAndReturnId(eq("VET-002"), eq(TrainingAssessmentNotificationService.REQUEST_TYPE), anyString(), anyString());
+    }
+
+    @Test
+    void normalPendingWithoutVetWaitsForAssignment() {
+        assessment.setReviewStatus(TrainingAssessmentReviewStatus.PENDING);
+        when(access.currentVet("HOR-001", false)).thenReturn(Optional.empty());
+        service.notifyAutomatic(assessment);
+        assertEquals(TrainingAssessmentNotificationStatus.WAITING_FOR_VET_ASSIGNMENT, assessment.getNotificationStatus());
+        assertEquals(TrainingAssessmentReviewStatus.PENDING, assessment.getReviewStatus());
+        when(access.currentVet("HOR-001", false)).thenReturn(Optional.of(vet));
+        service.notifyAutomatic(assessment);
+        assertEquals(TrainingAssessmentNotificationStatus.SENT, assessment.getNotificationStatus());
+    }
+
+    @Test
     void normalCompletionDoesNotNotifyOrCreateReviewHold() {
         service.onAssessmentRecorded(new TrainingAssessmentRecordedEvent(assessment));
         assertEquals(TrainingAssessmentReviewStatus.NOT_REQUIRED, assessment.getReviewStatus());

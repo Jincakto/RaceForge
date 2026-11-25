@@ -57,7 +57,8 @@ public class OversightQueryService {
                 SELECT p.package_id AS [packageId], p.package_name AS [packageName],
                   p.package_type AS [packageType], p.description AS [description],
                   p.duration_days AS [durationDays], p.price AS [price],
-                  p.status AS [status]
+                  p.status AS [status], p.package_family_id AS [packageFamilyId],
+                  p.version_number AS [versionNumber], p.previous_package_id AS [previousPackageId], p.superseded AS [superseded]
                 FROM dbo.TRAINING_PACKAGE p
                 ORDER BY p.created_at DESC, p.package_id DESC
                 """);

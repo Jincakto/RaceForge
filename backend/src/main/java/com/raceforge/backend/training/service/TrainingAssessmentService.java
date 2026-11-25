@@ -111,8 +111,7 @@ public class TrainingAssessmentService {
                 : TrainingAssessmentAlertLevel.NO_ALERT_DETECTED);
         assessment.setAlertLevel(evaluation.alertLevel());
         assessment.setTriggerCodes(evaluation.triggerCodes());
-        assessment.setReviewStatus(evaluation.alertLevel() == TrainingAssessmentAlertLevel.NO_ALERT_DETECTED
-                ? TrainingAssessmentReviewStatus.NOT_REQUIRED : TrainingAssessmentReviewStatus.PENDING);
+        assessment.setReviewStatus(TrainingAssessmentReviewStatus.PENDING);
         assessment.setNotificationStatus(TrainingAssessmentNotificationStatus.NOT_REQUESTED);
         assessment.setAssessor(users.getReferenceById(actorId));
         assessment.setAssessedAt(LocalDateTime.now(clock));
@@ -173,7 +172,7 @@ public class TrainingAssessmentService {
     public void requireNoPendingReview(String horseId) {
         if (hasPendingReview(horseId)) {
             throw new ApiException(HttpStatus.CONFLICT, "PENDING_POST_TRAINING_REVIEW",
-                    "Training is paused until a vet review is completed for this horse.");
+                    "Post-training veterinary examination is pending. The assigned veterinarian must confirm the examination before the next session can start.");
         }
     }
 

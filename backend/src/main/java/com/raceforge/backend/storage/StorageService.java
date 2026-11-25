@@ -57,6 +57,7 @@ public class StorageService {
                 default -> null;
             };
             if (ext == null) throw invalid(document ? "Select a PDF (10 MB) or UTF-8 TXT (1 MB)." : "Select a JPG, PNG or WebP image (5 MB).");
+            if ("pdf".equals(ext)) com.raceforge.backend.horse.service.HorseDocumentTextReader.validatePdfUpload(bytes);
             return new Upload(bytes, type, ext);
         } catch (IOException e) {
             throw invalid("Cannot read file contents.");
@@ -124,6 +125,22 @@ public class StorageService {
             if (response == null || !(response.get("signedURL") instanceof String signed) || !signed.startsWith("/object/sign/"))
                 throw unavailable();
             return url + "/storage/v1" + signed;
+        } catch (RestClientException e) { throw unavailable(); }
+    }
+
+    /** Only server-managed document object keys are accepted; never fetch an owner URL. */
+    public byte[] readDocument(String path) {
+        if (!managed(path) || !path.endsWith(".pdf")) throw invalid("A managed PDF document is required.");
+        if (key.isBlank()) throw unavailable();
+        try {
+            var request = client.get().uri("/object/authenticated/" + DOCUMENTS + "/" + path);
+            if (key.startsWith("eyJ")) request.header("Authorization", "Bearer " + key);
+            return request.exchange((req, response) -> {
+                if (!response.getStatusCode().is2xxSuccessful()) throw unavailable();
+                byte[] bytes = response.getBody().readNBytes(10 * 1024 * 1024 + 1);
+                if (bytes.length > 10 * 1024 * 1024) throw invalid("Document exceeds the reading limit.");
+                return bytes;
+            });
         } catch (RestClientException e) { throw unavailable(); }
     }
 }

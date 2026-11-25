@@ -35,7 +35,7 @@ export function userFromApi(w: Wire): AppUser {
   return { id: w.userId, name: w.fullName, email: w.email, phone: w.phone || '', avatarUrl: w.avatarUrl, password: '', avatar: (w.fullName || '').split(' ').slice(-2).map((x: string) => x[0]).join(''), role, apiRoleId: w.role?.roleId, clubId: role === 'admin' ? null : CENTER, status: w.status === 'ACTIVE' ? 'active' : 'pending', verified: w.emailVerified, locked: w.status === 'INACTIVE' };
 }
 export function packageFromApi(w: Wire): TrainingPackage {
-  return { id: w.packageId, name: w.packageName, description: w.description || '', sessions: 0, durationDays: w.durationDays, price: Number(w.price), active: w.status === 'ACTIVE', packageType: w.packageType };
+  return { id: w.packageId, packageFamilyId: w.packageFamilyId, versionNumber: w.versionNumber, previousPackageId: w.previousPackageId, superseded: w.superseded, name: w.packageName, description: w.description || '', sessions: 0, durationDays: w.durationDays, price: Number(w.price), active: w.status === 'ACTIVE', packageType: w.packageType };
 }
 const HEALTH: Record<string, Horse['healthStatus']> = { READY: 'Eligible', FIT: 'Eligible', FIT_WITH_MONITORING: 'Monitor', NOT_FIT: 'Injured', INJURED: 'Injured', MONITOR: 'Monitor', RETIRED: 'Retired' };
 export function horseFromApi(w: Wire, users: AppUser[]): Horse {
@@ -60,6 +60,9 @@ export function horseFromApi(w: Wire, users: AppUser[]): Horse {
     lifecycle: w.trainingLocked ? 'locked' : !approved ? 'pending' : trainers.length ? 'training' : 'ready',
     lock: w.trainingLocked ? { reason: "Training locked according to the medical record", notes: '', lockedAt: '', lockedById: '', lockedByName: '' } : null,
     admissionStatus: w.admissionStatus,
+    admissionNote: w.admissionNote || '',
+    admissionSubmittedAt: w.admissionSubmittedAt,
+    screeningStatus: w.screeningStatus || 'PENDING', screeningReason: w.screeningReason || '',
   };
 }
 export function horsePayload(h: Horse) {
@@ -113,7 +116,7 @@ export function medicalPayload(rec: HealthRecord, profileId: string) {
   };
 }
 export function enrollmentFromApi(w: Wire, packages: TrainingPackage[], horse?: Horse): Enrollment {
-  return { id: w.horsePackageId, horseId: w.horseId, packageId: w.packageId, packageName: w.packageName, sessionsTotal: 0, sessionsDone: 0,
+  return { id: w.horsePackageId, packageVersion: w.packageVersion, packageFamilyId: w.packageFamilyId, pendingExpiresAtUtc: w.pendingExpiresAtUtc, horseId: w.horseId, packageId: w.packageId, packageName: w.packageName, sessionsTotal: 0, sessionsDone: 0,
     status: ['COMPLETED', 'EXPIRED', 'CANCELLED', 'FAILED'].includes(w.status) || w.paymentStatus === 'FAILED' ? 'completed' : w.status === 'PAUSED' ? 'paused' : 'active',
     trainerId: '', trainerName: '', trainerStatus: 'unassigned', assignHistory: [], startedAt: dateText(w.startDate), expiresAt: dateText(w.endDate), amount: Number(w.totalPrice), paidAt: w.paymentStatus === 'PAID' ? dateText(w.registeredAt) : '', paymentMethod: "Simulation", ownerName: horse?.ownerName || '', scheduleConfirmed: false, paymentStatus: w.paymentStatus, apiStatus: w.status,
   };
@@ -272,7 +275,8 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
       const mapped = records.map(w => recordFromApi(w, horse.id, data.users));
       data.healthRecords.push(...mapped);
       const latest = latestConfirmedExam(mapped, horse.id);
-      horse.intakeExamId = mapped.find(r => r.intake && r.status === 'confirmed')?.id;
+      horse.intakeExamId = mapped.find(r => r.intake && r.status === 'confirmed'
+        && (!horse.admissionSubmittedAt || (r.createdAt && r.createdAt >= new Date(horse.admissionSubmittedAt).getTime())))?.id;
       horse.weight = Number(latest?.vitals?.weight || 0);
       if (latest?.decision === 'conditional') horse.healthStatus = 'Monitor';
     }
@@ -280,7 +284,7 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
     horse.raceHistory = raceRows.map(w => ({ id: w.raceHistoryId, date: dateText(w.raceDate), raceName: w.raceName, distance: String(w.distance), position: w.finishPosition, totalHorses: 0, time: w.completionTime || '', venue: w.racecourse || '', jockey: w.jockeyName || '', prize: String(w.prize ?? '') }));
     horse.totalRaces = horse.raceHistory.length; horse.wins = horse.raceHistory.filter(r => r.position === 1).length;
     horse.achievements = horse.raceHistory.filter(r => r.position <= 3).map(r => ({ id: r.id, date: r.date, title: r.raceName, description: r.venue, prize: r.prize, position: r.position }));
-    data.horseClubRequests.push({ id: horse.id, horseId: horse.id, horseName: horse.name, horseBreed: horse.breed, horseImageUrl: horse.imageUrl, ownerId: horse.ownerId, ownerName: horse.ownerName, clubId: CENTER, submittedAt: '', expiresAt: '', status: horse.approvalStatus, reviewNote: '' });
+    if (horse.admissionStatus !== 'NOT_SUBMITTED' || horse.screeningStatus === 'NEEDS_CORRECTION') data.horseClubRequests.push({ id: horse.id, horseId: horse.id, horseName: horse.name, horseBreed: horse.breed, horseImageUrl: horse.imageUrl, ownerId: horse.ownerId, ownerName: horse.ownerName, clubId: CENTER, submittedAt: '', expiresAt: '', status: horse.approvalStatus, reviewNote: horse.approvalStatus === 'rejected' ? horse.admissionNote || horse.screeningReason || '' : horse.screeningReason || '' });
     if (['manager', 'owner'].includes(user.role || '')) {
       const packs = await read(`Package ${horse.id}`, () => listHorsePackages(horse.id, user.role === 'manager'), []);
       data.enrollments.push(...packs.map(w => enrollmentFromApi(w, data.packages, horse)));

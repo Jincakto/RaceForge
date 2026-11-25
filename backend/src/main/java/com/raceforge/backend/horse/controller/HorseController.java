@@ -5,6 +5,7 @@ import com.raceforge.backend.common.response.ApiResponse;
 import com.raceforge.backend.horse.dto.HorseCreateRequest;
 import com.raceforge.backend.horse.dto.HorseResponse;
 import com.raceforge.backend.horse.dto.HorseUpdateRequest;
+import com.raceforge.backend.horse.dto.UelnCheckResponse;
 import com.raceforge.backend.horse.service.HorseAccess;
 import com.raceforge.backend.horse.service.HorseService;
 import com.raceforge.backend.security.AuthenticatedUser;
@@ -60,6 +61,13 @@ public class HorseController {
         List<HorseResponse> horses = horseService.searchHorses(keyword, id -> horseAccess.read(authentication, id));
 
         return ResponseEntity.ok(ApiResponse.success("Horses retrieved successfully", horses));
+    }
+
+    @GetMapping("/check-ueln")
+    @PreAuthorize("hasAuthority('HORSE_OWNER')")
+    public ResponseEntity<ApiResponse<UelnCheckResponse>> checkUeln(@RequestParam String ueln) {
+        var result = horseService.checkUeln(ueln);
+        return ResponseEntity.ok(ApiResponse.success(result.message(), result));
     }
 
     @GetMapping("/{horseId}")

@@ -61,6 +61,11 @@ public class HorsePackage extends com.raceforge.backend.training.entity.Training
     @Column(name = "remaining_days")
     private Integer remainingDays;
 
+    @Column(name="pending_expires_at_utc")
+    private java.time.Instant pendingExpiresAtUtc;
+    public java.time.Instant getPendingExpiresAtUtc(){return pendingExpiresAtUtc;}
+    public void setPendingExpiresAtUtc(java.time.Instant value){pendingExpiresAtUtc=value;}
+
     @PrePersist
     protected void onCreate() {
         if (registeredAt == null) {

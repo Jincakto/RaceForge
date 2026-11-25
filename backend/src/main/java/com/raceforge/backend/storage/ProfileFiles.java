@@ -41,7 +41,8 @@ public class ProfileFiles {
     public void horseFile(String id, String owner, MultipartFile file, boolean document) {
         Horse horse = db.find(Horse.class, id, LockModeType.PESSIMISTIC_WRITE);
         if (horse == null) throw new ResourceNotFoundException("Horse not found");
-        if (!horse.getOwner().getUserId().equals(owner) || "APPROVED".equals(horse.getAdmissionStatus()))
+        if (!horse.getOwner().getUserId().equals(owner) || "APPROVED".equals(horse.getAdmissionStatus())
+                || "PENDING".equals(horse.getAdmissionStatus()))
             throw new BusinessRuleException("You cannot change files on this horse profile.");
         var upload = storage.validate(file, document);
         if (document) horse.setDocumentUrl(storage.replace(StorageService.DOCUMENTS, upload, horse.getDocumentUrl()));

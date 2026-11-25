@@ -13,6 +13,8 @@ public record TrainingPackageResponse(
         String status,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
-        PackageRoadmapDto roadmapTemplate
+        PackageRoadmapDto roadmapTemplate,
+        String packageFamilyId, Integer versionNumber, String previousPackageId, boolean superseded
         ) {
+    public TrainingPackageResponse(String id,String name,String type,String description,Integer days,BigDecimal price,String status,LocalDateTime created,LocalDateTime updated,PackageRoadmapDto roadmap){this(id,name,type,description,days,price,status,created,updated,roadmap,id,1,null,false);}
 }

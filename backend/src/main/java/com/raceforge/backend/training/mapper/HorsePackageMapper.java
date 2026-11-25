@@ -23,7 +23,8 @@ public class HorsePackageMapper {
                 // entity.getPaidAt(), // Removed with paid_at in V5.
                 entity.getStartDate(),
                 entity.getEndDate(),
-                displayedRemainingDays(entity));
+                displayedRemainingDays(entity), entity.getTrainingPackage().getVersionNumber(),
+                entity.getTrainingPackage().getPackageFamilyId(),entity.getPendingExpiresAtUtc());
     }
 
     /** ACTIVE counts down live; PAUSED shows frozen days; terminal registrations have no usable days. */

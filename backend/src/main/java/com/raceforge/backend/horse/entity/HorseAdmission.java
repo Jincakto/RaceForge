@@ -19,6 +19,36 @@ public class HorseAdmission {
     @Column(name = "status", nullable = false, length = 50)
     private String status = "NOT_SUBMITTED";
 
+    @Column(name = "screening_status", nullable = false, length = 30)
+    private String screeningStatus = "PENDING";
+    @Column(name = "screened_by", length = 20)
+    private String screenedBy;
+    @Column(name = "screened_at")
+    private LocalDateTime screenedAt;
+    // Public instructions for the owner, never an external verification report.
+    @Column(name = "screening_reason", length = 1000)
+    private String screeningReason;
+    @Column(name = "submitted_at")
+    private LocalDateTime submittedAt;
+    public LocalDateTime getSubmittedAt() { return submittedAt; }
+    public void setSubmittedAt(LocalDateTime value) { submittedAt = value; }
+
+    public String getScreeningStatus() { return screeningStatus; }
+    public void setScreeningStatus(String value) { screeningStatus = value; }
+    public String getScreenedBy() { return screenedBy; }
+    public void setScreenedBy(String value) { screenedBy = value; }
+    public LocalDateTime getScreenedAt() { return screenedAt; }
+    public void setScreenedAt(LocalDateTime value) { screenedAt = value; }
+    public String getScreeningReason() { return screeningReason; }
+    public void setScreeningReason(String value) { screeningReason = value; }
+
+    public void resetScreening() {
+        screeningStatus = "PENDING";
+        screenedBy = null;
+        screenedAt = null;
+        screeningReason = null;
+    }
+
     // These columns are VARCHAR(20) in the agreed DB. Do not add duplicate
     // medical/user entities here until their IDs are synchronized to String.
     @Column(name = "medical_record_id", length = 20)

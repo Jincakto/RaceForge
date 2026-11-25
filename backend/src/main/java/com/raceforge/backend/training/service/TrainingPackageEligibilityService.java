@@ -62,6 +62,7 @@ public class TrainingPackageEligibilityService {
         var history = registrations.findByHorseIdOrderByRegisteredAtDesc(horse.getHorseId());
         // GET does not run expiry or write registration state. POST runs expiry under its horse lock.
         if (history.stream().anyMatch(p -> Set.of("PENDING", "ACTIVE", "PAUSED").contains(p.getStatus())
+                && !("PENDING".equals(p.getStatus()) && p.getPendingExpiresAtUtc()!=null && !java.time.Instant.now().isBefore(p.getPendingExpiresAtUtc()))
                 && !("ACTIVE".equals(p.getStatus()) && p.getEndDate() != null && p.getEndDate().isBefore(today))))
             reasons.add(new Reason("EXISTING_PACKAGE", "Horse already has a pending or ongoing package"));
 

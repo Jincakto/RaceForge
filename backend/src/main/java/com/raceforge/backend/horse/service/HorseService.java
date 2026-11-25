@@ -4,6 +4,7 @@ import com.raceforge.backend.audit.service.AuditLogService;
 import com.raceforge.backend.horse.dto.HorseCreateRequest;
 import com.raceforge.backend.horse.dto.HorseResponse;
 import com.raceforge.backend.horse.dto.HorseUpdateRequest;
+import com.raceforge.backend.horse.dto.UelnCheckResponse;
 import com.raceforge.backend.horse.entity.Horse;
 import com.raceforge.backend.horse.mapper.HorseMapper;
 import com.raceforge.backend.horse.repository.HorseRepository;
@@ -35,6 +36,23 @@ public class HorseService {
         this.userRepository = userRepository;
         this.horseMapper = horseMapper;
         this.auditLogService = auditLogService;
+    }
+
+    @Transactional(readOnly = true)
+    public UelnCheckResponse checkUeln(String value) {
+        final String ueln;
+        try {
+            ueln = UelnValidator.normalizeFormat(value);
+        } catch (BusinessRuleException invalidFormat) {
+            return new UelnCheckResponse(false, false, false, invalidFormat.getMessage());
+        }
+        if (!UelnValidator.hasSupportedPrefix(ueln)) {
+            return new UelnCheckResponse(true, false, false,
+                    "This UELN prefix is not supported. Please check the issuing organization.");
+        }
+        boolean exists = horseRepository.existsByRegistrationNumberIgnoreCase(ueln);
+        return new UelnCheckResponse(true, true, exists,
+                exists ? "This UELN is already registered." : "");
     }
 
     @org.springframework.transaction.annotation.Transactional
@@ -109,8 +127,12 @@ public class HorseService {
     @org.springframework.transaction.annotation.Transactional
     public HorseResponse updateHorse(String horseId, String actorId, HorseUpdateRequest request) {
 
-        Horse horse = findHorseById(horseId);
+        Horse horse = horseRepository.findByIdForUpdate(horseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Horse not found"));
 
+        if ("PENDING".equals(horse.getAdmissionStatus())) {
+            throw new BusinessRuleException("Submitted profiles cannot be edited; the manager must return the profile for correction");
+        }
         if ("APPROVED".equals(horse.getAdmissionStatus())) {
             throw new BusinessRuleException("Approved horse registration details cannot be modified");
         }

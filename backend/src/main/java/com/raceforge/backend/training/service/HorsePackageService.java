@@ -67,8 +67,16 @@ public class HorsePackageService {
         LocalDate registrationToday = LocalDate.now(trainingClock);
         expirationService.expireForLockedHorse(horse, registrationToday);
 
-        TrainingPackage trainingPackage = trainingPackageRepository.findById(request.packageId())
+        // Retry the same still-valid registration after a lost HTTP response, including a retired version.
+        for(var pending:horsePackageRepository.findByHorseIdOrderByRegisteredAtDesc(horse.getHorseId())){
+            if("PENDING".equals(pending.getStatus()) && "PENDING".equals(pending.getPaymentStatus())
+                    && request.packageId().equals(pending.getTrainingPackage().getPackageId())
+                    && (pending.getPendingExpiresAtUtc()==null || java.time.Instant.now().isBefore(pending.getPendingExpiresAtUtc()))) return mapper.toResponse(pending);
+        }
+        TrainingPackage trainingPackage = trainingPackageRepository.findByIdForUpdate(request.packageId())
                 .orElseThrow(() -> new ResourceNotFoundException("Training package not found: " + request.packageId()));
+        entityManager.refresh(trainingPackage,LockModeType.PESSIMISTIC_WRITE);
+        if(!"ACTIVE".equals(trainingPackage.getStatus()) || trainingPackage.isSuperseded()) throw new BusinessRuleException("This package version is no longer available. Refresh the catalogue.");
         eligibility.requireEligible(horse, trainingPackage, registrationToday);
         if (!java.util.Set.of("BASIC", "RACING", "PERFORMANCE").contains(trainingPackage.getPackageType())) {
             throw new BusinessRuleException("Unsupported training package type");
@@ -79,6 +87,7 @@ public class HorsePackageService {
         registration.setHorse(horse);
         registration.setTrainingPackage(trainingPackage);
         registration.setTotalPrice(trainingPackage.getPrice());
+        registration.setPendingExpiresAtUtc(java.time.Instant.now().plusSeconds(1800));
         registration.setStatus("PENDING");
         registration.setPaymentStatus("PENDING");
         HorsePackage saved = horsePackageRepository.saveAndFlush(registration);
@@ -91,6 +100,11 @@ public class HorsePackageService {
 
     @Transactional
     public HorsePackageResponse applyPayment(String registrationId, boolean successful, String ownerId) {
+        return applyVerifiedPayment(registrationId, successful, ownerId, null);
+    }
+
+    @Transactional
+    public HorsePackageResponse applyVerifiedPayment(String registrationId,boolean successful,String ownerId,java.time.Instant paidAt){
         requireOwnerId(ownerId);
 
         HorsePackage registration = horsePackageRepository.findById(registrationId)
@@ -98,7 +112,7 @@ public class HorsePackageService {
         Horse horse = horseRepository.findById(registration.getHorse().getHorseId())
                 .orElseThrow(() -> new ResourceNotFoundException("Horse not found"));
         entityManager.refresh(horse, LockModeType.PESSIMISTIC_WRITE);
-        entityManager.lock(registration, LockModeType.PESSIMISTIC_WRITE);
+        entityManager.refresh(registration, LockModeType.PESSIMISTIC_WRITE);
         checkOwnership(horse, ownerId);
         requireApprovedAdmission(horse);
         expirationService.expireForLockedHorse(horse, LocalDate.now(trainingClock));
@@ -106,6 +120,11 @@ public class HorsePackageService {
             throw new BusinessRuleException("Unsupported training package type");
         }
 
+        if(successful && "PAID".equals(registration.getPaymentStatus())) return mapper.toResponse(registration);
+        if(successful && registration.getPendingExpiresAtUtc()!=null){
+            if(paidAt==null || paidAt.isAfter(registration.getPendingExpiresAtUtc())) throw new BusinessRuleException("Payment needs reconciliation: missing or late payment time.");
+            if("EXPIRED".equals(registration.getStatus()) && "PENDING".equals(registration.getPaymentStatus())) registration.setStatus("PENDING");
+        }
         if (!"PENDING".equals(registration.getStatus()) || !"PENDING".equals(registration.getPaymentStatus())) {
             throw new BusinessRuleException("This registration is not awaiting payment");
         }
@@ -127,9 +146,7 @@ public class HorsePackageService {
         if (Boolean.TRUE.equals(horse.getTrainingLocked()) || !"READY".equalsIgnoreCase(horse.getHealthStatus())) {
             throw new BusinessRuleException("Horse is no longer eligible for normal training");
         }
-        if (!"ACTIVE".equals(registration.getTrainingPackage().getStatus())) {
-            throw new BusinessRuleException("Training package is no longer available");
-        }
+
         if (horsePackageRepository.existsByHorse_HorseIdAndStatusIn(
                 horse.getHorseId(), List.of("ACTIVE", "PAUSED"))) {
             throw new BusinessRuleException("Horse already has an active or paused package");

@@ -1,6 +1,7 @@
+import { updateTrainingPackage, toggleTrainingPackage } from '../features/packages/api/packagesApi';
 import { getPackageRegistration, getPackageTrainingContext, changePackageLifecycle, registerHorsePackage, createPackagePaymentLink, syncPackagePayment, listHorsePackages, createTrainingPackage, acceptTrainingResumption } from "../features/packages/api/packagesApi";
 import { getHorseHealthProfile, saveMedicalDraft, uploadClinicalEvidence, confirmMedicalRecord, getMedicalRecord, assignVeterinarian, respondToVetAssignment, releaseTrainingLock } from "../features/medical/api/medicalApi";
-import { createHorse, createRaceHistory, submitAdmission, updateHorse, deleteRaceHistory, updateRaceHistory, activateHorse, approveAdmission, rejectAdmission } from "../features/horses/api/horsesApi";
+import { createHorse, createRaceHistory, submitAdmission, updateHorse, deleteRaceHistory, updateRaceHistory, activateHorse, approveAdmission, rejectAdmission, screenAdmission, uploadHorseEvidence, type ScreeningDecision } from "../features/horses/api/horsesApi";
 import { createStaffAccount, updateAccountStatus, resendStaffInvitation } from "../features/admin/api/adminApi";
 import { assignTrainer, respondToTrainerAssignment } from "../features/trainers/api/trainersApi";
 import { createTrainingPlan, listTrainingPlanStages, listHorseTrainingSessions, createTrainingSession, adjustTrainingSession, generateTrainingSessions, startTrainingSession, saveSessionAttendance, stopTrainingSession, completeTrainingSession, requestSessionVetCheck } from "../features/training/api/trainingApi";
@@ -218,6 +219,7 @@ export function makeRemoteActions(env: Env) {
       if (!horse || horse.approvalStatus !== 'approved') throw new Error("Horse admission must be approved before activation.");
       await activateHorse(id);
     }, "Horse activated. Health and training lock requirements still apply when registering for a package."),
+    screenHorse: (id: string, decision: ScreeningDecision, reason?: string) => fire(`screen-${id}`, () => screenAdmission(id, decision, reason), 'Screening decision recorded.'),
     submitHorse: (id: string) => fire(`submit-${id}`, () => submitAdmission(id)),
     approveHorse: (id: string) => fire(`review-${id}`, async () => {
       await approveAdmission(id, { note: "Examination records and supporting evidence reviewed." });
@@ -254,12 +256,17 @@ export function makeRemoteActions(env: Env) {
     toggleLock: (id: string, reason: string) => fire(`account-${id}`, () => updateAccountStatus(id, { status: getState().users.find(u => u.id === id)?.locked ? 'ACTIVE' : 'INACTIVE', reason })),
     invite: (id: string, _reason: string) => fire(`invite-${id}`, () => resendStaffInvitation(id), "Password setup invitation email resent."),
     // PayOS: create the registration (or reuse an unpaid one) and request a payment link.
-    async startPayment(horseId: string, packageId: string): Promise<Res<{ enrollmentId: string; url: string; orderCode: number }>> {
+    async startPayment(horseId: string, packageId: string, enrollmentId?: string): Promise<Res<{ enrollmentId: string; url: string; orderCode: number }>> {
       return result(`purchase-${horseId}`, async () => {
         const state = getState();
-        const pending = state.enrollments.find(e => e.horseId === horseId && e.packageId === packageId && e.paymentStatus === 'PENDING');
+        const pending = enrollmentId ? state.enrollments.find(e => e.id === enrollmentId && e.horseId === horseId && e.packageId === packageId)
+          : state.enrollments.find(e => e.horseId === horseId && e.packageId === packageId && e.apiStatus === 'PENDING' && e.paymentStatus === 'PENDING' && (!e.pendingExpiresAtUtc || Date.parse(e.pendingExpiresAtUtc) > Date.now()));
+        if(enrollmentId && !pending) throw new Error('Registration not found. Refresh the page.');
         const registered = pending ? { horsePackageId: pending.id } : await registerHorsePackage({ horseId, packageId });
         const payment = await createPackagePaymentLink(registered.horsePackageId);
+        if(payment.reviewRequired || (payment.paymentState === 'PAID' && !payment.applied)) throw new Error('Payment received and awaiting manager review. ' + (payment.applicationError || ''));
+        if(payment.paymentState === 'CANCELLED') throw new Error('This payment link is cancelled. Refresh the registration list.');
+        if(payment.paymentState === 'PAID' && payment.applied) throw new Error('This registration is already paid and activated. Refresh the registration list.');
         if (!payment?.checkoutUrl) throw new Error("PayOS did not return a payment link. Please try again.");
         return { enrollmentId: registered.horsePackageId as string, url: payment.checkoutUrl as string, orderCode: payment.orderCode as number };
       });
@@ -267,7 +274,8 @@ export function makeRemoteActions(env: Env) {
     // Ask BE to sync the PayOS state, then read the package back so PAID comes from BE only.
     async syncPayment(horseId: string, enrollmentId: string): Promise<Res<Enrollment>> {
       return result(`payment-sync-${enrollmentId}`, async () => {
-        await syncPackagePayment(enrollmentId);
+        const payment = await syncPackagePayment(enrollmentId);
+        if(payment.reviewRequired || (payment.paymentState === 'PAID' && !payment.applied)) throw new Error('Payment received, but package activation requires manager review. ' + (payment.applicationError || 'Please contact the club manager.'));
         const packs = await listHorsePackages(horseId) as Array<{ horsePackageId: string }>;
         const w = packs.find(p => p.horsePackageId === enrollmentId);
         if (!w) throw new Error("Registration not found after payment check.");
@@ -276,12 +284,12 @@ export function makeRemoteActions(env: Env) {
       });
     },
     savePackage: (draft: PackageDraft) => result<TrainingPackage>('package', async () => {
-      if (draft.id) unavailable("editing training packages");
+
       const errors = validatePackage(draft, getState().packages);
       if (Object.keys(errors).length) throw new Error(Object.values(errors).join(' '));
-      return packageFromApi(await createTrainingPackage({ packageName: draft.name.trim(), packageType: draft.packageType, description: draft.description, durationDays: draft.durationDays, price: draft.price, roadmapTemplate: draft.roadmapTemplate }));
+      return packageFromApi(await (draft.id ? (body: Parameters<typeof createTrainingPackage>[0]) => updateTrainingPackage(draft.id!, body) : createTrainingPackage)({ packageName: draft.name.trim(), packageType: draft.packageType, description: draft.description, durationDays: draft.durationDays, price: draft.price, roadmapTemplate: draft.roadmapTemplate }));
     }),
-    togglePackage: (_id: string, _active: boolean) => result<TrainingPackage>('package-status', async () => unavailable("enabling or disabling training packages")),
+    togglePackage: (id: string, active: boolean) => result<TrainingPackage>('package-status', async () => packageFromApi(await toggleTrainingPackage(id,active))),
     assignTrainer: (enrollmentId: string, userId: string, reason = '') => result<Enrollment>(`assign-${enrollmentId}`, async () => {
       const state = getState(); const e = state.enrollments.find(e => e.id === enrollmentId); if (!e) throw new Error("Package not found.");
       if (e.directAssignmentId || e.apiStatus !== 'ACTIVE' || e.paymentStatus !== 'PAID') throw new Error("Select an active, paid horse package before assigning a trainer.");

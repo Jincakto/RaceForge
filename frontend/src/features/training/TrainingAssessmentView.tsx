@@ -52,7 +52,7 @@ function TrainingAssessmentBanner({ result, preview = false, criteria = ASSESSME
     <p className="mt-2 text-sm leading-6">
       {preview
         ? result.alertLevel === 'NO_ALERT_DETECTED'
-          ? 'No automatic vet notification is expected. The final result is confirmed when you save.'
+          ? 'Saving will request a veterinary examination and pause new training starts until the vet confirms the examination.'
           : 'Saving this check will notify the care team and pause new training starts for this horse.'
         : result.alertLevel === 'NO_ALERT_DETECTED'
           ? 'No alert was detected in the recorded observations. This is not a veterinary clearance.'
@@ -73,7 +73,9 @@ export function TrainingAssessmentPreview({ answers, criteria }: { answers: Asse
 
 /** Controlled checklist. A missing answer never means Pass or Concern observed. */
 export function TrainingAssessmentForm({ answers, onChange, template, loading = false, error = '',
-  onRetry, disabled = false }: {
+  onRetry, disabled = false, failNotes = {}, onFailNotesChange }: {
+  failNotes?: Record<string, string>;
+  onFailNotesChange?: (notes: Record<string, string>) => void;
   answers: AssessmentAnswers;
   onChange: (answers: AssessmentAnswers) => void;
   template: TrainingAssessmentTemplateResponse | null;
@@ -92,7 +94,7 @@ export function TrainingAssessmentForm({ answers, onChange, template, loading = 
         <h4 id={id + '-heading'} className="text-base font-semibold text-[#1a2844]">Post-Training Performance Assessment</h4>
         <p aria-live="polite" aria-atomic="true" className="text-sm font-medium tabular-nums text-slate-600">{completed} of 10 checks completed</p>
       </div>
-      <p className="mt-1 text-sm leading-6 text-slate-600">Evaluate the horse's performance during this session. Choose Pass or Concern observed for every check.</p>
+      <p className="mt-1 text-sm leading-6 text-slate-600">Trainer observations, not a veterinary diagnosis. Mark Pass only when the described task was observed for this session; otherwise record the concern and its reason. Every completed session requires a veterinary examination.</p>
       <div role="progressbar" aria-label="Performance checks completed" aria-valuenow={completed} aria-valuemin={0} aria-valuemax={10}
         className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
         <div className="h-full rounded-full bg-[#a4782c] transition-[width] motion-reduce:transition-none" style={{ width: `${completed * 10}%` }} />
@@ -128,6 +130,11 @@ export function TrainingAssessmentForm({ answers, onChange, template, loading = 
             })}
           </div>
         </div>
+        {answers[criterion.code] === false && <label className="mt-3 block text-sm">Observation reason (required)
+          <textarea required maxLength={1000} rows={2} value={failNotes[criterion.code] || ''} disabled={locked}
+            onChange={event => onFailNotesChange?.({ ...failNotes, [criterion.code]: event.target.value })}
+            className="mt-1 block w-full rounded-lg border border-slate-300 p-2" />
+        </label>}
       </fieldset>)}
     </div>
     <TrainingAssessmentPreview answers={answers} criteria={criteria} />
@@ -205,12 +212,13 @@ export function TrainingAssessmentReadOnly({ assessment, overallNotes = '', canR
     </div>
     <ul aria-label="Recorded performance checks" className="divide-y divide-slate-200 border-y border-slate-200">
       {assessment.items.map(item => <li key={item.code} className="flex items-start justify-between gap-3 py-3 text-sm">
-        <span className="min-w-0 break-words leading-6 text-slate-700">{item.label || ASSESSMENT_CRITERIA.find(criterion => criterion.code === item.code)?.label || 'Performance observation'}</span>
+        <span className="min-w-0 break-words leading-6 text-slate-700">{item.label || ASSESSMENT_CRITERIA.find(criterion => criterion.code === item.code)?.label || 'Performance observation'}{item.failNote && <span className="mt-1 block whitespace-pre-wrap text-slate-600">{item.failNote}</span>}</span>
         <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${item.passed ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'}`}>{item.passed ? 'Pass' : 'Concern observed'}</span>
       </li>)}
     </ul>
+    {assessment.reviewStatus === 'PENDING' && <TrainingPendingReviewBanner />}
     {overallNotes.trim() && <div><h4 className="text-sm font-semibold text-[#1a2844]">Overall notes</h4><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">{overallNotes.trim()}</p></div>}
-    {normal && !requested && canRequest && onRequestVetCheck && !requestOpen && <div className="flex flex-col gap-2 sm:items-start">
+    {normal && assessment.reviewStatus === 'NOT_REQUIRED' && !requested && canRequest && onRequestVetCheck && !requestOpen && <div className="flex flex-col gap-2 sm:items-start">
       <button type="button" onClick={() => setRequestOpen(true)} className={actionClass + ' border-slate-300 bg-white text-[#1a2844] hover:bg-slate-50'}>Request a Vet Check</button>
       <p className="text-xs leading-5 text-slate-500">A manual request does not create a training pause.</p>
     </div>}

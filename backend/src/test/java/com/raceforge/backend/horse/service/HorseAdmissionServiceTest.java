@@ -11,6 +11,7 @@ import com.raceforge.backend.medical.entity.HealthProfile;
 import com.raceforge.backend.medical.entity.MedicalRecord;
 import com.raceforge.backend.medical.repository.HealthProfileRepository;
 import com.raceforge.backend.medical.repository.MedicalRecordRepository;
+import com.raceforge.backend.notification.service.NotificationService;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -26,9 +27,10 @@ class HorseAdmissionServiceTest {
     private final HealthProfileRepository profiles = mock(HealthProfileRepository.class);
     private final MedicalRecordRepository medicalRecords = mock(MedicalRecordRepository.class);
     private final AuditLogService audit = mock(AuditLogService.class);
+    private final NotificationService notifications = mock(NotificationService.class);
 
     private final HorseAdmissionService service = new HorseAdmissionService(
-            horses, new HorseMapper(), profiles, medicalRecords, audit
+            horses, new HorseMapper(), profiles, medicalRecords, audit, notifications
     );
 
     private Horse horse(String admissionStatus) {
@@ -95,6 +97,7 @@ class HorseAdmissionServiceTest {
     @Test
     void approvalNeedsConfirmedInitialExam() {
         Horse horse = horse("PENDING");
+        horse.getAdmission().setScreeningStatus("PASSED");
         HealthProfile profile = new HealthProfile();
         profile.setProfileId("HLT-005");
         when(profiles.findByHorse_HorseId("HOR-014")).thenReturn(Optional.of(profile));
@@ -109,6 +112,7 @@ class HorseAdmissionServiceTest {
     @Test
     void approvalDoesNotRequireHealthClearanceOrCreateNewProfile() {
         Horse horse = horse("PENDING");
+        horse.getAdmission().setScreeningStatus("PASSED");
         confirmedInitialExam("NOT_FIT");
 
         service.review("HOR-014", "1", true, "Documents verified");
@@ -137,5 +141,70 @@ class HorseAdmissionServiceTest {
         horse("APPROVED");
         assertThrows(BusinessRuleException.class,
                 () -> service.review("HOR-014", "1", true, ""));
+    }
+
+    @Test
+    void screeningPassDoesNotAdmitOrChangeMedicalState() {
+        Horse horse = horse("PENDING");
+        service.screen("HOR-014", "1", "PASSED", "Documents reviewed manually");
+        assertEquals("PENDING", horse.getAdmissionStatus());
+        assertEquals("PASSED", horse.getAdmission().getScreeningStatus());
+        assertEquals("1", horse.getAdmission().getScreenedBy());
+        assertNotNull(horse.getAdmission().getScreenedAt());
+        assertEquals("INACTIVE", horse.getStatus());
+        assertNull(horse.getHealthStatus());
+        verifyNoInteractions(profiles, medicalRecords);
+    }
+
+    @Test
+    void returnThenResubmitClearsPreviousScreening() {
+        Horse horse = horse("PENDING");
+        service.screen("HOR-014", "1", "NEEDS_CORRECTION", "Please provide a readable passport.");
+        assertEquals("NOT_SUBMITTED", horse.getAdmissionStatus());
+        assertEquals("NEEDS_CORRECTION", horse.getAdmission().getScreeningStatus());
+        service.submit("HOR-014", "7");
+        assertEquals("PENDING", horse.getAdmissionStatus());
+        assertEquals("PENDING", horse.getAdmission().getScreeningStatus());
+        assertNull(horse.getAdmission().getScreenedBy());
+        assertNull(horse.getAdmission().getScreenedAt());
+        assertNull(horse.getAdmission().getScreeningReason());
+        verify(notifications).notify(eq("7"), eq("HORSE_SCREENING_NEEDS_CORRECTION"), anyString(), anyString());
+    }
+
+    @Test
+    void canRejectBeforeVetAndCannotScreenTwice() {
+        Horse horse = horse("PENDING");
+        service.screen("HOR-014", "1", "REJECTED", "Required documentation was not supplied.");
+        assertEquals("REJECTED", horse.getAdmissionStatus());
+        assertEquals("REJECTED", horse.getAdmission().getScreeningStatus());
+        assertThrows(BusinessRuleException.class, () -> service.screen("HOR-014", "1", "PASSED", ""));
+        verifyNoInteractions(profiles, medicalRecords);
+    }
+
+    @Test
+    void correctionAndRejectionNeedPublicReason() {
+        Horse horse = horse("PENDING");
+        for (String decision : List.of("NEEDS_CORRECTION", "REJECTED", "INVALID")) {
+            assertThrows(BusinessRuleException.class, () -> service.screen("HOR-014", "1", decision, " "));
+        }
+        assertEquals("PENDING", horse.getAdmission().getScreeningStatus());
+    }
+
+    @Test
+    void confirmedExamCannotBypassScreening() {
+        horse("PENDING");
+        confirmedInitialExam("FIT");
+        assertThrows(BusinessRuleException.class, () -> service.review("HOR-014", "1", true, ""));
+        verifyNoInteractions(notifications);
+    }
+
+    @Test
+    void resubmissionCannotReuseAnExamFromThePreviousProfile() {
+        Horse horse = horse("REJECTED");
+        confirmedInitialExam("FIT");
+        service.submit("HOR-014", "7");
+        service.screen("HOR-014", "1", "PASSED", "Documents reviewed");
+        assertThrows(BusinessRuleException.class, () -> service.review("HOR-014", "1", true, ""));
+        assertEquals("PENDING", horse.getAdmissionStatus());
     }
 }

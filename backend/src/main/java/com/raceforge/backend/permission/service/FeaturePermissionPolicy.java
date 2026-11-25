@@ -61,7 +61,8 @@ public class FeaturePermissionPolicy {
                 && (path.equals("/api/horses") || path.matches("/api/horses/[^/]+/admission")))
             return "REGISTER_HORSE";
         if ("CLUB_MANAGER".equals(role)
-                && ((post && path.matches("/api/horses/[^/]+/admission/(approve|reject)"))
+                && ((post && path.matches("/api/horses/[^/]+/admission/(approve|reject|screening)"))
+                    || (get && path.matches("/api/horses/[^/]+/admission/document-review"))
                     || ("PATCH".equals(method) && path.matches("/api/horses/[^/]+/(activate|deactivate)"))))
             return "MANAGE_HORSE_INTAKE";
         if ("CLUB_MANAGER".equals(role) && edit
@@ -84,10 +85,11 @@ public class FeaturePermissionPolicy {
             return "MANAGE_VET_ASSIGNMENTS";
         if ("HORSE_OWNER".equals(role) && post && path.equals("/api/horse-packages/register"))
             return "REGISTER_TRAINING_PACKAGE";
-        if ((get || post) && (path.equals("/api/training-packages") || path.startsWith("/api/training-packages/"))) {
+        if ((get || post || "PUT".equals(method) || "PATCH".equals(method)) && (path.equals("/api/training-packages") || path.startsWith("/api/training-packages/"))) {
             if ("CLUB_MANAGER".equals(role)) return "MANAGE_PACKAGE_CATALOG";
             if (get && "HORSE_OWNER".equals(role)) return "REGISTER_TRAINING_PACKAGE";
         }
+        if ("CLUB_MANAGER".equals(role) && path.startsWith("/api/payments/payos/reconciliation")) return "MANAGE_PACKAGE_CATALOG";
         // CARE_TASKS, VIEW_INVENTORY, VIEW_PERFORMANCE and VIEW_STAFF
         // affect UI visibility only: their current APIs do not provide a distinct
         // independent operation that can safely be protected without refactoring.

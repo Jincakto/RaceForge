@@ -36,6 +36,13 @@ public class TrainingPackageController {
         return ResponseEntity.ok(ApiResponse.success("All packages retrieved", service.getAllPackages()));
     }
 
+    @PreAuthorize("hasAuthority('CLUB_MANAGER')")
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<TrainingPackageResponse>> update(@PathVariable String id,@Valid @RequestBody TrainingPackageUpdateRequest request){return ResponseEntity.ok(ApiResponse.success("Package saved",service.update(id,request)));}
+    @PreAuthorize("hasAuthority('CLUB_MANAGER')")
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<TrainingPackageResponse>> status(@PathVariable String id,@Valid @RequestBody TrainingPackageStatusRequest request){return ResponseEntity.ok(ApiResponse.success("Package status saved",service.changeStatus(id,request)));}
+
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<TrainingPackageResponse>> get(@PathVariable @jakarta.validation.constraints.Pattern(regexp = "PKG-[0-9]{3}", message = "Package ID must use PKG-XXX format") String id) {
         return ResponseEntity.ok(ApiResponse.success("Package retrieved", service.getPackage(id)));

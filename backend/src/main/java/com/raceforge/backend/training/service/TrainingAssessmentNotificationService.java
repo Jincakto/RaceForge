@@ -74,11 +74,11 @@ public class TrainingAssessmentNotificationService {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void notifyAutomatic(TrainingSessionAssessment assessment) {
-        if (assessment.getAlertLevel() == TrainingAssessmentAlertLevel.NO_ALERT_DETECTED
-                || assessment.getReviewStatus() != TrainingAssessmentReviewStatus.PENDING) {
+        if (assessment.getReviewStatus() != TrainingAssessmentReviewStatus.PENDING) {
             return;
         }
-        deliver(assessment, ALERT_TYPE, "AUTO", null, true);
+        boolean normal = assessment.getAlertLevel() == TrainingAssessmentAlertLevel.NO_ALERT_DETECTED;
+        deliver(assessment, normal ? REQUEST_TYPE : ALERT_TYPE, "AUTO", null, !normal);
     }
 
     /** The caller holds horse -> assessment locks in the existing transaction. */
@@ -273,7 +273,7 @@ public class TrainingAssessmentNotificationService {
             return "Urgent vet check for " + horse;
         }
         return assessment.getAlertLevel() == TrainingAssessmentAlertLevel.NO_ALERT_DETECTED
-                ? "Vet check requested for " + horse : "Vet check needed for " + horse;
+                ? "Post-training examination required for " + horse : "Vet check needed for " + horse;
     }
 
     private String summary(TrainingSessionAssessment assessment, String reason) {

@@ -18,6 +18,7 @@ export function HorseDetailPage({
   navigate,
   onUpdateHorse,
   onActivateHorse,
+  onSubmitHorse,
   onShowSuccess,
   onAudit,
   intakeActions,
@@ -27,6 +28,7 @@ export function HorseDetailPage({
   navigate: (p: Page) => void;
   onUpdateHorse: (h: Horse) => Promise<unknown>;
   onActivateHorse: (id: string) => Promise<unknown>;
+  onSubmitHorse: (id: string) => Promise<unknown>;
   onShowSuccess: (m: string) => void;
   onAudit: (a: string, t: string, r?: string) => void;
   intakeActions?: React.ReactNode;
@@ -39,8 +41,17 @@ export function HorseDetailPage({
   const [activationError, setActivationError] = useState("");
   const [tab, setTab] = useState("overview");
   const [editMode, setEditMode] = useState(false);
+  const [evidenceImage, setEvidenceImage] = useState<File | null>(null);
+  const [evidenceDocument, setEvidenceDocument] = useState<File | null>(null);
+  const [submitBusy, setSubmitBusy] = useState(false);
+  const submitPending = useRef(false);
+  const [submitError, setSubmitError] = useState('');
   const [editForm, setEditForm] = useState({
     name: horse.name,
+    birthDate: toISO(horse.birthDate || ''),
+    breed: horse.breed,
+    gender: horse.gender,
+    color: horse.color,
     height: String(horse.height),
     stable: horse.stable,
     stall: horse.stall,
@@ -64,13 +75,15 @@ export function HorseDetailPage({
   );
   const ownerCanEdit =
     isOwner &&
-    horse.approvalStatus !== "approved" &&
-    (!intakeRequest || intakeStage(horse, intakeRequest) < 3);
+    horse.admissionStatus !== "APPROVED" && horse.admissionStatus !== "PENDING";
 
   const [editErr, setEditErr] = useState<Record<string, string>>({});
   const saveEdit = async () => {
     const e: Record<string, string> = {};
     const hh = numOf(editForm.height);
+    if (!editForm.birthDate || editForm.birthDate >= toISO(TODAY)) e.birthDate = 'Select a past date of birth.';
+    if (!editForm.breed.trim()) e.breed = 'Enter a breed.';
+    if (!editForm.color.trim()) e.color = 'Enter a coat color.';
     if (editForm.name.trim().length < 2 || editForm.name.length > 40)
       e.name = "Horse name must contain 2–40 characters.";
     if (isNaN(hh) || hh < 100 || hh > 200)
@@ -105,6 +118,10 @@ export function HorseDetailPage({
     const next: Horse = {
       ...horse,
       name: editForm.name.trim(),
+      birthDate: toDDMMYYYY(editForm.birthDate),
+      breed: editForm.breed.trim(),
+      gender: editForm.gender,
+      color: editForm.color.trim(),
       height: hh,
       stable: editForm.stable,
       stall: editForm.stall,
@@ -115,6 +132,8 @@ export function HorseDetailPage({
         url: editForm.evidenceUrl.trim(),
         fileUrl: editForm.evidenceFileUrl.trim(),
         note: editForm.evidenceNote.trim(),
+        imageFile: evidenceImage || undefined,
+        documentFile: evidenceDocument || undefined,
       },
     };
     try {
@@ -131,6 +150,8 @@ export function HorseDetailPage({
           : next,
       );
       setEditMode(false);
+      setEvidenceImage(null);
+      setEvidenceDocument(null);
     } catch (err) {
       setEditErr({ name: (err as Error).message });
     }
@@ -456,6 +477,7 @@ export function HorseDetailPage({
                 Club intake progress
               </div>
               <IntakeProgress stage={intakeStage(horse, rq)} />
+              {horse.screeningStatus === 'NEEDS_CORRECTION' && <p className="mt-3 text-sm text-amber-800">Please update your profile and resubmit. {horse.screeningReason}</p>}
               {rq.status === "rejected" && rq.reviewNote && (
                 <p className="mt-3 text-sm text-red-600">
                   Rejection reason: {rq.reviewNote}
@@ -464,6 +486,19 @@ export function HorseDetailPage({
             </Card>
           ) : null;
         })()}
+      {tab === 'overview' && isOwner && !['PENDING', 'APPROVED'].includes(horse.admissionStatus || '') && (
+        <Card className="p-4 space-y-2">
+          <p className="text-sm">Save your corrections and supporting documents, then submit the profile for screening.</p>
+          <Btn variant="gold" disabled={submitBusy || editMode} onClick={async () => {
+            if (submitPending.current) return;
+            submitPending.current = true; setSubmitBusy(true); setSubmitError('');
+            try { await onSubmitHorse(horse.id); }
+            catch (e) { setSubmitError((e as Error).message); }
+            finally { submitPending.current = false; setSubmitBusy(false); }
+          }}>{submitBusy ? 'Submitting…' : 'Submit for review'}</Btn>
+          {submitError && <p role="alert" className="text-sm text-red-600">{submitError}</p>}
+        </Card>
+      )}
       {tab === "overview" && LIFECYCLE_ORDER.indexOf(getLifecycle(horse)) < 3 && intakeActions}
       {tab === "overview" && (
         <div className="grid grid-cols-3 gap-5">
@@ -473,7 +508,7 @@ export function HorseDetailPage({
               <div className="mb-4 flex items-center gap-3 text-sm">
                 <span className="text-gray-500">Profile status</span>
                 <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${isApproved ? "bg-slate-100 text-slate-700" : "bg-amber-100 text-amber-800"}`}>
-                  {isApproved ? "Locked" : "Unlocked"}
+                  {isApproved || horse.admissionStatus === 'PENDING' ? "Locked" : "Unlocked"}
                 </span>
               </div>
               {editMode ? (
@@ -486,6 +521,10 @@ export function HorseDetailPage({
                     onChange={(v) => setEditForm((f) => ({ ...f, name: v }))}
                   />
                   <div className="grid grid-cols-2 gap-3">
+                    <Input label="Date of birth" type="date" value={editForm.birthDate} error={editErr.birthDate} onChange={v => setEditForm(f => ({ ...f, birthDate: v }))} />
+                    <Input label="Breed" value={editForm.breed} error={editErr.breed} onChange={v => setEditForm(f => ({ ...f, breed: v }))} />
+                    <Select label="Gender" value={editForm.gender} options={['Stallion', 'Mare', 'Gelding'].map(value => ({ value, label: value }))} onChange={v => setEditForm(f => ({ ...f, gender: v }))} />
+                    <Input label="Coat color" value={editForm.color} error={editErr.color} onChange={v => setEditForm(f => ({ ...f, color: v }))} />
                     <Input
                       label="Height (cm)"
                       value={editForm.height}
@@ -521,22 +560,13 @@ export function HorseDetailPage({
                       }))
                     }
                   />
-                  <Input
-                    label="Evidence image URL"
-                    value={editForm.evidenceUrl}
-                    error={editErr.evidenceUrl}
-                    onChange={(v) =>
-                      setEditForm((f) => ({ ...f, evidenceUrl: v }))
-                    }
-                  />
-                  <Input
-                    label="Evidence file URL"
-                    value={editForm.evidenceFileUrl}
-                    error={editErr.evidenceFileUrl}
-                    onChange={(v) =>
-                      setEditForm((f) => ({ ...f, evidenceFileUrl: v }))
-                    }
-                  />
+                  <label className="block text-sm font-medium">Replace evidence image (optional)
+                    <input type="file" accept="image/jpeg,image/png,image/webp" className="mt-1 block text-sm" onChange={e => setEvidenceImage(e.target.files?.[0] || null)} />
+                  </label>
+                  <label className="block text-sm font-medium">Replace evidence document (optional)
+                    <input type="file" accept="application/pdf,text/plain" className="mt-1 block text-sm" onChange={e => setEvidenceDocument(e.target.files?.[0] || null)} />
+                  </label>
+                  <p className="text-xs text-gray-500">Existing evidence is retained unless you upload a replacement.</p>
 
                 </div>
               ) : (

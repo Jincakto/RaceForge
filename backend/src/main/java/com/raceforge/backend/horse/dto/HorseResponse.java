@@ -35,6 +35,15 @@ public class HorseResponse {
     private String status;
     private String admissionStatus;
     private String admissionNote;
+    private String screeningStatus;
+    private String screeningReason;
+    private java.time.LocalDateTime admissionSubmittedAt;
+    public java.time.LocalDateTime getAdmissionSubmittedAt() { return admissionSubmittedAt; }
+    public void setAdmissionSubmittedAt(java.time.LocalDateTime value) { admissionSubmittedAt = value; }
+    public String getScreeningStatus() { return screeningStatus; }
+    public void setScreeningStatus(String value) { screeningStatus = value; }
+    public String getScreeningReason() { return screeningReason; }
+    public void setScreeningReason(String value) { screeningReason = value; }
     public String getAdmissionStatus() {
         return admissionStatus;
     }

@@ -13,7 +13,7 @@ import { money, enrollmentTerm, isCurrent, EXPIRY_WARN_DAYS, TODAY } from '../..
 interface Props {
   state: { user: AppUser | null; horses: Horse[]; enrollments: Enrollment[]; packages: TrainingPackage[]; healthRecords: HealthRecord[]; trainingSessions?: TrainingSession[] };
   navigate: (p: string) => void;
-  onStartPayment: (horseId: string, packageId: string) => Promise<Res<{ enrollmentId: string; url: string; orderCode: number }>>;
+  onStartPayment: (horseId: string, packageId: string, enrollmentId?: string) => Promise<Res<{ enrollmentId: string; url: string; orderCode: number }>>;
   onCancelRegistration?: (id: string) => Promise<PackageLifecycleResult>;
   onSyncPayment: (horseId: string, enrollmentId: string) => Promise<Res<Enrollment>>;
 }
@@ -39,7 +39,7 @@ function StepBar({ step }: { step: number }) {
 export function ReceiptView({ e, horseName }: { e: Enrollment; horseName: string }) {
   const rows: [string, React.ReactNode][] = [
     ["Registration ID", <IdChip kind="ENR" id={e.id} />],
-    ["Training package", e.packageName],
+    ["Training package", `${e.packageName} · v{e.packageVersion || 1} · v${e.packageVersion || 1}`],
     ["Horses", horseName],
     ["Horse Owner", e.ownerName],
     ["Validity", `${e.startedAt} – ${e.expiresAt}`],
@@ -132,7 +132,7 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
     if (paying) return;
     if (!horse || !pkg || (!resumeEnr && !selectedSuggestion?.canRegister)) { setPayMsg({ kind: 'error', text: 'Select an eligible package.' }); return; }
     setPayMsg(null); setPaying(true);
-    const r = await onStartPayment(horseId, resumeEnr ? resumeEnr.packageId : pkgId);
+    const r = await onStartPayment(horseId, resumeEnr ? resumeEnr.packageId : pkgId, resumeEnr?.id);
     setPaying(false);
     if (!r.ok) { setPayMsg({ kind: 'error', text: r.message }); return; }
     setCheckout(r.data);
@@ -146,7 +146,7 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
     checking.current = false;
     if (!silent) setPaying(false);
     if (!r.ok) { if (!silent) setPayMsg({ kind: 'error', text: r.message }); return; }
-    if (r.data.paymentStatus === 'PAID') { setReceipt(r.data); setCheckout(null); setStep(4); return; }
+    if (r.data.paymentStatus === 'PAID' && r.data.apiStatus === 'ACTIVE') { setReceipt(r.data); setCheckout(null); setStep(4); return; }
     if (!silent) setPayMsg({ kind: 'fail', text: "Payment is not confirmed yet. If you have just paid, wait a few seconds and check again." });
   };
 
@@ -198,14 +198,15 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
         ) : myEnr.map(e => {
           const t = enrollmentTerm(e);
           const pct = Math.round(e.sessionsDone / Math.max(1, e.sessionsTotal) * 100);
-          const unpaid = e.paymentStatus === 'PENDING';
+          const unpaid = e.paymentStatus === 'PENDING' && e.apiStatus === 'PENDING' && (!e.pendingExpiresAtUtc || Date.parse(e.pendingExpiresAtUtc)>Date.now());
           const live = !unpaid && isCurrent(e);
           return (
             <Card key={e.id} className={`p-5 ${live && (t.warn || t.expired) ? 'border-l-4 border-amber-400' : ''}`}>
               <div className="flex flex-wrap items-center gap-2">
                 <IdChip kind="ENR" id={e.id} />
-                <span className="font-semibold text-[#0f1729]">Package {e.packageName}</span>
+                <span className="font-semibold text-[#0f1729]">Package {e.packageName} · v{e.packageVersion || 1}</span>
                 <span className="text-sm text-gray-500">· {horseName(e.horseId)}</span>
+                {unpaid && e.pendingExpiresAtUtc && <span className="text-xs text-gray-500">Payment deadline: {new Date(e.pendingExpiresAtUtc).toLocaleString()}</span>}
                 {unpaid ? <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">Awaiting payment</span> : <Badge status={registrationStatus(e)} />}
                 {live && <TrainerStatusPill status={e.trainerStatus} />}
               </div>
@@ -263,6 +264,17 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
         </button>)}
       </div>}
       {step === 1 && <div className="space-y-4">
+          <Card className="space-y-3 p-5">
+            <h3 className="font-serif text-lg font-bold">Understand the program types</h3>
+            <div className="grid gap-3 md:grid-cols-3">
+              {[
+                ['BASIC', 'Build foundations', 'For horses developing basic training habits, technique and general fitness.'],
+                ['PERFORMANCE', 'Develop performance', 'For horses building on their foundations to improve endurance, speed control and consistency.'],
+                ['RACING', 'Prepare for racing', 'For eligible horses working toward race preparation and distance-specific goals.'],
+              ].map(([type, title, description]) => <div key={type} className="rounded-lg bg-gray-50 p-3 text-sm"><div className="font-semibold">{type} — {title}</div><p className="mt-1 text-gray-600">{description}</p></div>)}
+            </div>
+            <p className="text-xs text-gray-500">These describe program types. Review each package below for its price, duration and roadmap. Availability and suggestions depend on your horse's eligibility.</p>
+          </Card>
         <Card className="space-y-3 p-5">
           <h3 className="font-serif text-lg font-bold">Automatic suggestions for {horse?.name}</h3>
           <label className="block text-sm">Training goal (optional)
@@ -278,7 +290,7 @@ export function TrainingRegisterPage({ state, navigate, onStartPayment, onSyncPa
         {suggestions.data && !suggestions.loading && <>
           {!suggestions.data.packages.some(p => p.recommendationStatus === 'RECOMMENDED') && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">There is not enough matching evidence to identify a preferred package. Review-required packages can still be selected when registration is allowed.</div>}
           {sortSuggestions(suggestions.data.packages, goal).map(p => <Card key={p.packageId} className={`space-y-3 border-2 p-5 ${pkgId === p.packageId ? 'border-[#c9973b]' : 'border-gray-200'}`}>
-            <div className="flex flex-wrap items-start justify-between gap-3"><div><IdChip kind="PKG" id={p.packageId} /><h3 className="mt-2 font-serif text-lg font-bold">{p.packageName}</h3><p className="text-sm text-gray-500">{p.packageType} | {p.durationDays} days | {money(p.price)}</p></div><span className={`rounded-full px-3 py-1 text-xs font-medium ${p.recommendationStatus === 'RECOMMENDED' ? 'bg-emerald-50 text-emerald-800' : p.recommendationStatus === 'NOT_ELIGIBLE' ? 'bg-red-50 text-red-800' : p.recommendationStatus === 'REVIEW_REQUIRED' ? 'bg-amber-50 text-amber-800' : 'bg-sky-50 text-sky-800'}`}>{p.recommendationStatus.replaceAll('_', ' ')}</span></div>
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><IdChip kind="PKG" id={p.packageId} /><h3 className="mt-2 font-serif text-lg font-bold">{p.packageName}</h3><p className="text-sm text-gray-500">{p.packageType} · v{state.packages.find(pack=>pack.id===p.packageId)?.versionNumber || 1} | {p.durationDays} days | {money(p.price)}</p></div><span className={`rounded-full px-3 py-1 text-xs font-medium ${p.recommendationStatus === 'RECOMMENDED' ? 'bg-emerald-50 text-emerald-800' : p.recommendationStatus === 'NOT_ELIGIBLE' ? 'bg-red-50 text-red-800' : p.recommendationStatus === 'REVIEW_REQUIRED' ? 'bg-amber-50 text-amber-800' : 'bg-sky-50 text-sky-800'}`}>{p.recommendationStatus.replaceAll('_', ' ')}</span></div>
             {p.goal && <p className="text-sm">{p.goal}</p>}
             {p.workload && <p className="text-sm text-gray-600">Entry {p.workload.entryIntensity} | Peak {p.workload.peakIntensity} | First 7 days: {p.workload.firstWeekSessionsMin}-{p.workload.firstWeekSessionsMax} sessions, {p.workload.firstWeekMinutesMin}-{p.workload.firstWeekMinutesMax} minutes (depends on start weekday).</p>}
             <ul className="space-y-1 text-sm text-gray-600">{p.blockReasons.map(r => <li key={r.code} className="text-red-700">{r.message}</li>)}{p.reasonCodes.filter(c => !p.blockReasons.some(r => r.code === c)).map(c => <li key={c}>{suggestionReason(c)}</li>)}</ul>

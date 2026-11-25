@@ -5,8 +5,10 @@ import { userFromApi, latestConfirmedExam } from '../../app/remote';
 import type { AppUser, Horse, HorseClubRequest, HealthRecord } from '../../shared/data/data';
 import { Btn, Card } from '../../shared/ui/ui';
 import { IdChip, ReasonDialog, Modal } from '../admin/admin';
+import type { ScreeningDecision } from './api/horsesApi';
+import { HorseDocumentReview } from './HorseDocumentReview';
 
-export const INTAKE_STEPS = ['Profile created', 'Club assigns veterinarian', 'Veterinarian accepts case', 'Examination & decision', 'Club admission decision'];
+export const INTAKE_STEPS = ['Document screening', 'Club assigns veterinarian', 'Veterinarian accepts case', 'Examination & decision', 'Club admission decision'];
 
 export function vetVisible(h: Horse, user: AppUser): boolean {
   if (user.role !== 'veterinarian') return true;
@@ -16,6 +18,8 @@ export function vetVisible(h: Horse, user: AppUser): boolean {
 export function intakeStage(h: Horse | undefined, req: HorseClubRequest): number {
   if (req.status === 'approved') return 5;
   if (req.status === 'rejected') return -1;
+  if (h?.screeningStatus === 'NEEDS_CORRECTION') return -2;
+  if (h?.screeningStatus !== 'PASSED') return 0;
   if (!h) return 1;
   if (h.intakeExamId) return 4;
   if (h.vetId && h.vetAssign?.status === 'accepted') return 3;
@@ -38,7 +42,7 @@ export function IntakeProgress({ stage, compact = false }: { stage: number; comp
               <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${fail ? 'bg-red-600 text-white' : done ? 'bg-emerald-500 text-white' : cur ? 'bg-[#c9973b] text-white ring-4 ring-[#c9973b]/20' : 'bg-gray-100 text-gray-400'}`}>{fail ? '✕' : done ? '✓' : i + 1}</span>
               <div className={`h-0.5 flex-1 ${i === INTAKE_STEPS.length - 1 ? 'opacity-0' : done ? 'bg-emerald-400' : 'bg-gray-200'}`} />
             </div>
-            {!compact && <span className={`mt-1.5 px-1 text-[11px] leading-tight ${cur ? 'font-semibold text-[#0f1729]' : fail ? 'font-semibold text-red-600' : 'text-gray-500'}`}>{fail ? 'Rejected' : label}</span>}
+            {!compact && <span className={`mt-1.5 px-1 text-[11px] leading-tight ${cur ? 'font-semibold text-[#0f1729]' : fail ? 'font-semibold text-red-600' : 'text-gray-500'}`}>{fail ? 'Rejected' : stage === -2 && i === 0 ? 'Needs correction' : label}</span>}
           </li>
         );
       })}
@@ -71,14 +75,14 @@ export function AssignHistory({ horse, onClose }: { horse: Horse; onClose: () =>
 }
 
 type Handlers = {
-  onVerify: (horseId: string, verified: boolean) => void;
+  onScreen: (horseId: string, decision: ScreeningDecision, reason?: string) => Promise<unknown>;
   onAssign: (horseId: string, vetId: string, reason: string) => Promise<unknown>;
   onApprove: (reqId: string) => Promise<unknown>;
   onReject: (reqId: string, reason: string) => Promise<unknown>;
   onOpenHorse: (id: string) => void;
 };
 
-export function IntakeBoardPage({ user, horses, requests, records, users, onVerify, onAssign, onApprove, onReject, onOpenHorse, detail = false }:
+export function IntakeBoardPage({ user, horses, requests, records, users, onScreen, onAssign, onApprove, onReject, onOpenHorse, detail = false }:
   { user: AppUser; horses: Horse[]; requests: HorseClubRequest[]; records: HealthRecord[]; users: AppUser[]; detail?: boolean } & Handlers) {
   const mine = requests.filter(r => r.clubId === user.clubId);
   const open = mine.filter(r => r.status === 'pending');
@@ -89,7 +93,7 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
   const [vetsVersion, setVetsVersion] = useState(0);
   const vets = (pickerUsers ?? users).filter(u => u.role === 'veterinarian' && u.clubId === user.clubId);
   const vetLoad = (id: string) => new Set(horses.filter(h => h.clubId === user.clubId && h.vetId === id && h.vetAssign?.status !== 'declined').map(h => h.id)).size;
-  const [filter, setFilter] = useState(0);
+  const [filter, setFilter] = useState(99);
   const [pick, setPick] = useState<{ horse: Horse; vetId: string } | null>(null);
   useEffect(() => {
     if (!pick?.horse.id) return;
@@ -121,10 +125,12 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
   const [rejectFor, setRejectFor] = useState<HorseClubRequest | null>(null);
   const [approveFor, setApproveFor] = useState<HorseClubRequest | null>(null);
   const [history, setHistory] = useState<Horse | null>(null);
+  const [reviewDocumentFor, setReviewDocumentFor] = useState<Horse | null>(null);
+  const [screenFor, setScreenFor] = useState<{ horse: Horse; decision: ScreeningDecision } | null>(null);
   const [warn, setWarn] = useState<Record<string, string>>({});
 
   const rows = open.map(r => ({ r, h: horses.find(x => x.id === r.horseId), st: intakeStage(horses.find(x => x.id === r.horseId), r) }));
-  const shown = rows.filter(x => filter === 0 || x.st === filter);
+  const shown = rows.filter(x => filter === 99 || x.st === filter);
   const count = (n: number) => rows.filter(x => x.st === n).length;
 
   const choose = async () => {
@@ -141,7 +147,7 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
   };
 
   const tryApprove = (r: HorseClubRequest, h?: Horse) => {
-    if (!h?.identityVerified) { setWarn(w => ({ ...w, [r.id]: 'Verify the Identification Code before making an admission decision.' })); return; }
+    if (h?.screeningStatus !== 'PASSED') { setWarn(w => ({ ...w, [r.id]: 'Pass document screening before admission.' })); return; }
     setWarn(w => ({ ...w, [r.id]: '' })); setApproveFor(r);
   };
 
@@ -149,10 +155,10 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
     <div className="space-y-5">
       {!detail && <div>
         <h2 className="font-serif text-xl font-bold text-[#0f1729]">Horse intake</h2>
-        <p className="text-sm text-gray-500">Profile creation → veterinarian assignment → examination → Club admission decision.</p>
+        <p className="text-sm text-gray-500">Document screening → veterinarian assignment → examination → Club admission decision.</p>
       </div>}
       {!detail && <div className="flex flex-wrap gap-2">
-        {[[0, 'All', open.length], [1, 'Needs assignment', count(1)], [2, 'Awaiting veterinarian', count(2)], [3, 'Awaiting examination', count(3)], [4, 'Awaiting my decision', count(4)]].map(([k, l, n]) => (
+        {[[99, 'All', open.length], [0, 'Needs screening', count(0)], [-2, 'Needs correction', count(-2)], [1, 'Needs assignment', count(1)], [2, 'Awaiting veterinarian', count(2)], [3, 'Awaiting examination', count(3)], [4, 'Awaiting my decision', count(4)]].map(([k, l, n]) => (
           <button key={k as number} onClick={() => setFilter(k as number)} className={`rounded-full border px-3 py-1 text-xs font-medium ${filter === k ? 'border-[#1a2844] bg-[#1a2844] text-white' : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`}>{l} ({n})</button>
         ))}
       </div>}
@@ -175,6 +181,8 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
             <div className="mt-5"><IntakeProgress stage={st} /></div></>}
 
             <div className="mt-4 rounded-lg bg-gray-50 p-3 text-sm">
+              {st === 0 && <span>Review the horse profile and supporting documents before passing screening. This is a documentary review, not proof of identity or ownership.</span>}
+              {st === -2 && <span>Returned to owner for correction: {h?.screeningReason}</span>}
               {st === 1 && <span>{declined ? <>Veterinarian <b>{h?.vetName}</b> declined — assign another veterinarian.</> : 'No veterinarian has been assigned.'}</span>}
               {st === 2 && <span>Assigned to <b>{h?.vetName}</b> — awaiting acceptance.</span>}
               {st === 3 && <span><b>{h?.vetName}</b> accepted — awaiting examination and decision.</span>}
@@ -189,10 +197,16 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
             {warn[r.id] && <p className="mt-2 text-xs text-red-600">{warn[r.id]}</p>}
 
             <div className="mt-4 flex flex-wrap gap-2">
-              {h && !h.identityVerified && <Btn size="sm" variant="secondary" onClick={() => onVerify(h.id, true)}>Verify identification</Btn>}
+              {h && <Btn size="sm" variant="secondary" onClick={() => setReviewDocumentFor(h)}>Compare PDF content</Btn>}
+              {h && st === 0 && <>
+                <Btn size="sm" variant="gold" onClick={() => setScreenFor({ horse: h, decision: 'PASSED' })}>Pass screening</Btn>
+                <Btn size="sm" variant="secondary" onClick={() => setScreenFor({ horse: h, decision: 'NEEDS_CORRECTION' })}>Request correction</Btn>
+                <Btn size="sm" variant="danger" onClick={() => setScreenFor({ horse: h, decision: 'REJECTED' })}>Reject before examination</Btn>
+              </>}
               {h && st === 1 && <Btn size="sm" onClick={() => openPicker(h)}>Assign veterinarian</Btn>}
               {h && (st === 2 || st === 3) && <Btn size="sm" variant="secondary" onClick={() => openPicker(h)}>Reassign</Btn>}
-              {st === 4 && <><Btn size="sm" variant="gold" onClick={() => tryApprove(r, h)}>Admit to club</Btn><Btn size="sm" variant="danger" onClick={() => setRejectFor(r)}>Reject</Btn></>}
+              {st === 4 && <Btn size="sm" variant="gold" onClick={() => tryApprove(r, h)}>Admit to club</Btn>}
+              {st > 0 && <Btn size="sm" variant="danger" onClick={() => setRejectFor(r)}>Reject admission</Btn>}
               {h && (h.vetAssign?.history.length || 0) > 0 && <Btn size="sm" variant="ghost" onClick={() => setHistory(h)}>Assignment history</Btn>}
               {h && !detail && <Btn size="sm" variant="ghost" onClick={() => onOpenHorse(h.id)}>View horse profile</Btn>}
             </div>
@@ -250,6 +264,17 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
           description={<p>Replace <b>{replace.horse.vetName}</b> with <b>{vets.find(v => v.id === replace.vetId)?.name}</b> for <b>{replace.horse.name}</b>. The assignment history will be retained.</p>}
           onConfirm={async reason => { await onAssign(replace.horse.id, replace.vetId, reason); setReplace(null); }} />
       )}
+      {screenFor && (
+        <ReasonDialog title={screenFor.decision === 'PASSED' ? 'Pass document screening' : screenFor.decision === 'NEEDS_CORRECTION' ? 'Return profile for correction' : 'Reject before examination'}
+          confirmLabel="Confirm screening decision" danger={screenFor.decision === 'REJECTED'} onClose={() => setScreenFor(null)}
+          description={<div className="space-y-2"><p>Review the identity code, horse details and supporting documents for <b>{screenFor.horse.name}</b>.</p>
+            <HorseDocumentReview horse={horses.find(h => h.id === screenFor.horse.id) || screenFor.horse} />
+            <p>Passing screening permits veterinary assignment; it does not admit the horse or verify ownership.</p>
+            <p>The reason is visible to the owner. Request supporting evidence without disclosing reference values or detailed source comparisons.</p>
+            <div className="flex gap-3">{screenFor.horse.identityEvidence?.url && <a href={screenFor.horse.identityEvidence.url} target="_blank" rel="noopener noreferrer" className="underline">Open evidence image</a>}
+              {screenFor.horse.identityEvidence?.fileUrl && <a href={screenFor.horse.identityEvidence.fileUrl} target="_blank" rel="noopener noreferrer" className="underline">Open evidence document</a>}</div></div>}
+          onConfirm={async reason => { await onScreen(screenFor.horse.id, screenFor.decision, reason); setScreenFor(null); }} />
+      )}
       {rejectFor && (
         <ReasonDialog title="Reject horse admission" danger confirmLabel="Reject" onClose={() => setRejectFor(null)}
           description={<p>Reject <b>{rejectFor.horseName}</b>, owned by <b>{rejectFor.ownerName}</b>. The reason will be sent to the Horse Owner.</p>}
@@ -261,6 +286,9 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onVeri
           <div className="mt-5 flex justify-end gap-2"><Btn variant="secondary" disabled={approveBusy} onClick={() => setApproveFor(null)}>Cancel</Btn><Btn variant="gold" disabled={approveBusy} onClick={async () => { if (approvePending.current) return; approvePending.current = true; setApproveBusy(true); try { await onApprove(approveFor.id); setApproveFor(null); } catch (e) { setWarn(w => ({ ...w, [approveFor.id]: (e as Error).message })); } finally { approvePending.current = false; setApproveBusy(false); } }}>{approveBusy ? "Approving…" : "Admit"}</Btn></div>
         </Modal>
       )}
+      {reviewDocumentFor && <Modal title={`Document comparison — ${reviewDocumentFor.name}`} wide onClose={() => setReviewDocumentFor(null)}>
+        <HorseDocumentReview horse={horses.find(h => h.id === reviewDocumentFor.id) || reviewDocumentFor} />
+      </Modal>}
       {history && <AssignHistory horse={history} onClose={() => setHistory(null)} />}
     </div>
   );

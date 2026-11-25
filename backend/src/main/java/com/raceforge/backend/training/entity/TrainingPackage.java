@@ -37,8 +37,26 @@ public class TrainingPackage extends com.raceforge.backend.training.entity.Train
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @Column(name="package_family_id", nullable=false, length=20)
+    private String packageFamilyId;
+    @Column(name="version_number", nullable=false)
+    private Integer versionNumber = 1;
+    @Column(name="previous_package_id", length=20)
+    private String previousPackageId;
+    @Column(name="superseded", nullable=false)
+    private boolean superseded;
+    public String getPackageFamilyId(){return packageFamilyId == null ? packageId : packageFamilyId;}
+    public void setPackageFamilyId(String value){packageFamilyId=value;}
+    public Integer getVersionNumber(){return versionNumber;}
+    public void setVersionNumber(Integer value){versionNumber=value;}
+    public String getPreviousPackageId(){return previousPackageId;}
+    public void setPreviousPackageId(String value){previousPackageId=value;}
+    public boolean isSuperseded(){return superseded;}
+    public void setSuperseded(boolean value){superseded=value;}
+
     @PrePersist
     protected void onCreate() {
+        if (packageFamilyId == null) packageFamilyId = packageId;
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
         }

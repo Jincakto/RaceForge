@@ -32,7 +32,7 @@ import { TrainerStatusPill } from '../../packages/packages';
 import {
   TODAY, addDays, diffDays, isoToD, dToIso, validDate, weekdayLabel, parseD, fmtD, WEEKDAYS,
   checkSessionDrafts, trainerPlanBlockReason, currentEnrollment, enrollmentTerm,
-  INTENSITY_LEVELS, WORKLOAD_OF, WORKLOAD_LABEL, suggestedLevel, PHASES, SESSION_TYPES,
+  INTENSITY_LEVELS, WORKLOAD_OF, WORKLOAD_LABEL, suggestedLevel, SESSION_TYPES,
   type TrainingSlice, type PlanDraft, type SessionDraft, type SessionWriteOptions,
 } from '../trainingLogic';
 
@@ -163,7 +163,13 @@ export function TrainingHubPage(props: HubProps) {
   const horseIds = new Set(mine.map(h => h.id));
   const myEnr = state.enrollments.filter(e => horseIds.has(e.horseId));
   const pendingMine = isTrainer ? state.enrollments.filter(e => e.trainerId === me.id && e.trainerStatus === 'pending' && e.status !== 'completed') : [];
-  const mySessions = state.trainingSessions.filter(s => horseIds.has(s.horseId) || (isTrainer && s.trainerId === me.id && ['Completed','Not Performed'].includes(s.status))).sort((a, b) => sortDiff(b.date, a.date) || b.time.localeCompare(a.time));
+  const mySessions = state.trainingSessions.filter(s => horseIds.has(s.horseId) || (isTrainer && s.trainerId === me.id && ['Completed','Not Performed'].includes(s.status))).sort((a, b) => {
+    const group = (session: TrainingSession) => session.status === 'In Progress' ? 0 : session.status === 'Scheduled' ? 1 : 2;
+    const order = group(a) - group(b);
+    if (order) return order;
+    const chronological = sortDiff(a.date, b.date) || a.time.localeCompare(b.time);
+    return group(a) === 2 ? -chronological : chronological;
+  });
   const myPlans = state.trainingPlans.filter(p => horseIds.has(p.horseId));
   const writablePlans=myPlans.filter(p=>state.enrollments.some(e=>e.id===p.horsePackageId&&e.trainerId===me.id&&e.trainerStatus==='confirmed'&&e.status==='active'&&e.paymentStatus==='PAID')&&!state.horses.find(h=>h.id===p.horseId)?.lock);
   const hn = (id: string) => state.horses.find(h => h.id === id)?.name || "Horses";
@@ -308,6 +314,7 @@ export function TrainingHubPage(props: HubProps) {
                       {s.attendance && <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${s.attendance.status === 'present' ? 'border-emerald-200 bg-emerald-100 text-emerald-800' : 'border-red-200 bg-red-100 text-red-700'}`}>{s.attendance.status === 'present' ? "Present" : "Absent"}</span>}</div>
                     <div className="font-semibold">{s.type} — {hn(s.horseId)} · {s.distance}</div>
                     <div className="text-sm text-gray-500">{dateLabel(s.date)} · {s.time}  · Target: {s.targetTime}</div>
+                    {s.status === 'Scheduled' && trainingStart(s.date, s.endTime || s.time) < now && <p className="mt-1 text-sm font-medium text-red-700">Overdue — this session still needs attention.</p>}
                     { s.status==='In Progress' && <p className="mt-1 text-sm font-medium text-amber-800">{s.actualEnd?'Exercise stopped - session results pending':'Exercise in progress'}</p>}
                     {s.notes && <div className="text-sm text-gray-600">{s.notes}</div>}
                     <div className="mt-1 text-xs text-gray-400">Groom: {s.assignedStaffNames.join(', ') || '—'}</div>
@@ -407,6 +414,7 @@ export function ResultForm({ onSubmit, onCancel }: {
   const id = useId();
   const [f, setF] = useState({ time: '', speed: '', notes: '' });
   const [answers, setAnswers] = useState<AssessmentAnswers>({});
+  const [failNotes, setFailNotes] = useState<Record<string, string>>({});
   const [template, setTemplate] = useState<TrainingAssessmentTemplateResponse | null>(null);
   const [templateLoading, setTemplateLoading] = useState(true);
   const [templateError, setTemplateError] = useState('');
@@ -453,7 +461,7 @@ export function ResultForm({ onSubmit, onCancel }: {
       const result = await onSubmit({
         distance: Number(f.time.replace(',', '.')), avgSpeed: Number(f.speed),
         performanceNotes: f.notes.trim() || undefined,
-        assessment: toAssessmentRequest(answers, template.version),
+        assessment: toAssessmentRequest(answers, template.version, failNotes),
       });
       if (result) setErr(result);
     } catch (error) {
@@ -482,7 +490,7 @@ export function ResultForm({ onSubmit, onCancel }: {
         </div>)}
       </div>
     </fieldset>
-    <TrainingAssessmentForm answers={answers} onChange={setAnswers} template={template}
+    <TrainingAssessmentForm failNotes={failNotes} onFailNotesChange={setFailNotes} answers={answers} onChange={setAnswers} template={template}
       loading={templateLoading} error={templateError} disabled={saving} onRetry={() => setTemplateAttempt(value => value + 1)} />
     <div>
       <label htmlFor={id + '-notes'} className="mb-1.5 block text-sm font-semibold text-[#1a2844]">Overall notes <span className="font-normal text-slate-500">(optional)</span></label>
@@ -618,7 +626,7 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
   const decision = rec ? (rec.decision === 'not-eligible' || rec.trainingEligibility === 'not-eligible' ? 'not-eligible' : rec.trainingEligibility === 'conditional' ? 'conditional' : 'eligible') : null;
   const sugLevel = sug ? suggestedLevel(sug) : 0;
   const level = f.level || INTENSITY_LEVELS[sugLevel];
-  const phase = f.phase || sug?.phase || PHASES[0];
+  const phase = sug?.phase || '';
   const weeks = Number(f.weeks);
   const startD = en?.startedAt || isoToD(f.start);
   const endD = en?.expiresAt || (validDate(startD) && Number.isInteger(weeks) ? addDays(startD, weeks * 7 - 1) : '');
@@ -724,7 +732,12 @@ export function TrainingPlanWizard({ state, onCancel, onCreatePlan, onDone }: Wi
           <h3 className="font-serif text-lg font-bold">Set goals</h3>
           {en && <p className="rounded-lg bg-sky-50 p-3 text-sm">Package period: <strong>{en.startedAt} - {en.expiresAt}</strong> - {diffDays(en.startedAt,en.expiresAt)+1} days. The roadmap uses this full period.</p>}
           <div className="grid gap-4 md:grid-cols-2">
-            <Select label="Phase" required value={phase} onChange={set('phase')} options={[...new Set([sug.phase, phase, ...PHASES])].map(v => ({ value: v, label: v }))} hint={`Package curriculum: ${sug.phase}`} />
+            <div className="rounded-lg bg-gray-50 p-3 text-sm">
+              <div className="text-gray-500">Registered package</div><div className="font-semibold">{en?.packageName}</div>
+              <div>Package type: {state.packages.find(p => p.id === en?.packageId)?.packageType || 'See registered package'}</div>
+              <div>Package curriculum: {phase}</div>
+              <p className="mt-1 text-xs text-gray-500">Fixed by the registered package. Changing program requires a separate registration workflow.</p>
+            </div>
             <Select label="Main distance" required value={f.distance} onChange={set('distance')} options={DISTANCES.map(v => ({ value: v, label: v }))} />
             <p className="text-sm text-gray-500">Intensity is configured separately for each stage in the next step.</p>
           </div>

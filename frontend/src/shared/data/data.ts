@@ -102,6 +102,7 @@ export interface InjuryDetail {
 }
 
 export interface TrainingPackage {
+  packageFamilyId?: string; versionNumber?: number; previousPackageId?: string; superseded?: boolean;
   packageType?: string;
   id: string;
   name: string;
@@ -136,6 +137,7 @@ export type TrainerAssignStatus = 'unassigned' | 'pending' | 'confirmed';
 export interface AssignEntry { time: string; kind: 'assign' | 'replace' | 'confirm' | 'decline'; from: string | null; to: string; by: string; reason: string }
 
 export interface Enrollment {
+  packageVersion?: number; packageFamilyId?: string; pendingExpiresAtUtc?: string;
   roadmapConfigured?: boolean;
   roadmapConfigurationReason?: string | null;
   directAssignmentId?: string;
@@ -195,6 +197,10 @@ export interface Horse {
   vetAssignmentId?: string;
   documentType?: string;
   admissionStatus?: string;
+  admissionNote?: string;
+  screeningStatus?: 'PENDING' | 'PASSED' | 'NEEDS_CORRECTION' | 'REJECTED';
+  screeningReason?: string;
+  admissionSubmittedAt?: string;
   id: string;
   name: string;
   breed: string;

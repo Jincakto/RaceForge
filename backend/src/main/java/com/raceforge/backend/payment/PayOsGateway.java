@@ -25,7 +25,10 @@ public class PayOsGateway {
     private final boolean configured;
     private final String callback;
     record Link(long orderCode, long amount, String id, String paymentLinkId, String status,
-                String checkoutUrl, Long amountPaid, Long amountRemaining) {}
+                String checkoutUrl, Long amountPaid, Long amountRemaining, java.util.List<Transfer> transactions) {
+        Link(long code,long amount,String id,String linkId,String status,String url,Long paid,Long remaining){this(code,amount,id,linkId,status,url,paid,remaining,null);}
+    }
+    record Transfer(Long amount, String transactionDateTime) {}
     record Reply(String code, Link data) {}
     public record Notice(Map<String,Object> data, String signature) {}
 
@@ -61,10 +64,15 @@ public class PayOsGateway {
     }
 
     Link create(long code, long amount, String description) {
+        return create(code,amount,description,null);
+    }
+
+    Link create(long code,long amount,String description,java.time.Instant expiresAt){
         requireConfiguration();
         var body = new TreeMap<String,Object>(Map.of("amount", amount, "cancelUrl", callback + "/cancel",
                 "description", description, "orderCode", code, "returnUrl", callback + "/return"));
         body.put("signature", sign(body));
+        if(expiresAt!=null) body.put("expiredAt",expiresAt.getEpochSecond());
         try {
             var reply = api.post().contentType(MediaType.APPLICATION_JSON).body(body).retrieve().body(Reply.class);
             if (reply != null && "00".equals(reply.code()) && reply.data() != null) return reply.data();

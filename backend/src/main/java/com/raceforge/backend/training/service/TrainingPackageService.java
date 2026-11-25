@@ -21,6 +21,7 @@ public class TrainingPackageService {
     private static final Set<String> ALLOWED_TYPES = Set.of("BASIC", "RACING", "PERFORMANCE");
     private static final Set<String> ALLOWED_STATUSES = Set.of("ACTIVE", "INACTIVE");
 
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
     private final TrainingPackageRepository repository;
     private final HorsePackageRepository horsePackageRepository;
     private final TrainingPackageMapper mapper;
@@ -55,7 +56,7 @@ public class TrainingPackageService {
     public TrainingPackageResponse create(TrainingPackageCreateRequest request) {
         validateType(request.packageType());
         roadmaps.validate(request.roadmapTemplate(),request.durationDays());
-        TrainingPackage entity=mapper.toEntity(request);entity.setPackageId(nextPackageId());repository.saveAndFlush(entity);
+        TrainingPackage entity=mapper.toEntity(request);entity.setPackageId(nextPackageId());entity=repository.saveAndFlush(entity);
         var template=roadmaps.create(entity.getPackageId(),request.roadmapTemplate(),request.durationDays());
         var r=mapper.toResponse(entity);
         return new TrainingPackageResponse(r.packageId(),r.packageName(),r.packageType(),r.description(),r.durationDays(),r.price(),r.status(),r.createdAt(),r.updatedAt(),template);
@@ -64,16 +65,21 @@ public class TrainingPackageService {
     @Transactional
     public TrainingPackageResponse update(String id, TrainingPackageUpdateRequest request) {
         validateType(request.packageType());
-        TrainingPackage entity = findById(id);
-        // Price, package type and duration must remain stable once sold.
-        // Historical HorsePackage registrations refer to this catalogue row.
-        if (horsePackageRepository.existsByTrainingPackage_PackageId(id)) {
-            throw new BusinessRuleException(
-                    "This package already has registrations; create a new package instead of editing it");
+        TrainingPackage entity = locked(id);
+        if(entity.isSuperseded()) throw new BusinessRuleException("This version has been replaced. Refresh the catalogue and edit the current version.");
+        var template = request.roadmapTemplate() != null ? request.roadmapTemplate() : roadmaps.read(id);
+        roadmaps.validate(template,request.durationDays());
+        boolean versioned = horsePackageRepository.existsByTrainingPackage_PackageId(id);
+        TrainingPackage target = versioned ? new TrainingPackage() : entity;
+        if(versioned){
+            target.setPackageId(nextPackageId());target.setPackageFamilyId(entity.getPackageFamilyId());
+            target.setVersionNumber(entity.getVersionNumber()+1);target.setPreviousPackageId(id);target.setStatus("ACTIVE");
+            entity.setStatus("INACTIVE");entity.setSuperseded(true);repository.saveAndFlush(entity);
         }
-        if(!java.util.Objects.equals(entity.getDurationDays(),request.durationDays())||!java.util.Objects.equals(entity.getPackageType(),request.packageType()))throw new BusinessRuleException("Create a new package to change roadmap type or duration");
-        mapper.updateEntity(entity, request);
-        return mapper.toResponse(repository.saveAndFlush(entity));
+        mapper.updateEntity(target,request);target=repository.saveAndFlush(target);
+        if(versioned) roadmaps.create(target.getPackageId(),template,target.getDurationDays());
+        else roadmaps.replace(id,template,target.getDurationDays());
+        return mapper.toResponse(target);
     }
 
     @Transactional
@@ -82,12 +88,15 @@ public class TrainingPackageService {
         if (!ALLOWED_STATUSES.contains(status)) {
             throw new BusinessRuleException("Invalid training package status: " + request.status());
         }
-        TrainingPackage entity = findById(id);
+        TrainingPackage entity = locked(id);
+        if(entity.isSuperseded()) throw new BusinessRuleException("A replaced version cannot be enabled or edited.");
         validateType(entity.getPackageType());
         if("ACTIVE".equals(status))roadmaps.read(id);
         entity.setStatus(status);
         return mapper.toResponse(repository.saveAndFlush(entity));
     }
+
+    private TrainingPackage locked(String id){var entity=repository.findByIdForUpdate(id).orElseThrow(()->new ResourceNotFoundException("Training package not found: "+id));entityManager.refresh(entity,jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);return entity;}
 
     private String nextPackageId() {
         return idAllocator.next("PKG");

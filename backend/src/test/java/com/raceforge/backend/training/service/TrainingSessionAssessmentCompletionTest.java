@@ -167,7 +167,7 @@ class TrainingSessionAssessmentCompletionTest {
         CompleteSessionRequest request = validRequest();
         Map<String, Boolean> checks = new LinkedHashMap<>(validAssessment().checks());
         checks.remove("BALANCE");
-        request.setAssessment(new TrainingAssessmentRequest("POST_TRAINING_V1", checks, Map.of()));
+        request.setAssessment(new TrainingAssessmentRequest("POST_TRAINING_V1", checks, checks.entrySet().stream().filter(e -> !e.getValue()).collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, e -> "Observed concern during assigned task"))));
 
         ApiException error = assertThrows(ApiException.class,
                 () -> service.completeSession(SESSION_ID, request, ACTOR_ID));
@@ -179,11 +179,11 @@ class TrainingSessionAssessmentCompletionTest {
     }
 
     @Test
-    void concernWithoutIndividualNoteCanCompleteAndKeepMeasurements() {
+    void concernWithIndividualNoteCanCompleteAndKeepMeasurements() {
         CompleteSessionRequest request = validRequest();
         Map<String, Boolean> checks = new LinkedHashMap<>(validAssessment().checks());
         checks.put("BALANCE", false);
-        request.setAssessment(new TrainingAssessmentRequest("POST_TRAINING_V1", checks, Map.of()));
+        request.setAssessment(new TrainingAssessmentRequest("POST_TRAINING_V1", checks, checks.entrySet().stream().filter(e -> !e.getValue()).collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, e -> "Observed concern during assigned task"))));
 
         assertSame(response, service.completeSession(SESSION_ID, request, ACTOR_ID));
 
@@ -202,7 +202,7 @@ class TrainingSessionAssessmentCompletionTest {
         CompleteSessionRequest request = validRequest();
         Map<String, Boolean> checks = new LinkedHashMap<>(validAssessment().checks());
         checks.replaceAll((code, passed) -> false);
-        request.setAssessment(new TrainingAssessmentRequest("POST_TRAINING_V1", checks, Map.of()));
+        request.setAssessment(new TrainingAssessmentRequest("POST_TRAINING_V1", checks, checks.entrySet().stream().filter(e -> !e.getValue()).collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, e -> "Observed concern during assigned task"))));
         request.setPerformanceNotes(overallNotes);
 
         assertSame(response, service.completeSession(SESSION_ID, request, ACTOR_ID));
@@ -449,6 +449,6 @@ class TrainingSessionAssessmentCompletionTest {
         for (TrainingAssessmentCriterion criterion : TrainingAssessmentCriterion.values()) {
             checks.put(criterion.name(), true);
         }
-        return new TrainingAssessmentRequest("POST_TRAINING_V1", checks, Map.of());
+        return new TrainingAssessmentRequest("POST_TRAINING_V1", checks, checks.entrySet().stream().filter(e -> !e.getValue()).collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, e -> "Observed concern during assigned task")));
     }
 }

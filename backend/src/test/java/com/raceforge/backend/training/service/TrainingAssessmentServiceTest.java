@@ -61,10 +61,10 @@ class TrainingAssessmentServiceTest {
                 assertThrows(ApiException.class, () -> service.validateCompletion(missed)).getCode());
     }
 
-    @Test void recordsTenItemsAndNormalNeverCreatesPending() {
+    @Test void recordsTenItemsAndNormalRequiresExamination() {
         var result = service.recordCompletion(session, request(), "HTR-001");
         assertEquals(10, result.getPassedCount());
-        assertEquals(TrainingAssessmentReviewStatus.NOT_REQUIRED, result.getReviewStatus());
+        assertEquals(TrainingAssessmentReviewStatus.PENDING, result.getReviewStatus());
         assertEquals(TrainingAssessmentNotificationStatus.NOT_REQUESTED, result.getNotificationStatus());
         assertEquals(LocalDateTime.of(2026,11,9,10,0), result.getAssessedAt());
         ArgumentCaptor<Iterable<TrainingSessionAssessmentItem>> captured = ArgumentCaptor.forClass(Iterable.class);

@@ -12,6 +12,7 @@ export interface OversightHorse {
   horseStatus: string; admissionStatus: string; imageUrl: string | null;
 }
 export interface OversightPackage {
+  packageFamilyId?: string; versionNumber?: number; previousPackageId?: string; superseded?: boolean;
   packageId: string; packageName: string; packageType: string;
   description: string | null; durationDays: number; price: number; status: string;
 }

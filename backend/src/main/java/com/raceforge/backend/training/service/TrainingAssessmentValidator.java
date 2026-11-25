@@ -64,6 +64,9 @@ public class TrainingAssessmentValidator {
                 throw badRequest("FAIL_NOTE_REQUIRED", "Observation notes, when provided, must contain text.");
             }
             String note = rawNote == null ? null : ((String) rawNote).strip();
+            if (Boolean.FALSE.equals(checks.get(code)) && (note == null || note.isEmpty())) {
+                throw badRequest("FAIL_NOTE_REQUIRED", "Add an observation reason for each concern: " + code);
+            }
             if (note != null && note.length() > MAX_NOTE_LENGTH) {
                 throw badRequest("FAIL_NOTE_TOO_LONG", "Keep each observation note within 1,000 characters.");
             }

@@ -168,7 +168,7 @@ export interface AttemptInfo { horseId: string; packageId: string; renewOfId?: s
 
 export function validatePackage(d: PackageDraft, others: TrainingPackage[]): Record<string, string> {
   const e = packageInfoErrors(d);
-  if (others.some(p => p.id !== d.id && p.name.trim().toLowerCase() === d.name.trim().toLowerCase())) e.name = 'Package name already exists.';
+  if (others.some(p => !d.id && !p.superseded && p.id !== d.id && p.name.trim().toLowerCase() === d.name.trim().toLowerCase())) e.name = 'Package name already exists.';
   if (!d.roadmapTemplate) e.roadmapTemplate = 'Choose a curriculum or create one manually.';
   else {
     const errors = stageDraftErrors(d.roadmapTemplate, d.durationDays);

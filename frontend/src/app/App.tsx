@@ -164,7 +164,6 @@ export default function App() {
   const loadVersion = useRef(0);
   const remoteSources=useRef(new RemoteSourceStore());
   const [remoteIssues,setRemoteIssues]=useState<RemoteIssue[]>([]);
-  const verifiedHorses = useRef(new Set<string>());
   const reloadRemote = useCallback(async (onlySource?: string) => {
     const user = stateRef.current.user;
     if (!user) return;
@@ -204,9 +203,6 @@ export default function App() {
         permissionAuditLog: data.permissionAudit || [],
       }));
     }
-    data.horses.forEach((h) => {
-      if (verifiedHorses.current.has(h.id)) h.identityVerified = true;
-    });
     setState((s) => ({
       ...s,
       ...data,
@@ -291,7 +287,6 @@ export default function App() {
   const handleLogout = useCallback(() => {
     remoteSources.current.clear(); setRemoteIssues([]);
     loadVersion.current++;
-    verifiedHorses.current.clear();
     clearRecommendations();
     void auth.logout().catch((e) => showError((e as Error).message));
     setState((s) => ({
@@ -383,7 +378,7 @@ export default function App() {
       (state.userPermissions[state.user!.id] || []).includes(pg);
     const examHub = (initialView: ExamView) => (
       <VetExamHubPage
-        key={state.postTrainingContext?.sessionId || initialView}
+        key={`${initialView}:${state.postTrainingContext?.sessionId || ""}:${state.unlockExamHorseId || ""}`}
         state={state}
         navigate={navigate}
         onSave={showSuccess}
@@ -393,7 +388,7 @@ export default function App() {
           setState((s) => ({
             ...s,
             examHorseId: id,
-            unlockExamHorseId: id,
+            unlockExamHorseId: id, postTrainingContext: undefined,
             page: "vet-health-form",
           }))
         }
@@ -489,11 +484,12 @@ export default function App() {
           <NoAccess text="No horse data is available to display." />
         ) : (
           <HorseDetailPage
-            onUnlockExam={(id) => setState(s => ({ ...s, examHorseId: id, unlockExamHorseId: id, page: "vet-health-form" }))}
+            onUnlockExam={(id) => setState(s => ({ ...s, examHorseId: id, unlockExamHorseId: id, postTrainingContext: undefined, page: "vet-health-form" }))}
             state={state}
             navigate={navigate}
             onUpdateHorse={remote.updateHorse}
             onActivateHorse={remote.activateHorse}
+            onSubmitHorse={remote.submitHorse}
             intakeActions={state.user!.role === "manager" && state.horseClubRequests.some(r => r.horseId === state.selectedHorseId && r.status === "pending") ? (
               <IntakeBoardPage
                 key={state.selectedHorseId}
@@ -503,11 +499,7 @@ export default function App() {
                 requests={state.horseClubRequests.filter(r => r.horseId === state.selectedHorseId && r.status === "pending")}
                 records={state.healthRecords}
                 users={state.users}
-                onVerify={(id, verified) => {
-                  if (verified) verifiedHorses.current.add(id);
-                  else verifiedHorses.current.delete(id);
-                  setState(s => ({ ...s, horses: s.horses.map(h => h.id === id ? { ...h, identityVerified: verified } : h) }));
-                }}
+                onScreen={remote.screenHorse}
                 onAssign={remote.assignVet}
                 onApprove={remote.approveHorse}
                 onReject={remote.rejectHorse}
@@ -587,16 +579,7 @@ export default function App() {
             requests={state.horseClubRequests}
             records={state.healthRecords}
             users={state.users}
-            onVerify={(id, verified) => {
-              if (verified) verifiedHorses.current.add(id);
-              else verifiedHorses.current.delete(id);
-              setState((s) => ({
-                ...s,
-                horses: s.horses.map((h) =>
-                  h.id === id ? { ...h, identityVerified: verified } : h,
-                ),
-              }));
-            }}
+            onScreen={remote.screenHorse}
             onAssign={remote.assignVet}
             onApprove={remote.approveHorse}
             onReject={remote.rejectHorse}
@@ -755,7 +738,7 @@ export default function App() {
           />
           {state.trainingAssessmentNotificationId && <TrainingAssessmentNotification key={state.trainingAssessmentNotificationId} notificationId={state.trainingAssessmentNotificationId} canExamine={state.user?.role === "veterinarian"}
             onClose={() => setState(s => ({ ...s, trainingAssessmentNotificationId: undefined }))}
-            onExamine={context => setState(s => ({ ...s, trainingAssessmentNotificationId: undefined, postTrainingContext: context, examHorseId: context.horseId, page: "vet-health-form" }))}/>}
+            onExamine={context => setState(s => ({ ...s, trainingAssessmentNotificationId: undefined, postTrainingContext: context, unlockExamHorseId: undefined, examHorseId: context.horseId, page: "vet-health-form" }))}/>}
           </>
         );
       case "profile":

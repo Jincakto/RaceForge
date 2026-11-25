@@ -8,5 +8,8 @@ public record TrainingPackageUpdateRequest(
         @NotBlank String packageType,
         @Size(max = 500) String description,
         @NotNull @Min(1) Integer durationDays,
-        @NotNull @DecimalMin("0.0") @Digits(integer = 10, fraction = 2) BigDecimal price
-) {}
+        @NotNull @DecimalMin("0.0") @Digits(integer = 10, fraction = 2) BigDecimal price,
+        @jakarta.validation.Valid PackageRoadmapDto roadmapTemplate
+) {
+    public TrainingPackageUpdateRequest(String name,String type,String description,Integer days,BigDecimal price){this(name,type,description,days,price,null);}
+}

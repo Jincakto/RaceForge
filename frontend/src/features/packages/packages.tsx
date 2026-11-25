@@ -1,3 +1,4 @@
+import { PaymentReconciliation } from './PaymentReconciliation';
 import { PackageRoadmapPreview } from '../training/roadmapView';
 import { listOversightRegistrations, type OversightRegistration } from '../admin/api/oversightApi';
 import { CreatePackageForm } from './packageCreateForm';
@@ -35,8 +36,10 @@ const PackageStatus = ({ status }: { status: string }) => <span className={`inli
 const packageDate = (value?: string | null) => value ? value.slice(0, 10) : '—';
 
 /** The CM catalogue and the Admin read-only catalogue share the same expandable cards. */
-export function PackageCatalogPage({ packages, onSave, readOnly = false }: CatalogProps) {
+export function PackageCatalogPage({ packages, onSave, onToggle, readOnly = false }: CatalogProps) {
   const [creating, setCreating] = useState(false);
+  const [editing,setEditing]=useState<TrainingPackage|null>(null);
+  const [history,setHistory]=useState(false);
   const [actionError, setActionError] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [registrations, setRegistrations] = useState<OversightRegistration[]>([]);
@@ -55,7 +58,7 @@ export function PackageCatalogPage({ packages, onSave, readOnly = false }: Catal
     return () => { alive = false; };
   }, [reload]);
 
-  const list = packages.filter(p => filter === 'all' || (filter === 'active' ? p.active : !p.active));
+  const list = packages.filter(p => (history || !p.superseded) && (filter === 'all' || (filter === 'active' ? p.active : !p.active)));
   const registrationCount = (id: string) => registrationLoading || registrationError ? '—' : registrations.filter(e => e.packageId === id).length;
 
   return (
@@ -72,9 +75,11 @@ export function PackageCatalogPage({ packages, onSave, readOnly = false }: Catal
         {([['all', 'All'], ['active', 'Active'], ['inactive', 'Inactive']] as const).map(([k, l]) => (
           <button key={k} onClick={() => setFilter(k)} className={`rounded-full border px-3 py-1 text-xs font-medium ${filter === k ? 'border-[#1a2844] bg-[#1a2844] text-white' : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`}>{l}</button>
         ))}
+        <label className="text-sm"><input type="checkbox" checked={history} onChange={e=>setHistory(e.target.checked)}/> Show version history</label>
         <Btn size="sm" variant="secondary" disabled={registrationLoading} onClick={() => setReload(n => n + 1)}>Refresh purchases</Btn>
       </div>
 
+      {!readOnly&&<PaymentReconciliation/>}
       {actionError && <div role="alert"><Card className="border-l-4 border-red-500 bg-red-50 p-4 text-sm text-red-700">{actionError}</Card></div>}
       {registrationError && <div role="alert" className="rounded-lg border-l-4 border-amber-500 bg-amber-50 p-3 text-sm text-amber-800">Unable to load package registration history: {registrationError}. Counts are unavailable. <button className="underline" onClick={() => setReload(n => n + 1)}>Retry</button></div>}
 
@@ -89,6 +94,7 @@ export function PackageCatalogPage({ packages, onSave, readOnly = false }: Catal
           {list.map(pack => {
             const purchases = registrations.filter(r => r.packageId === pack.id);
             return <Card key={pack.id} className={`min-w-0 p-5 md:has-[>details[open]]:col-span-2 ${pack.active ? '' : 'opacity-80'}`}>
+              {!readOnly&&!pack.superseded&&onSave&&<div className="mb-3 flex gap-2"><Btn size="sm" onClick={()=>setEditing(pack)}>Edit</Btn>{onToggle&&<Btn size="sm" onClick={async()=>{const r=await onToggle(pack.id,!pack.active);if(!r.ok)setActionError(r.message);}}>{pack.active?'Disable':'Enable'}</Btn>}</div>}
               <details className="group">
                 <summary className="cursor-pointer list-none [&::-webkit-details-marker]:hidden" aria-label={`View ${pack.name} details and purchases`}>
                   <div className="flex items-start justify-between gap-3">
@@ -98,7 +104,7 @@ export function PackageCatalogPage({ packages, onSave, readOnly = false }: Catal
                         <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${pack.active ? 'border-emerald-200 bg-emerald-100 text-emerald-800' : 'border-gray-200 bg-gray-100 text-gray-500'}`}>{pack.active ? 'Active' : 'Inactive'}</span>
                         {pack.popular && <span className="rounded-full bg-[#c9973b]/15 px-2 py-0.5 text-xs font-medium text-[#8a6420]">Popular</span>}
                       </div>
-                      <h3 className="font-serif text-lg font-bold text-[#0f1729]">{pack.name}</h3>
+                      <h3 className="font-serif text-lg font-bold text-[#0f1729]">{pack.name} · v{pack.versionNumber || 1}</h3>
                     </div>
                     <div className="text-right"><div className="font-serif text-xl font-bold text-[#c9973b]">{money(pack.price)}</div></div>
                   </div>
@@ -136,6 +142,7 @@ export function PackageCatalogPage({ packages, onSave, readOnly = false }: Catal
         </div>
       )}
 
+      {editing&&!readOnly&&onSave&&<CreatePackageForm key={editing.id} initial={editing} packages={packages} onSave={onSave} onClose={()=>{setEditing(null);setReload(n=>n+1);}}/>}
       {creating && !readOnly && onSave && <CreatePackageForm packages={packages} onSave={onSave} onClose={() => setCreating(false)} />}
     </div>
   );

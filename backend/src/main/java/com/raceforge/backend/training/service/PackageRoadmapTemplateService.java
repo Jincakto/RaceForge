@@ -31,6 +31,11 @@ public class PackageRoadmapTemplateService {
   validate(dto,days);var r=new PackageRoadmapTemplate();r.id=UUID.randomUUID().toString();r.packageId=packageId;r.title=dto.title();r.goal=dto.goal();r.revision=1;r.createdAt=LocalDateTime.now();r.updatedAt=r.createdAt;roadmaps.saveAndFlush(r);
   int order=0;for(var s:dto.stages().stream().sorted(Comparator.comparingInt(Stage::startDay)).toList()){var row=new PackageStageTemplate();row.id=UUID.randomUUID().toString();row.roadmapId=r.id;row.stageOrder=++order;row.startDay=s.startDay();row.endDay=s.endDay();row.phaseCode=s.phaseCode();row.title=s.title();row.objective=s.objective();row.activityName=s.activityName();row.intensity=s.intensity();row.weekdaysJson=json.writeValueAsString(s.daysOfWeek());row.sessionTime=s.sessionTime();row.sessionEndTime=s.sessionEndTime();stages.save(row);}stages.flush();return read(packageId);
  }
+ public PackageRoadmapDto replace(String packageId,PackageRoadmapDto dto,int days){
+  validate(dto,days);
+  roadmaps.findByPackageId(packageId).ifPresent(r->{stages.deleteAll(stages.findByRoadmapIdOrderByStageOrderAsc(r.id));stages.flush();roadmaps.delete(r);roadmaps.flush();});
+  return create(packageId,dto,days);
+ }
  @Transactional(readOnly=true,noRollbackFor=BusinessRuleException.class) public PackageRoadmapDto read(String packageId){
   var r=roadmaps.findByPackageId(packageId).orElseThrow(()->new ConfigurationException("ROADMAP_MISSING","Package roadmap is not configured. Ask the manager to configure this package."));
   var rows=stages.findByRoadmapIdOrderByStageOrderAsc(r.id);if(rows.isEmpty())throw new ConfigurationException("STAGES_MISSING","Package roadmap has no stages");

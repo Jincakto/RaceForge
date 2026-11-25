@@ -30,6 +30,16 @@ public final class UelnValidator {
     }
 
     public static String normalizeAndValidate(String value) {
+        String ueln = normalizeFormat(value);
+        if (!hasSupportedPrefix(ueln)) {
+            throw new BusinessRuleException(
+                    "This UELN prefix is not supported. Please check the issuing organization.");
+        }
+        return ueln;
+    }
+
+    /** Shared normalization and syntax checks for preflight, creation and updates. */
+    public static String normalizeFormat(String value) {
         if (value == null || value.isBlank()) {
             throw new BusinessRuleException("UELN (registration number) is required");
         }
@@ -38,14 +48,13 @@ public final class UelnValidator {
             throw new BusinessRuleException(
                     "UELN must contain exactly 15 letters/digits, starting with a 3-digit country code");
         }
-        String organizationCode = ueln.substring(0, 6);
-        if (!REGISTERED_PREFIXES.contains(organizationCode)) {
-            throw new BusinessRuleException(
-                    "UELN organization code '" + organizationCode
-                            + "' is not in the configured UELN reference list; check the official UELN directory");
-        }
-        
         return ueln;
+    }
+
+    /** Checks the configured offline subset, not the existence of a horse. */
+    public static boolean hasSupportedPrefix(String normalizedUeln) {
+        return normalizedUeln != null && FORMAT.matcher(normalizedUeln).matches()
+                && REGISTERED_PREFIXES.contains(normalizedUeln.substring(0, 6));
     }
 
     private static Set<String> loadPrefixes() {

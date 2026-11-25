@@ -6,6 +6,7 @@ import { toISO, toDDMMYYYY, numOf } from "./HorseCarePages";
 import { TODAY } from "../../../shared/data/today";
 import { Btn, Card, Input, Select } from "../../../shared/ui/ui";
 import { IdentityBadge } from "../intake";
+import { checkUeln } from "../api/horsesApi";
 
 export function HorseCreatePage({
   user,
@@ -31,6 +32,31 @@ export function HorseCreatePage({
     evidenceNote: "",
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [uelnCheck, setUelnCheck] = useState<{
+    value: string; status: "checking" | "available" | "error"; message: string;
+  } | null>(null);
+  const [uelnRetry, setUelnRetry] = useState(0);
+  useEffect(() => {
+    const value = form.microchip;
+    if (!/^[0-9]{3}[A-Z0-9]{12}$/.test(value)) {
+      setUelnCheck(null);
+      return;
+    }
+    let active = true;
+    setUelnCheck({ value, status: "checking", message: "" });
+    const timer = window.setTimeout(() => {
+      checkUeln(value).then(result => {
+        if (active) setUelnCheck({ value,
+          status: result.validFormat && result.prefixRecognized && !result.exists ? "available" : "error",
+          message: result.message });
+      }).catch(() => {
+        if (active) setUelnCheck({ value, status: "error",
+          message: "Unable to check UELN. Please try again." });
+      });
+    }, 400);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [form.microchip, uelnRetry]);
+  const uelnAvailable = uelnCheck?.value === form.microchip && uelnCheck.status === "available";
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState("");
   useEffect(() => {
@@ -144,8 +170,9 @@ export function HorseCreatePage({
     else if (!/^[0-9]{3}[a-zA-Z0-9]{12}$/.test(form.microchip))
       e.microchip =
         "UELN must contain 15 characters: 3 country digits and 12 letters or digits.";
-    else if (state.horses.some((x) => x.microchip === form.microchip))
-      e.microchip = "This identification number is already registered.";
+    else if (!uelnAvailable)
+      e.microchip = uelnCheck?.value === form.microchip && uelnCheck.message
+        ? uelnCheck.message : "Please wait for the UELN check to complete.";
     if (!imageFile) e.evidenceUrl = "Choose an evidence image (JPG, PNG or WebP, up to 5 MB).";
     else if (!["image/jpeg", "image/png", "image/webp"].includes(imageFile.type))
       e.evidenceUrl = "The image must be JPG, PNG or WebP.";
@@ -255,7 +282,7 @@ export function HorseCreatePage({
           <Btn variant="secondary" onClick={() => navigate("my-horses")}>
             Cancel
           </Btn>
-          <Btn variant="gold" onClick={handle}>
+          <Btn variant="gold" onClick={handle} disabled={!uelnAvailable}>
             Submit registration →
           </Btn>
         </div>
@@ -276,13 +303,20 @@ export function HorseCreatePage({
             label="UELN"
             value={form.microchip}
             onChange={(v) =>
-              set("microchip")(v.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15))
+              set("microchip")(v.replace(/[^a-zA-Z0-9]/g, "").slice(0, 15).toUpperCase())
             }
             placeholder="3 country digits + 12 letters/digits"
             required
             hint={`${form.microchip.length}/15 characters entered`}
-            error={errors.microchip}
+            error={(uelnCheck?.value === form.microchip && uelnCheck.status === "error"
+              ? uelnCheck.message : "") || errors.microchip}
           />
+          {uelnCheck?.value === form.microchip && uelnCheck.status === "error" && (
+            <button type="button" className="text-xs underline self-end" onClick={() => {
+              setUelnCheck(null);
+              setUelnRetry(n => n + 1);
+            }}>Retry UELN check</button>
+          )}
           <div className="col-span-2">
             <label className="block text-sm font-medium text-gray-700">
               Evidence image <span className="text-red-500">*</span>

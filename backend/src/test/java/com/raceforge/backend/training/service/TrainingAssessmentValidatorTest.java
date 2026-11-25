@@ -114,32 +114,26 @@ class TrainingAssessmentValidatorTest {
     }
 
     @Test
-    void concernCanBeSavedWithoutIndividualNotes() {
-        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("TASK_COMPLETION"), Map.of()));
-        assertFalse(cleaned.checks().get("TASK_COMPLETION"));
-        assertTrue(cleaned.failNotes().isEmpty());
+    void concernRequiresIndividualNote() {
+        assertInvalid("FAIL_NOTE_REQUIRED", request(withConcern("TASK_COMPLETION"), Map.of()));
     }
 
     @Test
-    void concernAcceptsMissingLegacyNotesMap() {
-        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("TASK_COMPLETION"), null));
-        assertFalse(cleaned.checks().get("TASK_COMPLETION"));
-        assertTrue(cleaned.failNotes().isEmpty());
+    void concernRejectsMissingNotesMap() {
+        assertInvalid("FAIL_NOTE_REQUIRED", request(withConcern("TASK_COMPLETION"), null));
     }
 
     @Test
-    void directCallerNullLegacyNoteIsTreatedAsAbsent() {
+    void directCallerNullNoteIsRejected() {
         Map<String, String> notes = new LinkedHashMap<>();
         notes.put("TASK_COMPLETION", null);
-        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("TASK_COMPLETION"), notes));
-        assertTrue(cleaned.failNotes().isEmpty());
+        assertInvalid("FAIL_NOTE_REQUIRED", request(withConcern("TASK_COMPLETION"), notes));
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"", " ", "\t\r\n", "\u2003\u2003"})
-    void optionalBlankLegacyConcernNotesAreTreatedAsAbsent(String note) {
-        TrainingAssessmentRequest cleaned = validator.validate(request(withConcern("TASK_COMPLETION"), Map.of("TASK_COMPLETION", note)));
-        assertTrue(cleaned.failNotes().isEmpty());
+    void blankConcernNotesAreRejected(String note) {
+        assertInvalid("FAIL_NOTE_REQUIRED", request(withConcern("TASK_COMPLETION"), Map.of("TASK_COMPLETION", note)));
     }
 
     @Test
@@ -211,13 +205,10 @@ class TrainingAssessmentValidatorTest {
     }
 
     @Test
-    void allTenConcernsAreAcceptedWithNoIndividualNotes() {
+    void allTenConcernsRequireIndividualNotes() {
         Map<String, Boolean> checks = allPassed();
         checks.replaceAll((code, value) -> false);
-        TrainingAssessmentRequest cleaned = validator.validate(request(checks, null));
-        assertEquals(10, cleaned.checks().size());
-        assertTrue(cleaned.checks().values().stream().noneMatch(Boolean::booleanValue));
-        assertTrue(cleaned.failNotes().isEmpty());
+        assertInvalid("FAIL_NOTE_REQUIRED", request(checks, null));
     }
     private void assertInvalid(String code, TrainingAssessmentRequest request) {
         ApiException error = assertThrows(ApiException.class, () -> validator.validate(request));

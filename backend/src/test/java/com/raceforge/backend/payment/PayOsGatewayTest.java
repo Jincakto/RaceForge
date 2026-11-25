@@ -36,6 +36,14 @@ class PayOsGatewayTest {
         server.verify();
     }
 
+    @Test void checkoutDeadlineIsSentWithoutChangingSignatureFields(){
+        var deadline=java.time.Instant.parse("2026-11-25T03:30:00Z");
+        server.expect(requestTo(URL)).andExpect(jsonPath("$.expiredAt").value(deadline.getEpochSecond()))
+            .andExpect(jsonPath("$.signature").value(api.sign(Map.of("amount",25000,"cancelUrl","http://localhost:8080/api/payments/payos/cancel","description","HPG-001","orderCode",12345,"returnUrl","http://localhost:8080/api/payments/payos/return"))))
+            .andRespond(withSuccess("{\"code\":\"00\",\"data\":{\"orderCode\":12345,\"amount\":25000,\"paymentLinkId\":\"abc\",\"status\":\"PENDING\"}}",MediaType.APPLICATION_JSON));
+        api.create(12345,25000,"HPG-001",deadline);server.verify();
+    }
+
     @Test void retrievesSameOrderOnDuplicateCreate() {
         server.expect(requestTo(URL)).andRespond(withSuccess("{\"code\":\"231\"}", MediaType.APPLICATION_JSON));
         server.expect(requestTo(URL+"/12345")).andExpect(method(HttpMethod.GET)).andRespond(withSuccess("""

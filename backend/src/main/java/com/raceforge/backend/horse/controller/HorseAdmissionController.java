@@ -6,6 +6,7 @@ import com.raceforge.backend.horse.service.HorseAdmissionService;
 import com.raceforge.backend.security.AuthenticatedUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +22,17 @@ public class HorseAdmissionController {
     }
 
     public record Review(@Size(max = 500) String note) {
+    }
+
+    public enum ScreeningDecision { PASSED, NEEDS_CORRECTION, REJECTED }
+    public record Screening(@NotNull ScreeningDecision decision, @Size(max = 500) String reason) {}
+
+    @PostMapping("/admission/screening")
+    @PreAuthorize("hasAuthority('CLUB_MANAGER')")
+    public ApiResponse<HorseResponse> screen(@PathVariable String horseId,
+            @AuthenticationPrincipal AuthenticatedUser actor, @Valid @RequestBody Screening body) {
+        return ApiResponse.success("Screening decision recorded",
+                service.screen(horseId, actor.userId(), body.decision().name(), body.reason()));
     }
 
     @PostMapping("/admission")

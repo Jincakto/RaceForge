@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import { GENDER_LABEL } from '../admin';
 import { Card, Btn } from '../../../shared/ui/ui';
 import { PackageCatalogPage } from '../../packages/packages';
 import type { TrainingPackage } from '../../../shared/data/data';
@@ -82,11 +83,11 @@ export function AdminHorsesPage() {
             <td className="px-4 py-3"><div className="flex items-center gap-3"><img src={h.imageUrl || undefined} alt={h.horseName} className="h-10 w-10 rounded-lg bg-slate-100 object-cover" /><strong>{h.horseName}</strong></div></td>
             <td className="px-4 py-3 font-mono text-xs">{h.horseId}<div className="text-slate-500">{h.registrationNumber || '—'}</div></td>
             <td className="px-4 py-3">{h.ownerName}<div className="text-xs text-slate-500">{h.ownerId}</div></td>
-            <td className="px-4 py-3">{h.gender || '—'}</td><td className="px-4 py-3">{pill(h.healthStatus)}</td><td className="px-4 py-3">{pill(h.admissionStatus)}</td>
+            <td className="px-4 py-3">{h.gender ? (GENDER_LABEL[h.gender] || h.gender) : '—'}</td><td className="px-4 py-3">{pill(h.healthStatus)}</td><td className="px-4 py-3">{pill(h.admissionStatus)}</td>
             <td className="px-4 py-3">{h.trainingLocked ? pill('LOCKED') : 'No'}</td>
             <td className="px-4 py-3"><button aria-expanded={selected === h.horseId} aria-label={`${selected === h.horseId ? 'Close' : 'View'} ${h.horseName} details`} className="text-xs font-semibold text-[#8a6420]" onClick={event => { event.stopPropagation(); setSelected(prev => prev === h.horseId ? null : h.horseId); }}>{selected === h.horseId ? 'Close ↑' : 'View ↓'}</button></td>
           </tr>
-          {selected === h.horseId && <tr className="bg-slate-50"><td colSpan={8} className="px-5 py-4"><div className="mb-2 font-semibold text-[#0f1729]">Horse profile · read only</div><div className="grid gap-3 text-sm text-slate-700 md:grid-cols-3"><p><span className="text-slate-500">Breed:</span> {h.breed || '—'}</p><p><span className="text-slate-500">Gender:</span> {h.gender || '—'}</p><p><span className="text-slate-500">Born:</span> {date(h.dateOfBirth)}</p><p><span className="text-slate-500">Club status:</span> {h.horseStatus || '—'}</p><p><span className="text-slate-500">Health:</span> {h.healthStatus || '—'}</p><p><span className="text-slate-500">Registration:</span> {h.registrationNumber || '—'}</p></div></td></tr>}
+          {selected === h.horseId && <tr className="bg-slate-50"><td colSpan={8} className="px-5 py-4"><div className="mb-2 font-semibold text-[#0f1729]">Horse profile · read only</div><div className="grid gap-3 text-sm text-slate-700 md:grid-cols-3"><p><span className="text-slate-500">Breed:</span> {h.breed || '—'}</p><p><span className="text-slate-500">Gender:</span> {h.gender ? (GENDER_LABEL[h.gender] || h.gender) : '—'}</p><p><span className="text-slate-500">Born:</span> {date(h.dateOfBirth)}</p><p><span className="text-slate-500">Club status:</span> {h.horseStatus || '—'}</p><p><span className="text-slate-500">Health:</span> {h.healthStatus || '—'}</p><p><span className="text-slate-500">Registration:</span> {h.registrationNumber || '—'}</p></div></td></tr>}
         </Fragment>)}</tbody>
       </table></div>
       {!loading && !error && filtered.length === 0 && <p className="px-5 py-10 text-center text-sm text-slate-500">No horses match these filters.</p>}

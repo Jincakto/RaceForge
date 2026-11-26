@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { userFromApi, latestConfirmedExam } from '../../app/remote';
 import type { AppUser, Horse, HorseClubRequest, HealthRecord } from '../../shared/data/data';
 import { Btn, Card } from '../../shared/ui/ui';
-import { IdChip, ReasonDialog, Modal } from '../admin/admin';
+import { IdChip, ReasonDialog, Modal, GENDER_LABEL } from '../admin/admin';
 import type { ScreeningDecision } from './api/horsesApi';
 import { HorseDocumentReview } from './HorseDocumentReview';
 
@@ -174,7 +174,7 @@ export function IntakeBoardPage({ user, horses, requests, records, users, onScre
               {h?.imageUrl ? <img src={h.imageUrl || undefined} alt={h.name} className="h-16 w-16 rounded-xl bg-gray-200 object-cover" /> : <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-gray-100 text-2xl">🐎</div>}
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2"><button onClick={() => h && onOpenHorse(h.id)} className="font-serif text-lg font-bold text-[#0f1729] hover:text-[#c9973b]">{r.horseName}</button>{h && <IdChip kind="HRS" id={h.id} />}<IdentityBadge verified={h?.identityVerified} /></div>
-                <div className="text-sm text-gray-500">{r.horseBreed} · {h?.age} years old · {h?.gender} · Horse Owner: <b className="text-gray-700">{r.ownerName}</b> · Submitted {r.submittedAt}</div>
+                <div className="text-sm text-gray-500">{r.horseBreed} · {h?.age} years old · {h ? (GENDER_LABEL[h.gender] || h.gender) : '—'} · Horse Owner: <b className="text-gray-700">{r.ownerName}</b> · Submitted {r.submittedAt}</div>
                 <div className="mt-0.5 text-xs text-gray-400">Identification Code: {h?.microchip || 'Not provided'}</div>
               </div>
             </div>
@@ -323,7 +323,7 @@ export function VetAssignedPage({ user, horses, requests, onRespond, onExam, onO
               {h.imageUrl ? <img src={h.imageUrl || undefined} alt={h.name} className="h-14 w-14 rounded-xl bg-gray-200 object-cover" /> : <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gray-100 text-xl">🐎</div>}
               <div className="flex-1">
                 <div className="flex items-center gap-2"><span className="font-serif text-lg font-bold">{h.name}</span><IdChip kind="HRS" id={h.id} /></div>
-                <div className="text-sm text-gray-500">{h.breed} · {h.age} years old · {h.gender} · Horse Owner: {h.ownerName}</div>
+                <div className="text-sm text-gray-500">{h.breed} · {h.age} years old · {GENDER_LABEL[h.gender] || h.gender} · Horse Owner: {h.ownerName}</div>
                 <div className="mt-1 text-xs"><span className={`rounded-full border px-2 py-0.5 font-medium ${status === 'pending' ? 'border-sky-200 bg-sky-50 text-sky-700' : status === 'accepted' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>{VET_STATUS[status]}</span></div>
               </div>
               <div className="flex flex-wrap gap-2">

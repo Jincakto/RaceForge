@@ -523,7 +523,7 @@ export function HorseDetailPage({
                   <div className="grid grid-cols-2 gap-3">
                     <Input label="Date of birth" type="date" value={editForm.birthDate} error={editErr.birthDate} onChange={v => setEditForm(f => ({ ...f, birthDate: v }))} />
                     <Input label="Breed" value={editForm.breed} error={editErr.breed} onChange={v => setEditForm(f => ({ ...f, breed: v }))} />
-                    <Select label="Gender" value={editForm.gender} options={['Stallion', 'Mare', 'Gelding'].map(value => ({ value, label: value }))} onChange={v => setEditForm(f => ({ ...f, gender: v }))} />
+                    <Select label="Gender" value={editForm.gender} options={[{ value: horse.gender === 'Gelding' ? 'Gelding' : 'Stallion', label: 'Male' }, { value: 'Mare', label: 'Female' }]} onChange={v => setEditForm(f => ({ ...f, gender: v }))} />
                     <Input label="Coat color" value={editForm.color} error={editErr.color} onChange={v => setEditForm(f => ({ ...f, color: v }))} />
                     <Input
                       label="Height (cm)"

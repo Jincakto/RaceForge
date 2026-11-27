@@ -41,21 +41,6 @@ export interface HorseUpdateInput {
   documentUrl: string;
 }
 
-export interface RaceHistoryInput {
-  raceName: string;
-  raceDate: string;
-  distance: number;
-  finishPosition: number;
-  completionTime: string;
-  racecourse: string;
-  jockeyName: string;
-  prize: number;
-}
-
-interface RaceHistoryResponse extends RaceHistoryInput {
-  raceHistoryId: string;
-}
-
 export const listHorses = () =>
   request<HorseResponse[]>('/horses');
 
@@ -74,18 +59,6 @@ export const createHorse = (body: FormData) =>
 
 export const updateHorse = (id: string, body: HorseUpdateInput) =>
   request<HorseResponse>(`/horses/${idPath(id)}`, 'PUT', body);
-
-export const listHorseRaceHistory = (id: string) =>
-  request<RaceHistoryResponse[]>(`/horses/${idPath(id)}/race-history`);
-
-export const createRaceHistory = (id: string, body: RaceHistoryInput) =>
-  request<RaceHistoryResponse>(`/horses/${idPath(id)}/race-history`, 'POST', body);
-
-export const updateRaceHistory = (id: string, body: RaceHistoryInput) =>
-  request<RaceHistoryResponse>(`/horses/race-history/${idPath(id)}`, 'PUT', body);
-
-export const deleteRaceHistory = (id: string) =>
-  request<unknown>(`/horses/race-history/${idPath(id)}`, 'DELETE');
 
 export const activateHorse = (id: string) =>
   request<unknown>(`/horses/${idPath(id)}/activate`, 'PATCH');

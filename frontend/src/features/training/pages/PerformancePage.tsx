@@ -23,7 +23,7 @@ export function PerformancePage({ state }: { state: AppState }) {
           Performance — {horse?.name || "No data available"}
         </h2>
       </div>
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-3 gap-4">
         <StatCard label="Top speed" value={topSpeed} color="gold" />
         <StatCard
           label="Fitness"
@@ -35,15 +35,6 @@ export function PerformancePage({ state }: { state: AppState }) {
           label="AI score"
           value="—"
           sub="AI scores are not available from the server"
-          color="navy"
-        />
-        <StatCard
-          label="Win rate"
-          value={
-            horse?.totalRaces
-              ? `${Math.round((horse.wins / horse.totalRaces) * 100)}%`
-              : "—"
-          }
           color="navy"
         />
       </div>

@@ -20,12 +20,7 @@ test('all application labels, templates, validation messages and defaults are En
       if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node) || ts.isJsxText(node)) {
         // Legacy Vietnamese gender aliases are accepted as INPUT keys, never UI labels.
         const isLegacyInputKey = ts.isPropertyAssignment(node.parent) && node.parent.name === node && compatibilityGenderKeys.has(node.text);
-        const isImportHeaderAlias = name === 'raceImport.ts' && ts.isStringLiteral(node)
-          && ts.isArrayLiteralExpression(node.parent) && ts.isPropertyAssignment(node.parent.parent)
-          && ts.isObjectLiteralExpression(node.parent.parent.parent)
-          && ts.isVariableDeclaration(node.parent.parent.parent.parent)
-          && node.parent.parent.parent.parent.name.getText(ast) === 'ALIASES';
-        if (!isLegacyInputKey && !isImportHeaderAlias && vietnamese.test(node.text)) failures.push(`${name}:${ast.getLineAndCharacterOfPosition(node.getStart(ast)).line + 1}: ${node.text.trim()}`);
+        if (!isLegacyInputKey && vietnamese.test(node.text)) failures.push(`${name}:${ast.getLineAndCharacterOfPosition(node.getStart(ast)).line + 1}: ${node.text.trim()}`);
         if (/^(Cao|TB-Cao|CN|T[1-9]|T1[0-2]|cho|theo|trong|xong)$/.test(node.text)) failures.push(`${name}: untranslated word ${node.text}`);
       }
       ts.forEachChild(node, visit);

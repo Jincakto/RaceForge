@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { AppUser, Horse } from '../../shared/data/data';
-import { Badge, Btn, Card, Input, Select, Textarea } from '../../shared/ui/ui';
+import { Btn, Card, Input, Select } from '../../shared/ui/ui';
 import { ReasonDialog } from '../admin/admin';
 
 const nowStamp = () => {
@@ -83,47 +83,3 @@ export function TrainerHistoryTab({ horse, trainers, canEdit, today, onChange }:
     </div>
   );
 }
-
-// ── Evidence photos ───────────────────────────────────────────────────────────
-
-export function PhotosTab({ horse, canEdit, onChange }: { horse: Horse; canEdit: boolean; onChange: (photos: string[]) => void }) {
-  const photos = horse.photos || [];
-  const [err, setErr] = useState('');
-  const [big, setBig] = useState<string | null>(null);
-
-  const add = (files: FileList | null) => {
-    if (!files) return;
-    const arr = Array.from(files);
-    const bad = arr.find(f => !/^image\/(png|jpe?g|webp)$/.test(f.type));
-    if (bad) { setErr(`"${bad.name}" is not a PNG/JPG/WebP image.`); return; }
-    const huge = arr.find(f => f.size > 5 * 1024 * 1024);
-    if (huge) { setErr(`"${huge.name}" exceeds 5 MB.`); return; }
-    if (photos.length + arr.length > 12) { setErr("Maximum 12 evidence images per horse."); return; }
-    setErr('');
-    Promise.all(arr.map(f => new Promise<string>(res => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.readAsDataURL(f); }))).then(urls => onChange([...photos, ...urls]));
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <div><h3 className="font-semibold">Evidence images</h3><p className="text-sm text-gray-500">{photos.length}/12 images · PNG, JPG, WebP · up to 5 MB each</p></div>
-        {canEdit && <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-[#c9973b] bg-[#c9973b] px-4 py-2 text-sm font-medium text-white hover:bg-[#b8852a]">+ Upload images<input type="file" multiple accept="image/png,image/jpeg,image/webp" className="hidden" onChange={e => { add(e.target.files); e.target.value = ''; }} /></label>}
-      </div>
-      {err && <p className="text-sm text-red-600">{err}</p>}
-      {photos.length === 0 ? (
-        <Card className="p-10 text-center"><div className="mb-2 text-4xl">🖼</div><div className="font-semibold text-gray-500">No evidence images yet</div><p className="mt-1 text-xs text-gray-400">Images of documents, stables or the horse's condition help managers review the application.</p></Card>
-      ) : (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {photos.map((u, i) => (
-            <div key={i} className="group relative overflow-hidden rounded-xl border border-gray-200 bg-gray-100">
-              <img src={u} alt={`Evidence images ${i + 1}`} onClick={() => setBig(u)} className="h-32 w-full cursor-zoom-in object-cover" />
-              {canEdit && <button aria-label="Delete image" onClick={() => onChange(photos.filter((_, j) => j !== i))} className="absolute right-1.5 top-1.5 hidden h-6 w-6 rounded-full bg-red-600 text-xs text-white group-hover:block">✕</button>}
-            </div>
-          ))}
-        </div>
-      )}
-      {big && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6" onClick={() => setBig(null)}><img src={big} className="max-h-full max-w-full rounded-lg" /></div>}
-    </div>
-  );
-}
-

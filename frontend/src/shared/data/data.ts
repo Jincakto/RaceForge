@@ -52,29 +52,6 @@ export type HealthStatus = 'Eligible' | 'Monitor' | 'Injured' | 'Retired' | 'Pen
 export type TrainingStatus = 'Active' | 'Resting' | 'Inactive' | 'Pending Approval';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired';
 
-export interface Achievement {
-  id: string;
-  date: string;
-  title: string;
-  description: string;
-  prize?: string;
-  position?: number;
-  doc?: string;
-}
-
-export interface RaceHistoryEntry {
-  id: string;
-  date: string;
-  raceName: string;
-  distance: string;
-  position: number;
-  totalHorses: number;
-  time: string;
-  venue: string;
-  jockey: string;
-  prize: string;
-}
-
 export type Lifecycle = 'pending' | 'awaiting_vet' | 'ready' | 'training' | 'locked';
 
 export const LIFECYCLE_ORDER: Lifecycle[] = ['pending', 'awaiting_vet', 'ready', 'training', 'locked'];
@@ -226,13 +203,9 @@ export interface Horse {
   approvalStatus: ApprovalStatus;
   registrationDate: string;
   approvedAt: string | null;
-  totalRaces: number;
-  wins: number;
   imageUrl: string;
   vetClearance: boolean;
   biography: string;
-  achievements: Achievement[];
-  raceHistory: RaceHistoryEntry[];
   lifecycle?: Lifecycle;
   sire?: string;
   dam?: string;
@@ -241,7 +214,6 @@ export interface Horse {
   intakeExamId?: string;
   medicalHistory?: string;
   birthDate?: string;
-  photos?: string[];
   vetAssign?: { status: 'pending' | 'accepted' | 'declined'; history: { time: string; from: string | null; to: string; by: string; reason: string }[] };
   trainerHistory?: { id: string; trainerId: string; name: string; from: string; to: string | null; note?: string }[];
   editRequests?: { id: string; field: string; oldValue: string; newValue: string; reason: string; status: 'pending' | 'approved' | 'rejected'; at: string; by: string; decisionReason?: string }[];
@@ -390,9 +362,7 @@ export interface HealthRecord {
   createdAt?: number;
 }
 
-// ── Training Plan Algorithm ────────────────────────────────────────────────────
-// Based on: Seiler's 80/20 Polarized Training model + FEI equine science guidelines
-// Factors: health status, age, weight, resting heart rate, race history
+// ── Training recommendation view model ─────────────────────────────────────────
 
 export interface TrainingSuggestion {
   stages?: import('../../features/training/trainingSchedule').RoadmapStage[];
@@ -409,165 +379,6 @@ export interface TrainingSuggestion {
   rationale: string[];
   warnings: string[];
   twelveWeekPlan: { week: number; focus: string; volumeKm: number; intensityNote: string }[];
-}
-
-export function computeTrainingSuggestion(horse: Horse, health?: HealthRecord): TrainingSuggestion {
-  // ── Multi-factor scoring (max 100) ──────────────────────────────────────────
-  let score = 40;
-  const rationale: string[] = [];
-  const warnings: string[] = [];
-
-  // 1. Health status (0-40 pts)
-  const healthPts: Record<HealthStatus, number> = {
-    Eligible: 40, Monitor: 15, Injured: -20, 'Pending Vet': 5, Retired: -40,
-  };
-  score += healthPts[horse.healthStatus] ?? 0;
-  if (horse.healthStatus === 'Monitor') warnings.push("Horse under monitoring — maximum intensity 60%");
-  if (horse.healthStatus === 'Injured') warnings.push("Horse injured — passive recovery only");
-  if (horse.healthStatus === 'Eligible') rationale.push("Stable health; fit for full training");
-
-  // 2. Age factor (0-20 pts) — peak performance: 4–7 years
-  if (horse.age >= 4 && horse.age <= 7) {
-    score += 20; rationale.push(`Age ${horse.age} — peak performance age (4–7 years)`);
-  } else if (horse.age === 3) {
-    score += 10; warnings.push("Three-year-old horse — bones still developing; limit high-intensity sprints");
-  } else if (horse.age <= 10) {
-    score += 12; rationale.push(`Age ${horse.age} — still competitive; allow more recovery time`);
-  } else {
-    score += 2; warnings.push(`Horses ${horse.age} years old — prioritize maintenance and rest`);
-  }
-
-  // 3. Weight factor (0-15 pts) — optimal TB: 450–550 kg
-  if (horse.weight >= 450 && horse.weight <= 550) {
-    score += 15; rationale.push(`Weight ${horse.weight} kg — within the ideal range (450–550 kg)`);
-  } else if (horse.weight < 430) {
-    score += 0; warnings.push(`Weight ${horse.weight} kg is low — improve nutrition before strenuous training`);
-  } else if (horse.weight > 570) {
-    score += 5; warnings.push(`Weight ${horse.weight} kg is high — reduce workload and monitor joints`);
-  } else {
-    score += 10;
-  }
-
-  // 4. Vitals from latest health record (0-15 pts)
-  if (health?.vitals) {
-    const hr = Number(health.vitals.heartRate);
-    const temp = Number(health.vitals.temperature);
-    if (hr >= 28 && hr <= 36) {
-      score += 15; rationale.push(`Resting heart rate ${hr} bpm — excellent cardiovascular fitness (a good foundation for performance training)`);
-    } else if (hr <= 44) {
-      score += 8; rationale.push(`Resting heart rate ${hr} bpm — normal`);
-    } else {
-      score -= 5; warnings.push(`Resting heart rate ${hr} bpm is high — reassess cardiovascular fitness before increasing workload`);
-    }
-    if (temp > 38.5) { score -= 10; warnings.push(`Temperature ${temp}°C — signs of inflammation or infection; suspend training`); }
-  } else {
-    warnings.push("No recent vital signs — examination recommended before starting the program");
-  }
-
-  // 5. Race performance bonus (0-10 pts)
-  if (horse.totalRaces >= 5) {
-    const winRate = horse.wins / horse.totalRaces;
-    if (winRate >= 0.6) { score += 10; rationale.push(`Win rate ${Math.round(winRate * 100)}% — competition level`); }
-    else if (winRate >= 0.4) { score += 5; }
-  }
-
-  const finalScore = Math.max(0, Math.min(100, score));
-
-  // ── Map score → training phase ───────────────────────────────────────────
-  if (finalScore >= 82) {
-    return buildPlan("Race preparation", finalScore, {
-      weeklyKm: 42, sessions: 5, rest: 2, hi: 30, lo: 70,
-      schedule: [
-        { day: "Monday", type: "Interval sprints", distance: '4 × 200m', intensity: "Very high", zone: 'Z4–Z5' },
-        { day: "Tuesday", type: "Recovery jog", distance: '3000m', intensity: "Low", zone: 'Z1' },
-        { day: "Wednesday", type: "Race-pace run", distance: '1200m', intensity: 'High', zone: 'Z4' },
-        { day: "Thursday", type: "Rest / Light walking", distance: '600m', intensity: "Rest", zone: 'Z0' },
-        { day: "Friday", type: "Tempo run", distance: '1600m', intensity: 'Moderate–high', zone: 'Z3' },
-        { day: "Saturday", type: "Aerobic endurance run", distance: '2400m', intensity: "Moderate", zone: 'Z2' },
-        { day: 'Sun', type: "Complete rest", distance: '—', intensity: "Rest", zone: 'Z0' },
-      ],
-      rationale, warnings,
-      twelveWeek: buildTwelveWeek(38, "Race preparation"),
-    });
-  }
-  if (finalScore >= 65) {
-    return buildPlan("Foundation", finalScore, {
-      weeklyKm: 30, sessions: 4, rest: 3, hi: 20, lo: 80,
-      schedule: [
-        { day: "Monday", type: "Easy aerobic work", distance: '2000m', intensity: "Low–moderate", zone: 'Z2' },
-        { day: "Tuesday", type: "Rest / Walking", distance: '500m', intensity: "Rest", zone: 'Z0' },
-        { day: "Wednesday", type: "Fartlek run", distance: '1600m', intensity: 'Moderate–high', zone: 'Z3' },
-        { day: "Thursday", type: "Complete rest", distance: '—', intensity: "Rest", zone: 'Z0' },
-        { day: "Friday", type: "Easy canter", distance: '1200m', intensity: "Moderate", zone: 'Z2' },
-        { day: "Saturday", type: "Easy distance work", distance: '2800m', intensity: "Low", zone: 'Z1–Z2' },
-        { day: 'Sun', type: "Complete rest", distance: '—', intensity: "Rest", zone: 'Z0' },
-      ],
-      rationale, warnings,
-      twelveWeek: buildTwelveWeek(24, "Foundation"),
-    });
-  }
-  if (finalScore >= 42) {
-    return buildPlan("Orientation", finalScore, {
-      weeklyKm: 18, sessions: 3, rest: 4, hi: 10, lo: 90,
-      schedule: [
-        { day: "Monday", type: "Walk + easy jog", distance: '1500m', intensity: "Very low", zone: 'Z1' },
-        { day: "Tuesday", type: "Rest", distance: '—', intensity: "Rest", zone: 'Z0' },
-        { day: "Wednesday", type: "Easy work", distance: '1200m', intensity: "Low", zone: 'Z1' },
-        { day: "Thursday", type: "Rest", distance: '—', intensity: "Rest", zone: 'Z0' },
-        { day: "Friday", type: "Easy canter", distance: '1000m', intensity: "Low", zone: 'Z2' },
-        { day: "Saturday", type: "Rest", distance: '—', intensity: "Rest", zone: 'Z0' },
-        { day: 'Sun', type: "Rest", distance: '—', intensity: "Rest", zone: 'Z0' },
-      ],
-      rationale, warnings,
-      twelveWeek: buildTwelveWeek(14, "Orientation"),
-    });
-  }
-  return buildPlan("Recovery", finalScore, {
-    weeklyKm: 6, sessions: 2, rest: 5, hi: 0, lo: 100,
-    schedule: [
-      { day: "Monday", type: "Light walking", distance: '400m', intensity: "Very light", zone: 'Z0' },
-      { day: "Tuesday", type: "Rest", distance: '—', intensity: "Rest", zone: 'Z0' },
-      { day: "Wednesday", type: "Rest", distance: '—', intensity: "Rest", zone: 'Z0' },
-      { day: "Thursday", type: "Light walking", distance: '400m', intensity: "Very light", zone: 'Z0' },
-      { day: "Friday", type: "Rest", distance: '—', intensity: "Rest", zone: 'Z0' },
-      { day: "Saturday", type: "Rest", distance: '—', intensity: "Rest", zone: 'Z0' },
-      { day: 'Sun', type: "Rest", distance: '—', intensity: "Rest", zone: 'Z0' },
-    ],
-    rationale, warnings,
-    twelveWeek: buildTwelveWeek(5, "Recovery"),
-  });
-}
-
-function buildTwelveWeek(baseKm: number, phase: string) {
-  const phases: Record<string, string[]> = {
-    "Race preparation": ["Foundation", "Foundation", "Build", "Build", "Build", "Increase intensity", "Increase intensity", "Increase intensity", "Peak", "Peak", 'Taper', "Competition"],
-    "Foundation": ["Warm-up", "Build", "Build", "Maintain", "Intensive", "Intensive", "Mid-program rest", "Gradual increase", "Gradual increase", "Base peak", "Stable", "Transition"],
-    "Orientation": ["Adaptation", "Adaptation", "Light build", "Light build", "Maintain", "Maintain", "Development", "Development", "Stable", "Stable", "Assessment", "Transition"],
-    "Recovery": ["Active rest", "Active rest", "Light rehabilitation", "Light rehabilitation", "Assessment", "Restart", "Restart", "Light familiarization", "Light familiarization", "Stable", "Stable", "Transition"],
-  };
-  const multipliers = [0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 0.85, 1.0, 1.05, 1.1, 0.8, 0.7];
-  const focusArr = phases[phase] || phases["Orientation"];
-  return Array.from({ length: 12 }, (_, i) => ({
-    week: i + 1,
-    focus: focusArr[i],
-    volumeKm: Math.round(baseKm * multipliers[i]),
-    intensityNote: i % 3 === 2 ? "15% deload week" : i >= 9 && phase === "Race preparation" ? "Taper and race simulation" : "Increase gradually by 10%/week",
-  }));
-}
-
-function buildPlan(phase: string, score: number, opts: {
-  weeklyKm: number; sessions: number; rest: number; hi: number; lo: number;
-  schedule: { day: string; type: string; distance: string; intensity: string; zone: string }[];
-  rationale: string[]; warnings: string[];
-  twelveWeek: { week: number; focus: string; volumeKm: number; intensityNote: string }[];
-}): TrainingSuggestion {
-  return {
-    phase, intensityScore: score,
-    weeklyKm: opts.weeklyKm, sessionsPerWeek: opts.sessions, restDaysPerWeek: opts.rest,
-    highIntensityPercent: opts.hi, lowIntensityPercent: opts.lo,
-    weeklySchedule: opts.schedule, rationale: opts.rationale, warnings: opts.warnings,
-    twelveWeekPlan: opts.twelveWeek,
-  };
 }
 
 // ── Seed Data ─────────────────────────────────────────────────────────────────
@@ -685,20 +496,9 @@ export const HORSES: Horse[] = [
     healthStatus: 'Eligible', trainingStatus: 'Active', lifecycle: 'training',
     sire: 'Redoute’s Choice', dam: 'Silver Mist', medicalHistory: "No significant medical history. Vaccinations up to date.",
     approvalStatus: 'approved', registrationDate: '15/03/2021', approvedAt: '20/03/2021',
-    totalRaces: 12, wins: 7, vetClearance: true,
+    vetClearance: true,
     biography: "Purebred Thoroughbred imported from Australia in 2021. Known for a strong finishing sprint and rapid heart rate recovery after high-intensity work. Top speed 59.9 km/h.",
     imageUrl: 'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?w=700&h=500&fit=crop&auto=format',
-    achievements: [
-      { id: 'a1', date: '10/09/2026', title: 'RaceForce Sprint Cup', description: 'Winner over 1200m, leading from the final turn', prize: '$2,000', position: 1 },
-      { id: 'a2', date: '20/07/2026', title: 'Summer Classic 1600m', description: "Won over 1600 m by two lengths", prize: '80,000,000 VND', position: 1 },
-      { id: 'a3', date: '15/08/2026', title: 'Golden Gate Stakes', description: "Close second over 1400 m", prize: '20,000,000 VND', position: 2 },
-    ],
-    raceHistory: [
-      { id: 'rh1', date: '10/09/2026', raceName: 'RaceForce Sprint Cup', distance: '1200m', position: 1, totalHorses: 10, time: '1:11.24', venue: 'Phu Tho Racecourse', jockey: 'Nguyen Duc', prize: '$2,000' },
-      { id: 'rh2', date: '15/08/2026', raceName: 'Golden Gate Stakes', distance: '1400m', position: 2, totalHorses: 12, time: '1:25.10', venue: "Phu Tho Racecourse", jockey: 'Nguyen Duc', prize: '20,000,000 VND' },
-      { id: 'rh3', date: '20/07/2026', raceName: 'Summer Classic', distance: '1600m', position: 1, totalHorses: 9, time: '1:38.55', venue: "Phu Tho Racecourse", jockey: 'Nguyen Duc', prize: '80,000,000 VND' },
-      { id: 'rh4', date: '05/06/2026', raceName: 'Monsoon Mile', distance: '1600m', position: 3, totalHorses: 11, time: '1:39.80', venue: "Phu Tho Racecourse", jockey: 'Nguyen Duc', prize: '10,000,000 VND' },
-    ],
   },
   {
     trainerHistory: [{ id: 'th3', trainerId: 'u2', name: 'Nguyen Minh Tuan', from: '15/02/2023', to: null }],
@@ -710,14 +510,9 @@ export const HORSES: Horse[] = [
     healthStatus: 'Injured', trainingStatus: 'Inactive', lifecycle: 'awaiting_vet',
     sire: 'Dash for Cash', dam: 'Dark Lady', medicalHistory: "Right forelimb ligament injury (09/2026).",
     approvalStatus: 'approved', registrationDate: '10/02/2023', approvedAt: '15/02/2023',
-    totalRaces: 6, wins: 1, vetClearance: false,
+    vetClearance: false,
     biography: "Former racehorse from Hanoi recovering from a serious right forelimb ligament injury. Abnormal resting heart rate and excess weight; estimated recovery 4–6 weeks.",
     imageUrl: 'https://images.unsplash.com/photo-1566288623394-377af472d81b?w=700&h=500&fit=crop&auto=format',
-    achievements: [],
-    raceHistory: [
-      { id: 'rh5', date: '12/05/2026', raceName: 'Northern Sprint Open', distance: '1000m', position: 4, totalHorses: 10, time: '1:02.80', venue: "Gia Lam Racecourse", jockey: 'Tran Van Hung', prize: '0 VND' },
-      { id: 'rh6', date: '01/04/2026', raceName: 'Spring Classic', distance: '1200m', position: 1, totalHorses: 8, time: '1:16.40', venue: "Gia Lam Racecourse", jockey: 'Tran Van Hung', prize: '25,000,000 VND' },
-    ],
   },
   {
     id: 'HRS-000003', name: 'Silver Arrow', breed: 'Thoroughbred', age: 4, color: 'Grey',
@@ -725,11 +520,10 @@ export const HORSES: Horse[] = [
     clubId: null, ownerId: 'u7', ownerName: 'Pham Thi Lan',
     headTrainerId: '', headTrainerName: '', vetId: '', vetName: '', groomId: '', groomName: '', 
     healthStatus: 'Pending Vet', trainingStatus: 'Pending Approval', approvalStatus: 'pending', lifecycle: 'pending',
-    registrationDate: '20/09/2026', approvedAt: null, totalRaces: 0, wins: 0, vetClearance: false,
+    registrationDate: '20/09/2026', approvedAt: null, vetClearance: false,
     sire: 'Redoute’s Choice', dam: 'Silver Mist', medicalHistory: "No medical history reported.",
     biography: "Young horse registered at the center by its owner.", imageUrl: 'https://images.unsplash.com/photo-1534307671554-9a6d81f4d629?w=700&h=500&fit=crop&auto=format',
     identityVerified: false, identityEvidence: { url: '', note: '' },
-    achievements: [], raceHistory: [],
   },
   {
     id: 'HRS-000004', name: 'Midnight Dancer', breed: 'Arabian', age: 5, color: 'Black',
@@ -737,11 +531,10 @@ export const HORSES: Horse[] = [
     clubId: null, ownerId: 'u7', ownerName: 'Pham Thi Lan',
     headTrainerId: '', headTrainerName: '', groomId: '', groomName: '', vetId: 'u4', vetName: 'Dr. Le Thi An', vetAssign: { status: 'pending', history: [{ time: '24/09/2026', from: null, to: 'Dr. Le Thi An', by: 'Nguyen Van Binh', reason: "Assign initial examination" }] },
     healthStatus: 'Pending Vet', trainingStatus: 'Pending Approval', approvalStatus: 'pending', lifecycle: 'pending',
-    registrationDate: '24/09/2026', approvedAt: null, totalRaces: 0, wins: 0, vetClearance: false,
+    registrationDate: '24/09/2026', approvedAt: null, vetClearance: false,
     sire: 'Muscat', dam: 'Night Pearl', medicalHistory: "Mild bronchitis in 2024, resolved.",
     biography: "Young horse registered at the center by its owner.", imageUrl: 'https://images.unsplash.com/photo-1598974357801-cbca100e65d3?w=700&h=500&fit=crop&auto=format',
     identityVerified: true, identityEvidence: { url: '', note: "Microchip card checked at the stable." },
-    achievements: [], raceHistory: [],
   },
   {
     id: 'HRS-000005', name: 'Golden Dawn', breed: 'Quarter Horse', age: 6, color: 'Palomino',
@@ -749,11 +542,10 @@ export const HORSES: Horse[] = [
     clubId: null, ownerId: 'u7', ownerName: 'Pham Thi Lan',
     headTrainerId: '', headTrainerName: '', groomId: '', groomName: '', vetId: 'u4', vetName: 'Dr. Le Thi An', vetAssign: { status: 'accepted', history: [{ time: '23/09/2026', from: null, to: 'Dr. Le Thi An', by: 'Nguyen Van Binh', reason: "Assign initial examination" }, { time: '23/09/2026', from: 'Dr. Le Thi An', to: 'Dr. Le Thi An', by: 'Dr. Le Thi An', reason: "Accepted: examination slot available" }] },
     healthStatus: 'Pending Vet', trainingStatus: 'Pending Approval', approvalStatus: 'pending', lifecycle: 'pending',
-    registrationDate: '25/09/2026', approvedAt: null, totalRaces: 0, wins: 0, vetClearance: false,
+    registrationDate: '25/09/2026', approvedAt: null, vetClearance: false,
     sire: 'Dash for Cash', dam: 'Honey Bee', medicalHistory: "None.",
     biography: "Young horse registered at the center by its owner.", imageUrl: 'https://images.unsplash.com/photo-1553284965-83fd3e82fa5a?w=700&h=500&fit=crop&auto=format',
     identityVerified: true, identityEvidence: { url: '', note: "Microchip card checked at the stable." },
-    achievements: [], raceHistory: [],
   },
   {
     id: 'HRS-000006', name: 'Red Comet', breed: 'Thoroughbred', age: 5, color: 'Chestnut',
@@ -761,11 +553,10 @@ export const HORSES: Horse[] = [
     clubId: null, ownerId: 'u7', ownerName: 'Pham Thi Lan',
     headTrainerId: '', headTrainerName: '', groomId: '', groomName: '', vetId: 'u4', vetName: 'Dr. Le Thi An', vetAssign: { status: 'accepted', history: [{ time: '23/09/2026', from: null, to: 'Dr. Le Thi An', by: 'Nguyen Van Binh', reason: "Assign initial examination" }, { time: '23/09/2026', from: 'Dr. Le Thi An', to: 'Dr. Le Thi An', by: 'Dr. Le Thi An', reason: "Accepted: examination slot available" }] },
     healthStatus: 'Pending Vet', trainingStatus: 'Pending Approval', approvalStatus: 'pending', lifecycle: 'pending',
-    registrationDate: '26/09/2026', approvedAt: null, totalRaces: 0, wins: 0, vetClearance: false,
+    registrationDate: '26/09/2026', approvedAt: null, vetClearance: false,
     intakeExamId: 'MED-000004', sire: 'Fastnet Rock', dam: 'Red Ember', medicalHistory: "No significant medical history.",
     biography: "Young horse registered at the center by its owner.", imageUrl: 'https://images.unsplash.com/photo-1566288623394-377af472d81b?w=700&h=500&fit=crop&auto=format',
     identityVerified: true, identityEvidence: { url: '', note: "Microchip card checked at the stable." },
-    achievements: [], raceHistory: [],
   },
 ];
 

@@ -122,7 +122,6 @@ export function HorseListPage({
                 "Health",
                 "Training",
                 "Status",
-                "T/R",
                 "",
               ].map((h) => (
                 <th
@@ -182,9 +181,6 @@ export function HorseListPage({
                 <td className="px-5 py-3">
                   <LifecycleBadge horse={h} />
                 </td>
-                <td className="px-5 py-3 font-mono text-xs">
-                  {h.wins}/{h.totalRaces}
-                </td>
                 <td className="px-5 py-3">
                   <span className="text-[#c9973b] text-xs font-medium">
                     View →
@@ -195,7 +191,7 @@ export function HorseListPage({
             {list.length === 0 && (
               <tr>
                 <td
-                  colSpan={9}
+                  colSpan={8}
                   className="px-5 py-12 text-center text-gray-400"
                 >
                   <div className="text-3xl mb-2">🐎</div>No horses match the

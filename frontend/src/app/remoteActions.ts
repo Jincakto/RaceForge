@@ -2,7 +2,7 @@ import { PaymentNotice, paymentNotice } from '../features/packages/paymentState'
 import { updateTrainingPackage, toggleTrainingPackage } from '../features/packages/api/packagesApi';
 import { getPackageRegistration, getPackageTrainingContext, changePackageLifecycle, registerHorsePackage, createPackagePaymentLink, syncPackagePayment, listHorsePackages, createTrainingPackage, acceptTrainingResumption } from "../features/packages/api/packagesApi";
 import { getHorseHealthProfile, saveMedicalDraft, uploadClinicalEvidence, confirmMedicalRecord, getMedicalRecord, assignVeterinarian, respondToVetAssignment, releaseTrainingLock } from "../features/medical/api/medicalApi";
-import { createHorse, createRaceHistory, submitAdmission, updateHorse, deleteRaceHistory, updateRaceHistory, activateHorse, approveAdmission, rejectAdmission, screenAdmission, uploadHorseEvidence, type ScreeningDecision } from "../features/horses/api/horsesApi";
+import { createHorse, submitAdmission, updateHorse, activateHorse, approveAdmission, rejectAdmission, screenAdmission, uploadHorseEvidence, type ScreeningDecision } from "../features/horses/api/horsesApi";
 import { createStaffAccount, updateAccountStatus, resendStaffInvitation } from "../features/admin/api/adminApi";
 import { assignTrainer, respondToTrainerAssignment } from "../features/trainers/api/trainersApi";
 import { createTrainingPlan, listTrainingPlanStages, listHorseTrainingSessions, createTrainingSession, adjustTrainingSession, generateTrainingSessions, startTrainingSession, saveSessionAttendance, stopTrainingSession, completeTrainingSession, requestSessionVetCheck } from "../features/training/api/trainingApi";
@@ -25,7 +25,7 @@ class DuplicateRequestInProgress extends Error {}
 const locks = new Set<string>();
 const packageLifecycleResults = new Map<string, PackageLifecycleOutcome>();
 const uncertainPackageOperations = new Set<string>();
-const createdRegistrations = new Map<string, { id: string; raceKeys: Set<string> }>();
+const createdRegistrations = new Map<string, { id: string }>();
 export function makeRemoteActions(env: Env) {
   const { getState, reload, success, error, info, warning, navigate } = env;
   const unavailable = (label: string): never => { throw new Error(`The API is not yet available for ${label}. Changes have not been saved.`); };
@@ -181,14 +181,10 @@ export function makeRemoteActions(env: Env) {
         let progress = createdRegistrations.get(key);
         if (!progress) {
           const created = await createHorse(horseCreateForm(horse));
-          progress = { id: created.horseId, raceKeys: new Set() }; createdRegistrations.set(key, progress);
+          progress = { id: created.horseId }; createdRegistrations.set(key, progress);
         }
         horse.id = progress.id;
         try {
-          for (const r of horse.raceHistory) {
-            const payload = racePayload(r); const raceKey = JSON.stringify(payload);
-            if (!progress.raceKeys.has(raceKey)) { await createRaceHistory(horse.id, payload); progress.raceKeys.add(raceKey); }
-          }
           await submitAdmission(horse.id);
           createdRegistrations.delete(key);
         } catch (e) { await reload(); throw e; }
@@ -199,19 +195,11 @@ export function makeRemoteActions(env: Env) {
       return fire(`horse-${next.id}`, async () => {
         const prev = getState().horses.find(h => h.id === next.id); if (!prev) throw new Error("Horse not found.");
         if (next.stable !== prev.stable || next.stall !== prev.stall || next.identityEvidence?.note !== prev.identityEvidence?.note) unavailable("saving stables, stalls or evidence notes");
-        if (JSON.stringify(next.photos) !== JSON.stringify(prev.photos)) unavailable("saving image galleries");
         if (JSON.stringify(next.editRequests) !== JSON.stringify(prev.editRequests)) unavailable("requesting changes to an approved profile");
-        if (JSON.stringify(next.achievements) !== JSON.stringify(prev.achievements)) unavailable("standalone achievements; enter race results in the race history tab to save prizes");
         if (JSON.stringify(next.trainerHistory) !== JSON.stringify(prev.trainerHistory)) {
           throw new Error("Assign trainers through a paid horse package on the Trainer assignments page.");
         }
         if (JSON.stringify(horsePayload(next)) !== JSON.stringify(horsePayload(prev))) await updateHorse(next.id, horsePayload(next));
-        for (const old of prev.raceHistory) if (!next.raceHistory.some(r => r.id === old.id)) await deleteRaceHistory(old.id);
-        for (const r of next.raceHistory) {
-          const old = prev.raceHistory.find(x => x.id === r.id);
-          if (!old) await createRaceHistory(next.id, racePayload(r));
-          else if (JSON.stringify(old) !== JSON.stringify(r)) await updateRaceHistory(r.id, racePayload(r));
-        }
       });
     },
     activateHorse: (id: string) => fire(`activate-${id}`, async () => {
@@ -429,12 +417,4 @@ export function makeRemoteActions(env: Env) {
       }
     },
   };
-}
-function racePayload(r: Horse['raceHistory'][number]) {
-  const distance = Number(r.distance.replace(/[^\d.]/g, ''));
-  if (!Number.isFinite(distance) || distance <= 0) throw new Error("Race distance must be greater than 0.");
-  const prize = r.prize.trim() ? Number(r.prize.replace(/[^\d.]/g, '')) : 0;
-  if (!Number.isFinite(prize)) throw new Error("Prize money must be a valid amount.");
-  const [d, m, y] = r.date.split('/');
-  return { raceName: r.raceName, raceDate: `${y}-${m}-${d}`, distance, finishPosition: r.position, completionTime: r.time, racecourse: r.venue, jockeyName: r.jockey, prize };
 }

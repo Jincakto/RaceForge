@@ -1,7 +1,6 @@
-import { type AppUser, type Horse, type RaceHistoryEntry } from "../../../shared/data/data";
+import { type AppUser, type Horse } from "../../../shared/data/data";
 import { type AppState, type Page } from "../../../app/appTypes";
 import { useState, useEffect } from "react";
-import { type RaceImportRow, parseRaceRows, readRows } from "../raceImport";
 import { toISO, toDDMMYYYY, numOf } from "./HorseCarePages";
 import { TODAY } from "../../../shared/data/today";
 import { Btn, Card, Input, Select } from "../../../shared/ui/ui";
@@ -65,99 +64,12 @@ export function HorseCreatePage({
     setImagePreview(url);
     return () => URL.revokeObjectURL(url);
   }, [imageFile]);
-  const [raceHistory, setRaceHistory] = useState<RaceHistoryEntry[]>([]);
-  const [showRaceForm, setShowRaceForm] = useState(false);
-  const [imp, setImp] = useState<RaceImportRow[] | null>(null);
-  const [impErr, setImpErr] = useState("");
-  const onPickFile = async (f?: File) => {
-    if (!f) return;
-    setImpErr("");
-    setImp(null);
-    try {
-      setImp(
-        parseRaceRows(await readRows(f), {
-          birthIso: form.birthDate || undefined,
-          todayIso: toISO(TODAY),
-        }),
-      );
-    } catch (err) {
-      setImpErr((err as Error).message);
-    }
-  };
-  const confirmImport = () => {
-    const items = (imp || []).flatMap((r) => (r.entry ? [r.entry] : []));
-    setRaceHistory((h) => [...items, ...h]);
-    setImp(null);
-  };
-  const [newRace, setNewRace] = useState({
-    date: "",
-    raceName: "",
-    distance: "1200m",
-    position: "1",
-    totalHorses: "10",
-    time: "",
-    venue: "",
-    jockey: "",
-    prize: "",
-  });
-  const [raceErr, setRaceErr] = useState<Record<string, string>>({});
-  const [editRid, setEditRid] = useState<string | null>(null);
-  const openRace = (r: RaceHistoryEntry) => {
-    const [d, m, y] = r.date.split("/");
-    setNewRace({
-      date: y ? `${y}-${m}-${d}` : "",
-      raceName: r.raceName,
-      distance: r.distance,
-      position: String(r.position),
-      totalHorses: String(r.totalHorses || 10),
-      time: r.time,
-      venue: r.venue,
-      jockey: r.jockey,
-      prize: r.prize,
-    });
-    setRaceErr({});
-    setEditRid(r.id);
-    setShowRaceForm(true);
-  };
   const [errors, setErrors] = useState<Record<string, string>>({});
   const todayIso = toISO(TODAY);
   const previewId = "Server-assigned ID";
   const set = (k: string) => (v: string) => {
     setForm((f) => ({ ...f, [k]: v }));
     setErrors((e) => ({ ...e, [k]: "" }));
-  };
-
-  const addRace = () => {
-    const e: Record<string, string> = {};
-    if (!newRace.raceName.trim()) e.raceName = "Enter a race name.";
-    if (!newRace.date) e.date = "Select a race date.";
-    else if (newRace.date > todayIso)
-      e.date = "Race date cannot be in the future.";
-    setRaceErr(e);
-    if (Object.keys(e).length) return;
-    const item: RaceHistoryEntry = {
-      id: editRid || `rh${Date.now()}`,
-      ...newRace,
-      date: toDDMMYYYY(newRace.date),
-      position: Number(newRace.position),
-      totalHorses: Number(newRace.totalHorses),
-    };
-    setRaceHistory((r) =>
-      editRid ? r.map((x) => (x.id === editRid ? item : x)) : [...r, item],
-    );
-    setEditRid(null);
-    setNewRace({
-      date: "",
-      raceName: "",
-      distance: "1200m",
-      position: "1",
-      totalHorses: "10",
-      time: "",
-      venue: "",
-      jockey: "",
-      prize: "",
-    });
-    setShowRaceForm(false);
   };
 
   const handle = async () => {
@@ -233,13 +145,9 @@ export function HorseCreatePage({
         approvalStatus: "pending",
         registrationDate: TODAY,
         approvedAt: null,
-        totalRaces: raceHistory.length,
-        wins: raceHistory.filter((r) => r.position === 1).length,
         vetClearance: false,
         biography: "",
         imageUrl: "",
-        achievements: [],
-        raceHistory,
         lifecycle: "pending",
         identityVerified: false,
         identityEvidence: {
@@ -426,201 +334,6 @@ export function HorseCreatePage({
         )}
       </Card>
 
-      {/* Race History */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="font-semibold text-[#0f1729]">
-              Race history (submitted with registration)
-            </h3>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Optional — provide details to support the center's assessment
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <label className="cursor-pointer">
-              <input
-                type="file"
-                accept=".xlsx,.csv"
-                className="hidden"
-                onChange={(e) => {
-                  void onPickFile(e.target.files?.[0]);
-                  e.target.value = "";
-                }}
-              />
-              <span className="inline-block px-3 py-2 rounded-lg border border-gray-300 text-sm bg-white hover:bg-gray-50">
-                Import Excel
-              </span>
-            </label>
-            <Btn
-              variant="secondary"
-              onClick={() => {
-                setEditRid(null);
-                setShowRaceForm(!showRaceForm);
-              }}
-            >
-              + Add result
-            </Btn>
-          </div>
-        </div>
-        {(imp || impErr) && (
-          <div className="bg-gray-50 rounded-xl p-4 mb-4 text-sm">
-            {impErr && <div className="text-red-600 mb-2">{impErr}</div>}
-            {imp && (
-              <>
-                <div className="mb-2">
-                  {imp.filter((r) => r.entry).length} valid ·{" "}
-                  {imp.filter((r) => !r.entry).length} with errors (skipped)
-                </div>
-                {imp.map((r) => (
-                  <div key={r.line} className={r.entry ? "" : "text-red-600"}>
-                    Row {r.line}:{" "}
-                    {r.entry
-                      ? `${r.entry.raceName} · ${r.entry.date}`
-                      : r.errors.join(" ")}
-                  </div>
-                ))}
-                <div className="flex gap-2 mt-3">
-                  <Btn
-                    variant="gold"
-                    onClick={confirmImport}
-                    disabled={!imp.some((r) => r.entry)}
-                  >
-                    Import valid rows
-                  </Btn>
-                  <Btn variant="secondary" onClick={() => setImp(null)}>
-                    Cancel
-                  </Btn>
-                </div>
-              </>
-            )}
-          </div>
-        )}
-        {showRaceForm && (
-          <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                label="Race name"
-                value={newRace.raceName}
-                onChange={(v) => setNewRace((r) => ({ ...r, raceName: v }))}
-                placeholder="Example: RaceForce Sprint Cup"
-                required
-                maxLength={60}
-                error={raceErr.raceName}
-              />
-              <Input
-                label="Race date"
-                value={newRace.date}
-                onChange={(v) => setNewRace((r) => ({ ...r, date: v }))}
-                type="date"
-                max={todayIso}
-                required
-                error={raceErr.date}
-              />
-              <Select
-                label="Distance"
-                value={newRace.distance}
-                onChange={(v) => setNewRace((r) => ({ ...r, distance: v }))}
-                options={[
-                  "800m",
-                  "1000m",
-                  "1200m",
-                  "1400m",
-                  "1600m",
-                  "2000m",
-                ]
-                  .concat(
-                    ["800m","1000m","1200m","1400m","1600m","2000m"].includes(newRace.distance)
-                      ? []
-                      : [newRace.distance],
-                  )
-                  .map((v) => ({ value: v, label: v }))}
-              />
-              <Select
-                label="Position"
-                value={newRace.position}
-                onChange={(v) => setNewRace((r) => ({ ...r, position: v }))}
-                options={Array.from({ length: 12 }, (_, i) => ({
-                  value: String(i + 1),
-                  label: `Position ${i + 1}`,
-                }))}
-              />
-              <Input
-                label="Time"
-                value={newRace.time}
-                onChange={(v) => setNewRace((r) => ({ ...r, time: v }))}
-                placeholder="VD: 1:11.24"
-              />
-              <Input
-                label="Racecourse"
-                value={newRace.venue}
-                onChange={(v) => setNewRace((r) => ({ ...r, venue: v }))}
-                placeholder="e.g. Riverside Racecourse"
-              />
-              <Input
-                label="Jockey"
-                value={newRace.jockey}
-                onChange={(v) => setNewRace((r) => ({ ...r, jockey: v }))}
-                placeholder="Jockey name"
-              />
-              <Input
-                label="Prize"
-                value={newRace.prize}
-                onChange={(v) => setNewRace((r) => ({ ...r, prize: v }))}
-                placeholder="VD: 50,000,000 VND"
-              />
-            </div>
-            <div className="flex gap-2">
-              <Btn variant="gold" onClick={addRace}>
-                {editRid ? "✓ Save" : "✓ Add"}
-              </Btn>
-              <Btn
-                variant="secondary"
-                onClick={() => {
-                  setShowRaceForm(false);
-                  setEditRid(null);
-                }}
-              >
-                Cancel
-              </Btn>
-            </div>
-          </div>
-        )}
-        {raceHistory.length > 0 ? (
-          raceHistory.map((r) => (
-            <div
-              key={r.id}
-              onClick={() => openRace(r)}
-              className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-100 mb-2 cursor-pointer hover:bg-gray-100"
-            >
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${r.position === 1 ? "bg-[#c9973b] text-white" : "bg-gray-400 text-white"}`}
-              >
-                #{r.position}
-              </div>
-              <div className="flex-1">
-                <div className="text-sm font-medium">{r.raceName}</div>
-                <div className="text-xs text-gray-500">
-                  {r.date} · {r.distance} · {r.time}
-                </div>
-              </div>
-              <button
-                onClick={(ev) => {
-                  ev.stopPropagation();
-                  setRaceHistory((h) => h.filter((x) => x.id !== r.id));
-                }}
-                className="text-red-400 hover:text-red-600 text-xs"
-              >
-                ✕ Delete
-              </button>
-            </div>
-          ))
-        ) : (
-          <div className="text-center py-4 text-gray-400 text-sm">
-            No race history yet — click "+ Add result" to include results
-          </div>
-        )}
-      </Card>
     </div>
   );
 }

@@ -14,9 +14,6 @@ Danh sách lấy từ OpenAPI của backend đang chạy. Đây là bản đồ 
 | GET | `/api/horses/{horseId}` | Danh sách ngựa, tạo/sửa/chi tiết, kích hoạt/ngừng hoạt động |
 | PUT | `/api/horses/{horseId}` | Danh sách ngựa, tạo/sửa/chi tiết, kích hoạt/ngừng hoạt động |
 | PUT | `/api/horses/{horseId}/trainer` | Chọn trainer / chi tiết trainer / phân công trong hồ sơ ngựa |
-| GET | `/api/horses/race-history/{raceHistoryId}` | Lịch sử đua |
-| PUT | `/api/horses/race-history/{raceHistoryId}` | Lịch sử đua |
-| DELETE | `/api/horses/race-history/{raceHistoryId}` | Lịch sử đua |
 | GET | `/api/users/me/registration-request` | Hồ sơ, tài khoản cơ bản/onboarding, Người dùng & nhân viên |
 | POST | `/api/users/me/registration-request` | Onboarding / yêu cầu vai trò trong LiveMembership |
 | POST | `/api/training-sessions` | Lịch tập & kết quả: buổi đơn, bắt đầu, hoàn tất |
@@ -31,8 +28,6 @@ Danh sách lấy từ OpenAPI của backend đang chạy. Đây là bản đồ 
 | GET | `/api/horses` | Danh sách ngựa, tạo/sửa/chi tiết, kích hoạt/ngừng hoạt động |
 | POST | `/api/horses` | Danh sách ngựa, tạo/sửa/chi tiết, kích hoạt/ngừng hoạt động |
 | POST | `/api/horses/{horseId}/training-plans` | Lịch tập & kết quả: tạo kế hoạch |
-| GET | `/api/horses/{horseId}/race-history` | Lịch sử đua |
-| POST | `/api/horses/{horseId}/race-history` | Lịch sử đua |
 | POST | `/api/horses/{horseId}/admission` | Hồ sơ ngựa, duyệt ngựa, Medical & Training |
 | POST | `/api/horses/{horseId}/admission/reject` | Hồ sơ ngựa, duyệt ngựa, Medical & Training |
 | POST | `/api/horses/{horseId}/admission/approve` | Hồ sơ ngựa, duyệt ngựa, Medical & Training |

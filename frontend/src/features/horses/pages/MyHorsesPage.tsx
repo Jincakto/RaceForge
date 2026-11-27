@@ -82,9 +82,6 @@ export function MyHorsesPage({
                   <span>
                     {h.breed} · {h.age}t
                   </span>
-                  <span>
-                    {h.wins}T/{h.totalRaces}R
-                  </span>
                 </div>
               </Card>
             ))}

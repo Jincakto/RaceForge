@@ -16,7 +16,7 @@ import java.util.Set;
 @Service
 public class ModuleIdAllocator {
     private static final Set<String> ALLOWED = Set.of(
-            "ASN", "RAC", "HTR", "HLT", "MED", "VIT", "CLN", "LCK", "PKG", "HPG");
+            "ASN", "HTR", "HLT", "MED", "VIT", "CLN", "LCK", "PKG", "HPG");
     private final JdbcTemplate jdbc;
 
     public ModuleIdAllocator(JdbcTemplate jdbc) { this.jdbc = jdbc; }

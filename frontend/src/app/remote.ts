@@ -4,7 +4,7 @@ import { listSystemAuditLogs, systemAuditToEntry } from "../features/admin/api/a
 import type { AuditEntry } from "../features/admin/admin";
 import { listNotifications } from "../features/notifications/api/notificationsApi";
 import { listTrainerProfiles, listMyTrainerAssignments, getOwnTrainerProfile, listTrainerSessions, listPackageTrainerAssignments } from "../features/trainers/api/trainersApi";
-import { listHorses, listHorseRaceHistory } from "../features/horses/api/horsesApi";
+import { listHorses } from "../features/horses/api/horsesApi";
 import { listTrainingPackages, getPackageTrainingContext, listHorsePackages } from "../features/packages/api/packagesApi";
 import { listMyVetAssignments, listHorseVetAssignments, listHorseMedicalRecords } from "../features/medical/api/medicalApi";
 import { listHorseTrainingSessions, listHorseTrainingPlans } from "../features/training/api/trainingApi";
@@ -53,8 +53,8 @@ export function horseFromApi(w: Wire, users: AppUser[]): Horse {
     vetId: '', vetName: '', groomId: '', groomName: '',
     healthStatus: HEALTH[w.healthStatus] || 'Pending Vet', trainingStatus: w.status === 'ACTIVE' ? 'Active' : 'Inactive',
     approvalStatus: approved ? 'approved' : w.admissionStatus === 'REJECTED' ? 'rejected' : 'pending',
-    registrationDate: '', approvedAt: null, totalRaces: 0, wins: 0, imageUrl: w.imageUrl || '', vetClearance: approved && ['READY', 'FIT', 'FIT_WITH_MONITORING'].includes(w.healthStatus),
-    biography: '', achievements: [], raceHistory: [], sire: w.sire || '', dam: w.dam || '', medicalHistory: w.declaredMedicalHistory || '',
+    registrationDate: '', approvedAt: null, imageUrl: w.imageUrl || '', vetClearance: approved && ['READY', 'FIT', 'FIT_WITH_MONITORING'].includes(w.healthStatus),
+    biography: '', sire: w.sire || '', dam: w.dam || '', medicalHistory: w.declaredMedicalHistory || '',
     microchip: w.registrationNumber || '', documentType: w.documentType || 'UELN',
     identityEvidence: { url: w.imageUrl || '', fileUrl: w.documentUrl || '', note: '' }, identityVerified: approved,
     lifecycle: w.trainingLocked ? 'locked' : !approved ? 'pending' : trainers.length ? 'training' : 'ready',
@@ -280,10 +280,6 @@ export async function loadRemote(user: AppUser, report: (message: string) => voi
       horse.weight = Number(latest?.vitals?.weight || 0);
       if (latest?.decision === 'conditional') horse.healthStatus = 'Monitor';
     }
-    const raceRows = await read(`Achievements ${horse.id}`, () => listHorseRaceHistory(horse.id), []);
-    horse.raceHistory = raceRows.map(w => ({ id: w.raceHistoryId, date: dateText(w.raceDate), raceName: w.raceName, distance: String(w.distance), position: w.finishPosition, totalHorses: 0, time: w.completionTime || '', venue: w.racecourse || '', jockey: w.jockeyName || '', prize: String(w.prize ?? '') }));
-    horse.totalRaces = horse.raceHistory.length; horse.wins = horse.raceHistory.filter(r => r.position === 1).length;
-    horse.achievements = horse.raceHistory.filter(r => r.position <= 3).map(r => ({ id: r.id, date: r.date, title: r.raceName, description: r.venue, prize: r.prize, position: r.position }));
     if (horse.admissionStatus !== 'NOT_SUBMITTED' || horse.screeningStatus === 'NEEDS_CORRECTION') data.horseClubRequests.push({ id: horse.id, horseId: horse.id, horseName: horse.name, horseBreed: horse.breed, horseImageUrl: horse.imageUrl, ownerId: horse.ownerId, ownerName: horse.ownerName, clubId: CENTER, submittedAt: '', expiresAt: '', status: horse.approvalStatus, reviewNote: horse.approvalStatus === 'rejected' ? horse.admissionNote || horse.screeningReason || '' : horse.screeningReason || '' });
     if (['manager', 'owner'].includes(user.role || '')) {
       const packs = await read(`Package ${horse.id}`, () => listHorsePackages(horse.id, user.role === 'manager'), []);

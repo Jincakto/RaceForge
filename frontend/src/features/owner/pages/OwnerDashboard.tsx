@@ -14,8 +14,10 @@ export function OwnerDashboard({
   const myHorses = state.horses.filter(
     (h) => h.ownerId === state.user!.id && h.clubId === state.user!.clubId,
   );
-  const totalWins = myHorses.reduce((s, h) => s + h.wins, 0);
-  const totalRaces = myHorses.reduce((s, h) => s + h.totalRaces, 0);
+  const myHorseIds = new Set(myHorses.map(h => h.id));
+  const myEnrollments = state.enrollments.filter(e => myHorseIds.has(e.horseId));
+  const activePackages = myEnrollments.filter(e => e.apiStatus === "ACTIVE" && e.paymentStatus === "PAID");
+  const completedPackages = myEnrollments.filter(e => e.apiStatus === "COMPLETED" && e.paymentStatus === "PAID");
   return (
     <div className="space-y-6">
       <div>
@@ -75,18 +77,13 @@ export function OwnerDashboard({
           color="navy"
         />
         <StatCard
-          label="Wins"
-          value={totalWins}
-          sub={`/${totalRaces} races`}
+          label="Active training packages"
+          value={activePackages.length}
           color="gold"
         />
         <StatCard
-          label="Win rate"
-          value={
-            totalRaces > 0
-              ? `${Math.round((totalWins / totalRaces) * 100)}%`
-              : "—"
-          }
+          label="Completed packages"
+          value={completedPackages.length}
           color="green"
         />
         <StatCard
@@ -95,7 +92,7 @@ export function OwnerDashboard({
           color="navy"
         />
       </div>
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <Card className="p-5">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold">My horses</h3>
@@ -125,44 +122,13 @@ export function OwnerDashboard({
                 <div className="flex-1">
                   <div className="font-medium text-sm">{h.name}</div>
                   <div className="text-xs text-gray-500">
-                    {h.wins}T / {h.totalRaces}R
+                    {h.breed}
                   </div>
                 </div>
                 <LifecycleBadge horse={h} />
               </div>
             ))
           )}
-        </Card>
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">Recent race results</h3>
-          </div>
-          {myHorses
-            .flatMap((h) => h.raceHistory.slice(0, 2))
-            .slice(0, 4)
-            .map((r) => (
-              <div
-                key={r.id}
-                className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 mb-2"
-              >
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${r.position === 1 ? "bg-[#c9973b] text-white" : r.position <= 3 ? "bg-gray-400 text-white" : "bg-gray-200 text-gray-600"}`}
-                >
-                  #{r.position}
-                </div>
-                <div className="flex-1">
-                  <div className="font-medium text-sm">{r.raceName}</div>
-                  <div className="text-xs text-gray-500">
-                    {r.date} · {r.distance}
-                  </div>
-                </div>
-                {r.prize !== "0 VND" && (
-                  <div className="text-xs font-medium text-emerald-600">
-                    {r.prize}
-                  </div>
-                )}
-              </div>
-            ))}
         </Card>
       </div>
     </div>

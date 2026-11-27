@@ -307,42 +307,6 @@ CREATE TABLE [dbo].[Horse_Plan](
 
 GO
 
-/****** Object:  Table [dbo].[HORSE_RACE_HISTORY]    Script Date: 10/26/2026 4:17:09 PM ******/
-SET ANSI_NULLS ON
-
-
-
-GO
-
-SET QUOTED_IDENTIFIER ON
-
-
-
-GO
-
-CREATE TABLE [dbo].[HORSE_RACE_HISTORY](
-	[race_history_id] [varchar](20) NOT NULL,
-	[horse_id] [varchar](20) NOT NULL,
-	[race_name] [nvarchar](150) NOT NULL,
-	[race_date] [date] NULL,
-	[distance] [int] NULL,
-	[finish_position] [int] NULL,
-	[completion_time] [varchar](20) NULL,
-	[racecourse] [nvarchar](150) NULL,
-	[jockey_name] [nvarchar](100) NULL,
-	[prize] [decimal](15, 2) NULL,
-	[created_at] [datetime] NOT NULL,
-	[updated_at] [datetime] NOT NULL,
- CONSTRAINT [PK_HORSE_RACE_HISTORY] PRIMARY KEY CLUSTERED
-(
-	[race_history_id] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
-) ON [PRIMARY]
-
-
-
-GO
-
 /****** Object:  Table [dbo].[Horse_Trainer]    Script Date: 10/26/2026 4:17:09 PM ******/
 SET ANSI_NULLS ON
 
@@ -1280,18 +1244,6 @@ ALTER TABLE [dbo].[HORSE_PACKAGE] ADD  CONSTRAINT [DF__HORSE_PAC__payme__793DFFA
 
 GO
 
-ALTER TABLE [dbo].[HORSE_RACE_HISTORY] ADD  DEFAULT (getdate()) FOR [created_at]
-
-
-
-GO
-
-ALTER TABLE [dbo].[HORSE_RACE_HISTORY] ADD  DEFAULT (getdate()) FOR [updated_at]
-
-
-
-GO
-
 ALTER TABLE [dbo].[Medical_Record] ADD  DEFAULT (sysdatetime()) FOR [examined_at]
 
 
@@ -1673,19 +1625,6 @@ REFERENCES [dbo].[Training_Plan] ([plan_id], [horse_id])
 GO
 
 ALTER TABLE [dbo].[Horse_Plan] CHECK CONSTRAINT [FK_HorsePlan_PlanHorse]
-
-
-
-GO
-
-ALTER TABLE [dbo].[HORSE_RACE_HISTORY]  WITH CHECK ADD  CONSTRAINT [FK_RaceHistory_Horse] FOREIGN KEY([horse_id])
-REFERENCES [dbo].[Horse] ([horse_id])
-
-
-
-GO
-
-ALTER TABLE [dbo].[HORSE_RACE_HISTORY] CHECK CONSTRAINT [FK_RaceHistory_Horse]
 
 
 
@@ -2300,54 +2239,6 @@ ALTER TABLE [dbo].[HORSE_PACKAGE]  WITH CHECK ADD  CONSTRAINT [CK_HORSE_PACKAGE_
 GO
 
 ALTER TABLE [dbo].[HORSE_PACKAGE] CHECK CONSTRAINT [CK_HORSE_PACKAGE_STATUS]
-
-
-
-GO
-
-ALTER TABLE [dbo].[HORSE_RACE_HISTORY]  WITH CHECK ADD  CONSTRAINT [CK_Code_HORSE_RACE_HISTORY] CHECK  ((datalength([race_history_id])=(7) AND ([race_history_id]) collate Latin1_General_100_BIN2 like 'RAC-[0-9][0-9][0-9]' AND [race_history_id]<>'RAC-000'))
-
-
-
-GO
-
-ALTER TABLE [dbo].[HORSE_RACE_HISTORY] CHECK CONSTRAINT [CK_Code_HORSE_RACE_HISTORY]
-
-
-
-GO
-
-ALTER TABLE [dbo].[HORSE_RACE_HISTORY]  WITH CHECK ADD  CONSTRAINT [CK_RaceHistory_Distance] CHECK  (([distance] IS NULL OR [distance]>(0)))
-
-
-
-GO
-
-ALTER TABLE [dbo].[HORSE_RACE_HISTORY] CHECK CONSTRAINT [CK_RaceHistory_Distance]
-
-
-
-GO
-
-ALTER TABLE [dbo].[HORSE_RACE_HISTORY]  WITH CHECK ADD  CONSTRAINT [CK_RaceHistory_Position] CHECK  (([finish_position] IS NULL OR [finish_position]>(0)))
-
-
-
-GO
-
-ALTER TABLE [dbo].[HORSE_RACE_HISTORY] CHECK CONSTRAINT [CK_RaceHistory_Position]
-
-
-
-GO
-
-ALTER TABLE [dbo].[HORSE_RACE_HISTORY]  WITH CHECK ADD  CONSTRAINT [CK_RaceHistory_Prize] CHECK  (([prize] IS NULL OR [prize]>=(0)))
-
-
-
-GO
-
-ALTER TABLE [dbo].[HORSE_RACE_HISTORY] CHECK CONSTRAINT [CK_RaceHistory_Prize]
 
 
 

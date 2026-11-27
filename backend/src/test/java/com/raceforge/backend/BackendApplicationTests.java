@@ -15,7 +15,6 @@ import com.raceforge.backend.account.repository.RoleRepository;
 import com.raceforge.backend.account.repository.UserRepository;
 import com.raceforge.backend.audit.repository.AuditLogRepository;
 import com.raceforge.backend.horse.repository.HorseRepository;
-import com.raceforge.backend.horse.repository.HorseRaceHistoryRepository;
 import com.raceforge.backend.medical.repository.HealthProfileRepository;
 import com.raceforge.backend.medical.repository.MedicalClinicalExamRepository;
 import com.raceforge.backend.medical.repository.MedicalRecordRepository;
@@ -72,8 +71,6 @@ class BackendApplicationTests {
 	private AuditLogRepository auditLogRepository;
 	@MockitoBean
 	private HorseRepository horseRepository;
-	@MockitoBean
-	private HorseRaceHistoryRepository horseRaceHistoryRepository;
 	@MockitoBean
 	private HealthProfileRepository healthProfileRepository;
 	@MockitoBean

@@ -214,7 +214,7 @@ export function HomePage({ navigate }: { navigate: (p: Page) => void }) {
             management
           </h1>
           <p className="text-gray-400 text-lg leading-relaxed mb-8">
-            Health, AI training plans, daily care and race results — all in one
+            Health, training plans and daily care — all in one
             system.
           </p>
           <div className="flex items-center gap-4">

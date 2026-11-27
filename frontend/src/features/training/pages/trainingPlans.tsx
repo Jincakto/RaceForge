@@ -23,7 +23,7 @@ import { packageRoadmapFor, recommendationView } from '../recommendations';
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
-  computeTrainingSuggestion, isHeavySession,
+  isHeavySession,
   type Horse, type HealthRecord, type TrainingPlan, type TrainingSession, type Res, type TrainingSuggestion, type Enrollment,
 } from '../../../shared/data/data';
 import { Badge, Btn, Card, Input, Select, Textarea } from '../../../shared/ui/ui';

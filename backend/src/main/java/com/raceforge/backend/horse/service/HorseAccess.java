@@ -1,6 +1,5 @@
 package com.raceforge.backend.horse.service;
 
-import com.raceforge.backend.horse.repository.HorseRaceHistoryRepository;
 import com.raceforge.backend.horse.repository.HorseRepository;
 import com.raceforge.backend.horse.repository.TrainerRepository;
 import com.raceforge.backend.horse.repository.HorseAssignmentRepository;
@@ -14,17 +13,14 @@ import java.util.Set;
 public class HorseAccess {
 
     private final HorseRepository horses;
-    private final HorseRaceHistoryRepository histories;
     private final TrainerRepository trainers;
     private final HorseAssignmentRepository medicalAssignments;
 
     public HorseAccess(
             HorseRepository horses,
-            HorseRaceHistoryRepository histories,
             TrainerRepository trainers,
             HorseAssignmentRepository medicalAssignments) {
         this.horses = horses;
-        this.histories = histories;
         this.trainers = trainers;
         this.medicalAssignments = medicalAssignments;
     }
@@ -61,18 +57,6 @@ public class HorseAccess {
         }
         return Set.of("CLUB_MANAGER", "GROOM").contains(user.roleName())
                 && horses.existsById(horseId);
-    }
-
-    public boolean ownsRaceHistory(Authentication authentication, String raceHistoryId) {
-        return histories.findById(raceHistoryId)
-                .map(history -> owns(authentication, history.getHorse().getHorseId()))
-                .orElse(false);
-    }
-
-    public boolean readRaceHistory(Authentication authentication, String raceHistoryId) {
-        return histories.findById(raceHistoryId)
-                .map(history -> read(authentication, history.getHorse().getHorseId()))
-                .orElse(false);
     }
 
     private AuthenticatedUser currentUser(Authentication authentication) {
